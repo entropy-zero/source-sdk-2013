@@ -7,6 +7,8 @@
 
 #include "npc_vortigaunt_episodic.h"
 
+#define TLK_VORT_CHARGE "TLK_VORT_CHARGE"
+
 //=========================================================
 //	>> CNPC_Zombigaunt
 //=========================================================
@@ -17,6 +19,9 @@ class CNPC_Zombigaunt : public CNPC_Vortigaunt
 public:
 	virtual void	Spawn( void );
 	virtual void	Precache( void );
+
+	virtual bool	SelectIdleSpeech( AISpeechSelection_t *pSelection );
+	virtual void	OnStartSchedule( int scheduleType );
 
 protected:
 	// Glowing eyes

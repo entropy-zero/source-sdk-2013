@@ -75,6 +75,11 @@ static const char *VORT_EXTRACT_FINISH = "VORT_EXTRACT_FINISH";
 #define	HEAL_RANGE			(40*12) //ft
 #define	HEAL_SEARCH_RANGE	(40*12) //ft
 
+#ifdef EZ2
+// Unique vort boogie color
+static const Vector g_vecVortBoogieColor( 0.1675, 0.90, 0.1675 );
+#endif
+
 ConVar sk_vortigaunt_armor_charge( "sk_vortigaunt_armor_charge","30");
 #ifndef EZ
 ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_token", "5" );
@@ -3091,7 +3096,7 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 			{
 				if ( pNPC->CanBecomeServerRagdoll() && !pNPC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pNPC->m_iHealth - flDamage <= 0.0f)
 				{
-					pNPC->BecomeRagdollBoogie( this, vecDir, 5.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL );
+					pNPC->BecomeRagdollBoogie( this, vecDir, 5.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
 				}
 				else
 				{

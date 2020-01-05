@@ -180,3 +180,29 @@ bool CNPC_Zombigaunt::MovementCost( int moveType, const Vector &vecStart, const 
 
 	return (multiplier != 1);
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Overrides ai_playerally idle speech, which was heavily dependent on player presence
+//-----------------------------------------------------------------------------
+bool CNPC_Zombigaunt::SelectIdleSpeech( AISpeechSelection_t *pSelection )
+{
+	if ( !IsOkToSpeak( SPEECH_IDLE ) )
+		return false;
+
+	if ( /*ShouldSpeakRandom( TLK_IDLE, 2 ) &&*/ SelectSpeechResponse( TLK_IDLE, NULL, NULL, pSelection ) )
+		return true;
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
+{
+	BaseClass::OnStartSchedule( scheduleType );
+
+	// Make weird motions while charging
+	if (scheduleType == SCHED_CHASE_ENEMY)
+		Speak( TLK_VORT_CHARGE );
+}
