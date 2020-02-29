@@ -140,12 +140,16 @@ public:
 
 #ifdef EZ
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
+	virtual float GetNextDispelTime( void );
 	// Copied from BaseZombie for now
 	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
-#endif
 
+// Because CNPC_Zombigaunt derives from CNPC_Vortigaunt, these formerly private methods need to be protected
+// so that child classes may call them.
+protected:
+#else
 private:
-
+#endif
 	int		NumAntlionsInRadius( float flRadius );
 	void	DispelAntlions( const Vector &vecOrigin, float flRadius, bool bDispel = true );
 	bool	HealGestureHasLOS( void );
@@ -272,10 +276,17 @@ private:
 	COutputEvent	m_OnFinishedExtractingBugbait;
 	COutputEvent	m_OnFinishedChargingTarget;
 	COutputEvent	m_OnPlayerUse;
-	
+
+#ifdef EZ
+// Child classes need these attachments!
+protected:
+#endif
 	//Adrian: Let's do it the right way!
 	int				m_iLeftHandAttachment;
 	int				m_iRightHandAttachment;
+#ifdef EZ
+private:
+#endif
 	bool			m_bStopLoopingSounds;
 	float			m_flAimDelay;			// Amount of time to suppress aiming
 

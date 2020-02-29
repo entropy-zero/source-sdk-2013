@@ -9,6 +9,8 @@
 
 #define TLK_VORT_CHARGE "TLK_VORT_CHARGE"
 
+extern ConVar sk_zombigaunt_zap_range;
+
 //=========================================================
 //	>> CNPC_Zombigaunt
 //=========================================================
@@ -29,10 +31,11 @@ protected:
 
 	virtual Class_T		Classify ( void ) { return CLASS_ZOMBIE; }
 	
-	virtual bool	ShouldMoveAndShoot( void ) { return false; } // Zombigaunts never move and shoot, even if normal Vortigaunts would
+	virtual float		InnateRange1MaxRange( void ) { return sk_zombigaunt_zap_range.GetFloat() * 12; }
+	virtual bool		ShouldMoveAndShoot( void ) { return false; } // Zombigaunts never move and shoot, even if normal Vortigaunts would
 
+	int		 			TranslateSchedule( int scheduleType );
 	virtual Activity	NPC_TranslateActivity( Activity eNewActivity );
-
 	virtual void		HandleAnimEvent( animevent_t *pEvent );
 
 	bool IsJumpLegal( const Vector &startPos, const Vector &apex, const Vector &endPos ) const;
@@ -43,6 +46,7 @@ protected:
 
 	// Zombigaunts have a much slower recharge time than vortigaunts, making them more likely to close in for the kill
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 5.0f, 10.0f ); }
+	virtual float GetNextDispelTime( void );
 
 public:
 	DECLARE_DATADESC();

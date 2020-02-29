@@ -85,7 +85,6 @@ ConVar sk_vortigaunt_armor_charge( "sk_vortigaunt_armor_charge","30");
 ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_token", "5" );
 #else
 ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_token", "48" );
-ConVar sk_vortigaunt_health_charge( "sk_vortigaunt_health_charge", "100" );
 #endif
 
 
@@ -95,6 +94,10 @@ ConVar sk_vortigaunt_dmg_rake( "sk_vortigaunt_dmg_rake","0");
 ConVar sk_vortigaunt_dmg_zap( "sk_vortigaunt_dmg_zap","0");
 ConVar sk_vortigaunt_zap_range( "sk_vortigaunt_zap_range", "100", FCVAR_NONE, "Range of vortigaunt's ranged attack (feet)" );
 ConVar sk_vortigaunt_vital_antlion_worker_dmg("sk_vortigaunt_vital_antlion_worker_dmg", "0.2", FCVAR_NONE, "Vital-ally vortigaunts scale damage taken from antlion workers by this amount." );
+
+#ifdef EZ
+ConVar sk_vortigaunt_dispel_time( "sk_vortigaunt_dispel_time", "15" );
+#endif
 
 #ifdef EZ1
 ConVar sk_zilazane_health( "sk_zilazane_health", "1300" );
@@ -388,8 +391,14 @@ void CNPC_Vortigaunt::StartTask( const Task_t *pTask )
 			}
 
 			// Figure out how many tokens to spawn
-			float flArmorDelta = (float)sk_vortigaunt_armor_charge.GetInt() - pPlayer->ArmorValue();
-			m_nNumTokensToSpawn = ceil( flArmorDelta / sk_vortigaunt_armor_charge_per_token.GetInt() );
+			if ( IRelationType( pPlayer ) > D_FR ) {
+				float flArmorDelta = (float) sk_vortigaunt_armor_charge.GetInt() - pPlayer->ArmorValue();
+				m_nNumTokensToSpawn = ceil( flArmorDelta / sk_vortigaunt_armor_charge_per_token.GetInt() );
+			}
+			else
+			{
+				m_nNumTokensToSpawn = ceil( pPlayer->ArmorValue() / sk_vortigaunt_armor_charge_per_token.GetInt() );
+			}
 
 			// If we're forced to recharge, then at least send one
 			if (m_bForceArmorRecharge && m_nNumTokensToSpawn <= 0)
@@ -397,8 +406,16 @@ void CNPC_Vortigaunt::StartTask( const Task_t *pTask )
 		}
 		else 
 		{
-			float flHealthDelta = sk_vortigaunt_health_charge.GetFloat() - m_hHealTarget->GetHealth();
-			m_nNumTokensToSpawn = ceil( flHealthDelta / sk_vortigaunt_armor_charge_per_token.GetFloat() );
+			if (IRelationType( m_hHealTarget ) > D_FR)
+			{
+				float flHealthDelta = m_hHealTarget->GetMaxHealth() - m_hHealTarget->GetHealth();
+				m_nNumTokensToSpawn = ceil( flHealthDelta / sk_vortigaunt_armor_charge_per_token.GetFloat() );
+			}
+			else
+			{
+				m_nNumTokensToSpawn = ceil( m_hHealTarget->GetHealth() / sk_vortigaunt_armor_charge_per_token.GetFloat() );
+			}
+
 			m_nNumTokensToSpawn = m_nNumTokensToSpawn < 1 ? 1 : m_nNumTokensToSpawn;
 		}
 #endif
@@ -737,7 +754,7 @@ int CNPC_Vortigaunt::MeleeAttack1Conditions( float flDot, float flDist )
 
 		if (flDist < 128 )
 		{
-			m_flDispelTestTime = gpGlobals->curtime + 15.0f;
+			m_flDispelTestTime = gpGlobals->curtime + GetNextDispelTime();
 			return COND_VORTIGAUNT_DISPEL_ANTLIONS;
 		}
 	}
@@ -1106,6 +1123,13 @@ void CNPC_Vortigaunt::HandleAnimEvent( animevent_t *pEvent )
 }
 
 #ifdef EZ
+	//-----------------------------------------------------------------------------
+	//		Next Vortigaunt dispel time
+	//-----------------------------------------------------------------------------
+	float CNPC_Vortigaunt::GetNextDispelTime( void )
+	{
+		return sk_vortigaunt_dispel_time.GetFloat();
+	}
 	//-----------------------------------------------------------------------------
 	//		Copied directly from BaseZombie for now.
 	//
@@ -1704,9 +1728,19 @@ bool CNPC_Vortigaunt::ShouldHealTarget( CBaseEntity *pTarget )
 		if (pPlayer->GetFlags() & FL_NOTARGET)
 			return false;
 
+#ifndef EZ
 		// See if the player needs armor
 		if (pPlayer->ArmorValue() >= (sk_vortigaunt_armor_charge.GetFloat()*0.66f))
 			return false;
+#else
+		// See if friendly players needs armor
+		if ( IRelationType( pPlayer) == D_LI && pPlayer->ArmorValue() >= ( sk_vortigaunt_armor_charge.GetFloat() * 0.66f ) ) 
+			return false;
+
+		// See if hostile players have armor
+		if ( IRelationType( pPlayer ) <= D_FR && pPlayer->ArmorValue() <= 0 )
+			return false;
+#endif
 
 		// Must be alive!
 		if (pPlayer->IsAlive() == false)
@@ -1737,7 +1771,7 @@ bool CNPC_Vortigaunt::ShouldHealTarget( CBaseEntity *pTarget )
 			return false;
 
 		// See if the player needs armor
-		if ( pNPC->m_iHealth >= sk_vortigaunt_health_charge.GetFloat( ) )
+		if ( pNPC->m_iHealth >= pNPC->GetMaxHealth() )
 			return false;
 
 		// Must be alive!
@@ -2022,8 +2056,20 @@ void CNPC_Vortigaunt::MaintainHealSchedule( void )
 #else
 				CAI_BaseNPC *pNPC = m_hHealTarget->MyNPCPointer();
 
+				bool targetHealingDone = false;
+				// If the target is friendly, make sure they are above the healing threshhold
+				if ( IRelationType( m_hHealTarget ) > D_FR)
+				{
+					targetHealingDone = ( m_hHealTarget->IsPlayer() && pPlayer && pPlayer->ArmorValue() >= sk_vortigaunt_armor_charge.GetInt() ) || ( m_hHealTarget->IsNPC() && pNPC && pNPC->m_iHealth >= pNPC->GetMaxHealth() );
+				}
+				// If the target is not friendly, make they will take damage from being healed 
+				else 
+				{
+					targetHealingDone = ( m_hHealTarget->IsPlayer() && pPlayer && pPlayer->ArmorValue() <= 0 ) || ( m_hHealTarget->IsNPC() && pNPC && pNPC->m_iHealth <= 0 );
+				}
+
 				// We're done, so stop playing the animation
-				if (m_nNumTokensToSpawn <= 0 || ( m_bForceArmorRecharge == false && ( ( m_hHealTarget->IsPlayer() && pPlayer && pPlayer->ArmorValue() >= sk_vortigaunt_armor_charge.GetInt() ) || ( m_hHealTarget->IsNPC() && pNPC && pNPC->m_iHealth >= sk_vortigaunt_health_charge.GetInt() ) ) ) )
+				if (m_nNumTokensToSpawn <= 0 || ( m_bForceArmorRecharge == false && targetHealingDone ) )
 #endif
 				{
 					m_flHealHinderedTime = 0.0f;
@@ -3867,23 +3913,19 @@ void CVortigauntChargeToken::SeekTouch( CBaseEntity	*pOther )
 		// Is this player Gordon Freeman or Bad Cop?
 		Disposition_t disposition = GetOwnerEntity()->MyNPCPointer()->IRelationType( pPlayer );
 
-		if ( disposition > D_FR )
+		// Charge the suit's armor
+		if ( disposition > D_FR && pPlayer->ArmorValue() < sk_vortigaunt_armor_charge.GetInt() )
 		{
-			// Charge the suit's armor
-			if ( pPlayer->ArmorValue() < sk_vortigaunt_armor_charge.GetInt() )
-			{
-				pPlayer->IncrementArmorValue( sk_vortigaunt_armor_charge_per_token.GetInt()+random->RandomInt( -1, 1 ), sk_vortigaunt_armor_charge.GetInt() );
-			}
+			pPlayer->IncrementArmorValue( sk_vortigaunt_armor_charge_per_token.GetInt()+random->RandomInt( -1, 1 ), sk_vortigaunt_armor_charge.GetInt() );
 		}
-		else
+		// Drain the suit's armor
+		else if ( pPlayer->ArmorValue() >  0 )
 		{
-			// Drain the suit's armor
-			if (pPlayer->ArmorValue() >  0 )
-			{
-				pPlayer->DecrementArmorValue( sk_vortigaunt_armor_charge_per_token.GetInt()+random->RandomInt( -1, 1 ) );
-			}
+			int chargeAmount = sk_vortigaunt_armor_charge_per_token.GetInt() + random->RandomInt( -1, 1 );
+			pPlayer->DecrementArmorValue( chargeAmount );
+			// Vortigaunt vampirism!
+			m_iHealth = MIN( m_iMaxHealth, m_iHealth + chargeAmount );
 		}
-
 	}
 	else
 	{
