@@ -66,6 +66,14 @@ void CNPC_Zombigaunt::Spawn( void )
 	// Disable back-away
 	AddSpawnFlags( SF_NPC_NO_PLAYER_PUSHAWAY );
 
+#ifdef EZ2
+	// If the zap range keyvalue has not been set, default to the convar
+	if (m_flZapRange == -1)
+	{
+		m_flZapRange = sk_zombigaunt_zap_range.GetFloat() * 12;;
+	}
+#endif
+
 	BaseClass::Spawn();
 
 	CapabilitiesAdd( bits_CAP_MOVE_JUMP );

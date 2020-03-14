@@ -65,7 +65,11 @@ public:
 	virtual bool	InnateWeaponLOSCondition( const Vector &ownerPos, const Vector &targetPos, bool bSetConditions );
 	virtual int		MeleeAttack1Conditions( float flDot, float flDist );	// Dispel
 	virtual float	InnateRange1MinRange( void ) { return 0.0f; }
+#ifndef EZ2
 	virtual float	InnateRange1MaxRange( void ) { return sk_vortigaunt_zap_range.GetFloat()*12; }
+#else
+	virtual float	InnateRange1MaxRange( void ) { return MAX( sk_vortigaunt_zap_range.GetFloat()*12, m_flZapRange ); }
+#endif
 	virtual int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual bool	FInViewCone( CBaseEntity *pEntity );
 	virtual bool	ShouldMoveAndShoot( void );
@@ -280,6 +284,9 @@ private:
 #ifdef EZ
 // Child classes need these attachments!
 protected:
+	// This value represents the range at which the vortigaunt WANTS to attack.
+	// The actual range of the attack can be much farther
+	float			m_flZapRange;
 #endif
 	//Adrian: Let's do it the right way!
 	int				m_iLeftHandAttachment;

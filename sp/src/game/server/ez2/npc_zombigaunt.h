@@ -31,7 +31,6 @@ protected:
 
 	virtual Class_T		Classify ( void ) { return CLASS_ZOMBIE; }
 	
-	virtual float		InnateRange1MaxRange( void ) { return sk_zombigaunt_zap_range.GetFloat() * 12; }
 	virtual bool		ShouldMoveAndShoot( void ) { return false; } // Zombigaunts never move and shoot, even if normal Vortigaunts would
 
 	int		 			TranslateSchedule( int scheduleType );

@@ -200,6 +200,10 @@ BEGIN_DATADESC( CNPC_Vortigaunt )
 	DEFINE_FIELD( m_bCarryingNPC,			FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_bRegenerateHealth,	FIELD_BOOLEAN, "HealthRegenerateEnabled" ),
 
+#ifdef EZ2
+	DEFINE_KEYFIELD( m_flZapRange,			FIELD_FLOAT,   "OverrideZapRange" ),
+#endif
+
 	// m_AssaultBehavior	(auto saved by AI)
 	// m_LeadBehavior
 	// DEFINE_FIELD( m_bStopLoopingSounds, FIELD_BOOLEAN ),
@@ -249,6 +253,9 @@ m_bPlayerRequestedHeal( false ),
 m_flNextHealTime( 3.0f ), // Let the player settle before we decide to do this
 m_nNumTokensToSpawn( 0 ),
 m_flAimDelay( 0.0f ),
+#ifdef EZ2
+m_flZapRange( -1.0f ),
+#endif
 m_eHealState( HEAL_STATE_NONE )
 {
 }
@@ -689,7 +696,11 @@ int CNPC_Vortigaunt::RangeAttack1Conditions( float flDot, float flDist )
 	if ( flDist < 32.0f )
 		return COND_TOO_CLOSE_TO_ATTACK;
 #endif // HL2_EPISODIC
+#ifndef EZ2
 	if ( flDist > InnateRange1MaxRange() )
+#else
+	if ( ( flDist > m_flZapRange && !HasCondition( COND_ENEMY_UNREACHABLE ) ) || flDist > InnateRange1MaxRange()  )
+#endif
 	{
 		return( COND_TOO_FAR_TO_ATTACK );
 	}
@@ -1375,6 +1386,14 @@ void CNPC_Vortigaunt::Spawn( void )
 	GetShotRegulator()->SetBurstShotCountRange( 1, 1 );
 	GetShotRegulator()->SetRestInterval( 2.0f, 2.0f );
 
+#ifdef EZ2
+	// If the zap range keyvalue has not been set, default to the convar
+	if ( m_flZapRange == -1 )
+	{
+		m_flZapRange = InnateRange1MaxRange();
+	}
+#endif
+
 #ifdef EZ1
 	// Hackhack!
 	// The final boss of Entropy : Zero has a different health value and is not dissolvable by Combine energy balls.
@@ -1572,7 +1591,16 @@ int CNPC_Vortigaunt::TranslateSchedule( int scheduleType )
 		// Otherwise we use our own schedule to attack
 		return SCHED_VORTIGAUNT_RANGE_ATTACK;
 		break;
-
+#ifdef EZ2
+	// Vort brutes - if the intended zap range is nearer than their innate range, charge straight at the enemy!
+	case SCHED_ESTABLISH_LINE_OF_FIRE:
+	case SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK:
+	case SCHED_MOVE_TO_WEAPON_RANGE:
+		if ( m_flZapRange < InnateRange1MaxRange() )
+		{
+			return SCHED_CHASE_ENEMY;
+		}
+#endif
 	/*
 	case SCHED_CHASE_ENEMY:
 	case SCHED_ESTABLISH_LINE_OF_FIRE:
@@ -2647,7 +2675,11 @@ void CNPC_Vortigaunt::InputChargeTarget( inputdata_t &data )
 
 	int playerArmor = (pTarget->IsPlayer()) ? ((CBasePlayer *)pTarget)->ArmorValue() : 0;
 
+#ifndef EZ
 	if ( playerArmor >= 100 || ( pTarget->GetFlags() & FL_NOTARGET ) )
+#else
+	if ( IRelationType( pTarget ) > D_FR && ( playerArmor >= 100 || ( pTarget->GetFlags() & FL_NOTARGET ) ) )
+#endif
 	{
 		m_OnFinishedChargingTarget.FireOutput( this, this );
 		return;
