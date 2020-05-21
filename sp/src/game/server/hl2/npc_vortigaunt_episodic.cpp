@@ -3245,36 +3245,44 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 	if (pPhysExplosion != NULL)
 	{
 		pPhysExplosion->AddSpawnFlags( SF_PHYSEXPLOSION_NODAMAGE );
+		pPhysExplosion->AddSpawnFlags( SF_PHYSEXPLOSION_TEST_LOS );
 
 		// EXPLOSION!
 		pPhysExplosion->Spawn();
 		pPhysExplosion->Explode( this, this );
 	}
 
+	// It's dangerous to go alone. Take this with you!
+	trace_t tr;
+
 	// First, test the player
 	CBasePlayer *pPlayer = AI_GetSinglePlayer();
 	if ( bDispel && pPlayer != NULL )
 	{
-		Vector vecDir = ( pPlayer->GetAbsOrigin() - vecOrigin );
-		vecDir[2] = 0.0f;
-		float flDist = VectorNormalize( vecDir );
-
-		float flFalloff = RemapValClamped( flDist, 0, flRadius*0.75f, 1.0f, 0.1f );
-
-		vecDir *= ( flRadius * 1.5f * flFalloff );
-		vecDir[2] += ( flRadius * 0.5f * flFalloff );
-
-		if ( flDist <= flRadius )
+		// Attempt to trace a line to hit the target
+		UTIL_TraceLine( vecOrigin, pPlayer->BodyTarget( vecOrigin, false ), MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction >= 1.0f || tr.m_pEnt == pPlayer )
 		{
-			pPlayer->ApplyAbsVelocityImpulse( vecDir );
+			Vector vecDir = (pPlayer->GetAbsOrigin() - vecOrigin);
+			vecDir[2] = 0.0f;
+			float flDist = VectorNormalize( vecDir );
 
-			vecDir[2] += 400.0f * flFalloff;
-			CTakeDamageInfo dmgInfo( this, this, vecDir, pPlayer->GetAbsOrigin(), sk_vortigaunt_dmg_zap.GetFloat(), DMG_SHOCK );
-			pPlayer->TakeDamage( dmgInfo );
+			float flFalloff = RemapValClamped( flDist, 0, flRadius*0.75f, 1.0f, 0.1f );
+
+			vecDir *= ( flRadius * 1.5f * flFalloff );
+			vecDir[2] += ( flRadius * 0.5f * flFalloff );
+
+			if ( flDist <= flRadius )
+			{
+				pPlayer->ApplyAbsVelocityImpulse( vecDir );
+
+				vecDir[2] += 400.0f * flFalloff;
+				CTakeDamageInfo dmgInfo( this, this, vecDir, pPlayer->GetAbsOrigin(), sk_vortigaunt_dmg_zap.GetFloat(), DMG_SHOCK );
+				pPlayer->TakeDamage( dmgInfo );
+			}
 		}
 	}
 
-	trace_t tr;
 	CBaseEntity *pEnemySearch[32];
 	int nNumEnemies = UTIL_EntitiesInBox( pEnemySearch, ARRAYSIZE( pEnemySearch ), vecOrigin-Vector( flRadius, flRadius, flRadius ), vecOrigin+Vector( flRadius, flRadius, flRadius ), FL_NPC );
 	for ( int i = 0; i < nNumEnemies; i++ )
