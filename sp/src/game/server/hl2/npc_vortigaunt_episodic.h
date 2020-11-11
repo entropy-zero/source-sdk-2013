@@ -145,6 +145,10 @@ public:
 #ifdef EZ
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
 	virtual float GetNextDispelTime( void );
+#ifdef EZ2
+	virtual float GetNextHealthDrainTime( void );
+#endif
+
 	// Copied from BaseZombie for now
 	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
 
@@ -276,6 +280,10 @@ private:
 	
 	bool			IsCarryingNPC( void ) const { return m_bCarryingNPC; }
 	bool			m_bCarryingNPC;
+
+#ifdef EZ2
+	float			m_flNextDrainHealthTime;
+#endif
 
 	COutputEvent	m_OnFinishedExtractingBugbait;
 	COutputEvent	m_OnFinishedChargingTarget;

@@ -26,6 +26,8 @@ public:
 	virtual void	OnStartSchedule( int scheduleType );
 
 protected:
+	static const char *pModelNames[];
+
 	// Glowing eyes
 	int					GetNumGlows() { return 0; } // No glows under headcrabs
 
@@ -46,6 +48,7 @@ protected:
 	// Zombigaunts have a much slower recharge time than vortigaunts, making them more likely to close in for the kill
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 5.0f, 10.0f ); }
 	virtual float GetNextDispelTime( void );
+	virtual float GetNextHealthDrainTime( void );
 
 public:
 	DECLARE_DATADESC();

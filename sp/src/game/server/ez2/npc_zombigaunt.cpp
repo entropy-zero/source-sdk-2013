@@ -9,6 +9,7 @@
 #include "npcevent.h"
 #include "npc_zombigaunt.h"
 #include "sceneentity.h"
+#include "particle_parse.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -16,9 +17,13 @@
 ConVar sk_zombigaunt_health( "sk_zombigaunt_health", "150" );
 ConVar sk_zombigaunt_dmg_rake( "sk_zombigaunt_dmg_rake", "15" );
 ConVar sk_zombigaunt_dispel_time( "sk_zombigaunt_dispel_time", "5" );
+ConVar sk_zombigaunt_health_drain_time( "sk_zombigaunt_health_drain_time", "10" );
 ConVar sk_zombigaunt_dispel_radius( "sk_zombigaunt_dispel_radius", "300" );
 // The range of a zombigaunt's attack is notably less than a vortigaunt's
 ConVar sk_zombigaunt_zap_range( "sk_zombigaunt_zap_range", "30", FCVAR_NONE, "Range of zombie vortigaunt's ranged attack (feet)" );
+
+// Think contexts
+static const char *ZOMBIGAUNT_BLEED_THINK = "ZombigauntBleed";
 
 extern int AE_VORTIGAUNT_CLAW_LEFT;
 extern int AE_VORTIGAUNT_CLAW_RIGHT;
@@ -41,26 +46,24 @@ END_DATADESC()
 LINK_ENTITY_TO_CLASS( npc_zombigaunt, CNPC_Zombigaunt );
 
 //-----------------------------------------------------------------------------
+// Default models by variant
+//-----------------------------------------------------------------------------
+const char *CNPC_Zombigaunt::pModelNames[EZ_VARIANT_COUNT] ={
+	"models/zombie/zombigaunt.mdl",
+	"models/zombie/xenbigaunt.mdl", // "Shackles. How long have these guys been down here?"
+	"models/zombie/glowbigaunt.mdl", // "Now I've seen everything."
+	"models/zombie/xenbigaunt.mdl" // No temporal zombigaunt model - right now temporal variants limited to poison headcrabs
+};
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void CNPC_Zombigaunt::Spawn( void )
 {
-	// Allow multiple models but default to zombigaunt.mdl
-	char *szModel = (char *)STRING( GetModelName() );
-	if (!szModel || !*szModel)
+	// Default model by variant
+	if (GetModelName() == NULL_STRING)
 	{
-		switch ( m_tEzVariant )
-		{
-		case EZ_VARIANT_XEN:
-			// "Shackles. How long have these guys been down here?"
-			szModel = "models/zombie/xenbigaunt.mdl";
-			break;
-		default:
-			szModel = "models/zombie/zombigaunt.mdl";
-			break;
-		}
-
-		SetModelName( AllocPooledString( szModel ) );
+		SetModelName( AllocPooledString( pModelNames[ m_tEzVariant % EZ_VARIANT_COUNT ] ) );
 	}
 
 	// Disable back-away
@@ -77,6 +80,7 @@ void CNPC_Zombigaunt::Spawn( void )
 	BaseClass::Spawn();
 
 	CapabilitiesAdd( bits_CAP_MOVE_JUMP );
+	CapabilitiesAdd( bits_CAP_INNATE_RANGE_ATTACK2 );
 
 	m_iMaxHealth = sk_zombigaunt_health.GetFloat();
 	m_iHealth = m_iMaxHealth;
@@ -98,13 +102,13 @@ void CNPC_Zombigaunt::Spawn( void )
 //-----------------------------------------------------------------------------
 void CNPC_Zombigaunt::Precache()
 {
-	// Allow multiple models but default to zombigaunt.mdl
-	char *szModel = (char *)STRING( GetModelName() );
-	if (!szModel || !*szModel)
+	// Default model by variant
+	if (GetModelName() == NULL_STRING)
 	{
-		szModel = "models/zombie/zombigaunt.mdl";
-		SetModelName( AllocPooledString( szModel ) );
+		SetModelName( AllocPooledString( pModelNames[m_tEzVariant % EZ_VARIANT_COUNT] ) );
 	}
+
+	PrecacheParticleSystem( "blood_drip_zombigaunt_01" );
 
 	BaseClass::Precache();
 }
@@ -276,12 +280,22 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 	// Blixibon - Make weird motions while charging
 	if (scheduleType == SCHED_CHASE_ENEMY)
 	{
-		char szResponse[AI_Response::MAX_RESPONSE_NAME];
-
-		if (Speak( TLK_VORT_CHARGE, NULL, szResponse, AI_Response::MAX_RESPONSE_NAME ))
+		// We need to do this hacky stuff so the response doesn't interrupt sounds
+		AI_Response *result = GetExpresser()->SpeakFindResponse( TLK_VORT_CHARGE );
+		if ( result )
 		{
-			m_iszChargeResponse = AllocPooledString( szResponse );
-			m_flChargeResponseEnd = gpGlobals->curtime + GetSceneDuration( szResponse );
+			if ( result->GetType() == RESPONSE_SCENE )
+			{
+				char response[256];
+				result->GetResponse( response, sizeof( response ) );
+
+				m_flChargeResponseEnd = PlayScene( response, result->GetDelay(), result );
+				m_iszChargeResponse = AllocPooledString( response );
+			}
+			else
+			{
+				SpeakDispatchResponse( TLK_VORT_CHARGE, result );
+			}
 		}
 	}
 	else
@@ -297,4 +311,65 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 float CNPC_Zombigaunt::GetNextDispelTime( void )
 {
 	return sk_zombigaunt_dispel_time.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+//		Next Zombigaunt health drain time
+//-----------------------------------------------------------------------------
+float CNPC_Zombigaunt::GetNextHealthDrainTime( void )
+{
+	return sk_zombigaunt_health_drain_time.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+//  Purpose: Overridden to handle blood particle
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::StartEye( void )
+{
+	// Start blood drip particle
+	if ( GetSleepState() == AISS_AWAKE )
+	{
+		DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true);
+		SetContextThink( &CNPC_Zombigaunt::BleedThink, gpGlobals->curtime + 0.1, ZOMBIGAUNT_BLEED_THINK );
+	}
+}
+
+//-----------------------------------------------------------------------------
+//  Purpose: Overridden to handle blood particle
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::Wake( bool bFireOutput )
+{
+	BaseClass::Wake( bFireOutput );
+	StartEye();
+}
+
+//-----------------------------------------------------------------------------
+//  Purpose: Overridden to handle blood particle
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::Wake( CBaseEntity * pActivator )
+{
+	BaseClass::Wake( pActivator );
+	StartEye();
+}
+
+//-----------------------------------------------------------------------------
+// Think function to reset particle
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::BleedThink()
+{
+	DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+	SetNextThink( gpGlobals->curtime + random->RandomFloat( 1.0, 1.5 ), ZOMBIGAUNT_BLEED_THINK );
+}
+
+//-----------------------------------------------------------------------------
+//  Purpose: Overridden to kill all particles
+//-----------------------------------------------------------------------------
+void CNPC_Zombigaunt::Event_Killed( const CTakeDamageInfo &info )
+{
+	// Stop all our thinks
+	SetContextThink( NULL, 0, ZOMBIGAUNT_BLEED_THINK );
+
+	StopParticleEffects( this );
+
+	BaseClass::Event_Killed( info );
 }
