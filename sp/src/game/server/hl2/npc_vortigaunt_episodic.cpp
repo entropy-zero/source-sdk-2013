@@ -2736,6 +2736,20 @@ void CNPC_Vortigaunt::ZapBeam( int nHand )
 
 		// Send the damage to the recipient
 		pEntity->DispatchTraceAttack( dmgInfo, vecAim, &tr );
+
+#ifdef EZ
+		ApplyMultiDamage();
+
+		if (pEntity->IsCombatCharacter() && pEntity->m_lifeState != LIFE_ALIVE)
+		{
+			CBaseCombatCharacter *pBCC = pEntity->MyCombatCharacterPointer();
+			if (!pBCC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pBCC->m_hDeathRagdoll)
+			{
+				CRagdollBoogie::Create( pBCC->m_hDeathRagdoll, 200, gpGlobals->curtime, 4.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
+				//pBCC->BecomeRagdollBoogie( this, dmgInfo.GetDamageForce(), 4.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
+			}
+		}
+#endif
 	}
 
 	// Create a cover for the end of the beam
@@ -3354,15 +3368,18 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 			// gib nearby antlions, knock over distant ones. 
 			if ( flDist < 128 )
 			{
-				if ( pNPC->CanBecomeServerRagdoll() && !pNPC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pNPC->m_iHealth - flDamage <= 0.0f)
+				vecDir[2] += 400.0f * flFalloff;
+				CTakeDamageInfo dmgInfo( this, this, vecDir, pNPC->GetAbsOrigin(), flDamage, DMG_SHOCK );
+				pNPC->TakeDamage( dmgInfo );
+
+				if (pEntity->IsCombatCharacter() && pEntity->m_lifeState != LIFE_ALIVE)
 				{
-					pNPC->BecomeRagdollBoogie( this, vecDir, 5.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
-				}
-				else
-				{
-					vecDir[2] += 400.0f * flFalloff;
-					CTakeDamageInfo dmgInfo( this, this, vecDir, pNPC->GetAbsOrigin(), flDamage, DMG_SHOCK );
-					pNPC->TakeDamage( dmgInfo );
+					CBaseCombatCharacter *pBCC = pEntity->MyCombatCharacterPointer();
+					if (!pBCC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pBCC->m_hDeathRagdoll)
+					{
+						CRagdollBoogie::Create( pBCC->m_hDeathRagdoll, 200, gpGlobals->curtime, 5.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
+						//pBCC->BecomeRagdollBoogie( this, dmgInfo.GetDamageForce(), 4.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBoogieColor );
+					}
 				}
 			}
 		}
