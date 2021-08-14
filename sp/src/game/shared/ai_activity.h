@@ -2113,6 +2113,8 @@ typedef enum
 
 	// New viewmodel animations
 	ACT_VM_FIRSTDRAW,
+	ACT_VM_FIRSTDRAW_EMPTY,
+	ACT_VM_FIRSTDRAW_QUICK,
 
 	// this is the end of the global activities, private per-monster activities start here.
 	LAST_SHARED_ACTIVITY,
