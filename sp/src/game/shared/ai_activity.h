@@ -2115,6 +2115,7 @@ typedef enum
 	ACT_VM_FIRSTDRAW,
 	ACT_VM_FIRSTDRAW_EMPTY,
 	ACT_VM_FIRSTDRAW_QUICK,
+	ACT_VM_FIRSTDRAW_PUMP,
 
 	// this is the end of the global activities, private per-monster activities start here.
 	LAST_SHARED_ACTIVITY,

@@ -79,6 +79,10 @@ public:
 	void SecondaryAttack( void );
 	void DryFire( void );
 
+#ifdef EZ
+	virtual Activity GetDrawActivity( void );
+#endif
+
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
@@ -434,6 +438,25 @@ void CWeaponShotgun::DryFire( void )
 	
 	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
 }
+
+#ifdef EZ
+Activity CWeaponShotgun::GetDrawActivity( void )
+{
+	CBaseCombatCharacter *pOwner  = GetOwner();
+
+	if ( pOwner != NULL && m_bNeedPump && SelectWeightedSequence( ACT_VM_FIRSTDRAW_PUMP ) != -1)
+	{
+		m_bNeedPump = false;
+
+		pOwner->m_flNextAttack	= gpGlobals->curtime + SequenceDuration( ACT_VM_FIRSTDRAW_PUMP );
+		m_flNextPrimaryAttack	= gpGlobals->curtime + SequenceDuration( ACT_VM_FIRSTDRAW_PUMP );
+
+		return ACT_VM_FIRSTDRAW_PUMP;
+	}
+
+	return BaseClass::GetDrawActivity();
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
