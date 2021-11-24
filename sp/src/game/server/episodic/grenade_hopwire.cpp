@@ -25,6 +25,8 @@
 #include "saverestore.h"
 #include "saverestore_utlmap.h"
 #include "items.h"
+#include "mapbase/matchers.h"
+
 
 #include "ai_hint.h"
 #include "ai_network.h"
@@ -405,6 +407,10 @@ public:
 //-----------------------------------------------------------------------------
 bool CGravityVortexController::CanConsumeEntity( CBaseEntity *pEnt )
 {
+	// Don't consume my owner entity
+	if (pEnt == GetOwnerEntity())
+		return false;
+
 	// Don't try to consume the player! What would even happen!?
 	if (pEnt->IsPlayer())
 		return false;
@@ -725,6 +731,10 @@ void CGravityVortexController::PullPlayersInRange( void )
 bool CGravityVortexController::KillNPCInRange( CBaseEntity *pVictim, IPhysicsObject **pPhysObj )
 {
 	CBaseCombatCharacter *pBCC = pVictim->MyCombatCharacterPointer();
+
+	// Don't kill owner
+	if (pBCC == GetOwnerEntity())
+		return false;
 
 	// See if we can ragdoll
 	if ( pBCC != NULL && pBCC->CanBecomeRagdoll() )
@@ -1137,10 +1147,22 @@ bool CGravityVortexController::TryCreateRecipeNPC( const char *szClass, const ch
 		baseNPC->AddSpawnFlags( SF_NPC_FALL_TO_GROUND );
 		baseNPC->m_tEzVariant = CAI_BaseNPC::EZ_VARIANT_XEN;
 
-		// Set the squad name of a new Xen NPC to 'xenpc_headcrab', 'xenpc_bullsquid', etc
-		char * squadname = UTIL_VarArgs( "xe%s", szClass );
-		DevMsg( "Adding xenpc '%s' to squad '%s' \n", baseNPC->GetDebugName(), squadname );
-		baseNPC->SetSquadName( AllocPooledString( squadname ) );
+
+		const char * squadnameContext = GetContextValue( "squadname" );
+
+		// If the context "squadname" does not match an empty string, use that instead of the default Xen squad name
+		if (!Matcher_Match( squadnameContext, "" ))
+		{
+			DevMsg( "Adding xenpc '%s' to squad '%s' \n", baseNPC->GetDebugName(), squadnameContext );
+			baseNPC->SetSquadName( AllocPooledString( squadnameContext ) );
+		}
+		else
+		{
+			// Set the squad name of a new Xen NPC to 'xenpc_headcrab', 'xenpc_bullsquid', etc
+			char * squadname = UTIL_VarArgs( "xe%s", szClass );
+			DevMsg( "Adding xenpc '%s' to squad '%s' \n", baseNPC->GetDebugName(), squadname );
+			baseNPC->SetSquadName( AllocPooledString( squadname ) );
+		}
 	}
 	else if (CItem *pItem = dynamic_cast<CItem*>(pEntity))
 	{

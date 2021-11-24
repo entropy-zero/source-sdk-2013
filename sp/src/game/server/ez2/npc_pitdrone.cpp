@@ -13,6 +13,8 @@
 #include "npcevent.h"
 #include "npc_pitdrone.h"
 #include "movevars_shared.h"
+#include "grenade_hopwire.h"
+#include "mapbase/matchers.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -139,6 +141,7 @@ void CNPC_PitDrone::Precache()
 	PrecacheScriptSound( "NPC_PitDrone.Bite" );
 	PrecacheScriptSound( "NPC_PitDrone.Eat" );
 	PrecacheScriptSound( "NPC_PitDrone.Explode" );
+	PrecacheScriptSound( "NPC_PitDrone.SummonBackup" );
 
 	UTIL_PrecacheOther( "crossbow_bolt" );
 	PrecacheModel( "models/pitdrone_projectile.mdl" );
@@ -205,6 +208,58 @@ int CNPC_PitDrone::RangeAttack1Conditions( float flDot, float flDist )
 	}
 
 	return(BaseClass::RangeAttack1Conditions( flDot, flDist ));
+}
+
+//=========================================================
+// Start task - selects the correct activity and performs
+// any necessary calculations to start the next task on the
+// schedule. 
+//
+// Overridden for bullsquids to play specific activities
+//=========================================================
+void CNPC_PitDrone::StartTask( const Task_t *pTask )
+{
+	CGravityVortexController *pVortex;
+
+	switch (pTask->iTask)
+	{
+	case TASK_PREDATOR_SPAWN:
+		// TODO - This should probably have an animation
+
+		// Play a sound
+		EmitSound( "NPC_PitDrone.SummonBackup" );
+
+		// Create a portal
+		pVortex = CGravityVortexController::Create( GetAbsOrigin(), 0.0f, 0.0f, 0.0f, this );
+		pVortex->AddContext( "owner_classname:npc_pitdrone" );
+
+		// If this mate is my squadmate, break off into a new squad for now
+		if (this->GetSquad() == NULL)
+		{
+			// Autogenerate a name for the new squad with GetDebugName()-entindex(). It's important that it has a name
+			g_AI_SquadManager.CreateSquad( AllocPooledString(UTIL_VarArgs("%s-%i", GetDebugName(), entindex() )))->AddToSquad( this );
+		}
+
+		// If we are in a squad and that squad has a name, apply that squad's name to the Xen singularity
+		if (GetSquad() && !Matcher_Match( GetSquad()->GetName(), ""))
+		{
+			pVortex->AddContext( UTIL_VarArgs( "squadname:%s", GetSquad()->GetName() ) );
+		}
+		// pVortex->SetMass( GetMass() * m_iTimesFed );
+		pVortex->SetMass( 2048 );
+		pVortex->SetConsumeRadius( 0 );
+		m_iTimesFed = 0;
+		// Subtract 6 spikes from ammo
+		m_iAmmo = MAX( m_iAmmo - 6, 0 );
+		m_bReadyToSpawn = false;
+		TaskComplete();
+		break;
+	default:
+	{
+		BaseClass::StartTask( pTask );
+		break;
+	}
+	}
 }
 
 //=========================================================
@@ -375,6 +430,22 @@ int CNPC_PitDrone::TranslateSchedule( int scheduleType )
 	return BaseClass::TranslateSchedule( scheduleType );
 }
 
+
+extern int g_interactionXenGrenadeCreate;
+
+bool CNPC_PitDrone::HandleInteraction( int interactionType, void * data, CBaseCombatCharacter * sourceEnt )
+{
+	if ( interactionType == g_interactionXenGrenadeCreate )
+	{
+		InputSetWanderAlways( inputdata_t() );
+		InputEnableSpawning( inputdata_t() );
+
+		return true;
+	}
+
+	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+
 //=========================================================
 // Damage for projectile attack
 //=========================================================
@@ -406,6 +477,26 @@ float CNPC_PitDrone::GetWhipDamage( void )
 void CNPC_PitDrone::OnFed()
 {
 	m_iAmmo += MAX_PITDRONE_CLIP;
+
+	if ( m_bSpawningEnabled )
+	{
+		int iExcessSpinesNeeded = MAX_PITDRONE_CLIP * 2;
+
+		// If already in a squad, multiply the required number of spines to call reinforcements by the number of squadmates
+		if ( IsInSquad() )
+		{
+			iExcessSpinesNeeded *= GetSquad()->NumMembers();
+		}
+
+		if (m_iAmmo >= iExcessSpinesNeeded)
+		{
+			m_bReadyToSpawn = true;
+
+			// Set the next spawn time based on the gestation period of the squid
+			m_flNextSpawnTime = gpGlobals->curtime + 5.0f;
+		}
+	}
+
 	BaseClass::OnFed();
 }
 
