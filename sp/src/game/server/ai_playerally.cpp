@@ -738,6 +738,14 @@ bool CAI_PlayerAlly::SelectAlertSpeech( AISpeechSelection_t *pSelection )
 	}
 #endif
 
+#ifdef EZ2
+	// NPCs can comment on smells in EZ2
+	if ( HasCondition( COND_SMELL ) && GetExpresser()->CanSpeakConcept( TLK_SMELL ) && SelectSpeechResponse( TLK_SMELL, NULL, this, pSelection ) )
+	{
+		return true;
+	}
+#endif
+
 	return SelectIdleSpeech( pSelection );
 }
 

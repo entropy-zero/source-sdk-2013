@@ -1949,6 +1949,12 @@ int CNPC_PlayerCompanion::GetSoundInterests()
 			SOUND_DANGER			|
 			SOUND_BULLET_IMPACT		|
 			SOUND_MOVE_AWAY			|
+	// Companions can comment on smells
+	#ifdef EZ2
+			SOUND_CARCASS	|
+			SOUND_MEAT		|
+			SOUND_GARBAGE	|
+	#endif
 			SOUND_READINESS_LOW		|
 			SOUND_READINESS_MEDIUM	|
 			SOUND_READINESS_HIGH;
