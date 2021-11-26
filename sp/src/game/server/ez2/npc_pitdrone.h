@@ -21,6 +21,8 @@ class CNPC_PitDrone : public CNPC_BasePredator
 	DECLARE_DATADESC();
 
 public:
+	CNPC_PitDrone();
+
 	void Spawn( void );
 	void Precache( void );
 	Class_T	Classify( void );

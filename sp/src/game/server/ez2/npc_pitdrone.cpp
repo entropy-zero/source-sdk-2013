@@ -31,8 +31,7 @@ LINK_ENTITY_TO_CLASS( npc_pitdrone, CNPC_PitDrone );
 //---------------------------------------------------------
 BEGIN_DATADESC( CNPC_PitDrone )
 
-	DEFINE_FIELD( m_iClip,			FIELD_INTEGER ),
-
+	DEFINE_KEYFIELD( m_iClip, FIELD_INTEGER, "clip" ),
 	DEFINE_KEYFIELD( m_iAmmo, FIELD_INTEGER, "ammo" )
 
 END_DATADESC()
@@ -68,7 +67,6 @@ void CNPC_PitDrone::Spawn()
 	
 	m_iMaxHealth		= sk_pitdrone_health.GetFloat();
 	m_iHealth			= m_iMaxHealth;
-	m_iClip				= MAX_PITDRONE_CLIP;
 
 	m_flFieldOfView		= 0.2;// indicates the width of this monster's forward view cone ( as a dotproduct result )
 	m_NPCState			= NPC_STATE_NONE;
@@ -97,6 +95,11 @@ void CNPC_PitDrone::Spawn()
 	}
 
 	UpdateAmmoBodyGroups();
+}
+
+CNPC_PitDrone::CNPC_PitDrone()
+{
+	m_iClip = MAX_PITDRONE_CLIP;
 }
 
 //=========================================================
