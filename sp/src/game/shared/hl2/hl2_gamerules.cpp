@@ -682,7 +682,7 @@ ConVar  alyx_darkness_force( "alyx_darkness_force", "0", FCVAR_CHEAT | FCVAR_REP
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BARNACLE,			CLASS_PLAYER_ALLY_VITAL,D_HT, 0);
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BARNACLE,			CLASS_HACKED_ROLLERMINE,D_HT, 0);
 #ifdef EZ
-		CBaseCombatCharacter::SetDefaultRelationship( CLASS_BARNACLE, CLASS_ALIEN_PREDATOR, D_HT, 0 );
+		CBaseCombatCharacter::SetDefaultRelationship( CLASS_BARNACLE, CLASS_ALIEN_PREDATOR, D_NU, 0 ); // Stukabats and any other Xen predators are not seen as potential food by bullsquids
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_BARNACLE, CLASS_ALIEN_FAUNA, D_HT, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_BARNACLE, CLASS_ALIEN_FLORA, D_NU, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_BARNACLE, CLASS_RACE_X, D_HT, 0 );
