@@ -22,7 +22,11 @@
 ConVar sk_pitdrone_health( "sk_pitdrone_health", "100" );
 ConVar sk_pitdrone_dmg_spit( "sk_pitdrone_dmg_spit", "15" );
 ConVar sk_pitdrone_dmg_slash( "sk_pitdrone_dmg_slash", "15" );
+ConVar sk_pitdrone_eatincombat_fraction( "sk_pitdrone_eatincombat_fraction", "1.0", FCVAR_NONE, "Below what percentage of health should Pit Drones eat during combat?" );
+ConVar sk_pitdrone_summon_time( "sk_pitdrone_summon_time", "5.0" );
 ConVar sk_pitdrone_spit_speed( "sk_pitdrone_spit_speed", "512" );
+ConVar sk_pitdrone_summon_cost( "sk_pitdrone_summon_cost", "12" );
+
 
 LINK_ENTITY_TO_CLASS( npc_pitdrone, CNPC_PitDrone );
 
@@ -189,7 +193,7 @@ float CNPC_PitDrone::MaxYawSpeed( void )
 //=========================================================
 bool CNPC_PitDrone::ShouldEatInCombat()
 {
-	return ( m_iClip <= 0 || m_iMaxHealth > m_iHealth ) && HasCondition( COND_PREDATOR_SMELL_FOOD ) && ( !IsInSquad() || OccupyStrategySlot( SQUAD_SLOT_FEED ) );
+	return ( ( m_iAmmo <= 0 && m_iClip <= 0 ) || m_iMaxHealth > (m_iHealth / sk_pitdrone_eatincombat_fraction.GetFloat()) ) && HasCondition( COND_PREDATOR_SMELL_FOOD ) && ( !IsInSquad() || OccupyStrategySlot( SQUAD_SLOT_FEED ) );
 }
 
 //=========================================================
@@ -248,8 +252,7 @@ void CNPC_PitDrone::StartTask( const Task_t *pTask )
 		{
 			pVortex->AddContext( UTIL_VarArgs( "squadname:%s", GetSquad()->GetName() ) );
 		}
-		// pVortex->SetMass( GetMass() * m_iTimesFed );
-		pVortex->SetMass( 2048 );
+		pVortex->SetConsumedMass( GetMass() * m_iTimesFed );
 		pVortex->SetConsumeRadius( 0 );
 		m_iTimesFed = 0;
 		// Subtract 6 spikes from ammo
@@ -483,7 +486,7 @@ void CNPC_PitDrone::OnFed()
 
 	if ( m_bSpawningEnabled )
 	{
-		int iExcessSpinesNeeded = MAX_PITDRONE_CLIP * 2;
+		int iExcessSpinesNeeded = sk_pitdrone_summon_cost.GetFloat();
 
 		// If already in a squad, multiply the required number of spines to call reinforcements by the number of squadmates
 		if ( IsInSquad() )
@@ -495,8 +498,8 @@ void CNPC_PitDrone::OnFed()
 		{
 			m_bReadyToSpawn = true;
 
-			// Set the next spawn time based on the gestation period of the squid
-			m_flNextSpawnTime = gpGlobals->curtime + 5.0f;
+			// Set the next spawn time based on the time required for a pit drone to summon
+			m_flNextSpawnTime = gpGlobals->curtime + sk_pitdrone_summon_time.GetFloat();
 		}
 	}
 

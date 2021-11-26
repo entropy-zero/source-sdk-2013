@@ -25,6 +25,7 @@
 
 ConVar ai_debug_predator( "ai_debug_predator", "0" );
 ConVar sv_predator_heal_render_effects( "sv_predator_heal_render_effects", "1", FCVAR_NONE, "Should predators like bullsquids turn green after healing?" );
+ConVar sk_predator_eatincombat_fraction( "sk_predator_eatincombat_fraction", "1.0", FCVAR_NONE, "Below what percentage of health should predator NPCs like bullsquids eat during combat?" );
 
 LINK_ENTITY_TO_CLASS( npc_basepredator, CNPC_BasePredator );
 
@@ -687,7 +688,23 @@ bool CNPC_BasePredator::CanMateWithTarget( CNPC_BasePredator * pTarget, bool rec
 //=========================================================
 bool CNPC_BasePredator::ShouldEatInCombat()
 {
-	return m_iMaxHealth > m_iHealth && HasCondition( COND_PREDATOR_SMELL_FOOD ) && !IsSameSpecies( GetEnemy() ) && ( !IsInSquad() || OccupyStrategySlot( SQUAD_SLOT_FEED ) );
+	// Do we need health?
+	if ( m_iHealth >= (m_iMaxHealth * sk_predator_eatincombat_fraction.GetFloat()))
+		return false;
+	
+	// Do we smell food?
+	if ( !HasCondition( COND_PREDATOR_SMELL_FOOD ) )
+		return false;
+
+	// Are we fighting with a rival over food?
+	if ( IsSameSpecies( GetEnemy() ) )
+		return false;
+
+	// Can we acquire a squad slot for this?
+	if (IsInSquad() && !OccupyStrategySlot( SQUAD_SLOT_FEED ))
+		return false;
+	
+	return true;
 }
 
 //=========================================================

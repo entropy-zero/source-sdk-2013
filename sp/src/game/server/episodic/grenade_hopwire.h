@@ -84,6 +84,7 @@ public:
 
 	void	SetNodeRadius( float flRadius ) { m_flNodeRadius = flRadius; }
 	void	SetConsumeRadius( float flRadius ) { m_flConsumeRadius = flRadius; }
+	void    SetConsumedMass( float flMass ) { m_flMass = flMass; };
 #else
 	static CGravityVortexController *Create( const Vector &origin, float radius, float strength, float duration );
 #endif
