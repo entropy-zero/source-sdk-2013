@@ -744,10 +744,11 @@ ConVar  alyx_darkness_force( "alyx_darkness_force", "0", FCVAR_CHEAT | FCVAR_REP
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_ANTLION,			D_FR, 0); // Bullsquids are afraid of antlions!
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_COMBINE_NEMESIS,	D_HT, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_ARBEIT_TECH,		D_HT, 0 );
+		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_BARNACLE,			D_NU, 0 );
 #else
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_ANTLION,			D_HT, 0);
-#endif
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_BARNACLE,			D_FR, 0);
+#endif
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_BULLSEYE,			D_NU, 0);
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_BULLSQUID,		D_NU, 0);
 		CBaseCombatCharacter::SetDefaultRelationship(CLASS_BULLSQUID,			CLASS_CITIZEN_PASSIVE,	D_HT, 0);	
@@ -1992,7 +1993,7 @@ ConVar  alyx_darkness_force( "alyx_darkness_force", "0", FCVAR_CHEAT | FCVAR_REP
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_ALIEN_PREDATOR, D_HT, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_ALIEN_FAUNA, D_HT, -1 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_ANTLION, D_HT, 0 );
-		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_BARNACLE, D_FR, 0 );
+		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_BARNACLE, D_NU, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_BULLSEYE, D_NU, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_BULLSQUID, D_HT, 0 );
 		CBaseCombatCharacter::SetDefaultRelationship( CLASS_RACE_X, CLASS_CITIZEN_PASSIVE, D_HT, 0 );
