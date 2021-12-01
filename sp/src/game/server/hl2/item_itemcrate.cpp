@@ -15,6 +15,7 @@
 #ifdef EZ2
 #include "particle_parse.h"
 #include "ai_basenpc.h"
+#include "grenade_hopwire.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -68,6 +69,8 @@ public:
 
 	// Override to return false to hide item crate hints
 	virtual bool IsItemCrate() { return true; };
+
+	virtual void OnSpawnNPC( CBaseEntity * pEntity, CBaseCombatCharacter * pBreaker ){ }
 #endif
 
 protected:
@@ -378,6 +381,10 @@ void CItem_ItemCrate::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info 
 }
 #endif
 
+#ifdef EZ2
+extern int g_interactionXenGrenadeCreate;
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -453,6 +460,8 @@ void CItem_ItemCrate::OnBreak( const Vector &vecVelocity, const AngularImpulse &
 		{
 			CAI_BaseNPC * pNPC =  pSpawn->MyNPCPointer();
 			pNPC->m_tEzVariant = m_tEzVariant;
+
+			OnSpawnNPC( pNPC, pBreaker->MyCombatCharacterPointer() );
 		}
 		else if ( CItem *pItem = dynamic_cast<CItem*>(pSpawn) )
 		{
@@ -587,7 +596,7 @@ void CItem_ItemCrate::OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_
 
 #ifdef EZ2
 
-class CItem_CreatureCrate : public CItem_ItemCrate
+class CItem_CreatureCrate : public CItem_ItemCrate, public CDisplacerSink
 {
 public:
 	DECLARE_CLASS( CItem_CreatureCrate, CItem_ItemCrate );
@@ -599,6 +608,8 @@ public:
 	bool IsItemCrate() { return false; }
 
 	void Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info );
+
+	virtual void OnSpawnNPC( CBaseEntity * pEntity, CBaseCombatCharacter * pBreaker );
 
 	void SoundThink();
 
@@ -639,6 +650,12 @@ void CItem_CreatureCrate::Break( CBaseEntity * pBreaker, const CTakeDamageInfo &
 	SetContextThink( NULL, TICK_NEVER_THINK, "SoundThink" );
 
 	BaseClass::Break( pBreaker, info );
+}
+
+void CItem_CreatureCrate::OnSpawnNPC( CBaseEntity * pEntity, CBaseCombatCharacter * pBreaker )
+{
+	DisplacementInfo_t dinfo( this, this, &pEntity->GetAbsOrigin(), &pEntity->GetAbsAngles() );
+	pEntity->DispatchInteraction( g_interactionXenGrenadeCreate, &dinfo, pBreaker );
 }
 
 LINK_ENTITY_TO_CLASS( item_creature_crate, CItem_CreatureCrate );
