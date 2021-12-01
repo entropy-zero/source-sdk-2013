@@ -152,6 +152,7 @@ public:
 	virtual float GetBiteDamage( void ) { return 0.0f; };
 	virtual float GetWhipDamage( void ) { return 0.0f; };
 	virtual float GetSprintDistance( void ) { return 256.0f; };
+	virtual float GetEatInCombatPercentHealth( void ) { return 1.0f; };
 
 	void Event_Killed(const CTakeDamageInfo &info);
 

@@ -24,6 +24,7 @@ ConVar sk_flyingpredator_spit_max_wait( "sk_flyingpredator_spit_max_wait", "1");
 ConVar sk_flyingpredator_radius_explode( "sk_flyingpredator_radius_explode", "128" );
 ConVar sk_flyingpredator_gestation( "sk_flyingpredator_gestation", "15.0" );
 ConVar sk_flyingpredator_spawn_time( "sk_flyingpredator_spawn_time", "5.0" );
+ConVar sk_flyingpredator_eatincombat_percent( "sk_flyingpredator_eatincombat_percent", "1.0", FCVAR_NONE, "Below what percentage of health should stukabats eat during combat?" );
 
 LINK_ENTITY_TO_CLASS( npc_flyingpredator, CNPC_FlyingPredator );
 LINK_ENTITY_TO_CLASS( npc_stukabat, CNPC_FlyingPredator );
@@ -218,6 +219,14 @@ float CNPC_FlyingPredator::GetMaxSpitWaitTime( void )
 float CNPC_FlyingPredator::GetMinSpitWaitTime( void )
 {
 	return sk_flyingpredator_spit_max_wait.GetFloat();
+}
+
+//=========================================================
+// At what percentage health should this NPC seek food?
+//=========================================================
+float CNPC_FlyingPredator::GetEatInCombatPercentHealth( void )
+{
+	return sk_flyingpredator_eatincombat_percent.GetFloat();
 }
 
 //=========================================================

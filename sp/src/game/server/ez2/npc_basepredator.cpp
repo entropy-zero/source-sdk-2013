@@ -689,7 +689,7 @@ bool CNPC_BasePredator::CanMateWithTarget( CNPC_BasePredator * pTarget, bool rec
 bool CNPC_BasePredator::ShouldEatInCombat()
 {
 	// Do we need health?
-	if ( m_iHealth >= (m_iMaxHealth * sk_predator_eatincombat_fraction.GetFloat()))
+	if ( m_iHealth >= ( m_iMaxHealth * GetEatInCombatPercentHealth() ) )
 		return false;
 	
 	// Do we smell food?

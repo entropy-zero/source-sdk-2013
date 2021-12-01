@@ -27,6 +27,7 @@ ConVar sk_bullsquid_spawn_time( "sk_bullsquid_spawn_time", "5.0" );
 ConVar sk_bullsquid_monster_infighting( "sk_bullsquid_monster_infighting", "1" );
 ConVar sk_bullsquid_antlion_style_spit( "sk_bullsquid_antlion_style_spit", "1" );
 ConVar sk_bullsquid_lay_eggs( "sk_bullsquid_lay_eggs", "1" );
+ConVar sk_bullsquid_eatincombat_percent( "sk_bullsquid_eatincombat_percent", "1.0", FCVAR_NONE, "Below what percentage of health should bullsquids eat during combat?" );
 ConVar sk_max_squad_squids( "sk_max_squad_squids", "4" ); // How many squids in a pack before offspring start branching off into their own pack?
 
 //=========================================================
@@ -593,6 +594,14 @@ float CNPC_Bullsquid::GetBiteDamage( void )
 {
 	// Multiply the damage value by the scale of the model so that baby squids do less damage
 	return sk_bullsquid_dmg_bite.GetFloat() * GetModelScale() * ( m_bIsBaby ? 0.5f : 1.0f );
+}
+
+//=========================================================
+// At what percentage health should this NPC seek food?
+//=========================================================
+float CNPC_Bullsquid::GetEatInCombatPercentHealth( void )
+{
+	return sk_bullsquid_eatincombat_percent.GetFloat();
 }
 
 // Helper function from Antlion

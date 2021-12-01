@@ -22,7 +22,7 @@
 ConVar sk_pitdrone_health( "sk_pitdrone_health", "100" );
 ConVar sk_pitdrone_dmg_spit( "sk_pitdrone_dmg_spit", "15" );
 ConVar sk_pitdrone_dmg_slash( "sk_pitdrone_dmg_slash", "15" );
-ConVar sk_pitdrone_eatincombat_fraction( "sk_pitdrone_eatincombat_fraction", "1.0", FCVAR_NONE, "Below what percentage of health should Pit Drones eat during combat?" );
+ConVar sk_pitdrone_eatincombat_percent( "sk_pitdrone_eatincombat_percent", "1.0", FCVAR_NONE, "Below what percentage of health should Pit Drones eat during combat?" );
 ConVar sk_pitdrone_summon_time( "sk_pitdrone_summon_time", "5.0" );
 ConVar sk_pitdrone_spit_speed( "sk_pitdrone_spit_speed", "512" );
 ConVar sk_pitdrone_summon_cost( "sk_pitdrone_summon_cost", "12" );
@@ -193,7 +193,19 @@ float CNPC_PitDrone::MaxYawSpeed( void )
 //=========================================================
 bool CNPC_PitDrone::ShouldEatInCombat()
 {
-	return ( ( m_iAmmo <= 0 && m_iClip <= 0 ) || m_iMaxHealth > (m_iHealth / sk_pitdrone_eatincombat_fraction.GetFloat()) ) && HasCondition( COND_PREDATOR_SMELL_FOOD ) && ( !IsInSquad() || OccupyStrategySlot( SQUAD_SLOT_FEED ) );
+	// Do we need health or ammo?
+	if ( m_iHealth >= (m_iMaxHealth * GetEatInCombatPercentHealth() ) && ( m_iAmmo > 0 || m_iClip > 0 ) )
+		return false;
+
+	// Do we smell food?
+	if (!HasCondition( COND_PREDATOR_SMELL_FOOD ))
+		return false;
+
+	// Can we acquire a squad slot for this?
+	if (IsInSquad() && !OccupyStrategySlot( SQUAD_SLOT_FEED ))
+		return false;
+
+	return true;
 }
 
 //=========================================================
@@ -474,6 +486,14 @@ float CNPC_PitDrone::GetBiteDamage( void )
 float CNPC_PitDrone::GetWhipDamage( void )
 {
 	return sk_pitdrone_dmg_slash.GetFloat();
+}
+
+//=========================================================
+// At what percentage health should this NPC seek food?
+//=========================================================
+float CNPC_PitDrone::GetEatInCombatPercentHealth( void )
+{
+	return sk_pitdrone_eatincombat_percent.GetFloat();
 }
 
 //=========================================================

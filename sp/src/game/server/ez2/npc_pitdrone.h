@@ -45,6 +45,7 @@ public:
 	virtual float GetProjectileDamge();
 	virtual float GetBiteDamage( void );
 	virtual float GetWhipDamage( void );
+	virtual float GetEatInCombatPercentHealth( void );
 
 	// On feeding
 	virtual void OnFed();

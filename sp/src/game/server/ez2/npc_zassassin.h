@@ -49,6 +49,7 @@ public:
 	float GetMaxSpitWaitTime( void ) { return 5.0f; };
 	float GetMinSpitWaitTime( void ) { return 0.5f; };
 	float GetWhipDamage( void );
+	float GetEatInCombatPercentHealth( void );
 	
 	void Ignite( float flFlameLifetime, bool bNPCOnly = true, float flSize = 0.0f, bool bCalledByLevelDesigner = false );
 

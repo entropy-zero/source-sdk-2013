@@ -39,6 +39,7 @@ public:
 
 	float GetMaxSpitWaitTime( void );
 	float GetMinSpitWaitTime( void );
+	float GetEatInCombatPercentHealth( void );
 
 	bool IsPrey( CBaseEntity* pTarget ) { return pTarget->Classify() == CLASS_EARTH_FAUNA || pTarget->Classify() == CLASS_ALIEN_FAUNA; }
 	virtual bool IsSameSpecies( CBaseEntity* pTarget ) { return pTarget ? ClassMatches( pTarget->GetClassname() ) : false; } // Is this NPC the same species as me?

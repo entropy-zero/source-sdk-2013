@@ -42,6 +42,7 @@ public:
 
 	float GetWhipDamage( void );
 	float GetBiteDamage( void );
+	float GetEatInCombatPercentHealth( void );
 
 	// Antlion worker styled spit attack
 	virtual bool GetSpitVector( const Vector &vecStartPos, const Vector &vecTarget, Vector *vecOut );
