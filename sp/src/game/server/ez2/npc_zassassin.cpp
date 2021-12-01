@@ -859,6 +859,13 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+
+				// If we were trying to spawn and hit something by accident, defer spawning for a while
+				if (m_bReadyToSpawn)
+				{
+					PredMsg( UTIL_VarArgs( "npc_zassassin '%s' tried to create a headcrab but hit something instead. Waiting %f seconds before retrying.", GetDebugName(), sk_zombie_assassin_spawn_time.GetFloat() ) );
+					m_flNextSpawnTime = gpGlobals->curtime + sk_zombie_assassin_spawn_time.GetFloat();
+				}
 			} 			
 			// Reusing this activity / animation event for headcrab spawning
 			else if ( m_bReadyToSpawn )
@@ -874,6 +881,7 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 				// Wait a while before retrying
 				else
 				{
+					PredMsg( UTIL_VarArgs("npc_zassassin '%s' failed to create a headcrab. Waiting %f seconds before retrying.", GetDebugName(), sk_zombie_assassin_spawn_time.GetFloat()));
 					m_flNextSpawnTime = gpGlobals->curtime + sk_zombie_assassin_spawn_time.GetFloat();
 				}
 			}
