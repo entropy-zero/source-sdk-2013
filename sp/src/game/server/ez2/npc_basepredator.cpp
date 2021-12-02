@@ -25,7 +25,6 @@
 
 ConVar ai_debug_predator( "ai_debug_predator", "0" );
 ConVar sv_predator_heal_render_effects( "sv_predator_heal_render_effects", "1", FCVAR_NONE, "Should predators like bullsquids turn green after healing?" );
-ConVar sk_predator_eatincombat_fraction( "sk_predator_eatincombat_fraction", "1.0", FCVAR_NONE, "Below what percentage of health should predator NPCs like bullsquids eat during combat?" );
 
 LINK_ENTITY_TO_CLASS( npc_basepredator, CNPC_BasePredator );
 
