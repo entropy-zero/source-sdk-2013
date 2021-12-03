@@ -260,7 +260,7 @@ void CNPC_PitDrone::StartTask( const Task_t *pTask )
 		}
 
 		// If we are in a squad and that squad has a name, apply that squad's name to the Xen singularity
-		if (GetSquad() && !Matcher_Match( GetSquad()->GetName(), ""))
+		if (GetSquad() && GetSquad()->GetName() && GetSquad()->GetName()[0])
 		{
 			pVortex->AddContext( UTIL_VarArgs( "squadname:%s", GetSquad()->GetName() ) );
 		}
