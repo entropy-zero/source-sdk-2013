@@ -1150,8 +1150,8 @@ bool CGravityVortexController::TryCreateRecipeNPC( const char *szClass, const ch
 
 		const char * squadnameContext = GetContextValue( "squadname" );
 
-		// If the context "squadname" does not match an empty string, use that instead of the default Xen squad name
-		if (!Matcher_Match( squadnameContext, "default" ))
+		// If the context "squadname" does not match an empty string, use that instead of the default Xen squad name		
+		if (squadnameContext && squadnameContext[0])
 		{
 			DevMsg( "Adding xenpc '%s' to squad '%s' \n", baseNPC->GetDebugName(), squadnameContext );
 			baseNPC->SetSquadName( AllocPooledString( squadnameContext ) );
@@ -1888,9 +1888,6 @@ CGravityVortexController *CGravityVortexController::Create( const Vector &origin
 
 	// Start the vortex working
 	pVortex->StartPull( origin, radius, strength, duration );
-
-	// Set the default value for the squadname context
-	pVortex->AddContext( "squadname:default" );
 
 	return pVortex;
 }
