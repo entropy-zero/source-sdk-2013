@@ -14,7 +14,6 @@
 #include "npc_pitdrone.h"
 #include "movevars_shared.h"
 #include "grenade_hopwire.h"
-#include "mapbase/matchers.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
