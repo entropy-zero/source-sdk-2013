@@ -32,6 +32,9 @@
 #include "basecombatweapon.h"
 #include "basegrenade_shared.h"
 #include "grenade_frag.h"
+#ifdef EZ2
+#include "grenade_hopwire.h"
+#endif
 
 #include "ai_interactions.h"
 
@@ -743,15 +746,17 @@ void CNPC_Zombine::HandleAnimEvent( animevent_t *pEvent )
 			ChooseDefaultGrenadeType();
 		}
 
-		if (m_iszGrenadeType == gm_iszZombineGrenadeTypeXen)
+		if (m_iszGrenadeType == gm_iszZombineGrenadeTypeFrag)
+		{
+			pGrenade = Fraggrenade_Create( vecStart, vec3_angle, vec3_origin, AngularImpulse( 0, 0, 0 ), this, 3.5f, true );
+		}
+#ifdef EZ2
+		else if (m_iszGrenadeType == gm_iszZombineGrenadeTypeXen)
 		{
 			// Glowbines pull Xen grenades. Yikes!
 			pGrenade = HopWire_Create( vecStart, vec3_angle, vec3_origin, AngularImpulse( 0, 0, 0 ), this, 3.5f );
 		}
-		else if (m_iszGrenadeType == gm_iszZombineGrenadeTypeFrag)
-		{
-			pGrenade = Fraggrenade_Create( vecStart, vec3_angle, vec3_origin, AngularImpulse( 0, 0, 0 ), this, 3.5f, true );
-		}
+#endif
 		else if (m_iszGrenadeType == gm_iszZombineGrenadeTypeStunstick)
 		{
 			CapabilitiesAdd( bits_CAP_WEAPON_MELEE_ATTACK1 );
