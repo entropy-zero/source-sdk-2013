@@ -258,10 +258,10 @@ CNPC_Manhack::~CNPC_Manhack()
 Class_T	CNPC_Manhack::Classify(void)
 {
 #ifdef EZ
-	// If we are being held or if we are deployed by an NPC, use that NPC's relationships
-	if (GetOwnerEntity())
+	// If we are being held by a zombine or metrozombie, use CLASS_ZOMBIE
+	if (GetOwnerEntity() && GetOwnerEntity()->Classify() == CLASS_ZOMBIE)
 	{
-		return GetOwnerEntity()->Classify();
+		return CLASS_ZOMBIE;
 	}
 #endif
 
