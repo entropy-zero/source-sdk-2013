@@ -257,6 +257,14 @@ CNPC_Manhack::~CNPC_Manhack()
 //-----------------------------------------------------------------------------
 Class_T	CNPC_Manhack::Classify(void)
 {
+#ifdef EZ
+	// If we are being held or if we are deployed by an NPC, use that NPC's relationships
+	if (GetOwnerEntity())
+	{
+		return GetOwnerEntity()->Classify();
+	}
+#endif
+
 #ifdef EZ1
 	return CLASS_MANHACK; // Manhacks are always CLASS_MANHACK in EZ1
 #else
@@ -470,8 +478,11 @@ void CNPC_Manhack::TakeDamageFromPhyscannon( CBasePlayer *pPlayer )
 
 	// Convert velocity into damage.
 	Vector vel;
-	VPhysicsGetObject()->GetVelocity( &vel, NULL );
-	float flSpeed = vel.Length();
+	float flSpeed = 0;
+	if (VPhysicsGetObject()) {
+		VPhysicsGetObject()->GetVelocity( &vel, NULL );
+		flSpeed = vel.Length();
+	}
 
 	float flFactor = flSpeed / MANHACK_SMASH_SPEED;
 
@@ -1738,6 +1749,34 @@ void CNPC_Manhack::Bump( CBaseEntity *pHitEntity, float flInterval, trace_t &tr 
 //-----------------------------------------------------------------------------
 void CNPC_Manhack::CheckCollisions(float flInterval)
 {
+#ifdef EZ
+	// Trace forward to see if I hit anything. But trace forward along the
+	// owner's view direction if you're being carried.
+	Vector vecTraceDir, vecCheckPos;
+
+	if (VPhysicsGetObject() == NULL)
+	{
+		AngleVectors( GetLocalAngles(), &vecTraceDir, NULL, NULL );
+	}
+	else
+	{
+		VPhysicsGetObject()->GetVelocity( &vecTraceDir, NULL );
+	}
+	
+	vecTraceDir *= flInterval;
+	if (IsHeldByPhyscannon())
+	{
+		CBasePlayer *pCarrier = HasPhysicsAttacker( FLT_MAX );
+		if (pCarrier)
+		{
+			if (pCarrier->CollisionProp()->CalcDistanceFromPoint( WorldSpaceCenter() ) < 30)
+			{
+				AngleVectors( pCarrier->EyeAngles(), &vecTraceDir, NULL, NULL );
+				vecTraceDir *= 40.0f;
+			}
+		}
+	}
+#else	
 	// Trace forward to see if I hit anything. But trace forward along the
 	// owner's view direction if you're being carried.
 	Vector vecTraceDir, vecCheckPos;
@@ -1755,6 +1794,7 @@ void CNPC_Manhack::CheckCollisions(float flInterval)
 			}
 		}
 	}
+#endif
 
 	VectorAdd( GetAbsOrigin(), vecTraceDir, vecCheckPos );
 	
@@ -1900,8 +1940,14 @@ void CNPC_Manhack::MoveExecute_Alive(float flInterval)
 
 	Vector	vCurrentVelocity = GetCurrentVelocity();
 
+#ifdef EZ
+	// Only wake VPhysics if it exists
+	if (VPhysicsGetObject() != NULL)
+		VPhysicsGetObject()->Wake();
+#else
 	// FIXME: move this
 	VPhysicsGetObject()->Wake();
+#endif
 
 	if( m_fEnginePowerScale < GetMaxEnginePower() && gpGlobals->curtime > m_flWaterSuspendTime )
 	{
@@ -2972,6 +3018,29 @@ bool CNPC_Manhack::HandleInteraction(int interactionType, void* data, CBaseComba
 		m_fForceMoveTime   = gpGlobals->curtime + 2.0;
 		return false;
 	}
+
+#ifdef EZ2
+	if ( interactionType == g_interactionZombinePullGrenade )
+	{
+		m_bNemesis = true;
+
+		int priority;
+		Disposition_t disposition;
+		CBaseEntity * pEnemy;
+
+		// If the zombine that dispatched us has an enemy, prioritize that enemy
+		if (sourceEnt && sourceEnt->GetEnemy())
+		{
+			pEnemy = sourceEnt->GetEnemy();
+			priority = IRelationPriority( pEnemy );
+			disposition = IRelationType( pEnemy );
+
+			AddEntityRelationship( pEnemy, disposition, priority + 1 );
+		}
+
+		return false;
+	}
+#endif
 
 	return false;
 }
