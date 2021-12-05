@@ -240,10 +240,13 @@ BEGIN_DATADESC( CNPC_Zombine )
 END_DATADESC()
 
 #ifdef EZ
+ConVar	sk_zombiecop_health( "sk_zombiecop_health", "0" );
+
 class CNPC_MetroZombie : public CNPC_Zombine
 {
 	DECLARE_CLASS( CNPC_MetroZombie, CNPC_Zombine );
 
+	void Spawn( void );
 	void Precache( void );
 	void ChooseDefaultGrenadeType();
 
@@ -1475,6 +1478,14 @@ CBaseEntity *CNPC_Zombine::OnFailedPhysGunPickup( Vector vPhysgunPos )
 }
 
 #ifdef EZ
+void CNPC_MetroZombie::Spawn( void )
+{
+	BaseClass::Spawn();
+
+	m_iHealth = sk_zombiecop_health.GetFloat();
+	SetMaxHealth( m_iHealth );
+}
+
 void CNPC_MetroZombie::Precache( void )
 {
 	AllocPooledStringsForGrenadeTypes();
