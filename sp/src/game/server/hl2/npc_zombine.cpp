@@ -81,7 +81,6 @@ float g_flZombineGrenadeTimes = 0;
 #ifdef EZ
 string_t gm_iszZombineGrenadeTypeFrag;
 string_t gm_iszZombineGrenadeTypeXen;
-string_t gm_iszZombineGrenadeTypeBattery;
 string_t gm_iszZombineGrenadeTypeStunstick;
 string_t gm_iszZombineGrenadeTypeManhack;
 
@@ -96,6 +95,7 @@ class CNPC_Zombine : public CAI_BlendingHost<CNPC_BaseZombie>, public CDefaultPl
 public:
 
 	void Spawn( void );
+	void EquipStunstick();
 	void Precache( void );
 
 	void AllocPooledStringsForGrenadeTypes();
@@ -319,9 +319,29 @@ void CNPC_Zombine::Spawn( void )
 	if ( m_tEzVariant == EZ_VARIANT_XEN )
 	{
 		m_iGrenadeCount = 0;
-	} 
+	}
+
+	if ( m_iszGrenadeType == NULL_STRING )
+	{
+		ChooseDefaultGrenadeType();
+	}
+
+	if ( m_iszGrenadeType == gm_iszZombineGrenadeTypeStunstick )
+	{
+		EquipStunstick();
+		return;
+	}
 #endif
 }
+
+#ifdef EZ
+void CNPC_Zombine::EquipStunstick()
+{
+	CapabilitiesAdd( bits_CAP_WEAPON_MELEE_ATTACK1 );
+	GiveWeapon( m_iszGrenadeType );
+	m_iGrenadeCount = 0;
+}
+#endif
 
 void CNPC_Zombine::Precache( void )
 {
@@ -429,7 +449,6 @@ void CNPC_Zombine::AllocPooledStringsForGrenadeTypes()
 {
 	gm_iszZombineGrenadeTypeFrag = AllocPooledString( "npc_grenade_frag" );
 	gm_iszZombineGrenadeTypeXen = AllocPooledString( "npc_grenade_hopwire" );
-	gm_iszZombineGrenadeTypeBattery = AllocPooledString( "item_battery" );
 	gm_iszZombineGrenadeTypeStunstick = AllocPooledString( "weapon_stunstick" );
 	gm_iszZombineGrenadeTypeManhack = AllocPooledString( "npc_manhack" );
 }
@@ -762,9 +781,7 @@ void CNPC_Zombine::HandleAnimEvent( animevent_t *pEvent )
 #endif
 		else if (m_iszGrenadeType == gm_iszZombineGrenadeTypeStunstick)
 		{
-			CapabilitiesAdd( bits_CAP_WEAPON_MELEE_ATTACK1 );
-			GiveWeapon( m_iszGrenadeType );
-			m_iGrenadeCount = 0;
+			EquipStunstick();
 			return;
 		}
 		else

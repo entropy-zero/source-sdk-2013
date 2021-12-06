@@ -3019,10 +3019,13 @@ bool CNPC_Manhack::HandleInteraction(int interactionType, void* data, CBaseComba
 		return false;
 	}
 
-#ifdef EZ2
+#ifdef EZ
 	if ( interactionType == g_interactionZombinePullGrenade )
 	{
+
+#ifdef EZ2
 		m_bNemesis = true;
+#endif
 
 		int priority;
 		Disposition_t disposition;
