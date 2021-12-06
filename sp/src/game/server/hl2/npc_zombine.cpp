@@ -95,7 +95,7 @@ class CNPC_Zombine : public CAI_BlendingHost<CNPC_BaseZombie>, public CDefaultPl
 public:
 
 	void Spawn( void );
-	void EquipStunstick();
+	void EquipWeapon();
 	void Precache( void );
 
 	void AllocPooledStringsForGrenadeTypes();
@@ -326,20 +326,24 @@ void CNPC_Zombine::Spawn( void )
 		ChooseDefaultGrenadeType();
 	}
 
-	if ( m_iszGrenadeType == gm_iszZombineGrenadeTypeStunstick )
+	if (strncmp( STRING( m_iszGrenadeType ), "weapon_", 7 ) == 0)
 	{
-		EquipStunstick();
+		EquipWeapon();
 		return;
 	}
 #endif
 }
 
 #ifdef EZ
-void CNPC_Zombine::EquipStunstick()
+void CNPC_Zombine::EquipWeapon()
 {
-	CapabilitiesAdd( bits_CAP_WEAPON_MELEE_ATTACK1 );
 	GiveWeapon( m_iszGrenadeType );
 	m_iGrenadeCount = 0;
+
+	if (GetActiveWeapon() && GetActiveWeapon()->IsMeleeWeapon())
+	{
+		CapabilitiesAdd( bits_CAP_WEAPON_MELEE_ATTACK1 );
+	}
 }
 #endif
 
@@ -781,7 +785,7 @@ void CNPC_Zombine::HandleAnimEvent( animevent_t *pEvent )
 #endif
 		else if (m_iszGrenadeType == gm_iszZombineGrenadeTypeStunstick)
 		{
-			EquipStunstick();
+			EquipWeapon();
 			return;
 		}
 		else
@@ -1371,7 +1375,7 @@ const char *CNPC_Zombine::GetHeadcrabModel( void )
 #ifdef EZ
 CBaseEntity * CNPC_Zombine::ClawAttack( float flDist, int iDamage, QAngle & qaViewPunch, Vector & vecVelocityPunch, int BloodOrigin )
 {
-	if (GetActiveWeapon())
+	if ( GetActiveWeapon() && GetActiveWeapon()->IsMeleeWeapon() )
 	{
 		animevent_t * pEvent = new animevent_t();
 		pEvent->event = EVENT_WEAPON_MELEE_HIT;
