@@ -583,7 +583,20 @@ Activity CNPC_Zombine::NPC_TranslateActivity( Activity baseAct )
 
 int CNPC_Zombine::MeleeAttack1Conditions ( float flDot, float flDist )
 {
+
+#ifdef EZ
+	int iBase;
+	if ( GetActiveWeapon() && GetActiveWeapon()->IsMeleeWeapon() )
+	{
+		iBase = GetActiveWeapon()->WeaponMeleeAttack1Condition( flDot, flDist );
+	}
+	else
+	{
+		iBase = BaseClass::MeleeAttack1Conditions( flDot, flDist );
+	}
+#else
 	int iBase = BaseClass::MeleeAttack1Conditions( flDot, flDist );
+#endif
 
 	if( HasGrenade() )
 	{
@@ -666,6 +679,12 @@ void CNPC_Zombine::GatherGrenadeConditions( void )
 
 int CNPC_Zombine::TranslateSchedule( int scheduleType ) 
 {
+#ifdef EZ
+	// Even when equipped with a weapon, zombine chase enemies instead of moving to weapon range
+	if ( scheduleType == SCHED_MOVE_TO_WEAPON_RANGE )
+		return SCHED_CHASE_ENEMY;
+#endif
+
 	return BaseClass::TranslateSchedule( scheduleType );
 }
 
