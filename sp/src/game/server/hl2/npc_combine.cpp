@@ -64,6 +64,7 @@ ConVar npc_combine_new_cover_behavior( "npc_combine_new_cover_behavior", "1", FC
 ConVar npc_combine_give_enabled( "npc_combine_give_enabled", "1", FCVAR_NONE, "Allows players to \"give\" weapons to Combine soldiers in their squad by holding one in front of them for a few seconds." );
 ConVar npc_combine_give_stare_dist( "npc_combine_give_stare_dist", "112", FCVAR_NONE, "The distance needed for soldiers to consider the possibility the player wants to give them a weapon." );
 ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NONE, "The amount of time the player needs to be staring at a soldier in order for them to pick up a weapon they're holding." );
+ConVar npc_combine_unarmed_dont_join( "npc_combine_unarmed_dont_join", "1", FCVAR_NONE, "If true, unarmed soldiers will not join the player's squad even when commandable" );
 #endif
 
 #define COMBINE_SKIN_DEFAULT		0
@@ -350,6 +351,11 @@ void CNPC_Combine::ClearFollowTarget()
 void CNPC_Combine::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value)
 {
 	m_OnPlayerUse.FireOutput(pActivator, pCaller);
+
+#ifdef EZ2
+	if ( GetActiveWeapon() == NULL && npc_combine_unarmed_dont_join.GetBool())
+		return;
+#endif
 
 	if (pActivator == UTIL_GetLocalPlayer() && IsCommandable())
 	{

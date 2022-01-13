@@ -105,7 +105,7 @@ $Project "Server (Entropy Zero 2)"
 			{
 				$File	"episodic\grenade_hopwire.cpp"
 				$File	"episodic\grenade_hopwire.h"
-				$File	"episodic\weapon_hopwire.cpp
+				$File	"episodic\weapon_hopwire.cpp"
 				$File	"hl2\npc_houndeye.cpp"
 				$File	"hl2\npc_houndeye.h"
 				$File	"mod\npc_base_custom.h"
