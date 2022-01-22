@@ -135,6 +135,8 @@ public:
 	void InputDeployManhack( inputdata_t &inputdata );
 	void InputAddManhacks( inputdata_t &inputdata );
 	void InputSetManhacks( inputdata_t &inputdata );
+	void InputEnablePlayerUse( inputdata_t &inputdata );
+	void InputDisablePlayerUse( inputdata_t &inputdata );
 	COutputEHANDLE	m_OutManhack;
 
 	//-----------------------------------------------------
@@ -332,6 +334,9 @@ protected:
 #ifdef EZ
 	int				m_iManhacks;
 	AIHANDLE		m_hManhack = NULL;
+
+	// 1upD - If true, player +USE has no effect
+	bool m_bDisablePlayerUse;
 #endif
 
 #ifdef EZ2
