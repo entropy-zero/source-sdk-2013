@@ -27,6 +27,7 @@
 #include "saverestore_utlvector.h"
 #include "grenade_satchel.h"
 #include "npc_citizen17.h"
+#include "npc_combine.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -205,8 +206,9 @@ bool SoldierHintTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
 	// Look for a commandable soldier
 	// (must be a soldier and not, say, a commandable rollermine)
 	CAI_BaseNPC *pNPC = pActivator->MyNPCPointer();
-	if (pNPC && pNPC->IsCommandable() && !pNPC->IsInPlayerSquad() && FClassnameIs( pNPC, "npc_combine_s" ))
-		return (pPlayer->GetAbsOrigin().DistToSqr(pNPC->GetAbsOrigin()) <= Square(192.0f) && pPlayer->IRelationType(pNPC) == D_LI);
+	CNPC_Combine *pCombine = static_cast<CNPC_Combine *>(pNPC);
+	if ( pCombine && pCombine->IsCommandable() && !pCombine->IsInPlayerSquad() && !pCombine->IsPlayerUseDisabled() )
+		return (pPlayer->GetAbsOrigin().DistToSqr( pCombine->GetAbsOrigin()) <= Square(192.0f) && pPlayer->IRelationType( pCombine ) == D_LI);
 	return false;
 }
 

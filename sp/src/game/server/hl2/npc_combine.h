@@ -180,6 +180,9 @@ public:
 
 	// Blixibon - Elites in ball attacks should aim while moving, even if they can't shoot
 	bool			HasAttackSlot() { return BaseClass::HasAttackSlot() || HasStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ); }
+
+	// 1upD - Accessor for "Disable Player Use" key value
+	bool			IsPlayerUseDisabled() { return m_bDisablePlayerUse; };
 #endif
 
 	bool			UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position, CBaseEntity *pInformer = NULL );
