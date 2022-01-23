@@ -7095,6 +7095,23 @@ bool CBasePlayer::BumpWeapon( CBaseCombatWeapon *pWeapon )
 	else 
 #endif
 	{
+#ifdef EZ2
+		// If this weapon is set to "PreventPlayerSwap", check if there's another weapon in the same slot.
+		// If there is, do not pick up the weapon.
+		if (pWeapon->GetWpnData().m_bPreventPlayerSwap)
+		{
+			for (int i=0; i<MAX_WEAPONS; i++)
+			{
+				if (m_hMyWeapons[i] &&
+					pWeapon->GetSlot() == m_hMyWeapons[i]->GetSlot() &&
+					pWeapon->GetPosition() == m_hMyWeapons[i]->GetPosition())
+				{
+					return false;
+				}
+			}
+		}
+#endif
+
 		pWeapon->CheckRespawn();
 
 		pWeapon->AddSolidFlags( FSOLID_NOT_SOLID );

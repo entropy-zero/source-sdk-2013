@@ -469,6 +469,7 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 
 #ifdef EZ2
 	m_bAlwaysFirstDraw = (pKeyValuesData->GetInt( "AlwaysFirstDraw", 0 ) != 0) ? true : false;
+	m_bPreventPlayerSwap = (pKeyValuesData->GetInt( "PreventPlayerSwap", 0 ) != 0) ? true : false;
 #endif
 
 #ifndef MAPBASE // Mapbase makes weapons in the same slot & position swap each other out, which is a feature mods can intentionally use.
