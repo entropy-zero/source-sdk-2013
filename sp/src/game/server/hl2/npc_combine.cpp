@@ -353,14 +353,14 @@ void CNPC_Combine::ClearFollowTarget()
 //-----------------------------------------------------------------------------
 void CNPC_Combine::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value)
 {
+	m_OnPlayerUse.FireOutput(pActivator, pCaller);
+
 #ifdef EZ
 	if ( m_bDisablePlayerUse )
 	{
 		return;
 	}
 #endif
-
-	m_OnPlayerUse.FireOutput(pActivator, pCaller);
 
 	if (pActivator == UTIL_GetLocalPlayer() && IsCommandable())
 	{
