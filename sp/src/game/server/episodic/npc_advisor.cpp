@@ -99,6 +99,13 @@ ConVar advisor_throw_stage_max_mass( "advisor_throw_stage_max_mass", "220" );
 #define ADVISOR_MELEE_LEFT					( 3 )
 #define ADVISOR_MELEE_RIGHT					( 4 )
 
+// Skins
+#ifdef EZ2
+#define ADVISOR_SKIN_NOSHIELD				0
+#define ADVISOR_SKIN_SHIELD					1
+#endif
+
+
 #if NPC_ADVISOR_HAS_BEHAVIOR
 //
 // Custom schedules.
@@ -337,6 +344,9 @@ public:
 	virtual void	StopLoopingSounds();
 
 	bool	HandleInteraction( int interactionType, void *data, CBaseCombatCharacter *sourceEnt );
+
+	// Override to handle shield
+	void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
 #endif
 
 #endif
@@ -1410,10 +1420,12 @@ void CNPC_Advisor::ApplyShieldedEffects(  )
 	if ( IsShieldOn() )
 	{
 		SetBloodColor( DONT_BLEED );
+		SetSkin( ADVISOR_SKIN_SHIELD );
 	}
 	else
 	{
 		SetBloodColor( BLOOD_COLOR_GREEN );
+		SetSkin( ADVISOR_SKIN_NOSHIELD );
 	}
 }
 
@@ -1660,6 +1672,31 @@ bool CNPC_Advisor::HandleInteraction( int interactionType, void *data, CBaseComb
 	// TODO - Add an interaction for telefragging
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+
+//=========================================================
+// TraceAttack is overridden here for jump rebel purposes.
+//=========================================================
+void CNPC_Advisor::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator )
+{
+	m_fNoDamageDecal = false;
+
+	// Shield particle
+	if ( IsShieldOn() )
+	{
+		QAngle vecAngles;
+		VectorAngles( ptr->startpos - ptr->endpos, vecAngles );
+		DispatchParticleEffect( "warp_shield_impact_BMan", ptr->endpos, vecAngles );
+
+		// Make a blocked sound
+		EmitSound( "NPC_Advisor.shieldblock" );
+
+		// Do not handle trace
+		m_fNoDamageDecal = true;
+		return;
+	}
+
+	BaseClass::TraceAttack( info, vecDir, ptr, pAccumulator );
 }
 #endif
 
@@ -2298,6 +2335,7 @@ void CNPC_Advisor::Precache()
 	UTIL_PrecacheOther( "npc_advisor_flyer" );
 
 	PrecacheScriptSound( "NPC_Advisor.BreatheLoop" );
+	PrecacheScriptSound( "NPC_Advisor.shieldblock" );
 
 	PrecacheParticleSystem( "Advisor_Psychic_Shield_Idle" );
 #endif
