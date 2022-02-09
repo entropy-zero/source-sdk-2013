@@ -1675,7 +1675,7 @@ bool CNPC_Advisor::HandleInteraction( int interactionType, void *data, CBaseComb
 }
 
 //=========================================================
-// TraceAttack is overridden here for jump rebel purposes.
+// TraceAttack is overridden here to handle shield impacts.
 //=========================================================
 void CNPC_Advisor::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator )
 {
