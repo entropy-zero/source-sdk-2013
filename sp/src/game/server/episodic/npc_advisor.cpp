@@ -1417,15 +1417,18 @@ bool CNPC_Advisor::IsShieldOn( void )
 
 void CNPC_Advisor::ApplyShieldedEffects(  )
 {
-	if ( IsShieldOn() )
+	// Modulus with the skin allows multiple sets of shielded / unshielded skins
+	if ( IsShieldOn() && GetSkin() % 2 == ADVISOR_SKIN_NOSHIELD )
 	{
+		EmitSound( "NPC_Advisor.shieldup" );
 		SetBloodColor( DONT_BLEED );
-		SetSkin( ADVISOR_SKIN_SHIELD );
+		SetSkin( GetSkin() + 1 );
 	}
-	else
+	else if ( !IsShieldOn() && GetSkin() % 2 == ADVISOR_SKIN_SHIELD)
 	{
+		EmitSound( "NPC_Advisor.shielddown" );
 		SetBloodColor( BLOOD_COLOR_GREEN );
-		SetSkin( ADVISOR_SKIN_NOSHIELD );
+		SetSkin( GetSkin() - 1 );
 	}
 }
 
@@ -2336,6 +2339,8 @@ void CNPC_Advisor::Precache()
 
 	PrecacheScriptSound( "NPC_Advisor.BreatheLoop" );
 	PrecacheScriptSound( "NPC_Advisor.shieldblock" );
+	PrecacheScriptSound( "NPC_Advisor.shieldup" );
+	PrecacheScriptSound( "NPC_Advisor.shielddown" );
 
 	PrecacheParticleSystem( "Advisor_Psychic_Shield_Idle" );
 #endif
