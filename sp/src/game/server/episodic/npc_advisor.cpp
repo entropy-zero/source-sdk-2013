@@ -1688,7 +1688,7 @@ void CNPC_Advisor::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDi
 	if ( IsShieldOn() )
 	{
 		QAngle vecAngles;
-		VectorAngles( ptr->startpos - ptr->endpos, vecAngles );
+		VectorAngles( ptr->plane.normal, vecAngles );
 		DispatchParticleEffect( "warp_shield_impact_BMan", ptr->endpos, vecAngles );
 
 		// Make a blocked sound
