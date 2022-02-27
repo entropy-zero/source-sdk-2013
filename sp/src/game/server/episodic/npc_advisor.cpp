@@ -1418,17 +1418,17 @@ bool CNPC_Advisor::IsShieldOn( void )
 void CNPC_Advisor::ApplyShieldedEffects(  )
 {
 	// Modulus with the skin allows multiple sets of shielded / unshielded skins
-	if ( IsShieldOn() && GetSkin() % 2 == ADVISOR_SKIN_NOSHIELD )
+	if ( IsShieldOn() && m_nSkin % 2 == ADVISOR_SKIN_NOSHIELD )
 	{
 		EmitSound( "NPC_Advisor.shieldup" );
 		SetBloodColor( DONT_BLEED );
-		SetSkin( GetSkin() + 1 );
+		m_nSkin++;
 	}
-	else if ( !IsShieldOn() && GetSkin() % 2 == ADVISOR_SKIN_SHIELD)
+	else if ( !IsShieldOn() && m_nSkin % 2 == ADVISOR_SKIN_SHIELD)
 	{
 		EmitSound( "NPC_Advisor.shielddown" );
 		SetBloodColor( BLOOD_COLOR_GREEN );
-		SetSkin( GetSkin() - 1 );
+		m_nSkin--;
 	}
 }
 
