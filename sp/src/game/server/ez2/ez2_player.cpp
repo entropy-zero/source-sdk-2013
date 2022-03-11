@@ -206,7 +206,7 @@ bool SoldierHintTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
 	// Look for a commandable soldier
 	// (must be a soldier and not, say, a commandable rollermine)
 	CAI_BaseNPC *pNPC = pActivator->MyNPCPointer();
-	CNPC_Combine *pCombine = static_cast<CNPC_Combine *>(pNPC);
+	CNPC_Combine *pCombine = dynamic_cast<CNPC_Combine *>(pNPC);
 	if ( pCombine && pCombine->IsCommandable() && !pCombine->IsInPlayerSquad() && !pCombine->IsPlayerUseDisabled() )
 		return (pPlayer->GetAbsOrigin().DistToSqr( pCombine->GetAbsOrigin()) <= Square(192.0f) && pPlayer->IRelationType( pCombine ) == D_LI);
 	return false;
