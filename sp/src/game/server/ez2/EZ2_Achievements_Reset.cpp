@@ -1,0 +1,40 @@
+// Breadman all Breadman
+// Sets up a command that we can call from the console to clear steam achievements. For development purposes only.
+
+#include "cbase.h"
+#include "ai_basenpc.h"
+#include "player.h"
+#include "entitylist.h"
+#include "ai_networkmanager.h"
+#include "ndebugoverlay.h"
+#include "datacache/imdlcache.h"
+#include "achievementmgr.h"
+
+// memdbgon must be the last include file in a .cpp file!!!
+#include "tier0/memdbgon.h"
+
+void CC_SAPI_EZ2RESET(void)
+{
+	steamapicontext->SteamUserStats()->ResetAllStats(true);
+}
+static ConCommand ez2_sapi_resetall("ez2_sapi_resetall", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");
+
+void CC_SAPI_EZ2REQUEST(void)
+{
+	steamapicontext->SteamUserStats()->RequestCurrentStats();
+}
+static ConCommand ez2_sapi_requestall("ez2_sapi_requestall", CC_SAPI_EZ2RESET, "Attempts to get store achievements for Entropy Zero 2.");
+
+void CC_SAPI_EZ2STORESTATS(void)
+{
+	steamapicontext->SteamUserStats()->StoreStats();
+}
+static ConCommand ez2_sapi_storestats("ez2_sapi_storestats", CC_SAPI_EZ2RESET, "Attempts to send the changed stats and achievements data to the server for permanent storage.");
+
+void CC_SAPI_EZ2CLEARACHS(void)
+{
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CCRADIO");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_NMODE");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_HMODE");
+}
+static ConCommand ez2_sapi_clearachs("ez2_sapi_clearachs", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");
