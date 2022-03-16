@@ -33,7 +33,7 @@ static ConCommand ez2_sapi_storestats("ez2_sapi_storestats", CC_SAPI_EZ2RESET, "
 
 void CC_SAPI_EZ2CLEARACHS(void)
 {
-	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CCRADIO");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_RECORDING");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_NMODE");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_HMODE");
 }
