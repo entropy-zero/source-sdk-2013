@@ -14,6 +14,157 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// Chapter Completion Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class CAchievementEZ2CompleteChapter0 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C0"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C0" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter0, ACHIEVEMENT_EZ2_CH0, "ACH_EZ2_CH0", 5 );
+
+class CAchievementEZ2CompleteChapter1 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C1"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C1" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter1, ACHIEVEMENT_EZ2_CH1, "ACH_EZ2_CH1", 5 );
+
+class CAchievementEZ2CompleteChapter2 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C2"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C2" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter2, ACHIEVEMENT_EZ2_CH2, "ACH_EZ2_CH2", 5 );
+
+class CAchievementEZ2CompleteChapter3 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C3"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C3" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter3, ACHIEVEMENT_EZ2_CH3, "ACH_EZ2_CH3", 5 );
+
+class CAchievementEZ2CompleteChapter4 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C4"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C4" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter4, ACHIEVEMENT_EZ2_CH4, "ACH_EZ2_CH4", 5 );
+
+class CAchievementEZ2CompleteChapter4a : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C4a"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C4a" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter4a, ACHIEVEMENT_EZ2_CH4a, "ACH_EZ2_CH4a", 5 );
+
+class CAchievementEZ2CompleteChapter5 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C5"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C5" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter5, ACHIEVEMENT_EZ2_CH5, "ACH_EZ2_CH5", 5 );
+
+class CAchievementEZ2CompleteChapter6 : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_COMPLETE_C6"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_COMPLETE_C6" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter6, ACHIEVEMENT_EZ2_CH6, "ACH_EZ2_CH6", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Collectible Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Find all of the Arbeit 1 recording boxes
 class CAchievementEZ2FindAllRecordingBoxes : public CBaseAchievement
 {
