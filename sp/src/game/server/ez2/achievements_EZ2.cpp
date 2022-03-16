@@ -21,12 +21,12 @@ class CAchievementEZ2FindAllRecordingBoxes : public CBaseAchievement
 	{
 		static const char *szComponents[] =
 		{
-			"EZ2_CCRADIO_01", "EZ2_CCRADIO_02", "EZ2_CCRADIO_03", "EZ2_CCRADIO_04", "EZ2_CCRADIO_05", "EZ2_CCRADIO_06", "EZ2_CCRADIO_07", "EZ2_CCRADIO_08", "EZ2_CCRADIO_09", "EZ2_CCRADIO_10", "EZ2_CCRADIO_11", "EZ2_CCRADIO_12", "EZ2_CCRADIO_13"
+			"EZ2_RECORDING_RG01", "EZ2_RECORDING_RG02", "EZ2_RECORDING_RG03", "EZ2_RECORDING_RG04", "EZ2_RECORDING_RG05", "EZ2_RECORDING_CC01", "EZ2_RECORDING_CC02", "EZ2_RECORDING_CC03", "EZ2_RECORDING_CC04", "EZ2_RECORDING_CC05", "EZ2_RECORDING_CC06", "EZ2_RECORDING_CC07", "EZ2_RECORDING_CC08", "EZ2_RECORDING_CC09", "EZ2_RECORDING_CC10", "EZ2_RECORDING_CC11", "EZ2_RECORDING_CC12", "EZ2_RECORDING_CC13", "EZ2_RECORDING_RG06"
 		};
 		SetFlags(ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL);
 		m_pszComponentNames = szComponents;
 		m_iNumComponents = ARRAYSIZE(szComponents);
-		SetComponentPrefix("EZ2_CCRADIO");
+		SetComponentPrefix("EZ2_RECORDING");
 		SetGameDirFilter("EntropyZero2");
 		SetGoal(m_iNumComponents);
 	}
@@ -34,7 +34,7 @@ class CAchievementEZ2FindAllRecordingBoxes : public CBaseAchievement
 	// Show progress for this achievement
 	virtual bool ShouldShowProgressNotification() { return true; }
 };
-DECLARE_ACHIEVEMENT(CAchievementEZ2FindAllRecordingBoxes, ACHIEVEMENT_EZ2_CCRADIO, "ACH_EZ2_CCRADIO", 5);
+DECLARE_ACHIEVEMENT(CAchievementEZ2FindAllRecordingBoxes, ACHIEVEMENT_EZ2_RECORDING, "ACH_EZ2_RECORDING", 5);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

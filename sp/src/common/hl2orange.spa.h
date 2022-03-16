@@ -316,7 +316,7 @@ extern "C" {
 #define ACHIEVEMENT_EZ_BHANGOVER					183
 
 // EZ2 Achievements
-#define ACHIEVEMENT_EZ2_CCRADIO						184
+#define ACHIEVEMENT_EZ2_RECORDING					184
 #define ACHIEVEMENT_EZ2_NMODE						185
 #define ACHIEVEMENT_EZ2_HMODE						186
 
