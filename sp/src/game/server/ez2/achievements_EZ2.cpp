@@ -14,7 +14,7 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Find all of the poem pieces
+// Find all of the Arbeit 1 recording boxes
 class CAchievementEZ2FindAllRecordingBoxes : public CBaseAchievement
 {
 	virtual void Init()
