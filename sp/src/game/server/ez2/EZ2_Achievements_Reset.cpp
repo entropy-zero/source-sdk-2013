@@ -36,5 +36,13 @@ void CC_SAPI_EZ2CLEARACHS(void)
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_RECORDING");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_NMODE");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_HMODE");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH0");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH1");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH2");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH3");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH4");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH4a");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH5");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH6");
 }
 static ConCommand ez2_sapi_clearachs("ez2_sapi_clearachs", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");
