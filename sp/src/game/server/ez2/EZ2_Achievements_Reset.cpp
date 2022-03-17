@@ -53,5 +53,6 @@ void CC_SAPI_EZ2CLEARACHS(void)
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_BEAST");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_TWOGONOMES");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_ADVISOR_DEAD");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_ALIENSWXBOW");
 }
 static ConCommand ez2_sapi_clearachs("ez2_sapi_clearachs", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");
