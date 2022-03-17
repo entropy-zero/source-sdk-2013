@@ -44,5 +44,11 @@ void CC_SAPI_EZ2CLEARACHS(void)
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH4a");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH5");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_CH6");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_STILL_ALIVE");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_SPARE_CC");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_MEET_WILSON");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_DELIVER_WILSON");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_MIND_WIPE");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_SUPERFUTURE");
 }
 static ConCommand ez2_sapi_clearachs("ez2_sapi_clearachs", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");
