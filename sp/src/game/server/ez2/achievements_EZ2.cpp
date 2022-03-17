@@ -312,7 +312,7 @@ protected:
 		SetVictimFilter( "npc_zassassin" );
 		// Use flag ACH_LISTEN_KILL_EVENTS instead of ACH_LISTEN_PLAYER_KILL_ENEMY_EVENTS in case
 		//   the way the gonome dies doesn't treat the player as the attacker
-		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_WITH_GAME );
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_LISTEN_KILL_EVENTS | ACH_SAVE_WITH_GAME );
 		SetGameDirFilter( "EntropyZero2" );
 		SetGoal( 1 );
 	}
@@ -337,7 +337,7 @@ protected:
 	virtual void Init()
 	{
 		SetVictimFilter( "npc_zassassin" );
-		SetFlags( ACH_LISTEN_PLAYER_KILL_ENEMY_EVENTS | ACH_SAVE_WITH_GAME );
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_LISTEN_PLAYER_KILL_ENEMY_EVENTS | ACH_SAVE_WITH_GAME );
 		SetGameDirFilter( "EntropyZero2" );
 		SetGoal( 2 );
 	}
@@ -354,7 +354,7 @@ protected:
 	// map event where achievement is evaluated for success
 	virtual const char *GetEvaluationEventName() { return "ACH_EZ2_CH4a"; }
 };
-DECLARE_ACHIEVEMENT( CAchievementEZ2KillChapter3Gonome, ACHIEVEMENT_EZ2_KILL_TWOGONOMES, "ACH_EZ2_KILL_TWOGONOMES", 5 );
+DECLARE_ACHIEVEMENT( CAchievementEZ2KillTwoGonomes, ACHIEVEMENT_EZ2_KILL_TWOGONOMES, "ACH_EZ2_KILL_TWOGONOMES", 5 );
 
 class CAchievementEZ2AdvisorDead : public CBaseAchievement
 {
