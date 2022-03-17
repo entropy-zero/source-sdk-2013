@@ -162,6 +162,118 @@ class CAchievementEZ2CompleteChapter6 : public CBaseAchievement
 DECLARE_ACHIEVEMENT( CAchievementEZ2CompleteChapter6, ACHIEVEMENT_EZ2_CH6, "ACH_EZ2_CH6", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// Narrative Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class CAchievementEZ2StillAlive : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_STILL_ALIVE"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_STILL_ALIVE" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2StillAlive, ACHIEVEMENT_EZ2_STILL_ALIVE, "ACH_EZ2_STILL_ALIVE", 5 );
+
+class CAchievementEZ2SpareCC : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_SPARE_CC"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_SPARE_CC" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2SpareCC, ACHIEVEMENT_EZ2_SPARE_CC, "ACH_EZ2_SPARE_CC", 5 );
+
+class CAchievementEZ2MeetWilson : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_MEET_WILSON"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_MEET_WILSON" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2MeetWilson, ACHIEVEMENT_EZ2_MEET_WILSON, "ACH_EZ2_MEET_WILSON", 5 );
+
+class CAchievementEZ2DeliverWilson : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_DELIVER_WILSON"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_DELIVER_WILSON" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2DeliverWilson, ACHIEVEMENT_EZ2_DELIVER_WILSON, "ACH_EZ2_DELIVER_WILSON", 5 );
+
+class CAchievementEZ2MindWipe : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_MIND_WIPE"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_MIND_WIPE" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2MindWipe, ACHIEVEMENT_EZ2_MIND_WIPE, "ACH_EZ2_MIND_WIPE", 5 );
+
+class CAchievementEZ2Superfuture : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_SUPERFUTURE"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_SUPERFUTURE" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2Superfuture, ACHIEVEMENT_EZ2_SUPERFUTURE, "ACH_EZ2_SUPERFUTURE", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // Collectible Achievements
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
