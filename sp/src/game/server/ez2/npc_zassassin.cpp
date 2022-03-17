@@ -995,6 +995,9 @@ bool CNPC_Gonome::BecomeRagdollOnClient(const Vector & force)
 	CTakeDamageInfo info; // Need this to play death sound
 	DeathSound(info);
 
+	// Send achievement information
+	SendOnKilledGameEvent( info );
+
 	// Hackhack - This is not an elegant way to do this, but we need Bad Cop to comment on the dead glownome
 	// TODO - Perhaps we can pass this through the input somehow because the player should be the activator
 	CBasePlayer *pPlayer = AI_GetSinglePlayer();
