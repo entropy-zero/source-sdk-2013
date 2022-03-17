@@ -12,6 +12,7 @@
 #include "achievementmgr.h"
 #include "baseachievement.h"
 
+#define KILL_ALIENSWXBOW_COUNT 25
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Chapter Completion Achievements
@@ -320,6 +321,9 @@ protected:
 	// If we somehow manage to reach Chapter 3 without killing the gonome, fail this achievement
 	virtual void OnEvaluationEvent()
 	{
+		if (IsAchieved())
+			return;
+
 		SetFailed();
 	}
 
@@ -346,6 +350,9 @@ protected:
 	// 
 	virtual void OnEvaluationEvent()
 	{
+		if (IsAchieved())
+			return;
+
 		SetFailed();
 	}
 
@@ -376,6 +383,55 @@ protected:
 	virtual const char *GetEvaluationEventName() { return "EZ2_STILL_ALIVE"; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2AdvisorDead, ACHIEVEMENT_EZ2_ADVISOR_DEAD, "ACH_EZ2_ADVISOR_DEAD", 5 );
+
+// Kill a certain number of aliens with the crossbow
+class CAchievementEZ2KillAliensWithCrossbow : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "player" );
+		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( KILL_ALIENSWXBOW_COUNT );
+	}
+
+	virtual void Event_EntityKilled( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+	{
+		if (!pAttacker)
+			return;
+
+		if (!pVictim)
+			return;
+
+		if (!pAttacker->IsPlayer())
+			return;
+
+		CBaseCombatWeapon * pWeapon = pAttacker->MyCombatCharacterPointer()->GetActiveWeapon();
+		if ( pWeapon && pWeapon->ClassMatches("weapon_crossbow") )
+		{
+			// Check if the victim is an alien
+			int lVictimClassification = pVictim->Classify();
+			switch (lVictimClassification)
+			{
+			case CLASS_ALIEN_FAUNA:
+			case CLASS_ALIEN_PREDATOR:
+			case CLASS_ANTLION:
+			case CLASS_BARNACLE:
+			case CLASS_HEADCRAB:
+			case CLASS_BULLSQUID:
+			case CLASS_HOUNDEYE:
+			case CLASS_RACE_X:
+			case CLASS_VORTIGAUNT:
+				IncrementCount();
+			default:
+				return;
+			}
+		}
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KillAliensWithCrossbow, ACHIEVEMENT_EZ2_KILL_ALIENSWXBOW, "ACH_EZ2_KILL_ALIENSWXBOW", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
