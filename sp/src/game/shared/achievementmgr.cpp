@@ -1649,6 +1649,10 @@ void CAchievementMgr::OnAchievementEvent( int iAchievementID, int iCount )
 //-----------------------------------------------------------------------------
 void CAchievementMgr::OnMapEvent( const char *pchEventName )
 {
+#ifdef EZ2
+	bool bEventIsComponent = false;
+#endif
+
 	Assert( pchEventName && *pchEventName );
 	if ( !pchEventName || !*pchEventName ) 
 		return;
@@ -1662,7 +1666,12 @@ void CAchievementMgr::OnMapEvent( const char *pchEventName )
 		{
 			// prefix matches, tell the achievement a component was found
 			pAchievement->OnComponentEvent( pchEventName );
+#ifndef EZ2
 			return;
+#else
+			// In Entropy : Zero 2, an achievement event can be both a component and a map event
+			bEventIsComponent = true;
+#endif
 		}
 	}
 
@@ -1672,6 +1681,13 @@ void CAchievementMgr::OnMapEvent( const char *pchEventName )
 		CBaseAchievement *pAchievement = m_vecMapEventListeners[iAchievement];
 		pAchievement->OnMapEvent( pchEventName );
 	}
+
+#ifdef EZ2
+	if ( bEventIsComponent )
+	{
+		return;
+	}
+#endif
 
 #ifdef MAPBASE
 	if (cc_achievement_debug.GetBool())
