@@ -317,7 +317,7 @@ protected:
 		SetGoal( 1 );
 	}
 
-	// If we somehow manage to reach Chapter 3 without killing any npc_zassassin, fail this achievement
+	// If we somehow manage to reach Chapter 3 without killing the gonome, fail this achievement
 	virtual void OnEvaluationEvent()
 	{
 		SetFailed();
@@ -356,17 +356,24 @@ protected:
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2KillTwoGonomes, ACHIEVEMENT_EZ2_KILL_TWOGONOMES, "ACH_EZ2_KILL_TWOGONOMES", 5 );
 
-class CAchievementEZ2AdvisorDead : public CBaseAchievement
+class CAchievementEZ2AdvisorDead : public CFailableAchievement
 {
 protected:
 
 	virtual void Init()
 	{
 		SetVictimFilter( "npc_advisor" );
-		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_WITH_GAME );
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_LISTEN_KILL_EVENTS | ACH_SAVE_WITH_GAME );
 		SetGameDirFilter( "EntropyZero2" );
 		SetGoal( 1 );
 	}
+
+	// map event where achievement is activated\
+	// In this case we don't track the achievement until the conclusion of Chapter 5 to exclude any custom maps
+	virtual const char *GetActivationEventName() { return "EZ2_COMPLETE_C5"; }
+	// map event where achievement is evaluated for success
+	// This event has nothing to do with this achievement, but we need an evaluation event that will fire after this one is concluded
+	virtual const char *GetEvaluationEventName() { return "EZ2_STILL_ALIVE"; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2AdvisorDead, ACHIEVEMENT_EZ2_ADVISOR_DEAD, "ACH_EZ2_ADVISOR_DEAD", 5 );
 
