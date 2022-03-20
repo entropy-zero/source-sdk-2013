@@ -424,6 +424,7 @@ protected:
 			case CLASS_HOUNDEYE:
 			case CLASS_RACE_X:
 			case CLASS_VORTIGAUNT:
+			case CLASS_ZOMBIE:
 				IncrementCount();
 			default:
 				return;
