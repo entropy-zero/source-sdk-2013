@@ -292,6 +292,60 @@ class CAchievementEZ2XenGrenadeHeli : public CBaseAchievement
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2XenGrenadeHeli, ACHIEVEMENT_EZ2_XENGRENADE_HELICOPTER, "ACH_EZ2_XENGRENADE_HELICOPTER", 5 );
 
+class CAchievementEZ2DeliverLoneWolf : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_DELIVER_LONEWOLF"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_DELIVER_LONEWOLF" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2DeliverLoneWolf, ACHIEVEMENT_EZ2_DELIVER_LONEWOLF, "ACH_EZ2_DELIVER_LONEWOLF", 5 );
+
+class CAchievementEZ2SeeBorealis : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_SEE_BOREALIS"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_SEE_BOREALIS" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2SeeBorealis, ACHIEVEMENT_EZ2_SEE_BOREALIS, "ACH_EZ2_SEE_BOREALIS", 5 );
+
+class CAchievementEZ2MeetCC : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_MEET_CC"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_MEET_CC" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2MeetCC, ACHIEVEMENT_EZ2_MEET_CC, "ACH_EZ2_MEET_CC", 5 );
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Collectible Achievements
 ////////////////////////////////////////////////////////////////////////////////////////////////////
