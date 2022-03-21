@@ -11,8 +11,10 @@
 
 #include "achievementmgr.h"
 #include "baseachievement.h"
+#include "npc_citizen17.h"
 
 #define KILL_ALIENSWXBOW_COUNT 25
+#define KILL_REBELSW357_COUNT 18
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Chapter Completion Achievements
@@ -453,6 +455,9 @@ protected:
 	// map event where achievement is evaluated for success
 	// This event has nothing to do with this achievement, but we need an evaluation event that will fire after this one is concluded
 	virtual const char *GetEvaluationEventName() { return "EZ2_STILL_ALIVE"; }
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2AdvisorDead, ACHIEVEMENT_EZ2_ADVISOR_DEAD, "ACH_EZ2_ADVISOR_DEAD", 5 );
 
@@ -503,8 +508,135 @@ protected:
 			}
 		}
 	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2KillAliensWithCrossbow, ACHIEVEMENT_EZ2_KILL_ALIENSWXBOW, "ACH_EZ2_KILL_ALIENSWXBOW", 5 );
+
+class CAchievementEZ2KillRebelsWith357 : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "player" );
+		SetVictimFilter( "npc_citizen" );
+		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( KILL_REBELSW357_COUNT );
+	}
+
+	virtual void Event_EntityKilled( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+	{
+		if (!pAttacker)
+			return;
+
+		if (!pVictim)
+			return;
+
+		if (!pAttacker->IsPlayer())
+			return;
+
+		CBaseCombatWeapon * pWeapon = pAttacker->MyCombatCharacterPointer()->GetActiveWeapon();
+		if (pWeapon && pWeapon->ClassMatches( "weapon_357" ))
+		{
+			IncrementCount();
+		}
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KillRebelsWith357, ACHIEVEMENT_EZ2_KILL_REBELSW357, "ACH_EZ2_KILL_REBELSW357", 5 );
+
+class CAchievementEZ2KillJumpRebelsMidair : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "player" );
+		SetVictimFilter( "npc_citizen" );
+		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+
+	virtual void Event_EntityKilled( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+	{
+		if (!pAttacker)
+			return;
+
+		if (!pVictim)
+			return;
+
+		if (!pAttacker->IsPlayer())
+			return;
+
+		CNPC_Citizen *pCitizen = static_cast<CNPC_Citizen *>(pVictim);
+
+		// Only count jump rebels
+		if (pCitizen->GetCitiznType() != CT_LONGFALL)
+			return;
+
+		// If this citizen is mid-jump, increment the count
+		if ( pCitizen->GetActivity() == ACT_GLIDE )
+			IncrementCount();
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KillJumpRebelsMidair, ACHIEVEMENT_EZ2_KILL_JUMPREBELMIDAIR, "ACH_EZ2_KILL_JUMPREBELMIDAIR", 5 );
+
+// This achievement is a "collectible kill achievement"
+// It is both a kill achievement and a component achievement.
+// Each kill will process a fake component event based on the map name that the kill took place in
+class CAchievementEZ2KillTemporalCrabs : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "npc_headcrab_black" );
+		static const char *szComponents[] =
+		{
+			"EZ2_KILL_TEMPORALCRAB_ez2_c4_3", "EZ2_KILL_TEMPORALCRAB_ez2_c5_1", "EZ2_KILL_TEMPORALCRAB_ez2_c5_2a", "EZ2_KILL_TEMPORALCRAB_ez2_c5_3"
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_KILL_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_KILL_TEMPORALCRAB" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( m_iNumComponents );
+	}
+
+	virtual void Event_EntityKilled( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+	{
+		if (!pVictim)
+			return;
+
+		CAI_BaseNPC * pNPC = pVictim->MyNPCPointer();
+		if (!pNPC)
+			return;
+
+		// Victim must be temporal
+		if (pNPC->m_tEzVariant != CAI_BaseNPC::EZ_VARIANT_TEMPORAL)
+			return;
+
+		const char * pEventComponent = UTIL_VarArgs( "EZ2_KILL_TEMPORALCRAB_%s", m_pAchievementMgr->GetMapName() );
+
+		if (cc_achievement_debug.GetInt() > 0)
+		{
+			Msg( "Temporal crab %s was killed and triggered an achievement event: %s\n", pNPC->GetDebugName(), pEventComponent );
+		}
+
+		// Process a component event based on the current map name (This way each map's temporal crab is unique)
+		this->OnComponentEvent( pEventComponent );
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KillTemporalCrabs, ACHIEVEMENT_EZ2_KILL_TEMPORALCRAB, "ACH_EZ2_KILL_TEMPORALCRABS", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

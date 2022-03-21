@@ -217,6 +217,8 @@ public:
 #ifdef EZ2
 	bool			JustStartedFearing( CBaseEntity *pTarget ); // Blixibon - Needed so the player's speech AI doesn't pick this up as D_FR before it's apparent (e.g. fast, rapid kills)
 
+	CitizenType_t	GetCitiznType() { return m_Type; }
+
 	bool			GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * pActivator );
 	bool			TrySpeakBeg();
 
