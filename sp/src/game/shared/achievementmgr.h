@@ -137,7 +137,7 @@ private:
 	CUtlVector<CBaseAchievement *> m_vecSkillChangeEventListeners;		// vector of achievements that are listening for skill level change events
 #endif
 #ifdef EZ2
-	CUtlVector<CBaseAchievement *> m_vecXenGrenadeEventListeners;		// vector of achievements that are listening for skill level change events
+	CUtlVector<CBaseAchievement *> m_vecXenGrenadeEventListeners;		// vector of achievements that are listening for xen grenade events
 #endif
 	CUtlMap<int, CAchievement_AchievedCount *> m_mapMetaAchievement;				// map of CAchievement_AchievedCount
 
