@@ -96,7 +96,7 @@ public:
 	virtual void OnSkillChangedEvent(int iSkillLevel, IGameEvent *event);
 #endif
 #ifdef EZ2
-	virtual void OnXenGrenadeEvent(float flMass, IGameEvent *event);
+	virtual void OnXenGrenadeEvent(float flMass, CBaseEntity * pAttacker, IGameEvent *event);
 #endif
 	//=============================================================================
 	// HPE_END

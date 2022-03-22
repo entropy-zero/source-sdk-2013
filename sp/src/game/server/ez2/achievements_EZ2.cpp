@@ -648,8 +648,8 @@ class CAchievementEZ2XenGrenadeWeight : public CBaseAchievement
 protected:
 	void Init()
 	{
-		// SetAttackerFilter( "player" ); // TODO - Should this achievement filter on the player being the thrower?
-		SetFlags( ACH_LISTEN_XENGRENADE_EVENTS | ACH_SAVE_GLOBAL );
+		SetAttackerFilter( "player" ); // TODO - Should this achievement filter on the player being the thrower?
+		SetFlags( ACH_LISTEN_XENGRENADE_EVENTS | ACH_FILTER_ATTACKER_IS_PLAYER | ACH_SAVE_GLOBAL );
 		SetGameDirFilter( "EntropyZero2" );
 		SetGoal( XENGRENADE_WEIGHT_COUNT );
 	}

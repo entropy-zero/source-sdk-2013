@@ -1474,8 +1474,11 @@ void CAchievementMgr::FireGameEvent( IGameEvent *event )
 #ifdef EZ2
 		if (0 == Q_strcmp( name, "xen_grenade" ))
 		{
+#ifdef GAME_DLL
 			DevMsg( "Achievement: Xen grenade singularity collapsed \n" );
-			OnXenGrenadeEvent( event->GetFloat( "mass" ), event );
+			CBaseEntity *pAttacker = UTIL_EntityByIndex( event->GetInt( "entindex_attacker", 0 ) );
+			OnXenGrenadeEvent( event->GetFloat( "mass" ), pAttacker, event );
+#endif
 		}
 		else
 #endif
@@ -1743,19 +1746,41 @@ void CAchievementMgr::OnSkillChangedEvent(int iSkillLevel, IGameEvent * event)
 //-----------------------------------------------------------------------------
 // Purpose: called a Xen grenade singularity collapses
 //-----------------------------------------------------------------------------
-void CAchievementMgr::OnXenGrenadeEvent( float flMass, IGameEvent * event )
+void CAchievementMgr::OnXenGrenadeEvent( float flMass, CBaseEntity * pAttacker, IGameEvent * event )
 {
+#ifdef GAME_DLL
 	if (event == NULL)
 		return;
+
+	// if single-player game, calculate if the attacker is the local player and if the victim is the player enemy
+	bool bAttackerIsPlayer = false;
+	CBasePlayer *pLocalPlayer = UTIL_GetLocalPlayer();
+	if (pLocalPlayer)
+	{
+		if (pAttacker == pLocalPlayer)
+		{
+			bAttackerIsPlayer = true;
+		}
+	}
 
 	FOR_EACH_VEC( m_vecXenGrenadeEventListeners, iAchievement )
 	{
 		CBaseAchievement *pAchievement = m_vecXenGrenadeEventListeners[iAchievement];
 		if (pAchievement)
 		{
+			// if this achievement only looks for kills where attacker is player and that is not the case here, skip this achievement
+			if ((pAchievement->GetFlags() & ACH_FILTER_ATTACKER_IS_PLAYER) && !bAttackerIsPlayer)
+				continue;
+
+			// if this achievement only looks for a particular attacker class name and this attacker is a different class, skip this achievement
+			const char *pAttackerClassNameFilter = pAchievement->m_pAttackerClassNameFilter;
+			if (pAttackerClassNameFilter && ((NULL == pAttacker) || !pAttacker->ClassMatches( pAttackerClassNameFilter )))
+				continue;
+
 			pAchievement->Event_XenGrenade( flMass, event );
 		}
 	}
+#endif
 }
 #endif
 
