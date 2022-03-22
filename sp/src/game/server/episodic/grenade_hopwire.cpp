@@ -1836,12 +1836,15 @@ void CGravityVortexController::PullThink( void )
 #ifdef EZ2
 		DevMsg( "Consumed %.2f kilograms\n", m_flMass );
 
-		// Fire game event for the xen grenade
-		IGameEvent *event = gameeventmanager->CreateEvent( "xen_grenade" );
-		if (event)
+		if (GetThrower() && GetThrower()->IsPlayer())
 		{
-			event->SetFloat( "mass", m_flMass );
-			gameeventmanager->FireEvent( event );
+			// Fire game event for player xen grenades
+			IGameEvent *event = gameeventmanager->CreateEvent( "xen_grenade" );
+			if (event)
+			{
+				event->SetFloat( "mass", m_flMass );
+				gameeventmanager->FireEvent( event );
+			}
 		}
 
 		DisplacementInfo_t dinfo( this, this, &GetAbsOrigin(), &GetAbsAngles() );
