@@ -15,6 +15,7 @@
 
 #define KILL_ALIENSWXBOW_COUNT 25
 #define KILL_REBELSW357_COUNT 18
+#define XENGRENADE_WEIGHT_COUNT 10000
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Chapter Completion Achievements
@@ -637,6 +638,32 @@ protected:
 	virtual bool ShouldShowProgressNotification() { return true; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2KillTemporalCrabs, ACHIEVEMENT_EZ2_KILL_TEMPORALCRAB, "ACH_EZ2_KILL_TEMPORALCRABS", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Xen Grenade Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class CAchievementEZ2XenGrenadeWeight : public CBaseAchievement
+{
+protected:
+	void Init()
+	{
+		// SetAttackerFilter( "player" ); // TODO - Should this achievement filter on the player being the thrower?
+		SetFlags( ACH_LISTEN_XENGRENADE_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( XENGRENADE_WEIGHT_COUNT );
+	}
+
+	// Divide this achievement into increments of 10
+	void CalcProgressMsgIncrement()
+	{
+		m_iProgressMsgIncrement = XENGRENADE_WEIGHT_COUNT / 10;
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2XenGrenadeWeight, ACHIEVEMENT_EZ2_XENGRENADE_WEIGHT, "ACH_EZ2_XENGRENADE_WEIGHT", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

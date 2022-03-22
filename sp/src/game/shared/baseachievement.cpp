@@ -192,6 +192,31 @@ void CBaseAchievement::Event_EntityKilled( CBaseEntity *pVictim, CBaseEntity *pA
 	IncrementCount();
 }
 
+// By default, Xen grenade achievement events increment count by mass
+#ifdef EZ2
+void CBaseAchievement::Event_XenGrenade( float flMass, IGameEvent *event )
+{
+	// extra paranoid check: should only get here if registered as a kill event listener
+	Assert( GetFlags() & ACH_LISTEN_XENGRENADE_EVENTS );
+	if (!(GetFlags() & ACH_LISTEN_XENGRENADE_EVENTS))
+		return;
+
+	IncrementCount( flMass );
+
+	// We need to override the way notifications are handled because of the quantities involved
+	int iProgress = MAX(m_iCount / m_iProgressMsgIncrement, 1);
+	// if we haven't already shown this progress step, show it
+	if (iProgress > m_iProgressShown)
+	{
+		ShowProgressNotification();
+		// remember progress step shown so we don't show it again if the player loads an earlier save game
+		// and gets past this point again
+		m_iProgressShown = iProgress;
+		m_pAchievementMgr->SetDirty( true );
+	}
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: called when an event that counts toward an achievement occurs
 //-----------------------------------------------------------------------------
@@ -275,6 +300,13 @@ void CBaseAchievement::SetShowOnHUD( bool bShow )
 
 void CBaseAchievement::HandleProgressUpdate()
 {
+#ifdef EZ2
+	if (cc_achievement_debug.GetInt())
+	{
+		DevMsg( "Handling progress update for %s: %d/%d/%d/%d\n", GetName(), m_iCount, m_iProgressMsgMinimum, m_iProgressMsgIncrement, m_iGoal );
+	}
+#endif
+
 	// if we've hit the right # of progress steps to show a progress notification, show it
 	if ( ( m_iProgressMsgIncrement > 0 ) && m_iCount >= m_iProgressMsgMinimum && ( 0 == ( m_iCount % m_iProgressMsgIncrement ) ) )
 	{

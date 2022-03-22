@@ -95,6 +95,9 @@ public:
 #ifdef EZ
 	virtual void OnSkillChangedEvent(int iSkillLevel, IGameEvent *event);
 #endif
+#ifdef EZ2
+	virtual void OnXenGrenadeEvent(float flMass, IGameEvent *event);
+#endif
 	//=============================================================================
 	// HPE_END
 	//=============================================================================
@@ -132,6 +135,9 @@ private:
 	CUtlVector<CBaseAchievement *> m_vecComponentListeners;				// vector of achievements that are listening for components that make up an achievement
 #ifdef EZ
 	CUtlVector<CBaseAchievement *> m_vecSkillChangeEventListeners;		// vector of achievements that are listening for skill level change events
+#endif
+#ifdef EZ2
+	CUtlVector<CBaseAchievement *> m_vecXenGrenadeEventListeners;		// vector of achievements that are listening for skill level change events
 #endif
 	CUtlMap<int, CAchievement_AchievedCount *> m_mapMetaAchievement;				// map of CAchievement_AchievedCount
 

@@ -317,6 +317,9 @@ bool CAchievementMgr::Init()
 	ListenForGameEvent( "entity_killed" );
 	ListenForGameEvent( "game_init" );
 	ListenForGameEvent("skill_changed");
+#ifdef EZ2
+	ListenForGameEvent( "xen_grenade" );
+#endif
 #else
 	ListenForGameEvent( "player_death" );
 	ListenForGameEvent( "player_stats_updated" );
@@ -418,6 +421,9 @@ void CAchievementMgr::Shutdown()
 #ifdef EZ
 	m_vecSkillChangeEventListeners.RemoveAll();
 #endif
+#ifdef EZ2
+	m_vecXenGrenadeEventListeners.RemoveAll();
+#endif
 	m_AchievementsAwarded.RemoveAll();
 	m_bGlobalStateLoaded = false;
 }
@@ -512,7 +518,9 @@ void CAchievementMgr::LevelInitPreEntity()
 #ifdef EZ
 	m_vecSkillChangeEventListeners.RemoveAll();
 #endif
-
+#ifdef EZ2
+	m_vecXenGrenadeEventListeners.RemoveAll();
+#endif
 	m_AchievementsAwarded.RemoveAll();
 
 	m_flLastClassChangeTime = 0;
@@ -552,6 +560,13 @@ void CAchievementMgr::LevelInitPreEntity()
 		if (pAchievement->GetFlags() & ACH_LISTEN_SKILL_EVENTS)
 		{
 			m_vecSkillChangeEventListeners.AddToTail(pAchievement);
+		}
+#endif
+#ifdef EZ2
+		// if the achievement needs xen grenade events, add it as a listener
+		if (pAchievement->GetFlags() & ACH_LISTEN_XENGRENADE_EVENTS)
+		{
+			m_vecXenGrenadeEventListeners.AddToTail(pAchievement);
 		}
 #endif
 		// if the achievement needs kill events, add it as a listener
@@ -1456,6 +1471,14 @@ void CAchievementMgr::FireGameEvent( IGameEvent *event )
 		OnSkillChangedEvent(event->GetInt("skill_level"), event);
 	} else
 #endif
+#ifdef EZ2
+		if (0 == Q_strcmp( name, "xen_grenade" ))
+		{
+			DevMsg( "Achievement: Xen grenade singularity collapsed \n" );
+			OnXenGrenadeEvent( event->GetFloat( "mass" ), event );
+		}
+		else
+#endif
 	if ( 0 == Q_strcmp( name, "entity_killed" ) )
 	{
 #ifdef GAME_DLL
@@ -1711,6 +1734,26 @@ void CAchievementMgr::OnSkillChangedEvent(int iSkillLevel, IGameEvent * event)
 		if (pAchievement)
 		{
 			pAchievement->Event_SkillChanged(iSkillLevel, event);
+		}
+	}
+}
+#endif
+
+#ifdef EZ2 
+//-----------------------------------------------------------------------------
+// Purpose: called a Xen grenade singularity collapses
+//-----------------------------------------------------------------------------
+void CAchievementMgr::OnXenGrenadeEvent( float flMass, IGameEvent * event )
+{
+	if (event == NULL)
+		return;
+
+	FOR_EACH_VEC( m_vecXenGrenadeEventListeners, iAchievement )
+	{
+		CBaseAchievement *pAchievement = m_vecXenGrenadeEventListeners[iAchievement];
+		if (pAchievement)
+		{
+			pAchievement->Event_XenGrenade( flMass, event );
 		}
 	}
 }

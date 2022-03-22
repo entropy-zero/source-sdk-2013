@@ -61,5 +61,6 @@ void CC_SAPI_EZ2CLEARACHS(void)
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_REBELSW357");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_JUMPREBELMIDAIR");
 	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_KILL_TEMPORALCRABS");
+	steamapicontext->SteamUserStats()->ClearAchievement("ACH_EZ2_XENGRENADE_WEIGHT");
 }
 static ConCommand ez2_sapi_clearachs("ez2_sapi_clearachs", CC_SAPI_EZ2RESET, "Attempts to reset achievements for Entropy Zero 2.");

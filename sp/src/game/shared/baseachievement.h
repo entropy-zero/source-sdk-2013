@@ -32,6 +32,9 @@ public:
 #ifdef EZ
 	virtual void Event_SkillChanged(int iSkillLevel, IGameEvent * event) {}
 #endif
+#ifdef EZ2
+	virtual void Event_XenGrenade( float flMass, IGameEvent * event );
+#endif
 
 	int GetAchievementID() { return m_iAchievementID; }
 	void SetAchievementID( int iAchievementID ) { m_iAchievementID = iAchievementID; }

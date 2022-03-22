@@ -921,7 +921,6 @@ void CPropDrivableAPC::Think(void)
 		if (!m_pConstraint && gpGlobals->curtime - m_flConstrainCooldown > 2.0f && m_nTopAttachAttachment != 0)
 		{
 			// Check if the player is holding something
-			CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
 			if (pPlayer && pPlayer->GetUseEntity())
 			{
 				CBaseEntity *pEntity = GetPlayerHeldEntity( pPlayer );
@@ -951,9 +950,9 @@ void CPropDrivableAPC::Think(void)
 
 #ifdef EZ2
 			IGameEvent *event = gameeventmanager->CreateEvent( "vehicle_overturned" );
-			if (event && m_hPlayer->IsAlive())
+			if (event && pPlayer->IsAlive())
 			{
-				event->SetInt( "userid", m_hPlayer->GetUserID() );
+				event->SetInt( "userid", pPlayer->GetUserID() );
 				event->SetInt( "vehicle", entindex() );
 				gameeventmanager->FireEvent( event );
 			}
