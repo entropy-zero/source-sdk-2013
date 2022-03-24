@@ -16,6 +16,8 @@
 #define KILL_ALIENSWXBOW_COUNT 25
 #define KILL_REBELSW357_COUNT 18
 #define XENGRENADE_WEIGHT_COUNT 10000
+#define SQUAD_COUNT_CHAPTER1 4
+#define SQUAD_COUNT_CHAPTER2 5
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Chapter Completion Achievements
@@ -664,6 +666,44 @@ protected:
 	virtual bool ShouldShowProgressNotification() { return true; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2XenGrenadeWeight, ACHIEVEMENT_EZ2_XENGRENADE_WEIGHT, "ACH_EZ2_XENGRENADE_WEIGHT", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Squad Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class CAchievementEZ2SquadChapter1 : public CSquadAchievement
+{
+protected:
+	void Init()
+	{
+		SetSquadFilter( "npc_combine_s" );
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( SQUAD_COUNT_CHAPTER1 );
+	}
+
+	// Evaluate the squad when we receive this event
+	virtual const char *GetEvaluationEventName() { return "EZ2_SQUAD_CH1"; }
+
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2SquadChapter1, ACHIEVEMENT_EZ2_SQUAD_CH1, "ACH_EZ2_SQUAD_CH1", 5 );
+
+class CAchievementEZ2SquadChapter2 : public CSquadAchievement
+{
+protected:
+	void Init()
+	{
+		SetSquadFilter( "npc_combine_s" );
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( SQUAD_COUNT_CHAPTER2 );
+	}
+
+	// Evaluate the squad when we receive this event
+	virtual const char *GetEvaluationEventName() { return "EZ2_SQUAD_CH2"; }
+
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2SquadChapter2, ACHIEVEMENT_EZ2_SQUAD_CH2, "ACH_EZ2_SQUAD_CH2", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

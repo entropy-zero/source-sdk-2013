@@ -207,6 +207,27 @@ class CMapAchievement : public CBaseAchievement
 	}
 };
 
+#ifdef EZ
+class CSquadAchievement : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		SetFlags( ACH_LISTEN_MAP_EVENTS | ACH_SAVE_GLOBAL );
+		SetGoal( 1 );
+	}
+
+	virtual const char *GetEvaluationEventName() =0;
+
+	virtual void OnMapEvent( const char *pEventName );
+
+protected:
+	void SetSquadFilter( const char *pClassName );
+
+private:
+	const char *m_pSquadClassNameFilter;				// if non-NULL, squad member class name to filter with
+
+};
+#endif
 
 //----------------------------------------------------------------------------------------------------------------
 class CAchievement_AchievedCount : public CBaseAchievement
