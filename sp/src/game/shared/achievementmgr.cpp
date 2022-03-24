@@ -1801,7 +1801,7 @@ void CAchievementMgr::OnXenGrenadeEvent( float flMass, CBaseEntity * pAttacker, 
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: called when a player or character has been killed
+// Purpose: called when a player or character has been kicked
 //-----------------------------------------------------------------------------
 void CAchievementMgr::OnKickEvent( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
 {
@@ -1843,7 +1843,7 @@ void CAchievementMgr::OnKickEvent( CBaseEntity *pVictim, CBaseEntity *pAttacker,
 	}
 #endif // GAME_DLL
 
-	// look through all the kill event listeners and notify any achievements whose filters we pass
+	// look through all the kick event listeners and notify any achievements whose filters we pass
 	FOR_EACH_VEC( m_vecKickEventListeners, iAchievement )
 	{
 		CBaseAchievement *pAchievement = m_vecKickEventListeners[iAchievement];
