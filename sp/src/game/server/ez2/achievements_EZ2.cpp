@@ -16,6 +16,7 @@
 #define KILL_ALIENSWXBOW_COUNT 25
 #define KILL_REBELSW357_COUNT 18
 #define XENGRENADE_WEIGHT_COUNT 10000
+#define KICK_DOORS_COUNT 60
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Chapter Completion Achievements
@@ -664,6 +665,45 @@ protected:
 	virtual bool ShouldShowProgressNotification() { return true; }
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2XenGrenadeWeight, ACHIEVEMENT_EZ2_XENGRENADE_WEIGHT, "ACH_EZ2_XENGRENADE_WEIGHT", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Kick Achievements
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO - We might need a way to make the door kicking achievement "remember" previously kicked doors
+// For now allowing any door kick
+class CAchievementEZ2KickDoors : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "player" );
+		SetVictimFilter( "prop_door_rotating" );
+		SetFlags( ACH_LISTEN_KICK_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( KICK_DOORS_COUNT );
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KickDoors, ACHIEVEMENT_EZ2_KICK_DOORS, "ACH_EZ2_KICK_DOORS", 5 );
+
+class CAchievementEZ2KickAdvisor : public CBaseAchievement
+{
+protected:
+
+	void Init()
+	{
+		SetAttackerFilter( "player" );
+		SetVictimFilter( "npc_advisor" );
+		SetFlags( ACH_LISTEN_KICK_EVENTS | ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( 1 );
+	}
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2KickAdvisor, ACHIEVEMENT_EZ2_KICK_ADVISOR, "ACH_EZ2_KICK_ADVISOR", 5 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

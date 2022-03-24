@@ -215,6 +215,20 @@ void CBaseAchievement::Event_XenGrenade( float flMass, IGameEvent *event )
 		m_pAchievementMgr->SetDirty( true );
 	}
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: called when a kick that passes filter critera occurs.  This
+//			is the default implementation, achievements can override to
+//			do special handling
+//-----------------------------------------------------------------------------
+void CBaseAchievement::Event_EntityKicked( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+{
+	Assert( GetFlags() & ACH_LISTEN_KICK_EVENTS );
+	if (!(GetFlags() & ACH_LISTEN_KICK_EVENTS))
+		return;
+
+	IncrementCount();
+}
 #endif
 
 //-----------------------------------------------------------------------------
