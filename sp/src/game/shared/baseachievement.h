@@ -34,6 +34,7 @@ public:
 #endif
 #ifdef EZ2
 	virtual void Event_XenGrenade( float flMass, IGameEvent * event );
+	virtual void Event_EntityKicked( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event );
 #endif
 
 	int GetAchievementID() { return m_iAchievementID; }

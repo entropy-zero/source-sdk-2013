@@ -4730,6 +4730,17 @@ void CHL2_Player::TraceKickAttack()
 			}
 		}
 
+		// Fire achievement event
+		IGameEvent *event = gameeventmanager->CreateEvent( "entity_kicked" );
+		if (event)
+		{
+			event->SetInt( "entindex_kicked", pEntity->entindex() );
+			event->SetInt( "entindex_attacker", this->entindex() );
+			event->SetInt( "entindex_inflictor", this->entindex() );
+			event->SetInt( "damagebits", dmgInfo.GetDamageType() );
+			gameeventmanager->FireEvent( event );
+		}
+
 		// Insert an AI sound so nearby enemies can hear the impact
 		int soundVolume = HL2GameRules()->IsBeastInStealthMode() ? 4096 : 384;
 		CSoundEnt::InsertSound( SOUND_BULLET_IMPACT, tr.endpos, soundVolume, 0.2f, this );

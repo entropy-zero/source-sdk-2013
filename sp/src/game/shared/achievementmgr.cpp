@@ -319,6 +319,7 @@ bool CAchievementMgr::Init()
 	ListenForGameEvent("skill_changed");
 #ifdef EZ2
 	ListenForGameEvent( "xen_grenade" );
+	ListenForGameEvent( "entity_kicked" );
 #endif
 #else
 	ListenForGameEvent( "player_death" );
@@ -423,6 +424,7 @@ void CAchievementMgr::Shutdown()
 #endif
 #ifdef EZ2
 	m_vecXenGrenadeEventListeners.RemoveAll();
+	m_vecKickEventListeners.RemoveAll();
 #endif
 	m_AchievementsAwarded.RemoveAll();
 	m_bGlobalStateLoaded = false;
@@ -520,6 +522,7 @@ void CAchievementMgr::LevelInitPreEntity()
 #endif
 #ifdef EZ2
 	m_vecXenGrenadeEventListeners.RemoveAll();
+	m_vecKickEventListeners.RemoveAll();
 #endif
 	m_AchievementsAwarded.RemoveAll();
 
@@ -567,6 +570,11 @@ void CAchievementMgr::LevelInitPreEntity()
 		if (pAchievement->GetFlags() & ACH_LISTEN_XENGRENADE_EVENTS)
 		{
 			m_vecXenGrenadeEventListeners.AddToTail(pAchievement);
+		}
+		// if the achievement needs kick, add it as a listener
+		if (pAchievement->GetFlags() & ACH_LISTEN_KICK_EVENTS)
+		{
+			m_vecKickEventListeners.AddToTail( pAchievement );
 		}
 #endif
 		// if the achievement needs kill events, add it as a listener
@@ -1472,15 +1480,24 @@ void CAchievementMgr::FireGameEvent( IGameEvent *event )
 	} else
 #endif
 #ifdef EZ2
-		if (0 == Q_strcmp( name, "xen_grenade" ))
-		{
+	if (0 == Q_strcmp( name, "xen_grenade" ))
+	{
 #ifdef GAME_DLL
-			DevMsg( "Achievement: Xen grenade singularity collapsed \n" );
-			CBaseEntity *pAttacker = UTIL_EntityByIndex( event->GetInt( "entindex_attacker", 0 ) );
-			OnXenGrenadeEvent( event->GetFloat( "mass" ), pAttacker, event );
+		DevMsg( "Achievement: Xen grenade singularity collapsed \n" );
+		CBaseEntity *pAttacker = UTIL_EntityByIndex( event->GetInt( "entindex_attacker", 0 ) );
+		OnXenGrenadeEvent( event->GetFloat( "mass" ), pAttacker, event );
 #endif
-		}
-		else
+	}
+	else
+	if (0 == Q_strcmp( name, "entity_kicked" ))
+	{
+#ifdef GAME_DLL
+		CBaseEntity *pVictim = UTIL_EntityByIndex( event->GetInt( "entindex_kicked", 0 ) );
+		CBaseEntity *pAttacker = UTIL_EntityByIndex( event->GetInt( "entindex_attacker", 0 ) );
+		CBaseEntity *pInflictor = UTIL_EntityByIndex( event->GetInt( "entindex_inflictor", 0 ) );
+		OnKickEvent( pVictim, pAttacker, pInflictor, event );
+#endif // GAME_DLL
+	}
 #endif
 	if ( 0 == Q_strcmp( name, "entity_killed" ) )
 	{
@@ -1781,6 +1798,98 @@ void CAchievementMgr::OnXenGrenadeEvent( float flMass, CBaseEntity * pAttacker, 
 		}
 	}
 #endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: called when a player or character has been kicked
+//-----------------------------------------------------------------------------
+void CAchievementMgr::OnKickEvent( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event )
+{
+	// can have a NULL victim on client if victim has never entered local player's PVS
+	if (!pVictim)
+		return;
+
+	// if single-player game, calculate if the attacker is the local player and if the victim is the player enemy
+	bool bAttackerIsPlayer = false;
+	bool bVictimIsPlayerEnemy = false;
+#ifdef GAME_DLL
+	if (!g_pGameRules->IsMultiplayer())
+	{
+		CBasePlayer *pLocalPlayer = UTIL_GetLocalPlayer();
+		if (pLocalPlayer)
+		{
+			if (pAttacker == pLocalPlayer)
+			{
+				bAttackerIsPlayer = true;
+			}
+
+			CBaseCombatCharacter *pBCC = dynamic_cast<CBaseCombatCharacter *>(pVictim);
+#ifdef MAPBASE
+			if (pBCC && (D_FR >= pBCC->IRelationType( pLocalPlayer )))
+#else
+			if (pBCC && (D_HT == pBCC->IRelationType( pLocalPlayer )))
+#endif
+			{
+				bVictimIsPlayerEnemy = true;
+			}
+		}
+	}
+#else
+	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+	bVictimIsPlayerEnemy = !pLocalPlayer->InSameTeam( pVictim );
+	if (pAttacker == pLocalPlayer)
+	{
+		bAttackerIsPlayer = true;
+	}
+#endif // GAME_DLL
+
+	// look through all the kick event listeners and notify any achievements whose filters we pass
+	FOR_EACH_VEC( m_vecKickEventListeners, iAchievement )
+	{
+		CBaseAchievement *pAchievement = m_vecKickEventListeners[iAchievement];
+
+		if (!pAchievement->IsActive())
+			continue;
+
+#ifdef CLIENT_DLL
+		// Swallow kill events that can't be earned right now
+		if (!pAchievement->LocalPlayerCanEarn())
+			continue;
+#endif
+
+		// if this achievement only looks for kills where attacker is player and that is not the case here, skip this achievement
+		if ((pAchievement->GetFlags() & ACH_FILTER_ATTACKER_IS_PLAYER) && !bAttackerIsPlayer)
+			continue;
+
+		// if this achievement only looks for kills where victim is killer enemy and that is not the case here, skip this achievement
+		if ((pAchievement->GetFlags() & ACH_FILTER_VICTIM_IS_PLAYER_ENEMY) && !bVictimIsPlayerEnemy)
+			continue;
+
+#if GAME_DLL
+		// if this achievement only looks for a particular victim class name and this victim is a different class, skip this achievement
+		const char *pVictimClassNameFilter = pAchievement->m_pVictimClassNameFilter;
+		if (pVictimClassNameFilter && !pVictim->ClassMatches( pVictimClassNameFilter ))
+			continue;
+
+		// if this achievement only looks for a particular inflictor class name and this inflictor is a different class, skip this achievement
+		const char *pInflictorClassNameFilter = pAchievement->m_pInflictorClassNameFilter;
+		if (pInflictorClassNameFilter &&  ((NULL == pInflictor) || !pInflictor->ClassMatches( pInflictorClassNameFilter )))
+			continue;
+
+		// if this achievement only looks for a particular attacker class name and this attacker is a different class, skip this achievement
+		const char *pAttackerClassNameFilter = pAchievement->m_pAttackerClassNameFilter;
+		if (pAttackerClassNameFilter && ((NULL == pAttacker) || !pAttacker->ClassMatches( pAttackerClassNameFilter )))
+			continue;
+
+		// if this achievement only looks for a particular inflictor entity name and this inflictor has a different name, skip this achievement
+		const char *pInflictorEntityNameFilter = pAchievement->m_pInflictorEntityNameFilter;
+		if (pInflictorEntityNameFilter && ((NULL == pInflictor) || !pInflictor->NameMatches( pInflictorEntityNameFilter )))
+			continue;
+#endif // GAME_DLL
+
+		// we pass all filters for this achievement, notify the achievement of the kill
+		pAchievement->Event_EntityKicked( pVictim, pAttacker, pInflictor, event );
+	}
 }
 #endif
 

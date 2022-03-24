@@ -97,6 +97,7 @@ public:
 #endif
 #ifdef EZ2
 	virtual void OnXenGrenadeEvent(float flMass, CBaseEntity * pAttacker, IGameEvent *event);
+	virtual void OnKickEvent( CBaseEntity *pVictim, CBaseEntity *pAttacker, CBaseEntity *pInflictor, IGameEvent *event );
 #endif
 	//=============================================================================
 	// HPE_END
@@ -138,6 +139,7 @@ private:
 #endif
 #ifdef EZ2
 	CUtlVector<CBaseAchievement *> m_vecXenGrenadeEventListeners;		// vector of achievements that are listening for xen grenade events
+	CUtlVector<CBaseAchievement *> m_vecKickEventListeners;				// vector of achievements that are listening for kick events
 #endif
 	CUtlMap<int, CAchievement_AchievedCount *> m_mapMetaAchievement;				// map of CAchievement_AchievedCount
 
