@@ -378,6 +378,27 @@ class CAchievementEZ2FindAllRecordingBoxes : public CBaseAchievement
 };
 DECLARE_ACHIEVEMENT(CAchievementEZ2FindAllRecordingBoxes, ACHIEVEMENT_EZ2_RECORDING, "ACH_EZ2_RECORDING", 5);
 
+class CAchievementEZ2FindAllWilsonClosets : public CBaseAchievement
+{
+	virtual void Init()
+	{
+		static const char *szComponents[] =
+		{
+			"EZ2_WILSONCLOSET_01", "EZ2_WILSONCLOSET_02", "EZ2_WILSONCLOSET_03", "EZ2_WILSONCLOSET_04", "EZ2_WILSONCLOSET_05", "EZ2_WILSONCLOSET_06", "EZ2_WILSONCLOSET_07", "EZ2_WILSONCLOSET_08", "EZ2_WILSONCLOSET_09", "EZ2_WILSONCLOSET_10", "EZ2_WILSONCLOSET_11",
+		};
+		SetFlags( ACH_HAS_COMPONENTS | ACH_LISTEN_COMPONENT_EVENTS | ACH_SAVE_GLOBAL );
+		m_pszComponentNames = szComponents;
+		m_iNumComponents = ARRAYSIZE( szComponents );
+		SetComponentPrefix( "EZ2_WILSONCLOSET" );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( m_iNumComponents );
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2FindAllWilsonClosets, ACHIEVEMENT_EZ2_WILSON_CLOSETS, "ACH_EZ2_WILSON_CLOSETS", 5 );
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Kill Achievements
 ////////////////////////////////////////////////////////////////////////////////////////////////////
