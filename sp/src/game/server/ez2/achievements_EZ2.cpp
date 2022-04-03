@@ -494,6 +494,7 @@ protected:
 	void Init()
 	{
 		SetAttackerFilter( "player" );
+		SetInflictorFilter( "crossbow_bolt" );
 		SetFlags( ACH_LISTEN_KILL_EVENTS | ACH_SAVE_GLOBAL );
 		SetGameDirFilter( "EntropyZero2" );
 		SetGoal( KILL_ALIENSWXBOW_COUNT );
