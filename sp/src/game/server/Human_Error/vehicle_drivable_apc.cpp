@@ -37,6 +37,7 @@
 #include "vphysics/constraints.h"
 #include "physics_saverestore.h"
 #include "weapon_physcannon.h"
+#include "eventqueue.h"
 #endif
 
 #ifdef EZ2
@@ -109,8 +110,8 @@ ConVar	sk_apc_damage_normal( "sk_apc_damage_normal", "0.15" );
 ConVar	sk_apc_damage_blast( "sk_apc_damage_blast", "0.1" );
 ConVar	sk_apc_damage_vort( "sk_apc_damage_vort", "0.75" );
 
-ConVar apc_constraint_force_limit( "apc_constraint_force_limit", "1250", FCVAR_NONE );
-ConVar apc_constraint_torque_limit( "apc_constraint_torque_limit", "1500", FCVAR_NONE );
+ConVar apc_constraint_force_limit( "apc_constraint_force_limit", "3500", FCVAR_NONE );
+ConVar apc_constraint_torque_limit( "apc_constraint_torque_limit", "2500", FCVAR_NONE );
 
 // APC Interactions
 int	g_interactionAPCConstrain = 0;
@@ -192,8 +193,10 @@ BEGIN_DATADESC( CPropDrivableAPC )
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "ConstrainEntity", InputConstrainEntity ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "UnconstrainEntity", InputUnconstrainEntity ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "ConstraintBroken", InputConstraintBroken ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "_ResetConstraintToDefault", InputResetConstraintToDefault ),
 
 	DEFINE_OUTPUT( m_onOverturned, "OnOverturned" ),
+	DEFINE_OUTPUT( m_onObjectAttached, "OnObjectAttached" ),
 #endif
 
 END_DATADESC()
@@ -274,6 +277,28 @@ void CPropDrivableAPC::InputUnconstrainEntity( inputdata_t &inputdata )
 void CPropDrivableAPC::InputConstraintBroken( inputdata_t &inputdata )
 {
 	UnconstrainEntity( true );
+}
+
+void CPropDrivableAPC::InputResetConstraintToDefault( inputdata_t &inputdata )
+{
+	if ( m_hConstrainedEntity && m_pConstraint )
+	{
+		// Remove constraint and re-add it with default values
+		physenv->DestroyConstraint( m_pConstraint );
+		m_pConstraint = NULL;
+
+		IPhysicsObject *pPhysics = VPhysicsGetObject();
+		IPhysicsObject *pOtherPhysics = m_hConstrainedEntity->VPhysicsGetObject();
+
+		constraint_fixedparams_t fixed;
+		fixed.Defaults();
+		fixed.InitWithCurrentObjectState( pPhysics, pOtherPhysics );
+		fixed.constraint.Defaults();
+		fixed.constraint.forceLimit	= ImpulseScale( pOtherPhysics->GetMass(), apc_constraint_force_limit.GetFloat() );
+		fixed.constraint.torqueLimit = ImpulseScale( pOtherPhysics->GetMass(), apc_constraint_torque_limit.GetFloat() );
+		m_pConstraint = physenv->CreateFixedConstraint( pPhysics, pOtherPhysics, NULL, fixed );
+		m_pConstraint->SetGameData( (void *)this );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -370,6 +395,8 @@ void CPropDrivableAPC::ConstrainEntity( CBaseEntity *pEntity, CBasePlayer *pPlay
 	pEntity->KeyValue( "OnPhysGunPickup", UTIL_VarArgs("%s,UnconstrainEntity,,0,1", STRING(GetEntityName())) );
 
 	pEntity->EmitSound( "PropAPC.AttachEntity" );
+
+	m_onObjectAttached.FireOutput( pEntity, this );
 }
 
 void CPropDrivableAPC::UnconstrainEntity( bool bBroken, CBasePlayer *pPlayer )
@@ -383,7 +410,7 @@ void CPropDrivableAPC::UnconstrainEntity( bool bBroken, CBasePlayer *pPlayer )
 			return;
 
 		if (bBroken)
-			m_hConstrainedEntity->EmitSound( "PropAPC.RipEntityOff" );
+			EmitSound( "PropAPC.RipEntityOff" ); // Emit from the APC itself so that the driver can always hear it
 		else
 			m_hConstrainedEntity->EmitSound( "PropAPC.DetachEntity" );
 
@@ -559,6 +586,30 @@ void CPropDrivableAPC::Activate()
 #ifdef EZ
 	m_nSpotlightAttachment = LookupAttachment( "headlight" );
 	m_nTopAttachAttachment = LookupAttachment( "top_attach" );
+
+	// HACKHACK: Make the constraint invincible for 2 seconds
+	if ( m_hConstrainedEntity && m_pConstraint )
+	{
+		PhysDisableEntityCollisions( this, m_hConstrainedEntity );
+
+		physenv->DestroyConstraint( m_pConstraint );
+		m_pConstraint = NULL;
+
+		IPhysicsObject *pPhysics = VPhysicsGetObject();
+		IPhysicsObject *pOtherPhysics = m_hConstrainedEntity->VPhysicsGetObject();
+
+		// Constrain it to the vehicle
+		constraint_fixedparams_t fixed;
+		fixed.Defaults();
+		fixed.InitWithCurrentObjectState( pPhysics, pOtherPhysics );
+		fixed.constraint.Defaults();
+		fixed.constraint.forceLimit	= 0;
+		fixed.constraint.torqueLimit = 0;
+		m_pConstraint = physenv->CreateFixedConstraint( pPhysics, pOtherPhysics, NULL, fixed );
+		m_pConstraint->SetGameData( (void *)this );
+
+		g_EventQueue.AddEvent( this, "_ResetConstraintToDefault", 2.0f, this, this );
+	}
 #endif
 }
 
@@ -1724,10 +1775,6 @@ void CPropDrivableAPC::OnRestore( void )
 	}
 
 #ifdef EZ2
-	if ( m_hConstrainedEntity )
-	{
-		PhysDisableEntityCollisions( this, m_hConstrainedEntity );
-	}
 	// HACKHACK - On restore, the attachment point doesn't seem to work.
 	// Brute force workaround by calling Spawn() again
 	else if (GetDriver() == NULL)

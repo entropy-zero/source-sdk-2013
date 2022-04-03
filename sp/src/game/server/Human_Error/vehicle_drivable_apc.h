@@ -95,6 +95,7 @@ public:
 	void			InputConstrainEntity( inputdata_t &inputdata );
 	void			InputUnconstrainEntity( inputdata_t &inputdata );
 	void			InputConstraintBroken( inputdata_t &inputdata );
+	void			InputResetConstraintToDefault( inputdata_t &inputdata );
 	void			ConstrainEntity( CBaseEntity *pEntity, CBasePlayer *pPlayer = NULL );
 	void			UnconstrainEntity( bool bBroken = false, CBasePlayer *pPlayer = NULL );
 #endif
@@ -218,6 +219,7 @@ private:
 
 #ifdef EZ
 	COutputEvent		m_onOverturned;
+	COutputEvent		m_onObjectAttached;
 #endif
 };
 
