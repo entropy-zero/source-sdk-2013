@@ -203,6 +203,11 @@ void CWeapon357::Operator_ForceNPCFire( CBaseCombatCharacter *pOperator, bool bS
 }
 #endif
 
+#ifdef EZ2
+// Hack for 357 achievement (see achievements_EZ2.cpp)
+extern bool g_bEZ2357AchievementHack;
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
@@ -248,7 +253,17 @@ void CWeapon357::PrimaryAttack( void )
 	Vector vecSrc		= pPlayer->Weapon_ShootPosition();
 	Vector vecAiming	= pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
 
+#ifdef EZ2
+	// Hack for 357 achievement
+	g_bEZ2357AchievementHack = true;
+#endif
+
 	pPlayer->FireBullets( 1, vecSrc, vecAiming, vec3_origin, MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 0 );
+
+#ifdef EZ2
+	// Hack for 357 achievement
+	g_bEZ2357AchievementHack = false;
+#endif
 
 	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );
 

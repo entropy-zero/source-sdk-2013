@@ -518,6 +518,11 @@ protected:
 };
 DECLARE_ACHIEVEMENT( CAchievementEZ2KillAliensWithCrossbow, ACHIEVEMENT_EZ2_KILL_ALIENSWXBOW, "ACH_EZ2_KILL_ALIENSWXBOW", 5 );
 
+// HACKHACK: Checking our active weapon isn't enough because the player could be killing NPCs using the APC, a mounted gun, grenades, etc.
+// As a result, we hook directly into the 357 class to turn this on when firing a bullet and turn it off directly afterwards. This ensures
+// that the achievement only counts during the relevant window.
+bool g_bEZ2357AchievementHack = false;
+
 class CAchievementEZ2KillRebelsWith357 : public CBaseAchievement
 {
 protected:
@@ -545,7 +550,10 @@ protected:
 		CBaseCombatWeapon * pWeapon = pAttacker->MyCombatCharacterPointer()->GetActiveWeapon();
 		if (pWeapon && pWeapon->ClassMatches( "weapon_357" ))
 		{
-			IncrementCount();
+			if (g_bEZ2357AchievementHack)
+			{
+				IncrementCount();
+			}
 		}
 	}
 
