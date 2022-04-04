@@ -626,7 +626,7 @@ protected:
 
 	void Init()
 	{
-		SetAttackerFilter( "npc_headcrab_black" );
+		SetVictimFilter( "npc_headcrab_black" );
 		static const char *szComponents[] =
 		{
 			"EZ2_KILL_TEMPORALCRAB_ez2_c4_3", "EZ2_KILL_TEMPORALCRAB_ez2_c5_1", "EZ2_KILL_TEMPORALCRAB_ez2_c5_2a", "EZ2_KILL_TEMPORALCRAB_ez2_c5_3"
