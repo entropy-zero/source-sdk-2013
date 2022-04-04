@@ -1279,6 +1279,8 @@ void CItem_AmmoCrate::InputKill( inputdata_t &data )
 
 #define XEN_GRENADE_SLOTS 3
 
+extern void VerifyXenRecipeManager( const char *pszActivator );
+
 // ==================================================================
 // Xen grenade holder
 // ==================================================================
@@ -1326,6 +1328,7 @@ public:
 
 		PrecacheModel( STRING( GetModelName() ) );
 
+		VerifyXenRecipeManager( GetClassname() );
 		UTIL_PrecacheOther( "weapon_hopwire" );
 	}
 

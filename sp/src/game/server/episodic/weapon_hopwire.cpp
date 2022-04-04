@@ -120,6 +120,9 @@ void CWeaponHopwire::Precache( void )
 {
 	BaseClass::Precache();
 
+#ifdef EZ2
+	VerifyXenRecipeManager( GetClassname() );
+#endif
 	UTIL_PrecacheOther( "npc_grenade_hopwire" );
 
 	PrecacheScriptSound( "WeaponFrag.Throw" );

@@ -225,6 +225,9 @@ CItem_DynamicResupply::CItem_DynamicResupply( void )
 	m_flDesiredAmmo[7] = 0;		// 357
 	m_flDesiredAmmo[8] = 0;		// Crossbow
 	m_flDesiredAmmo[9] = 0;		// AR2 alt-fire
+#ifdef EZ2
+	m_flDesiredAmmo[10] = 0;	// Xen Grenade
+#endif
 #ifdef CSS_WEAPONS_IN_HL2
 	m_flDesiredAmmo[11] = 0;	// .45 ACP
 	m_flDesiredAmmo[12] = 0;	// .357 SIG
@@ -303,7 +306,9 @@ void CItem_DynamicResupply::Precache( void )
 	for ( i = 0; i < NUM_HEALTH_ITEMS; i++ )
 	{
 #ifdef EZ
-		UTIL_PrecacheEZVariant( g_DynamicResupplyHealthItems[i].sEntityName, m_tEzVariant );
+		// Don't precache unless we might spawn this
+		if (m_flDesiredHealth[i] > 0.0f)
+			UTIL_PrecacheEZVariant( g_DynamicResupplyHealthItems[i].sEntityName, m_tEzVariant );
 #else
 		UTIL_PrecacheOther( g_DynamicResupplyHealthItems[i].sEntityName );
 #endif
@@ -312,7 +317,9 @@ void CItem_DynamicResupply::Precache( void )
 	for ( i = 0; i < NUM_AMMO_ITEMS; i++ )
 	{
 #ifdef EZ
-		UTIL_PrecacheEZVariant( g_DynamicResupplyAmmoItems[i].sEntityName, m_tEzVariant );
+		// Don't precache unless we might spawn this
+		if (m_flDesiredAmmo[i] > 0.0f)
+			UTIL_PrecacheEZVariant( g_DynamicResupplyAmmoItems[i].sEntityName, m_tEzVariant );
 #else
 		UTIL_PrecacheOther( g_DynamicResupplyAmmoItems[i].sEntityName );
 #endif
