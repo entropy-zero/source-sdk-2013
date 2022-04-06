@@ -2574,7 +2574,6 @@ void CNPC_Arbeit_FloorTurret::Precache( void )
 		{
 			case EZ_VARIANT_RAD:
 				SetModelName( AllocPooledString( "models/props/glowturret_01.mdl" ) );
-				PrecacheMaterial( "cable/goocable.vmt" );
 				break;
 
 			// EZ_VARIANT_ARBEIT alternates between the two camo turret models.
@@ -2601,6 +2600,12 @@ void CNPC_Arbeit_FloorTurret::Precache( void )
 					SetModelName( AllocPooledString( "models/props/turret_01.mdl" ) );
 			} break;
 		}
+	}
+
+	if (m_tEzVariant == EZ_VARIANT_RAD)
+	{
+		// Must be outside the above code for save/restore
+		PrecacheMaterial( "cable/goocable.vmt" );
 	}
 
 	PrecacheScriptSound( "NPC_ArbeitTurret.DryFire" );

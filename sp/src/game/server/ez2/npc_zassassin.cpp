@@ -340,7 +340,6 @@ void CNPC_Gonome::Precache()
 			break;
 		case EZ_VARIANT_RAD:
 			SetModelName( AllocPooledString( "models/glownome.mdl" ) );
-			PrecacheMaterial( "cable/goocable.vmt" );
 			break;
 		default:
 			SetModelName( AllocPooledString( "models/gonome.mdl" ) );
@@ -355,6 +354,7 @@ void CNPC_Gonome::Precache()
 	{
 		PrecacheParticleSystem( "blood_impact_blue_01" );
 		m_nGonomeSpitSprite = PrecacheModel( "sprites/glownomespit.vmt" );// spit projectile.
+		PrecacheMaterial( "cable/goocable.vmt" );
 	}
 	else
 	{
