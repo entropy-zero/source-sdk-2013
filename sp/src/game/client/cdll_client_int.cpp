@@ -1134,6 +1134,38 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 	CommandLine()->AppendParm( "+r_hunkalloclightmaps", "0" );
 #endif
 
+#ifdef EZ2 // NOTE: This could go into Mapbase in the future! In the event of a merge conflict, use Mapbase's implementaton.
+	if (CommandLine()->ParmValue( "-deletesoundcache", 0 ) > 0)
+	{
+		char searchPaths[4096];
+		filesystem->GetSearchPath( "GAME", true, searchPaths, sizeof( searchPaths ) );
+
+		for ( char *path = strtok( searchPaths, ";" ); path; path = strtok( NULL, ";" ) )
+		{
+			char fullpath[MAX_PATH];
+			bool vpk = false;
+
+			int len = strlen( path );
+			if (len > 4 && path[len-1] == 'k' && path[len-2] == 'p' &&
+				path[len-3] == 'v' && path[len-4] == '.')
+				vpk = true;
+
+			Q_snprintf( fullpath, sizeof( fullpath ), "%s%ssound.cache", path, vpk ? "." : "sound/" );
+			Q_FixSlashes( fullpath );
+
+			if ( filesystem->IsFileWritable( fullpath ) )
+			{
+				Msg( "	Deleting sound cache file \"%s\"\n", fullpath );
+				filesystem->RemoveFile( fullpath );
+			}
+			else
+			{
+				Msg( "	Unable to delete sound cache file \"%s\"\n", fullpath );
+			}
+		}
+	}
+#endif
+
 	return true;
 }
 
