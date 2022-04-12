@@ -58,7 +58,8 @@ enum CitizenType_t
 	CT_BRUTE,
 	CT_LONGFALL,
 	CT_ARCTIC,
-	CT_ARBEIT, // Pre-war Arbeit employees
+	CT_ARBEIT,		// Pre-war Arbeit employees
+	CT_ARBEIT_SEC,	// Pre-war Arbeit security guards
 };
 
 //-----------------------------------------------------------------------------

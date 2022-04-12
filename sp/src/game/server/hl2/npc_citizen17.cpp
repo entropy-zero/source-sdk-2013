@@ -379,6 +379,7 @@ static const char *g_ppszModelLocs[] =
 	"Group03x", // May wish to change this to "Group04%s" IF a brute and medic version of the long fall rebel are created - then we can have Group04, Group04b, Group04m
 	"Group04%s",
 	"Group05",
+	"Group05b",
 };
 
 #define IsExcludedHead( type, bMedic, iHead) false // see XBox codeline for an implementation
@@ -723,7 +724,7 @@ void CNPC_Citizen::Spawn()
 		// Randomize brute mask skin based on entity index
 		m_nSkin = entindex() % BRUTE_MASK_NUM_SKINS;
 	}
-	else if ( m_Type >= CT_BRUTE && m_Type <= CT_ARBEIT ) // CT_BRUTE, CT_LONGFALL, CT_ARCTIC, CT_ARBEIT
+	else if ( m_Type >= CT_BRUTE && m_Type <= CT_ARBEIT_SEC ) // CT_BRUTE, CT_LONGFALL, CT_ARCTIC, CT_ARBEIT, CT_ARBEIT_SEC
 	{
 		if (GlobalEntity_GetState( "citizens_no_auto_variant" ) != GLOBAL_ON)
 		{
