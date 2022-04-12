@@ -585,6 +585,11 @@ void CFlashlightEffect::LightOff()
 	LightOffNew();
 }
 
+#ifdef EZ
+static ConVar r_headlightfov( "r_headlightfov", "90.0", FCVAR_CHEAT );
+static ConVar r_headlightfar( "r_headlightfar", "1250.0", FCVAR_CHEAT );
+#endif
+
 CHeadlightEffect::CHeadlightEffect() 
 {
 
@@ -614,8 +619,8 @@ void CHeadlightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, 
 	state.m_vecLightOrigin = vecPos;
 
 #ifdef EZ // Blixibon - Shadows don't work well with non-symmetrical FOV
-	state.m_fHorizontalFOVDegrees = 45.0f;
-	state.m_fVerticalFOVDegrees = 45.0f;
+	state.m_fHorizontalFOVDegrees = r_headlightfov.GetFloat();
+	state.m_fVerticalFOVDegrees = r_headlightfov.GetFloat();
 #else
 	state.m_fHorizontalFOVDegrees = 45.0f;
 	state.m_fVerticalFOVDegrees = 30.0f;
@@ -628,7 +633,11 @@ void CHeadlightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, 
 	state.m_Color[2] = 1.0f;
 	state.m_Color[3] = r_flashlightambient.GetFloat();
 	state.m_NearZ = r_flashlightnear.GetFloat();
+#ifdef EZ
+	state.m_FarZ = r_headlightfar.GetFloat();
+#else
 	state.m_FarZ = r_flashlightfar.GetFloat();
+#endif
 	state.m_bEnableShadows = true;
 	state.m_pSpotlightTexture = m_FlashlightTexture;
 	state.m_nSpotlightTextureFrame = 0;
