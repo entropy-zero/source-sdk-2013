@@ -517,7 +517,9 @@ void CWeapon_SLAM::StartTripmineAttach( void )
 	
 	m_flNextPrimaryAttack	= gpGlobals->curtime + SequenceDuration();
 	m_flNextSecondaryAttack	= gpGlobals->curtime + SequenceDuration();
-//	SetWeaponIdleTime( gpGlobals->curtime + SequenceDuration() );
+#ifdef EZ
+	SetWeaponIdleTime( gpGlobals->curtime + SequenceDuration() );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -598,6 +600,10 @@ void CWeapon_SLAM::StartSatchelThrow( void )
 			m_bNeedDetonatorDraw	= true;
 		}
 	}
+
+#ifdef EZ
+	SetWeaponIdleTime( gpGlobals->curtime + SequenceDuration() );
+#endif
 	
 	m_bNeedReload		= true;
 	m_bThrowSatchel		= true;
@@ -725,6 +731,10 @@ void CWeapon_SLAM::StartSatchelAttach( void )
 				}
 #endif
 			}
+
+#ifdef EZ
+			SetWeaponIdleTime( gpGlobals->curtime + SequenceDuration() );
+#endif
 			
 			m_bNeedReload		= true;
 			m_bAttachSatchel	= true;
@@ -1173,7 +1183,7 @@ void CWeapon_SLAM::WeaponIdle( void )
 		}
 
 		// If I don't need to reload just do the appropriate idle
-		else
+		else if (iAnim == 0 )
 		{
 			switch( m_tSlamState)
 			{
