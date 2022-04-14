@@ -375,6 +375,7 @@ void CNPC_Gonome::Precache()
 	PrecacheScriptSound( "Gonome.RunFootstepRight" );
 	PrecacheScriptSound( "Gonome.FootstepLeft" );
 	PrecacheScriptSound( "Gonome.FootstepRight" );
+	PrecacheScriptSound( "Gonome.JumpLand" );
 	PrecacheScriptSound( "Gonome.Eat" );
 	PrecacheScriptSound( "Gonome.BeginSpawnCrab" );
 	PrecacheScriptSound( "Gonome.EndSpawnCrab" );
@@ -730,18 +731,19 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 
 					// Material Sound
 					EmitSound_t params;
-					params.m_pSoundName = physprops->GetString( psurf->sounds.impactHard );
-
-					CPASAttenuationFilter filter( this, params.m_pSoundName );
-
-					params.m_bWarnOnDirectWaveReference = true;
-					params.m_flVolume = 0.5f;
-					EmitSound( filter, entindex(), params );
+					//params.m_pSoundName = physprops->GetString( psurf->sounds.impactHard );
+					//
+					//CPASAttenuationFilter filter( this, params.m_pSoundName );
+					//
+					//params.m_bWarnOnDirectWaveReference = true;
+					//params.m_flVolume = 0.5f;
+					//EmitSound( filter, entindex(), params );
 
 					// Land Sound
 					params.m_pSoundName = pEvent->options;
-					filter.Filter( GetSoundEmissionOrigin(), CBaseEntity::LookupSoundLevel( params.m_pSoundName ) );
-					EmitSound( filter, entindex(), params );
+					params.m_flVolume = 1.0f;
+					CPASAttenuationFilter filter2( this, params.m_pSoundName );
+					EmitSound( filter2, entindex(), params );
 				}
 			}
 		}
