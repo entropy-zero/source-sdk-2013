@@ -49,6 +49,10 @@ void CAI_BeastBehavior::GoHome( bool bTeleport )
 		m_bTeleport = true;
 
 	SetCondition( COND_BEAST_FORCE_HOME );
+
+	// Make sure the beast snaps into our behavior if we're not running
+	if (!IsRunning())
+		SetCondition( COND_PROVOKED );
 }
 
 //-----------------------------------------------------------------------------
@@ -324,6 +328,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_BeastBehavior )
 		SCHED_BEAST_STAY_HOME,
 
 		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE		SCHEDULE:SCHED_BEAST_TELEPORT_HOME"
 		"		TASK_STOP_MOVING		1"
 		"		TASK_PLAY_HINT_ACTIVITY		0"
 		"		TASK_WAIT_INDEFINITE	5"

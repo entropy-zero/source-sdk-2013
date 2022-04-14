@@ -465,6 +465,21 @@ int CNPC_Gonome::SelectFailSchedule( int failedSchedule, int failedTask, AI_Task
 	return base;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Allows for modification of the interrupt mask for the current schedule.
+//			In the most cases the base implementation should be called first.
+//-----------------------------------------------------------------------------
+void CNPC_Gonome::BuildScheduleTestBits()
+{
+	BaseClass::BuildScheduleTestBits();
+
+	// Beast behavior must be able to interrupt our schedules
+	if (!m_BeastBehavior.IsRunning())
+	{
+		SetCustomInterruptCondition( COND_PROVOKED );
+	}
+}
+
 //=========================================================
 // Translate missing activities to custom ones
 //=========================================================

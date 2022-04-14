@@ -69,6 +69,7 @@ public:
 
 	int TranslateSchedule( int scheduleType );
 	int	SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
+	void BuildScheduleTestBits();
 	virtual Activity NPC_TranslateActivity( Activity eNewActivity );
 
 	void StartTask ( const Task_t *pTask );

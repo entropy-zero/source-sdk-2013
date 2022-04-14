@@ -1038,6 +1038,9 @@ int CNPC_BasePredator::SelectSchedule( void )
 	// 1upD - Fall through to idle. Idle predators should be allowed to eat.
 	case NPC_STATE_IDLE:
 	{
+		if ( HasCondition( COND_PROVOKED ) )
+			break;
+
 		if ( HasCondition( COND_PREDATOR_SMELL_FOOD ) )
 		{
 			CSound		*pSound;
