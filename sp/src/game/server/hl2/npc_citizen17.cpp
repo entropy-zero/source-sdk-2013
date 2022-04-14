@@ -2565,9 +2565,10 @@ bool CNPC_Citizen::FindDecoyObject(void)
 
 			// One more trace - let's make sure there's nothing immediately in front of the NPC to occlude this firing vector
 			AI_TraceLine( vecBulletOrigin, vecDecoyTarget, MASK_SHOT, this, COLLISION_GROUP_NONE, &blockTr );
-			if (ai_debug_rebel_suppressing_fire.GetBool() && blockTr.fraction < ai_suppression_distance_ratio.GetFloat())
+			if ( blockTr.fraction < ai_suppression_distance_ratio.GetFloat())
 			{
-				DevMsg( "NPC_Citizen::FindDecoyObject: %s covering fire doesn't cover sufficent ratio at: %f\n", GetDebugName(), blockTr.fraction );
+				if(ai_debug_rebel_suppressing_fire.GetBool())
+					DevMsg( "NPC_Citizen::FindDecoyObject: %s covering fire doesn't cover sufficent ratio at: %f\n", GetDebugName(), blockTr.fraction );
 			}
 			else
 			{
