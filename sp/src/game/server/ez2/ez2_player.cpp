@@ -1585,7 +1585,7 @@ void CEZ2_Player::Event_KilledEnemy(CBaseCombatCharacter *pVictim, const CTakeDa
 //-----------------------------------------------------------------------------
 void CEZ2_Player::Event_NPCKilled(CAI_BaseNPC *pVictim, const CTakeDamageInfo &info)
 {
-	if (info.GetAttacker() == this)
+	if (info.GetAttacker() == this || (GetVehicleEntity() && info.GetAttacker() == GetVehicleEntity()))
 	{
 		// Event_NPCKilled is called before Event_KilledOther in the NPC dying process,
 		// meaning some pre-death conditions are retained in Event_NPCKilled that are not retained in Event_KilledOther,
