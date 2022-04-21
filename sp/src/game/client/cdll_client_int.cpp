@@ -1135,7 +1135,7 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 #endif
 
 #ifdef EZ2 // NOTE: This could go into Mapbase in the future! In the event of a merge conflict, use Mapbase's implementaton.
-	if (CommandLine()->ParmValue( "-deletesoundcache", 0 ) > 0)
+	if (CommandLine()->FindParm( "-deletesoundcache" ) > 0)
 	{
 		char searchPaths[4096];
 		filesystem->GetSearchPath( "GAME", true, searchPaths, sizeof( searchPaths ) );
