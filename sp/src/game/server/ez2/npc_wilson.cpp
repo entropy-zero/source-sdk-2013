@@ -83,6 +83,7 @@ ConVar npc_wilson_clearance_speed_threshold( "npc_wilson_clearance_speed_thresho
 ConVar npc_wilson_clearance_debug( "npc_wilson_clearance_debug", "0", FCVAR_NONE, "Debugs Will-E's low clearance detection." );
 
 static const char *g_DamageZapContext = "DamageZapEffect";
+static const char *g_AutoSetLocatorContext = "AutoSetLocator";
 
 #define WILSON_MODEL "models/will_e.mdl"
 #define DAMAGED_MODEL "models/will_e_damaged.mdl"
@@ -322,12 +323,17 @@ void CNPC_Wilson::Spawn()
 		m_flTeslaStopTime = FLT_MAX;
 	}
 	
-	if (m_bAutoSetLocator && UTIL_GetLocalPlayer())
+	if (m_bAutoSetLocator)
 	{
-		CHL2_Player *pPlayer = assert_cast<CHL2_Player*>( UTIL_GetLocalPlayer() );
+		if (UTIL_GetLocalPlayer())
 		{
-			// Note that this will override any existing locator target entity
-			pPlayer->SetLocatorTargetEntity( this );
+			// Set the locator target now
+			AutoSetLocatorThink();
+		}
+		else
+		{
+			// Wait for the player to spawn
+			SetContextThink( &CNPC_Wilson::AutoSetLocatorThink, gpGlobals->curtime, g_AutoSetLocatorContext );
 		}
 	}
 
@@ -410,6 +416,27 @@ void CNPC_Wilson::UpdateOnRemove( void )
 	}
 
 	BaseClass::UpdateOnRemove();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Wilson::AutoSetLocatorThink()
+{
+	if (UTIL_GetLocalPlayer())
+	{
+		CHL2_Player *pPlayer = assert_cast<CHL2_Player*>( UTIL_GetLocalPlayer() );
+		{
+			// Note that this will override any existing locator target entity
+			pPlayer->SetLocatorTargetEntity( this );
+		}
+
+		SetNextThink( TICK_NEVER_THINK, g_AutoSetLocatorContext );
+	}
+	else
+	{
+		SetNextThink( gpGlobals->curtime + 0.2f, g_AutoSetLocatorContext );
+	}
 }
 
 //-----------------------------------------------------------------------------

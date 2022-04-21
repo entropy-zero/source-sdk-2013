@@ -57,6 +57,8 @@ public:
 	void	UpdateOnRemove( void );
 	float	MaxYawSpeed( void ){ return 0; }
 
+	void	AutoSetLocatorThink();
+
 	bool	ShouldSavePhysics() { return true; }
 	unsigned int	PhysicsSolidMaskForEntity( void ) const;
 
