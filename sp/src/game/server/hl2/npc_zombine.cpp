@@ -83,6 +83,8 @@ string_t gm_iszZombineGrenadeTypeFrag;
 string_t gm_iszZombineGrenadeTypeXen;
 string_t gm_iszZombineGrenadeTypeStunstick;
 string_t gm_iszZombineGrenadeTypeManhack;
+string_t gm_iszZombineGrenadeTypeCrowbar;
+string_t gm_iszZombineGrenadeTypeBattery;
 
 int	g_interactionZombinePullGrenade		= 0;
 #endif
@@ -260,6 +262,41 @@ class CNPC_MetroZombie : public CNPC_Zombine
 };
 
 LINK_ENTITY_TO_CLASS( npc_metrozombie, CNPC_MetroZombie );
+
+ConVar	sk_hevzombie_health( "sk_hevzombie_health", "0" );
+
+class CNPC_HEVZombie : public CNPC_Zombine
+{
+	DECLARE_DATADESC()
+	DECLARE_CLASS( CNPC_HEVZombie, CNPC_Zombine );
+
+	void Spawn( void );
+	void Precache( void );
+	void ChooseDefaultGrenadeType();
+
+	virtual void PainSound( const CTakeDamageInfo &info );
+	virtual void DeathSound( const CTakeDamageInfo &info );
+	virtual void AlertSound( void );
+	virtual void IdleSound( void );
+	virtual void FootscuffSound( bool fRightFoot );
+	virtual void ChargeSound( void );
+	virtual void ReadyGrenadeSound( void );
+
+	virtual void Event_Killed( const CTakeDamageInfo &info );
+
+	// HEV zombies never drop headcrabs or become torsos
+	virtual bool ShouldBecomeTorso( const CTakeDamageInfo &info, float flDamageThreshold ) { return false; }
+	virtual HeadcrabRelease_t ShouldReleaseHeadcrab( const CTakeDamageInfo &info, float flDamageThreshold ) { return RELEASE_NO; }
+
+private:
+	bool m_bDropItems = true;
+};
+
+BEGIN_DATADESC( CNPC_HEVZombie )
+DEFINE_KEYFIELD( m_bDropItems, FIELD_BOOLEAN, "DropItems" ),
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( npc_hevzombie, CNPC_HEVZombie );
 #endif
 
 //---------------------------------------------------------
@@ -315,12 +352,6 @@ void CNPC_Zombine::Spawn( void )
 #endif
 
 #ifdef EZ
-	// Xen zombine do not use grenades, otherwise start with the max number of grenades
-	if ( m_tEzVariant == EZ_VARIANT_XEN )
-	{
-		m_iGrenadeCount = 0;
-	}
-
 	if ( m_iszGrenadeType == NULL_STRING )
 	{
 		ChooseDefaultGrenadeType();
@@ -455,6 +486,8 @@ void CNPC_Zombine::AllocPooledStringsForGrenadeTypes()
 	gm_iszZombineGrenadeTypeXen = AllocPooledString( "npc_grenade_hopwire" );
 	gm_iszZombineGrenadeTypeStunstick = AllocPooledString( "weapon_stunstick" );
 	gm_iszZombineGrenadeTypeManhack = AllocPooledString( "npc_manhack" );
+	gm_iszZombineGrenadeTypeCrowbar = AllocPooledString( "weapon_crowbar" );
+	gm_iszZombineGrenadeTypeBattery = AllocPooledString( "item_battery" );
 }
 
 void CNPC_Zombine::SetZombieModel( void )
@@ -822,7 +855,10 @@ void CNPC_Zombine::HandleAnimEvent( animevent_t *pEvent )
 
 			DevMsg( "npc_zombine is using generic handling for grenade type: %s\n", pGrenadeClass );
 
-			pGrenade = CBaseEntity::Create( pGrenadeClass, vecStart, vec3_angle, this );
+			pGrenade = CBaseEntity::CreateNoSpawn( pGrenadeClass, vecStart, vec3_angle, this );
+			pGrenade->SetEZVariant( m_tEzVariant );
+
+			DispatchSpawn( pGrenade );
 
 			if(pGrenade)
 			pGrenade->SetOwnerEntity( this );
@@ -1802,6 +1838,306 @@ void CNPC_MetroZombie::ReadyGrenadeSound( void )
 		break;
 	}
 }
+
+void CNPC_HEVZombie::Spawn( void )
+{
+	BaseClass::Spawn();
+
+	m_iHealth = sk_hevzombie_health.GetFloat();
+	SetMaxHealth( m_iHealth );
+}
+
+void CNPC_HEVZombie::Precache( void )
+{
+	AllocPooledStringsForGrenadeTypes();
+
+	char * modelVariant;
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		modelVariant = "glowbie";
+		PrecacheScriptSound( "Glowbie.FootstepRight" );
+		PrecacheScriptSound( "Glowbie.FootstepLeft" );
+		PrecacheScriptSound( "HEVGlowbie.ScuffRight" );
+		PrecacheScriptSound( "HEVGlowbie.ScuffLeft" );
+		PrecacheScriptSound( "Glowbie.AttackHit" );
+		PrecacheScriptSound( "Glowbie.AttackMiss" );
+		PrecacheScriptSound( "HEVGlowbie.Pain" );
+		PrecacheScriptSound( "HEVGlowbie.Die" );
+		PrecacheScriptSound( "HEVGlowbie.Alert" );
+		PrecacheScriptSound( "HEVGlowbie.Idle" );
+		PrecacheScriptSound( "HEVGlowbie.ReadyGrenade" );
+
+		PrecacheScriptSound( "ATV_engine_null" );
+		PrecacheScriptSound( "HEVGlowbie.Charge" );
+		PrecacheScriptSound( "Glowbie.Attack" );
+		break;
+	case EZ_VARIANT_XEN:
+		modelVariant = "xenbie";
+		PrecacheScriptSound( "Xenbie.FootstepRight" );
+		PrecacheScriptSound( "Xenbie.FootstepLeft" );
+		PrecacheScriptSound( "HEVXenbie.ScuffRight" );
+		PrecacheScriptSound( "HEVXenbie.ScuffLeft" );
+		PrecacheScriptSound( "Xenbie.AttackHit" );
+		PrecacheScriptSound( "Xenbie.AttackMiss" );
+		PrecacheScriptSound( "HEVXenbie.Pain" );
+		PrecacheScriptSound( "HEVXenbie.Die" );
+		PrecacheScriptSound( "HEVXenbie.Alert" );
+		PrecacheScriptSound( "HEVXenbie.Idle" );
+		PrecacheScriptSound( "HEVXenbie.ReadyGrenade" );
+
+		PrecacheScriptSound( "ATV_engine_null" );
+		PrecacheScriptSound( "HEVXenbie.Charge" );
+		PrecacheScriptSound( "Xenbie.Attack" );
+		break;
+	default:
+		modelVariant = "zombie";
+		PrecacheScriptSound( "Zombie.FootstepRight" );
+		PrecacheScriptSound( "Zombie.FootstepLeft" );
+		PrecacheScriptSound( "HEVZombie.ScuffRight" );
+		PrecacheScriptSound( "HEVZombie.ScuffLeft" );
+		PrecacheScriptSound( "Zombie.AttackHit" );
+		PrecacheScriptSound( "Zombie.AttackMiss" );
+		PrecacheScriptSound( "HEVZombie.Pain" );
+		PrecacheScriptSound( "HEVZombie.Die" );
+		PrecacheScriptSound( "HEVZombie.Alert" );
+		PrecacheScriptSound( "HEVZombie.Idle" );
+		PrecacheScriptSound( "HEVZombie.ReadyGrenade" );
+
+		PrecacheScriptSound( "ATV_engine_null" );
+		PrecacheScriptSound( "HEVZombie.Charge" );
+		PrecacheScriptSound( "Zombie.Attack" );
+		break;
+	}
+	if (GetModelName() == NULL_STRING)
+	{
+		SetModelName( AllocPooledString( UTIL_VarArgs( "models/zombie/%s_hev.mdl", modelVariant ) ) );
+	}
+	if (GetTorsoModelName() == NULL_STRING && m_tEzVariant != EZ_VARIANT_XEN)
+	{
+		SetTorsoModelName( AllocPooledString( UTIL_VarArgs( "models/zombie/%s_hev_torso.mdl", modelVariant ) ) );
+	}
+	if (GetLegsModelName() == NULL_STRING && m_tEzVariant != EZ_VARIANT_XEN)
+	{
+		SetLegsModelName( AllocPooledString( UTIL_VarArgs( "models/zombie/%_hev_legs.mdl", modelVariant ) ) );
+	}
+
+	PrecacheModel( STRING( GetModelName() ) );
+
+	BaseClass::Precache();
+}
+
+void CNPC_HEVZombie::ChooseDefaultGrenadeType()
+{
+	int chance = random->RandomInt( 0, 3 );
+
+	// If we set the type to "Arbeit", give them Xen grenades
+	if (m_tEzVariant == EZ_VARIANT_ARBEIT)
+	{
+		m_iszGrenadeType = gm_iszZombineGrenadeTypeXen;
+	}
+
+	switch (chance)
+	{
+	case 0:
+		m_iszGrenadeType = gm_iszZombineGrenadeTypeCrowbar;
+		break;
+	// Default - Pull out a battery item to help!
+	default:
+		m_iszGrenadeType = gm_iszZombineGrenadeTypeBattery;
+		break;
+	}
+	return;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sound of a foot sliding/scraping
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::FootscuffSound( bool fRightFoot )
+{
+	if (m_tEzVariant == EZ_VARIANT_RAD && fRightFoot)
+	{
+		EmitSound( "HEVGlowbie.ScuffRight" );
+	}
+	else if (m_tEzVariant == EZ_VARIANT_RAD)
+	{
+		EmitSound( "HEVGlowbie.ScuffLeft" );
+	}
+	if (m_tEzVariant == EZ_VARIANT_XEN && fRightFoot)
+	{
+		EmitSound( "HEVXenbie.ScuffRight" );
+	}
+	else if (m_tEzVariant == EZ_VARIANT_XEN)
+	{
+		EmitSound( "HEVXenbie.ScuffLeft" );
+	}
+	else if (fRightFoot)
+	{
+		EmitSound( "HEVZombie.ScuffRight" );
+	}
+	else
+	{
+		EmitSound( "HEVZombie.ScuffLeft" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::PainSound( const CTakeDamageInfo &info )
+{
+	// We're constantly taking damage when we are on fire. Don't make all those noises!
+	if (IsOnFire())
+	{
+		return;
+	}
+
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.Pain" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.Pain" );
+		break;
+	default:
+		EmitSound( "HEVZombie.Pain" );
+		break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::DeathSound( const CTakeDamageInfo &info )
+{
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.Die" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.Die" );
+		break;
+	default:
+		EmitSound( "HEVZombie.Die" );
+		break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::AlertSound( void )
+{
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.Alert" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.Alert" );
+		break;
+	default:
+		EmitSound( "HEVZombie.Alert" );
+		break;
+	}
+
+	// Don't let a moan sound cut off the alert sound.
+	m_flNextMoanSound += random->RandomFloat( 2.0, 4.0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Play a random idle sound.
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::IdleSound( void )
+{
+	if (GetState() == NPC_STATE_IDLE && random->RandomFloat( 0, 1 ) == 0)
+	{
+		// Moan infrequently in IDLE state.
+		return;
+	}
+
+	if (IsSlumped())
+	{
+		// Sleeping zombies are quiet.
+		return;
+	}
+
+
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.Idle" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.Idle" );
+		break;
+	default:
+		EmitSound( "HEVZombie.Idle" );
+		break;
+	}
+
+	MakeAISpookySound( 360.0f );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Play a sound while charging towards the enemy
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::ChargeSound( void )
+{
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.Charge" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.Charge" );
+		break;
+	default:
+		EmitSound( "HEVZombie.Charge" );
+		break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Play a sound while readying a grenade
+//-----------------------------------------------------------------------------
+void CNPC_HEVZombie::ReadyGrenadeSound( void )
+{
+	switch (m_tEzVariant)
+	{
+	case EZ_VARIANT_RAD:
+		EmitSound( "HEVGlowbie.ReadyGrenade" );
+		break;
+	case EZ_VARIANT_XEN:
+		EmitSound( "HEVXenbie.ReadyGrenade" );
+		break;
+	default:
+		EmitSound( "HEVZombie.ReadyGrenade" );
+		break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: HEV Zombies should drop a bunch of items on death
+// TODO - SHould we be worried about the variant of the item?
+//-----------------------------------------------------------------------------
+
+void CNPC_HEVZombie::Event_Killed( const CTakeDamageInfo &info )
+{
+	BaseClass::Event_Killed( info );
+
+	if (m_bDropItems) {
+		int numBatteries = random->RandomInt( 1, 4 );
+		for (int i = 0; i < numBatteries; i++)
+		{
+			DropItem( "item_battery", WorldSpaceCenter() + RandomVector( -4, 4 ), RandomAngle( 0, 360 ) );
+		}
+	}
+}
+
+
 #endif
 
 //-----------------------------------------------------------------------------
