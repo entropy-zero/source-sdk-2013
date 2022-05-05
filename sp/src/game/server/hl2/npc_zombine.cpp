@@ -84,7 +84,6 @@ string_t gm_iszZombineGrenadeTypeXen;
 string_t gm_iszZombineGrenadeTypeStunstick;
 string_t gm_iszZombineGrenadeTypeManhack;
 string_t gm_iszZombineGrenadeTypeCrowbar;
-string_t gm_iszZombineGrenadeTypeBattery;
 
 int	g_interactionZombinePullGrenade		= 0;
 #endif
@@ -270,6 +269,12 @@ class CNPC_HEVZombie : public CNPC_Zombine
 	DECLARE_DATADESC()
 	DECLARE_CLASS( CNPC_HEVZombie, CNPC_Zombine );
 
+public:
+	CNPC_HEVZombie() {
+		m_bDropItems = true;
+		m_ArmorValue = 100;
+	}
+
 	void Spawn( void );
 	void Precache( void );
 	void ChooseDefaultGrenadeType();
@@ -282,6 +287,7 @@ class CNPC_HEVZombie : public CNPC_Zombine
 	virtual void ChargeSound( void );
 	virtual void ReadyGrenadeSound( void );
 
+	int	OnTakeDamage( const CTakeDamageInfo &info );
 	virtual void Event_Killed( const CTakeDamageInfo &info );
 
 	// HEV zombies never drop headcrabs or become torsos
@@ -289,11 +295,13 @@ class CNPC_HEVZombie : public CNPC_Zombine
 	virtual HeadcrabRelease_t ShouldReleaseHeadcrab( const CTakeDamageInfo &info, float flDamageThreshold ) { return RELEASE_NO; }
 
 private:
-	bool m_bDropItems = true;
+	bool m_bDropItems;
+	int	m_ArmorValue;
 };
 
 BEGIN_DATADESC( CNPC_HEVZombie )
 DEFINE_KEYFIELD( m_bDropItems, FIELD_BOOLEAN, "DropItems" ),
+DEFINE_INPUT( m_ArmorValue, FIELD_INTEGER, "SetArmor" ), // From npc_clonecop
 END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( npc_hevzombie, CNPC_HEVZombie );
@@ -487,7 +495,6 @@ void CNPC_Zombine::AllocPooledStringsForGrenadeTypes()
 	gm_iszZombineGrenadeTypeStunstick = AllocPooledString( "weapon_stunstick" );
 	gm_iszZombineGrenadeTypeManhack = AllocPooledString( "npc_manhack" );
 	gm_iszZombineGrenadeTypeCrowbar = AllocPooledString( "weapon_crowbar" );
-	gm_iszZombineGrenadeTypeBattery = AllocPooledString( "item_battery" );
 }
 
 void CNPC_Zombine::SetZombieModel( void )
@@ -1942,9 +1949,10 @@ void CNPC_HEVZombie::ChooseDefaultGrenadeType()
 	case 0:
 		m_iszGrenadeType = gm_iszZombineGrenadeTypeCrowbar;
 		break;
-	// Default - Pull out a battery item to help!
+	// Default to Xen greandes so the grenade type isn't null string, but set the count to 0
 	default:
-		m_iszGrenadeType = gm_iszZombineGrenadeTypeBattery;
+		m_iszGrenadeType = gm_iszZombineGrenadeTypeXen;
+		KeyValue( "NumGrenades", "0" );
 		break;
 	}
 	return;
@@ -2120,16 +2128,58 @@ void CNPC_HEVZombie::ReadyGrenadeSound( void )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: HEV Zombies have suit charge
+//-----------------------------------------------------------------------------
+int CNPC_HEVZombie::OnTakeDamage( const CTakeDamageInfo &inputInfo )
+{
+	CTakeDamageInfo info = inputInfo;
+
+	// Armor code taken from CNPC_CloneCop::OnTakeDamage
+	if (info.GetDamage() && m_ArmorValue && !(info.GetDamageType() & (DMG_FALL | DMG_DROWN | DMG_POISON | DMG_RADIATION)))// armor doesn't protect against fall or drown damage!
+	{
+		float flRatio = 0.2f;
+
+		float flNew = info.GetDamage() * flRatio;
+
+		float flArmor;
+
+		flArmor = (info.GetDamage() - flNew);
+
+		if (flArmor < 1.0)
+		{
+			flArmor = 1.0;
+		}
+
+		// Does this use more armor than we have?
+		if (flArmor > m_ArmorValue)
+		{
+			flArmor = m_ArmorValue;
+			flNew = info.GetDamage() - flArmor;
+			m_ArmorValue = 0;
+		}
+		else
+		{
+			m_ArmorValue -= flArmor;
+		}
+
+		info.SetDamage( flNew );
+	}
+
+	return BaseClass::OnTakeDamage( info );
+}
+
+extern ConVar sk_battery; // Need to know how much battery is applied per item
+
+//-----------------------------------------------------------------------------
 // Purpose: HEV Zombies should drop a bunch of items on death
 // TODO - SHould we be worried about the variant of the item?
 //-----------------------------------------------------------------------------
-
 void CNPC_HEVZombie::Event_Killed( const CTakeDamageInfo &info )
 {
 	BaseClass::Event_Killed( info );
 
 	if (m_bDropItems) {
-		int numBatteries = random->RandomInt( 1, 4 );
+		int numBatteries = MAX( m_ArmorValue / sk_battery.GetInt(), random->RandomInt( 1, 3 ));
 		for (int i = 0; i < numBatteries; i++)
 		{
 			DropItem( "item_battery", WorldSpaceCenter() + RandomVector( -4, 4 ), RandomAngle( 0, 360 ) );
