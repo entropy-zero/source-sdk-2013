@@ -1950,6 +1950,7 @@ void CNPC_HEVZombie::ChooseDefaultGrenadeType()
 		m_iszGrenadeType = gm_iszZombineGrenadeTypeCrowbar;
 		break;
 	// Default to Xen greandes so the grenade type isn't null string, but set the count to 0
+	// TODO: I would really like to add an 'electrical grenade' - a battery damaged by the HEV zombie. Out of scope for now, but a nice to have in the future - 1upD
 	default:
 		m_iszGrenadeType = gm_iszZombineGrenadeTypeXen;
 		KeyValue( "NumGrenades", "0" );
