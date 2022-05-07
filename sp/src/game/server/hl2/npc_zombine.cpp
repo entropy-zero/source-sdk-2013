@@ -1874,6 +1874,8 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVGlowbie.Alert" );
 		PrecacheScriptSound( "HEVGlowbie.Idle" );
 		PrecacheScriptSound( "HEVGlowbie.ReadyGrenade" );
+		PrecacheScriptSound( "HEVGlowbie.Vox_Flatline" );
+		PrecacheScriptSound( "HEVGlowbie.Vox_Pain" );
 
 		PrecacheScriptSound( "ATV_engine_null" );
 		PrecacheScriptSound( "HEVGlowbie.Charge" );
@@ -1892,6 +1894,8 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVXenbie.Alert" );
 		PrecacheScriptSound( "HEVXenbie.Idle" );
 		PrecacheScriptSound( "HEVXenbie.ReadyGrenade" );
+		PrecacheScriptSound( "HEVXenbie.Vox_Flatline" );
+		PrecacheScriptSound( "HEVXenbie.Vox_Pain" );
 
 		PrecacheScriptSound( "ATV_engine_null" );
 		PrecacheScriptSound( "HEVXenbie.Charge" );
@@ -1910,6 +1914,8 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVZombie.Alert" );
 		PrecacheScriptSound( "HEVZombie.Idle" );
 		PrecacheScriptSound( "HEVZombie.ReadyGrenade" );
+		PrecacheScriptSound( "HEVZombie.Vox_Flatline" );
+		PrecacheScriptSound( "HEVZombie.Vox_Pain" );
 
 		PrecacheScriptSound( "ATV_engine_null" );
 		PrecacheScriptSound( "HEVZombie.Charge" );
@@ -2005,12 +2011,15 @@ void CNPC_HEVZombie::PainSound( const CTakeDamageInfo &info )
 	{
 	case EZ_VARIANT_RAD:
 		EmitSound( "HEVGlowbie.Pain" );
+		EmitSound( "HEVGlowbie.Vox_Pain" ); // This soundscript should be on a different channel
 		break;
 	case EZ_VARIANT_XEN:
 		EmitSound( "HEVXenbie.Pain" );
+		EmitSound( "HEVXenbie.Vox_Pain" ); // This soundscript should be on a different channel
 		break;
 	default:
 		EmitSound( "HEVZombie.Pain" );
+		EmitSound( "HEVZombie.Vox_Pain" ); // This soundscript should be on a different channel
 		break;
 	}
 }
@@ -2023,12 +2032,15 @@ void CNPC_HEVZombie::DeathSound( const CTakeDamageInfo &info )
 	{
 	case EZ_VARIANT_RAD:
 		EmitSound( "HEVGlowbie.Die" );
+		EmitSound( "HEVGlowbie.Vox_Flatline" ); // This soundscript should be on a different channel
 		break;
 	case EZ_VARIANT_XEN:
 		EmitSound( "HEVXenbie.Die" );
+		EmitSound( "HEVXenbie.Vox_Flatline" ); // This soundscript should be on a different channel
 		break;
 	default:
 		EmitSound( "HEVZombie.Die" );
+		EmitSound( "HEVZombie.Vox_Flatline" ); // This soundscript should be on a different channel
 		break;
 	}
 }
