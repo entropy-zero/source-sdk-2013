@@ -437,6 +437,7 @@ ConVar sk_plr_dmg_pulse_lance( "sk_plr_dmg_pulse_lance", "15" );
 ConVar sv_pulse_pistol_style( "sv_pulse_pistol_style", "0", FCVAR_NONE, "Style of pulse pistol altfire: 0) Default 1) Charge 2) Lance" );
 ConVar sv_pulse_lance_style( "sv_pulse_lance_style", "0", FCVAR_NONE, "Style of pulse lance: 0) Vortigaunt 1) Stalker" );
 ConVar sv_pulse_pistol_charge_per_extra_shot( "sv_pulse_pistol_charge_per_extra_shot", "5", FCVAR_NONE, "How many ammo charges equals one bullet" );
+ConVar sv_pulse_pistol_slide_return_charge( "sv_pulse_pistol_slide_return_charge", "10", FCVAR_NONE, "How much charge to restore when racking the slide on the pulse pistol" );
 
 //-----------------------------------------------------------------------------
 // CWeaponPulsePistol, the famous melee replacement taken to a separate class.
@@ -477,7 +478,7 @@ public:
 			1.0f );
 
 		// We lerp from very accurate to inaccurate over time
-		VectorLerp( VECTOR_CONE_4DEGREES, VECTOR_CONE_20DEGREES, ramp, cone );
+		VectorLerp( VECTOR_CONE_4DEGREES, VECTOR_CONE_15DEGREES, ramp, cone );
 
 		return cone;
 	}
@@ -640,7 +641,7 @@ void CWeaponPulsePistol::Operator_HandleAnimEvent( animevent_t * pEvent, CBaseCo
 	{
 	case AE_WPN_INCREMENTAMMO:
 	case AE_SLIDERETURN:
-		m_iClip1 = MAX( m_iClip1, 10 );
+		m_iClip1 = MAX( m_iClip1, sv_pulse_pistol_slide_return_charge.GetInt() );
 		WeaponSound( RELOAD, m_flNextPrimaryAttack );
 		break;
 	}
@@ -857,6 +858,13 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 //-----------------------------------------------------------------------------
 void CWeaponPulsePistol::ChargeAttack( void )
 {
+	// Play the slide rack animation if we're trying to charge but have no ammo
+	if ( m_iClip1 <= 10 && m_nChargeAttackAmmo <= 0 ) {
+		if( m_flNextPrimaryAttack <= gpGlobals->curtime )
+			DryFire();
+		return;
+	}
+
 	int nMaxCharge = 40;
 	// If there is only one shot left or the charge has reached maximum, do not charge!
 	if (m_iClip1 <= 10 || m_nChargeAttackAmmo == nMaxCharge)
