@@ -423,7 +423,7 @@ void CWeaponPistol::AddViewKick( void )
 #ifdef EZ2
 #define	PULSE_PISTOL_FASTEST_REFIRE_TIME		0.4f
 #define	PULSE_PISTOL_FASTEST_DRY_REFIRE_TIME	1.5f
-#define	PULSE_PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME	3.5f
+#define	PULSE_PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME	10.0f
 
 enum PulsePistolStyle
 {
@@ -436,6 +436,7 @@ enum PulsePistolStyle
 ConVar sk_plr_dmg_pulse_lance( "sk_plr_dmg_pulse_lance", "15" );
 ConVar sv_pulse_pistol_style( "sv_pulse_pistol_style", "0", FCVAR_NONE, "Style of pulse pistol altfire: 0) Default 1) Charge 2) Lance" );
 ConVar sv_pulse_lance_style( "sv_pulse_lance_style", "0", FCVAR_NONE, "Style of pulse lance: 0) Vortigaunt 1) Stalker" );
+ConVar sv_pulse_pistol_charge_per_extra_shot( "sv_pulse_pistol_charge_per_extra_shot", "5", FCVAR_NONE, "How many ammo charges equals one bullet" );
 
 //-----------------------------------------------------------------------------
 // CWeaponPulsePistol, the famous melee replacement taken to a separate class.
@@ -469,22 +470,14 @@ public:
 
 		static Vector cone;
 
-		if (pistol_use_new_accuracy.GetBool())
-		{
-			float ramp = RemapValClamped( m_flAccuracyPenalty,
-				0.0f,
-				PULSE_PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME,
-				0.0f,
-				1.0f );
+		float ramp = RemapValClamped( m_flAccuracyPenalty,
+			0.0f,
+			PULSE_PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME,
+			0.0f,
+			1.0f );
 
-			// We lerp from very accurate to inaccurate over time
-			VectorLerp( VECTOR_CONE_1DEGREES, VECTOR_CONE_6DEGREES, ramp, cone );
-		}
-		else
-		{
-			// Old value
-			cone = VECTOR_CONE_4DEGREES;
-		}
+		// We lerp from very accurate to inaccurate over time
+		VectorLerp( VECTOR_CONE_4DEGREES, VECTOR_CONE_20DEGREES, ramp, cone );
 
 		return cone;
 	}
@@ -779,14 +772,23 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		int iBulletsToFire = 0;
 		float fireRate = GetFireRate();
 
+		int iExtraChargeBullets = m_nChargeAttackAmmo / sv_pulse_pistol_charge_per_extra_shot.GetInt();
+
+		// The pulse pistol fires one extra round per ten ammo charged
+		iBulletsToFire += iExtraChargeBullets;
+
+		if (iExtraChargeBullets > 0)
+		{
+			// Add the accuracy penalty for extra shots BEFORE firing to increase spread
+			m_flAccuracyPenalty += PISTOL_ACCURACY_SHOT_PENALTY_TIME * iExtraChargeBullets;
+		}
+
 		// MUST call sound before removing a round from the clip of a CHLMachineGun
 		while (m_flNextPrimaryAttack <= gpGlobals->curtime)
 		{
 			m_flNextPrimaryAttack = m_flNextPrimaryAttack + fireRate;
 			// Pulse pistol fires two bullets
 			iBulletsToFire += 2;
-			// The pulse pistol fires one extra round per ten ammo charged
-			iBulletsToFire += m_nChargeAttackAmmo / 10;
 
 			// If the shot is charged, play a special sound
 			if ( iBulletsToFire >= 4 )
@@ -814,8 +816,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		info.m_iShots = iBulletsToFire;
 		info.m_vecSrc = pPlayer->Weapon_ShootPosition();
 		info.m_vecDirShooting = pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );
-		//info.m_vecSpread = pPlayer->GetAttackSpread(this);
-		info.m_vecSpread = VECTOR_CONE_1DEGREES;
+		info.m_vecSpread = pPlayer->GetAttackSpread(this);
 		info.m_flDistance = MAX_TRACE_LENGTH;
 		info.m_iAmmoType = m_iPrimaryAmmoType;
 		info.m_iTracerFreq = 1;
@@ -839,6 +840,9 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 
 		// Register a muzzleflash for the AI
 		pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );
+
+		// Add to the accuracy penalty just like standard pistol
+		m_flAccuracyPenalty += PISTOL_ACCURACY_SHOT_PENALTY_TIME;
 
 		m_iPrimaryAttacks++;
 		gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
