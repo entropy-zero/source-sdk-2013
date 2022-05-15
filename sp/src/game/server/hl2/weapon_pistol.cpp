@@ -438,6 +438,8 @@ ConVar sv_pulse_pistol_style( "sv_pulse_pistol_style", "0", FCVAR_NONE, "Style o
 ConVar sv_pulse_lance_style( "sv_pulse_lance_style", "0", FCVAR_NONE, "Style of pulse lance: 0) Vortigaunt 1) Stalker" );
 ConVar sv_pulse_pistol_charge_per_extra_shot( "sv_pulse_pistol_charge_per_extra_shot", "5", FCVAR_NONE, "How many ammo charges equals one bullet" );
 ConVar sv_pulse_pistol_slide_return_charge( "sv_pulse_pistol_slide_return_charge", "10", FCVAR_NONE, "How much charge to restore when racking the slide on the pulse pistol" );
+ConVar sv_pulse_pistol_no_charge_hold( "sv_pulse_pistol_no_charge_hold", "0", FCVAR_NONE, "If 1, fully charged shots will fire automatically" );
+ConVar sv_pulse_pistol_max_charge( "sv_pulse_pistol_max_charge", "40", FCVAR_NONE, "Maximum ammo to charge in one shot. For a 50 charge pulse pistol, it should be 40" );
 
 //-----------------------------------------------------------------------------
 // CWeaponPulsePistol, the famous melee replacement taken to a separate class.
@@ -451,6 +453,7 @@ public:
 
 	void	Activate( void );
 	void	Precache();
+	bool	IsChargePressed( int chargeButton, CBasePlayer * pOwner );
 	void	ItemPostFrame( void );
 	void	PrimaryAttack( void );
 	void	SecondaryAttack();
@@ -555,6 +558,19 @@ void CWeaponPulsePistol::UpdateOnRemove( void )
 	BaseClass::UpdateOnRemove();
 }
 
+bool CWeaponPulsePistol::IsChargePressed( int chargeButton, CBasePlayer * pOwner )
+{
+	// If "no charge hold" is set, and we're at the maximum charge, treat it as though the player let go of the attack button
+	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_nChargeAttackAmmo >= sv_pulse_pistol_max_charge.GetFloat())
+		return false;
+
+	// If "no charge hold" is set, we're out of ammo, but we have a charge, treat it as though the player let go of the attack button
+	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_nChargeAttackAmmo > 0 && m_iClip1 <= 10)
+		return false;
+
+	return (pOwner->m_nButtons & chargeButton) > 0;
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Recharge ammo before handling post-frame
 //-----------------------------------------------------------------------------
@@ -567,7 +583,7 @@ void CWeaponPulsePistol::ItemPostFrame( void )
 	switch ( sv_pulse_pistol_style.GetInt() )
 	{
 	case PRIMARY_CHARGE:
-		chargePressed = (pOwner->m_nButtons & IN_ATTACK) > 0;
+		chargePressed = IsChargePressed( IN_ATTACK, pOwner );
 		break;
 	case LANCE_NO_CHARGE:
 		break;
@@ -576,7 +592,7 @@ void CWeaponPulsePistol::ItemPostFrame( void )
 		DevMsg( "Select fire mode not implemented yet!\n" );
 		break;
 	default:
-		chargePressed = (pOwner->m_nButtons & IN_ATTACK2) > 0;
+		chargePressed = IsChargePressed( IN_ATTACK2, pOwner );
 		break;
 	}
 
@@ -685,7 +701,7 @@ bool CWeaponPulsePistol::Holster( CBaseCombatWeapon *pSwitchingTo )
 void CWeaponPulsePistol::RechargeAmmo( void )
 {
 	// If there is a fully charged shot waiting, don't recharge
-	if (m_nChargeAttackAmmo >= 40)
+	if (m_nChargeAttackAmmo >= sv_pulse_pistol_max_charge.GetFloat())
 	{
 		return;
 	}
@@ -804,7 +820,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		}
 
 		// Subtract the charge
-		m_iClip1 = m_iClip1 - 10;
+		m_iClip1 = MAX(m_iClip1 - 10, 1); // Never drop the charge below 1
 		m_nChargeAttackAmmo = 0;
 
 		m_iPrimaryAttacks++;
@@ -865,7 +881,7 @@ void CWeaponPulsePistol::ChargeAttack( void )
 		return;
 	}
 
-	int nMaxCharge = 40;
+	int nMaxCharge = sv_pulse_pistol_max_charge.GetFloat();
 	// If there is only one shot left or the charge has reached maximum, do not charge!
 	if (m_iClip1 <= 10 || m_nChargeAttackAmmo == nMaxCharge)
 	{
@@ -891,7 +907,7 @@ void CWeaponPulsePistol::ChargeAttack( void )
 	int nAmmoToAdd = (int)m_flChargeRemainder;
 	m_flChargeRemainder -= nAmmoToAdd;
 	m_nChargeAttackAmmo += nAmmoToAdd;
-	m_iClip1 -= nAmmoToAdd;
+	m_iClip1 = MAX( m_iClip1 - nAmmoToAdd, 1); // Never drop the charge below 1
 	if (m_nChargeAttackAmmo > nMaxCharge)
 	{
 		m_nChargeAttackAmmo = nMaxCharge;
