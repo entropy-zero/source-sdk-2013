@@ -478,7 +478,7 @@ public:
 			1.0f );
 
 		// We lerp from very accurate to inaccurate over time
-		VectorLerp( VECTOR_CONE_4DEGREES, VECTOR_CONE_15DEGREES, ramp, cone );
+		VectorLerp( VECTOR_CONE_2DEGREES, VECTOR_CONE_15DEGREES, ramp, cone );
 
 		return cone;
 	}
