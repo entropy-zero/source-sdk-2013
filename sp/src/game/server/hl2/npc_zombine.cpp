@@ -1876,6 +1876,7 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVGlowbie.ReadyGrenade" );
 		PrecacheScriptSound( "HEVGlowbie.Vox_Idle" );
 		PrecacheScriptSound( "HEVGlowbie.Vox_Alert" );
+		PrecacheScriptSound( "HEVGlowbie.Vox_Charge" );
 		PrecacheScriptSound( "HEVGlowbie.Vox_Flatline" );
 		PrecacheScriptSound( "HEVGlowbie.Vox_Pain" );
 
@@ -1898,6 +1899,7 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVXenbie.ReadyGrenade" );
 		PrecacheScriptSound( "HEVXenbie.Vox_Idle" );
 		PrecacheScriptSound( "HEVXenbie.Vox_Alert" );
+		PrecacheScriptSound( "HEVXenbie.Vox_Charge" );
 		PrecacheScriptSound( "HEVXenbie.Vox_Flatline" );
 		PrecacheScriptSound( "HEVXenbie.Vox_Pain" );
 
@@ -1920,6 +1922,7 @@ void CNPC_HEVZombie::Precache( void )
 		PrecacheScriptSound( "HEVZombie.ReadyGrenade" );
 		PrecacheScriptSound( "HEVZombie.Vox_Idle" );
 		PrecacheScriptSound( "HEVZombie.Vox_Alert" );
+		PrecacheScriptSound( "HEVZombie.Vox_Charge" );
 		PrecacheScriptSound( "HEVZombie.Vox_Flatline" );
 		PrecacheScriptSound( "HEVZombie.Vox_Pain" );
 
@@ -2123,12 +2126,15 @@ void CNPC_HEVZombie::ChargeSound( void )
 	{
 	case EZ_VARIANT_RAD:
 		EmitSound( "HEVGlowbie.Charge" );
+		EmitSound( "HEVGlowbie.Vox_Charge" ); // This soundscript should be on a different channel
 		break;
 	case EZ_VARIANT_XEN:
 		EmitSound( "HEVXenbie.Charge" );
+		EmitSound( "HEVXenbie.Vox_Charge" ); // This soundscript should be on a different channel
 		break;
 	default:
 		EmitSound( "HEVZombie.Charge" );
+		EmitSound( "HEVZombie.Vox_Charge" ); // This soundscript should be on a different channel
 		break;
 	}
 }
