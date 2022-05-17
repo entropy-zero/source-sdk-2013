@@ -550,7 +550,7 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 	// Look at near players, always
 	m_bPlayerIsNear = false;
 #ifdef EZ
-	if ( UTIL_PlayerByIndex( 1 ) && IRelationType( UTIL_PlayerByIndex( 1 ) ) != D_HT && ((GetState() == NPC_STATE_ALERT) || (GetState() == NPC_STATE_IDLE)) )
+	if ( PlayerIsCriminal() == false || (UTIL_PlayerByIndex( 1 ) && IRelationType( UTIL_PlayerByIndex( 1 ) ) != D_HT && ((GetState() == NPC_STATE_ALERT) || (GetState() == NPC_STATE_IDLE))) )
 #else
 	if ( PlayerIsCriminal() == false )
 #endif
@@ -5812,7 +5812,7 @@ void CNPC_MetroPolice::BuildScheduleTestBits( void )
 	//FIXME: Always interrupt for now
 	if ( !IsInAScript() && 
 #ifdef EZ
-		 !m_ActBusyBehavior.IsActive() &&
+		 (!m_ActBusyBehavior.IsActive() || PlayerIsCriminal() == false) &&
 #endif
 		 !IsCurSchedule( SCHED_METROPOLICE_SHOVE ) &&
 		 !IsCurSchedule( SCHED_MELEE_ATTACK1 ) &&
