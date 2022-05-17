@@ -549,7 +549,11 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 
 	// Look at near players, always
 	m_bPlayerIsNear = false;
+#ifdef EZ
+	if ( UTIL_PlayerByIndex( 1 ) && IRelationType( UTIL_PlayerByIndex( 1 ) ) != D_HT && ((GetState() == NPC_STATE_ALERT) || (GetState() == NPC_STATE_IDLE)) )
+#else
 	if ( PlayerIsCriminal() == false )
+#endif
 	{
 		CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
 		
@@ -5807,6 +5811,9 @@ void CNPC_MetroPolice::BuildScheduleTestBits( void )
 
 	//FIXME: Always interrupt for now
 	if ( !IsInAScript() && 
+#ifdef EZ
+		 !m_ActBusyBehavior.IsActive() &&
+#endif
 		 !IsCurSchedule( SCHED_METROPOLICE_SHOVE ) &&
 		 !IsCurSchedule( SCHED_MELEE_ATTACK1 ) &&
 		 !IsCurSchedule( SCHED_RELOAD ) && 
@@ -6076,6 +6083,11 @@ void CNPC_MetroPolice::PrecriminalUse( CBaseEntity *pActivator, CBaseEntity *pCa
 	// Don't respond if I'm busy hating the player
 	if ( IRelationType( pActivator ) == D_HT || ((GetState() != NPC_STATE_ALERT) && (GetState() != NPC_STATE_IDLE)) )
 		return;
+
+#ifdef EZ
+	SpeakIfAllowed( "TLK_USE" );
+#endif
+
 	if ( PlayerIsCriminal() )
 		return;
 
