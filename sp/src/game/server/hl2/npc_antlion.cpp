@@ -196,6 +196,11 @@ CNPC_Antlion::CNPC_Antlion( void )
 	m_bForcedStuckJump = false;
 	m_nBodyBone = -1;
 	m_bSuppressUnburrowEffects = false;
+
+#ifdef EZ
+	// Antlions should investigate sounds in EZ2
+	m_bInvestigateSounds = true;
+#endif
 }
 
 LINK_ENTITY_TO_CLASS( npc_antlion, CNPC_Antlion );

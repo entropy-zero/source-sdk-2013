@@ -119,10 +119,6 @@ public:
 	bool		ShouldHearBugbait( void ) { return ( m_bIgnoreBugbait == false ); }
 	int			SelectSchedule( void );
 
-#ifdef EZ
-	bool		ShouldInvestigateSounds(void) { return true; } // 1upD - Antlions should investigate sounds in EZ2
-#endif
-
 	void		Touch( CBaseEntity *pOther );
 
 	virtual int		RangeAttack1Conditions( float flDot, float flDist );

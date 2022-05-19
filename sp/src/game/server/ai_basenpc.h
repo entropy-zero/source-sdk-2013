@@ -1116,11 +1116,13 @@ public:
 	virtual float		HearingSensitivity( void )		{ return 1.0;	}
 	virtual bool		ShouldIgnoreSound( CSound * )	{ return false; }
 	bool				SoundIsVisible( CSound *pSound );
-	virtual bool		ShouldInvestigateSounds(void)	{ return false; }; // If true, this NPC will investigate sounds instead of facing them
+	virtual bool		ShouldInvestigateSounds(void)	{ return m_bInvestigateSounds; }; // If true, this NPC will investigate sounds instead of facing them
 
 protected:
 	virtual void		ClearSenseConditions( void );
 	
+	bool				m_bInvestigateSounds;
+
 private:
 	void				LockBestSound();
 	void				UnlockBestSound();

@@ -498,6 +498,10 @@ BEGIN_DATADESC( CNPC_Citizen )
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetSurrenderFlags", InputSetSurrenderFlags ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AddSurrenderFlags", InputAddSurrenderFlags ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "RemoveSurrenderFlags", InputRemoveSurrenderFlags ),
+	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetWillpowerModifier", InputSetWillpowerModifier ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetWillpowerDisabled", InputSetWillpowerDisabled ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetSuppressingFireDisabled", InputSetSuppressiveFireDisabled ),
+	DEFINE_INPUTFUNC( FIELD_INTEGER, "ForcePanic", InputForcePanic ),
 #endif
 
 	DEFINE_USEFUNC( CommanderUse ),
@@ -1227,7 +1231,7 @@ void CNPC_Citizen::GatherWillpowerConditions()
 
 	int l_iWillpower = sk_citizen_default_willpower.GetInt() + m_iWillpowerModifier;
 
-	bool typeCanPanic = m_Type != CT_BRUTE && m_Type != CT_LONGFALL;
+	bool typeCanPanic = m_Type != CT_BRUTE && m_Type != CT_LONGFALL && !HasCondition( COND_CIT_WILLPOWER_LOW );
 
 	if( pWeapon->UsesClipsForAmmo1() && ((float)pWeapon->m_iClip1 / (float)pWeapon->GetMaxClip1()) > 0.75) // ratio of rounds left in magazine
 		l_iWillpower++;
@@ -4126,6 +4130,7 @@ float CNPC_Citizen::GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamag
 	case HITGROUP_HEAD:
 		{
 			// Multiplied by sk_npc_head
+		if (m_Type != CT_BRUTE) // Brutes do normal headshot damage
 			return sk_citizen_head.GetFloat() * sk_npc_head.GetFloat();
 		} break;
 
@@ -6095,6 +6100,42 @@ void CNPC_Citizen::InputAddSurrenderFlags( inputdata_t & inputdata )
 void CNPC_Citizen::InputRemoveSurrenderFlags( inputdata_t & inputdata )
 {
 	m_SurrenderBehavior.RemoveFlags( inputdata.value.Int() );
+}
+
+void CNPC_Citizen::InputSetWillpowerModifier( inputdata_t & inputdata )
+{
+	m_iWillpowerModifier = inputdata.value.Int();
+}
+
+void CNPC_Citizen::InputSetWillpowerDisabled( inputdata_t & inputdata )
+{
+	m_bWillpowerDisabled = inputdata.value.Bool();
+}
+
+void CNPC_Citizen::InputSetSuppressiveFireDisabled( inputdata_t & inputdata )
+{
+	m_bSuppressiveFireDisabled = inputdata.value.Bool();
+}
+
+void CNPC_Citizen::InputForcePanic( inputdata_t & inputdata )
+{
+	m_iWillpowerModifier = -99999999;
+	m_bWillpowerDisabled = false;
+
+	m_iNumGrenades = 0;
+
+	// Immediately drop weapon
+	Weapon_Drop( GetActiveWeapon() );
+
+	// Don't look for another weapon for 15 seconds!
+	m_flNextWeaponSearchTime = gpGlobals->curtime + 15.0;
+
+	// Never use a backup weapon after this!
+	m_bUsedBackupWeapon = true;
+
+	SetCondition( COND_CIT_WILLPOWER_VERY_LOW );
+	SetCondition( COND_CIT_WILLPOWER_LOW );
+	ClearCondition( COND_CIT_WILLPOWER_HIGH );
 }
 #endif
 

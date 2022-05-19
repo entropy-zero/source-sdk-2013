@@ -12084,8 +12084,8 @@ BEGIN_DATADESC( CAI_BaseNPC )
 #ifdef EZ
 		DEFINE_KEYFIELD( m_tEzVariant,			FIELD_INTEGER, "ezvariant" ),
 		DEFINE_KEYFIELD( m_bNoGlow,				FIELD_BOOLEAN, "noglow" ),
+		DEFINE_KEYFIELD( m_bInvestigateSounds,	FIELD_BOOLEAN, "investigatesounds" ),
 #endif
-
 
 #ifdef MAPBASE
 	DEFINE_KEYFIELD( m_FriendlyFireOverride,	FIELD_INTEGER, "FriendlyFireOverride" ),
