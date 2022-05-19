@@ -1953,8 +1953,8 @@ void CNPC_HEVZombie::ChooseDefaultGrenadeType()
 {
 	int chance = random->RandomInt( 0, 3 );
 
-	// If we set the type to "Arbeit", give them Xen grenades
-	if (m_tEzVariant == EZ_VARIANT_ARBEIT)
+	// If we set the type to "Arbeit" or "glow", give them Xen grenades
+	if ( m_tEzVariant == EZ_VARIANT_ARBEIT || m_tEzVariant == EZ_VARIANT_RAD )
 	{
 		m_iszGrenadeType = gm_iszZombineGrenadeTypeXen;
 	}
