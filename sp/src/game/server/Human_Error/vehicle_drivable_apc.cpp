@@ -616,6 +616,17 @@ void CPropDrivableAPC::Activate()
 
 		g_EventQueue.AddEvent( this, "_ResetConstraintToDefault", 2.0f, this, this );
 	}
+
+	// HACKHACK: Halve the vehicle's velocity.
+	if (VPhysicsGetObject())
+	{
+		Vector velocity;
+		AngularImpulse angularVelocity;
+		VPhysicsGetObject()->GetVelocity( &velocity, &angularVelocity );
+		velocity *= 0.5f;
+		angularVelocity *= 0.5f;
+		VPhysicsGetObject()->SetVelocityInstantaneous( &velocity, &angularVelocity );
+	}
 #endif
 }
 
