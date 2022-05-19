@@ -47,6 +47,11 @@
 #include "weapon_physcannon.h"
 #include "ammodef.h"
 #include "vehicle_base.h"
+
+#ifdef EZ2
+#include "ez2/ez2_player.h"
+#include "ai_interactions.h"
+#endif
  
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -684,6 +689,48 @@ int CNPC_BaseZombie::MeleeAttack2Conditions ( float flDot, float flDist )
 
 	return COND_NONE;
 }
+
+//-----------------------------------------------------------------------------
+// Purpose:  This is a generic function (to be implemented by sub-classes) to
+//			 handle specific interactions between different types of characters
+//			 (For example the barnacle grabbing an NPC)
+// Input  :  Constant for the type of interaction
+// Output :	 true  - if sub-class has a response for the interaction
+//			 false - if sub-class has no response
+//-----------------------------------------------------------------------------
+bool CNPC_BaseZombie::HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt )
+{
+#ifdef EZ2
+	if (interactionType == g_interactionBadCopKick)
+	{
+		KickInfo_t * pInfo = static_cast< KickInfo_t *>(data);
+
+		// Only continue if our damage filter allows us to
+		if (pInfo->dmgInfo && !PassesDamageFilter( *pInfo->dmgInfo ))
+			return false;
+
+		// Oof
+		SetCondition( COND_HEAVY_DAMAGE );
+		
+		// Give the zombie a second or two to recover
+		if (GetLastDamageTime() <= gpGlobals->curtime - 3.0f)
+			SetCondition( COND_PHYSICS_DAMAGE );
+
+		// If we are a torso, this is fatal
+		if ( m_fIsTorso )
+		{
+			// TODO - Add special handling for stealth mode
+			m_iHealth = pInfo->dmgInfo->GetDamage();
+		}
+
+		// Do normal kick handling
+		return false;
+	}
+#endif
+
+	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+
 #endif
 
 //-----------------------------------------------------------------------------

@@ -154,6 +154,9 @@ public:
 #ifdef EZ
 	// Zombie scream attack
 	int MeleeAttack2Conditions ( float flDot, float flDist );
+
+	// Interactions - overridden for Bad Cop kick
+	bool HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
 #endif
 
 	// No range attacks
