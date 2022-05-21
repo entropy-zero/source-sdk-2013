@@ -739,10 +739,12 @@ bool CAI_PlayerAlly::SelectAlertSpeech( AISpeechSelection_t *pSelection )
 #endif
 
 #ifdef EZ2
+	CBaseEntity *pSmellTarget = FindSpeechTarget( AIST_PLAYERS | AIST_NPCS );
 	// NPCs can comment on smells in EZ2
-	if ( HasCondition( COND_SMELL ) && GetExpresser()->CanSpeakConcept( TLK_SMELL ) && SelectSpeechResponse( TLK_SMELL, NULL, this, pSelection ) )
+	if ( pSmellTarget && HasCondition( COND_SMELL ) && GetExpresser()->CanSpeakConcept( TLK_SMELL ) )
 	{
-		return true;
+		if( SelectSpeechResponse( TLK_SMELL, UTIL_VarArgs("distancetosmell:%f", GetAbsOrigin().DistTo( GetBestScent()->GetSoundReactOrigin() ) ), pSmellTarget, pSelection ) )
+			return true;
 	}
 #endif
 
