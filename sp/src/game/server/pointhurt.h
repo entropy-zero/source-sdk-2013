@@ -10,7 +10,11 @@ public:
 	void	Activate( void );
 	void	HurtThink( void );
 	void	RadiationThink(void);
-	void	TurnOn(CBaseEntity * activator);
+#ifndef EZ
+	void	TurnOn( CBaseEntity * activator );
+#else
+	virtual void	TurnOn(CBaseEntity * activator);
+#endif
 
 	// Input handlers
 	void InputTurnOn(inputdata_t &inputdata);
@@ -36,3 +40,17 @@ public:
 	float	m_flLifetime;
 	float	m_flExpirationTime;
 };
+
+#ifdef EZ
+class CPointHurtGoo : public CPointHurt
+{
+	DECLARE_CLASS( CPointHurtGoo, CPointHurt );
+
+public:
+	void	Precache( void );
+
+	void	TurnOn( CBaseEntity * activator );
+
+	void	GooParticleThink( void );
+};
+#endif

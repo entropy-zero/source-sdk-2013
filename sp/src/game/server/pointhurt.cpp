@@ -11,12 +11,17 @@
 #include "basecombatcharacter.h"
 #include "ammodef.h"
 
+#ifdef EZ
+#include "particle_parse.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 #ifdef EZ
 ConVar ez2_goo_puddle_time_linger("ez2_goo_puddle_time_linger", "30");
 ConVar ez2_goo_puddle_time_fade("ez2_goo_puddle_time_fade", "10");
+ConVar ez2_goo_puddle_time_particle( "ez2_goo_puddle_time_particle", "1" );
 #endif
 
 const int SF_PHURT_START_ON			= 1;
@@ -46,7 +51,7 @@ END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( point_hurt, CPointHurt );
 #ifdef EZ // Blixibon - Unique classname for zombie puddle point_hurt
-LINK_ENTITY_TO_CLASS( zombie_goo_puddle, CPointHurt );
+LINK_ENTITY_TO_CLASS( zombie_goo_puddle, CPointHurtGoo );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -241,3 +246,37 @@ bool CPointHurt::KeyValue( const char *szKeyName, const char *szValue )
 }
 #endif
 
+#ifdef EZ
+void CPointHurtGoo::Precache( void )
+{
+	PrecacheParticleSystem( "glow_puddle" );
+	PrecacheScriptSound( "NPC_BaseGlowbie.glow_puddle" );
+
+	BaseClass::Precache();
+}
+
+void CPointHurtGoo::TurnOn( CBaseEntity * activator )
+{
+	SetContextThink( &CPointHurtGoo::GooParticleThink, gpGlobals->curtime, "GooParticleThink" );
+
+	BaseClass::TurnOn( activator );
+}
+
+void CPointHurtGoo::GooParticleThink( void )
+{
+	int flNextParticleTime = gpGlobals->curtime + ez2_goo_puddle_time_particle.GetFloat();
+
+	if ( m_bDisabled || ( m_flExpirationTime > 0 && m_flExpirationTime < gpGlobals->curtime ) )
+	{
+		SetContextThink( NULL, gpGlobals->curtime, "GooParticleThink" );
+		return;
+	}
+	else
+	{
+		SetContextThink( &CPointHurtGoo::GooParticleThink, flNextParticleTime, "GooParticleThink" );
+	}
+
+	EmitSound( "NPC_BaseGlowbie.glow_puddle" );
+	DispatchParticleEffect( "glow_puddle", WorldSpaceCenter(), GetAbsAngles() );
+}
+#endif
