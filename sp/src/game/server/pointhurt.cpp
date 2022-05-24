@@ -257,18 +257,19 @@ void CPointHurtGoo::Precache( void )
 
 void CPointHurtGoo::TurnOn( CBaseEntity * activator )
 {
-	SetContextThink( &CPointHurtGoo::GooParticleThink, gpGlobals->curtime, "GooParticleThink" );
-
 	BaseClass::TurnOn( activator );
+
+	SetContextThink( &CPointHurtGoo::GooParticleThink, gpGlobals->curtime, "GooParticleThink" );
 }
 
 void CPointHurtGoo::GooParticleThink( void )
 {
 	int flNextParticleTime = gpGlobals->curtime + ez2_goo_puddle_time_particle.GetFloat();
 
-	if ( m_bDisabled || ( m_flExpirationTime > 0 && m_flExpirationTime < gpGlobals->curtime ) )
+	if ( m_bDisabled )
 	{
 		SetContextThink( NULL, gpGlobals->curtime, "GooParticleThink" );
+		UTIL_Remove( this ); // Remove this goo puddle after the particle has expired
 		return;
 	}
 	else
