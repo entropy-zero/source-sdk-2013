@@ -1298,7 +1298,6 @@ bool CNPC_BasePredator::HandleInteraction( int interactionType, void *data, CBas
 			SetHungryTime( gpGlobals->curtime ); // Be ready to eat as soon as we come through
 			SetTimesFed( 2 ); // Twins!
 		}
-		return true;
 	}
 
 	// YEET

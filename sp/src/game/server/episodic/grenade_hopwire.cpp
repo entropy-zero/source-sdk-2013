@@ -1514,50 +1514,6 @@ bool CGravityVortexController::TrySpawnRecipeNPC( CBaseEntity *pEntity, bool bCa
 	if (bCallSpawnFuncs)
 		pEntity->Activate();
 
-	CBaseCombatCharacter *pThrower = GetThrower();
-	if ( baseNPC && pThrower )
-	{
-		// Decrease relationship priority for thrower + thrower's allies, makes them prioritize the player's enemies
-		Disposition_t rel = baseNPC->IRelationType( pThrower );
-		if (rel == D_HT || rel == D_FR)
-		{
-			baseNPC->AddEntityRelationship( pThrower, rel, baseNPC->IRelationPriority(pThrower) - 1 );
-			pThrower->AddEntityRelationship( baseNPC, pThrower->IRelationType(baseNPC), pThrower->IRelationPriority(baseNPC) - 1 );
-
-			// If thrown by a NPC, use the NPC's squad
-			// If thrown by a player, use the player squad
-			CAI_Squad *pSquad = NULL;
-			if (pThrower->IsNPC())
-				pSquad = pThrower->MyNPCPointer()->GetSquad();
-			else if (pThrower->IsPlayer())
-				pSquad = static_cast<CHL2_Player*>( pThrower )->GetPlayerSquad();
-
-			if (pSquad)
-			{
-				// Iterate through the thrower's squad and apply the same relationship code
-				AISquadIter_t iter;
-				for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
-				{
-					baseNPC->AddEntityRelationship( pSquadmate, baseNPC->IRelationType(pSquadmate), baseNPC->IRelationPriority(pSquadmate) - 1 );
-					pSquadmate->AddEntityRelationship( baseNPC, pSquadmate->IRelationType(baseNPC), pSquadmate->IRelationPriority(baseNPC) - 1 );	
-				}
-			}
-		}
-
-		// Create a temporary enemy finder so the XenPC can locate enemies immediately
-		CBaseEntity *pFinder = CreateNoSpawn( "npc_enemyfinder", GetAbsOrigin(), GetAbsAngles(), baseNPC );
-		pFinder->KeyValue( "FieldOfView", "-1.0" );
-		pFinder->KeyValue( "spawnflags", "65536" );
-		pFinder->KeyValue( "StartOn", "1" );
-		pFinder->KeyValue( "MinSearchDist", "0" );
-		pFinder->KeyValue( "MaxSearchDist", "2048" );
-		pFinder->KeyValue( "squadname", baseNPC->GetSquad() ? baseNPC->GetSquad()->GetName() : UTIL_VarArgs( "xe%s", pEntity->GetClassname() ) );
-
-		DispatchSpawn( pFinder );
-
-		pFinder->SetContextThink( &CBaseEntity::SUB_Remove, gpGlobals->curtime + 1.0f, "SUB_Remove" );
-	}
-
 	// Notify the NPC of the player's position
 	// Sometimes Xen grenade spawns just kind of hang out in one spot. They should always have at least one potential enemy to aggro
 	// XenPCs that are 'predators' don't need this because they already wander

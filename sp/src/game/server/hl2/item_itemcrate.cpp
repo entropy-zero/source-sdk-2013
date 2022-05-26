@@ -657,39 +657,6 @@ void CItem_CreatureCrate::OnSpawnNPC( CBaseEntity * pEntity, CBaseCombatCharacte
 {
 	DisplacementInfo_t dinfo( this, this, &pEntity->GetAbsOrigin(), &pEntity->GetAbsAngles() );
 	pEntity->DispatchInteraction( g_interactionXenGrenadeCreate, &dinfo, pBreaker );
-
-
-	// TODO - Should be a function shared with grenade_hopwire
-	CAI_BaseNPC *baseNPC = pEntity->MyNPCPointer();
-	if (baseNPC && pBreaker)
-	{
-		// Decrease relationship priority for thrower + thrower's allies, makes them prioritize the player's enemies
-		Disposition_t rel = baseNPC->IRelationType( pBreaker );
-		if (rel == D_HT || rel == D_FR)
-		{
-			baseNPC->AddEntityRelationship( pBreaker, rel, baseNPC->IRelationPriority( pBreaker ) - 1 );
-			pBreaker->AddEntityRelationship( baseNPC, pBreaker->IRelationType( baseNPC ), pBreaker->IRelationPriority( baseNPC ) - 1 );
-
-			// If thrown by a NPC, use the NPC's squad
-			// If thrown by a player, use the player squad
-			CAI_Squad *pSquad = NULL;
-			if (pBreaker->IsNPC())
-				pSquad = pBreaker->MyNPCPointer()->GetSquad();
-			else if (pBreaker->IsPlayer())
-				pSquad = static_cast<CHL2_Player*>(pBreaker)->GetPlayerSquad();
-
-			if (pSquad)
-			{
-				// Iterate through the thrower's squad and apply the same relationship code
-				AISquadIter_t iter;
-				for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
-				{
-					baseNPC->AddEntityRelationship( pSquadmate, baseNPC->IRelationType( pSquadmate ), baseNPC->IRelationPriority( pSquadmate ) - 1 );
-					pSquadmate->AddEntityRelationship( baseNPC, pSquadmate->IRelationType( baseNPC ), pSquadmate->IRelationPriority( baseNPC ) - 1 );
-				}
-			}
-		}
-	}
 }
 
 LINK_ENTITY_TO_CLASS( item_creature_crate, CItem_CreatureCrate );

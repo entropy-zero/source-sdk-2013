@@ -13398,6 +13398,54 @@ bool CAI_BaseNPC::HandleInteraction(int interactionType, void *data, CBaseCombat
 	}
 #endif // HL2_DLL
 
+
+#ifdef EZ2
+	if ( interactionType == g_interactionXenGrenadeCreate && sourceEnt)
+	{
+		// Decrease relationship priority for thrower + thrower's allies, makes them prioritize the player's enemies
+		Disposition_t rel = IRelationType( sourceEnt );
+		if (rel == D_HT || rel == D_FR)
+		{
+			AddEntityRelationship( sourceEnt, rel, IRelationPriority( sourceEnt ) - 1 );
+			sourceEnt->AddEntityRelationship( this, sourceEnt->IRelationType( this ), sourceEnt->IRelationPriority( this ) - 1 );
+
+			// If thrown by a NPC, use the NPC's squad
+			// If thrown by a player, use the player squad
+			CAI_Squad *pSquad = NULL;
+			if (sourceEnt->IsNPC())
+				pSquad = sourceEnt->MyNPCPointer()->GetSquad();
+			else if (sourceEnt->IsPlayer())
+				pSquad = static_cast<CHL2_Player*>(sourceEnt)->GetPlayerSquad();
+
+			if (pSquad)
+			{
+				// Iterate through the thrower's squad and apply the same relationship code
+				AISquadIter_t iter;
+				for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
+				{
+					this->AddEntityRelationship( pSquadmate, this->IRelationType( pSquadmate ), this->IRelationPriority( pSquadmate ) - 1 );
+					pSquadmate->AddEntityRelationship( this, pSquadmate->IRelationType( this ), pSquadmate->IRelationPriority( this ) - 1 );
+				}
+			}
+		}
+
+		// Create a temporary enemy finder so the XenPC can locate enemies immediately
+		CBaseEntity *pFinder = CreateNoSpawn( "npc_enemyfinder", GetAbsOrigin(), GetAbsAngles(), this );
+		pFinder->KeyValue( "FieldOfView", "-1.0" );
+		pFinder->KeyValue( "spawnflags", "65536" );
+		pFinder->KeyValue( "StartOn", "1" );
+		pFinder->KeyValue( "MinSearchDist", "0" );
+		pFinder->KeyValue( "MaxSearchDist", "2048" );
+		pFinder->KeyValue( "squadname", this->GetSquad() ? this->GetSquad()->GetName() : UTIL_VarArgs( "xe%s", GetClassname() ) );
+
+		DispatchSpawn( pFinder );
+
+		pFinder->SetContextThink( &CBaseEntity::SUB_Remove, gpGlobals->curtime + 1.0f, "SUB_Remove" );
+
+		return true;
+	}
+#endif
+
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }
 

@@ -456,8 +456,6 @@ bool CNPC_PitDrone::HandleInteraction( int interactionType, void * data, CBaseCo
 	{
 		InputSetWanderAlways( inputdata_t() );
 		InputEnableSpawning( inputdata_t() );
-
-		return true;
 	}
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
