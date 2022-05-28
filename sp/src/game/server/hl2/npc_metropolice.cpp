@@ -1192,21 +1192,31 @@ bool CNPC_MetroPolice::SpeakIfAllowed( const char *concept, AI_CriteriaSet& modi
 		return false;
 
 #ifdef EZ
-	if ((GetState() == NPC_STATE_IDLE || GetState() == NPC_STATE_ALERT) && sentencepriority == SENTENCE_PRIORITY_NORMAL)
+	if ((GetState() == NPC_STATE_IDLE || GetState() == NPC_STATE_ALERT))
 	{
-		// if someone else is talking, don't speak
-		if ( !GetExpresser()->SemaphoreIsAvailable( this ) )
-			return false;
+		if (sentencepriority == SENTENCE_PRIORITY_NORMAL)
+		{
+			// If someone else is talking, don't speak
+			if ( !GetExpresser()->SemaphoreIsAvailable( this ) )
+				return false;
 
-		if ( !GetExpresser()->CanSpeak() )
-			return false;
+			if ( !GetExpresser()->CanSpeak() )
+				return false;
+		}
+		else
+		{
+			// If we're speaking, don't speak
+			if (IsSpeaking())
+				return false;
+		}
 	}
 #endif
 
 	if ( Speak( concept, modifiers ) )
 	{
 #ifdef EZ
-		JustMadeSound( sentencepriority, GetExpresser()->GetRealTimeSpeechComplete() - gpGlobals->curtime );
+		// Negate the 1.5-2.0 second delay into a 0.5-1.0 second delay to reduce the risk of +USE dialogue being missed due to being overshadowed
+		JustMadeSound( sentencepriority, GetExpresser()->GetRealTimeSpeechComplete() - gpGlobals->curtime - 1.0f );
 #else
 		JustMadeSound( sentencepriority, 2.0f /*GetTimeSpeechComplete()*/ );
 #endif
@@ -3056,12 +3066,7 @@ void CNPC_MetroPolice::IdleSound( void )
 		{
 			if ( m_bPlayerIsNear && !HasMemory(bits_MEMORY_PLAYER_HARASSED) )
 			{
-#ifdef EZ
-				// Set priority to high so that +USE doesn't interrupt
-				if ( SpeakIfAllowed( TLK_COP_HARASS, SENTENCE_PRIORITY_HIGH, SENTENCE_CRITERIA_NORMAL ) )
-#else
 				if ( SpeakIfAllowed( TLK_COP_HARASS, SENTENCE_PRIORITY_NORMAL, SENTENCE_CRITERIA_NORMAL ) )
-#endif
 				{
 					Remember( bits_MEMORY_PLAYER_HARASSED );
 					if ( GetSquad() )
