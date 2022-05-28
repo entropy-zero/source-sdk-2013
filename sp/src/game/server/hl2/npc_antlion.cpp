@@ -4658,6 +4658,10 @@ bool CNPC_Antlion::CanRunAScriptedNPCInteraction( bool bForced /*= false*/ )
 //-----------------------------------------------------------------------------
 EyeGlow_t * CNPC_Antlion::GetEyeGlowData(int i)
 {
+	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData(i);
+	if (eyeGlow != NULL)
+		return eyeGlow;
+
 	// Only the first glow is valid
 	if (i != 0)
 		return NULL;
@@ -4666,8 +4670,11 @@ EyeGlow_t * CNPC_Antlion::GetEyeGlowData(int i)
 	if (IsWorker())
 		return NULL;
 
+	if (LookupAttachment( "back" ) == -1)
+		return NULL;
+
 	// Color to use in sprite
-	EyeGlow_t * eyeGlow = new EyeGlow_t();
+	eyeGlow = new EyeGlow_t();
 	switch ( m_tEzVariant )
 	{
 		case EZ_VARIANT_XEN:

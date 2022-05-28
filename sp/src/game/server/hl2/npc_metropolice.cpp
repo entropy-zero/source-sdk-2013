@@ -6110,7 +6110,12 @@ EyeGlow_t * CNPC_MetroPolice::GetEyeGlowData(int i)
 	if (i != 0)
 		return NULL;
 
-	EyeGlow_t * eyeGlow = new EyeGlow_t();
+	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData(i);
+
+	if ( eyeGlow != NULL )
+		return eyeGlow;
+
+	eyeGlow = new EyeGlow_t();
 
 	eyeGlow->spriteName = "sprites/light_glow02.vmt";
 	eyeGlow->attachment = "eyes";

@@ -3787,7 +3787,7 @@ EyeGlow_t * CNPC_Citizen::GetEyeGlowData( int index )
 		}
 	}
 
-	return NULL;
+	return BaseClass::GetEyeGlowData(index);
 }
 
 //-----------------------------------------------------------------------------

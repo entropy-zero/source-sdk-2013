@@ -2468,7 +2468,7 @@ protected:
 
 	virtual CSprite		* GetGlowSpritePtr(int i);
 	virtual void		  SetGlowSpritePtr(int i, CSprite * sprite);
-	virtual EyeGlow_t	* GetEyeGlowData(int i) { return NULL; };
+	virtual EyeGlow_t	* GetEyeGlowData(int i);
 	virtual int			GetNumGlows() { return 1; };
 #endif
 };

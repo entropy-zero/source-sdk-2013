@@ -2025,6 +2025,61 @@ void CAI_BaseNPC::SetGlowSpritePtr(int i, CSprite * sprite)
 
 	m_pEyeGlow = sprite;
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Return the glow attributes for a given index
+//-----------------------------------------------------------------------------
+EyeGlow_t * CAI_BaseNPC::GetEyeGlowData( int i )
+{
+	// Only load from model data for 0 index
+	if (i != 0)
+		return NULL;
+
+	EyeGlow_t * eyeGlow = NULL;
+
+	KeyValues *modelKeyValues = new KeyValues( "" );
+	if (modelKeyValues->LoadFromBuffer( modelinfo->GetModelName( GetModel() ), modelinfo->GetModelKeyValueText( GetModel() ) ))
+	{
+		KeyValues *pkvGlowData = modelKeyValues->FindKey( "glow_data" );
+		if (pkvGlowData)
+		{
+			// Get all of the available glow skins
+			CUtlVector<KeyValues*> glowskins;
+			KeyValues *pSkin = pkvGlowData->GetFirstSubKey();
+			while (pSkin)
+			{
+				glowskins.AddToTail( pSkin );
+				pSkin = pSkin->GetNextKey();
+			}
+
+			if (glowskins.Count() > 0)
+			{
+				// Use modulus to get our desired skin
+				pSkin = glowskins[m_nSkin % glowskins.Count()];
+				if (pSkin)
+				{
+					eyeGlow = new EyeGlow_t();
+
+					Color color = pSkin->GetColor( "color" );
+					eyeGlow->red = color.r();
+					eyeGlow->green = color.g();
+					eyeGlow->blue = color.b();
+					eyeGlow->alpha = color.a();
+
+					eyeGlow->spriteName = pSkin->GetString( "spriteName", "sprites/light_glow02.vmt" );
+					eyeGlow->attachment = pSkin->GetString( "attachment", "eyes" );
+					eyeGlow->renderMode = (RenderMode_t)pSkin->GetInt( "renderMode", kRenderGlow );
+					eyeGlow->scale = pSkin->GetFloat( "scale", 0.3f );
+					eyeGlow->proxyScale = pSkin->GetFloat( "proxyScale", 3.0f );
+				}
+			}
+		}
+
+		modelKeyValues->deleteThis();
+	}
+
+	return eyeGlow;
+}
 #endif
 
 //---------------------------------------------------------

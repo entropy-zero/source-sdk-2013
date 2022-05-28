@@ -469,10 +469,6 @@ private:
 	virtual bool IsWaitingToRappel( void ) { return m_RappelBehavior.IsWaitingToRappel(); }
 	void BeginRappel() { m_RappelBehavior.BeginRappel(); }
 
-#ifdef EZ
-	EyeGlow_t	* GetEyeGlowData(int i);
-#endif
-
 private:
 	int				m_nKickDamage;
 #ifndef MAPBASE
