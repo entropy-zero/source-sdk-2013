@@ -1192,7 +1192,7 @@ bool CNPC_MetroPolice::SpeakIfAllowed( const char *concept, AI_CriteriaSet& modi
 		return false;
 
 #ifdef EZ
-	if ((GetState() == NPC_STATE_IDLE || GetState() == NPC_STATE_ALERT))
+	if ((GetState() == NPC_STATE_IDLE || GetState() == NPC_STATE_ALERT) && sentencepriority != SENTENCE_PRIORITY_INVALID)
 	{
 		if (sentencepriority == SENTENCE_PRIORITY_NORMAL)
 		{
