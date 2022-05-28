@@ -248,6 +248,9 @@ BEGIN_DATADESC( CNPC_MetroPolice )
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AddWarnings", InputAddWarnings ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetWarnings", InputSetWarnings ),
 #endif
+#ifdef EZ
+	DEFINE_INPUTFUNC( FIELD_VOID, "TriggerIdleQuestion", InputTriggerIdleQuestion ),
+#endif
 	
 	DEFINE_USEFUNC( PrecriminalUse ),
 
@@ -560,7 +563,20 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 		if ( pPlayer && ( pPlayer->WorldSpaceCenter() - WorldSpaceCenter() ).LengthSqr() < (128*128) )
 		{
 			m_bPlayerIsNear = true;
+#ifdef EZ
+			// Don't look at the player if we're speaking/just finished speaking, or if we're safe from them
+			if ( gpGlobals->curtime - GetExpresser()->GetTimeSpeechComplete() >= 7.5f )
+			{
+				trace_t tr;
+				CTraceFilterSkipTwoEntities filter( this, pPlayer, COLLISION_GROUP_NONE );
+				UTIL_TraceLine( EyePosition(), pPlayer->EyePosition(), MASK_NPCSOLID_BRUSHONLY, &filter, &tr );
+
+				if ( tr.fraction == 1.0f )
+					AddLookTarget( pPlayer, 0.75f, 5.0f );
+			}
+#else
 			AddLookTarget( pPlayer, 0.75f, 5.0f );
+#endif
 			
 			if ( ( m_PolicingBehavior.IsEnabled() == false ) && ( m_nNumWarnings >= METROPOLICE_MAX_WARNINGS ) )
 			{
@@ -1175,9 +1191,25 @@ bool CNPC_MetroPolice::SpeakIfAllowed( const char *concept, AI_CriteriaSet& modi
 	if ( !GetExpresser()->CanSpeakConcept( concept ) )
 		return false;
 
+#ifdef EZ
+	if ((GetState() == NPC_STATE_IDLE || GetState() == NPC_STATE_ALERT) && sentencepriority == SENTENCE_PRIORITY_NORMAL)
+	{
+		// if someone else is talking, don't speak
+		if ( !GetExpresser()->SemaphoreIsAvailable( this ) )
+			return false;
+
+		if ( !GetExpresser()->CanSpeak() )
+			return false;
+	}
+#endif
+
 	if ( Speak( concept, modifiers ) )
 	{
+#ifdef EZ
+		JustMadeSound( sentencepriority, GetExpresser()->GetRealTimeSpeechComplete() - gpGlobals->curtime );
+#else
 		JustMadeSound( sentencepriority, 2.0f /*GetTimeSpeechComplete()*/ );
+#endif
 		return true;
 	}
 
@@ -2877,6 +2909,28 @@ void CNPC_MetroPolice::InputSetWarnings( inputdata_t &inputdata )
 }
 #endif
 
+#ifdef EZ
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_MetroPolice::InputTriggerIdleQuestion( inputdata_t &inputdata )
+{
+	if (IsSpeaking() || !IsInSquad() || ( m_NPCState != NPC_STATE_IDLE && m_NPCState != NPC_STATE_ALERT ) || HasSpawnFlags(SF_NPC_GAG))
+		return;
+
+	if ( m_nIdleChatterType == METROPOLICE_CHATTER_ASK_QUESTION )
+	{
+		int nQuestionType = random->RandomInt( 0, METROPOLICE_CHATTER_RESPONSE_TYPE_COUNT-1 );
+		if ( SpeakIfAllowed( TLK_COP_QUESTION, UTIL_VarArgs("combinequestion:%d", nQuestionType) ) )
+		{
+			GetSquad()->BroadcastInteraction( g_interactionMetrocopIdleChatter, (void*)(METROPOLICE_CHATTER_RESPONSE + nQuestionType), this );
+			m_nIdleChatterType = METROPOLICE_CHATTER_WAIT_FOR_RESPONSE;
+		}
+	}
+}
+#endif
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -3002,7 +3056,12 @@ void CNPC_MetroPolice::IdleSound( void )
 		{
 			if ( m_bPlayerIsNear && !HasMemory(bits_MEMORY_PLAYER_HARASSED) )
 			{
+#ifdef EZ
+				// Set priority to high so that +USE doesn't interrupt
+				if ( SpeakIfAllowed( TLK_COP_HARASS, SENTENCE_PRIORITY_HIGH, SENTENCE_CRITERIA_NORMAL ) )
+#else
 				if ( SpeakIfAllowed( TLK_COP_HARASS, SENTENCE_PRIORITY_NORMAL, SENTENCE_CRITERIA_NORMAL ) )
+#endif
 				{
 					Remember( bits_MEMORY_PLAYER_HARASSED );
 					if ( GetSquad() )
@@ -6085,7 +6144,7 @@ void CNPC_MetroPolice::PrecriminalUse( CBaseEntity *pActivator, CBaseEntity *pCa
 		return;
 
 #ifdef EZ
-	SpeakIfAllowed( "TLK_USE" );
+	SpeakIfAllowed( "TLK_USE", SENTENCE_PRIORITY_HIGH, SENTENCE_CRITERIA_ALWAYS );
 #endif
 
 	if ( PlayerIsCriminal() )
