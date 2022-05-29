@@ -6117,8 +6117,8 @@ EyeGlow_t * CNPC_MetroPolice::GetEyeGlowData(int i)
 
 	eyeGlow = new EyeGlow_t();
 
-	eyeGlow->spriteName = "sprites/light_glow02.vmt";
-	eyeGlow->attachment = "eyes";
+	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
+	eyeGlow->attachment = AllocPooledString("eyes");
 
 	eyeGlow->alpha = 100;
 	eyeGlow->red = 0;

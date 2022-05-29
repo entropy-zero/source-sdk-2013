@@ -4696,9 +4696,9 @@ EyeGlow_t * CNPC_Antlion::GetEyeGlowData(int i)
 			eyeGlow->alpha = 200;
 			break;
 	}
-	eyeGlow->spriteName = "sprites/light_glow02.vmt";
+	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
 
-	eyeGlow->attachment = "back";
+	eyeGlow->attachment = AllocPooledString("back");
 	eyeGlow->scale = 1.0f;
 	eyeGlow->proxyScale = 10.0f;
 	eyeGlow->renderMode = kRenderGlow;

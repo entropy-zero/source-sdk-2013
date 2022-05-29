@@ -35,8 +35,8 @@ EyeGlow_t * CNPC_LightStalk::GetEyeGlowData( int i )
 
 	EyeGlow_t * eyeGlow = new EyeGlow_t();
 
-	eyeGlow->spriteName = "sprites/light_glow02.vmt";
-	eyeGlow->attachment = "0";
+	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
+	eyeGlow->attachment = AllocPooledString("0");
 
 	eyeGlow->alpha = m_LightColor.a;
 	eyeGlow->red = m_LightColor.r;

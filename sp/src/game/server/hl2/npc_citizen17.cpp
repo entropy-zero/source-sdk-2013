@@ -3753,8 +3753,8 @@ EyeGlow_t * CNPC_Citizen::GetEyeGlowData( int index )
 
 		switch (index){
 		case 0:
-			eyeGlow->spriteName = LONGFALL_GLOW_CHEST_SPRITE;
-			eyeGlow->attachment = "backpack_eye_chest";
+			eyeGlow->spriteName = AllocPooledString(LONGFALL_GLOW_CHEST_SPRITE);
+			eyeGlow->attachment = AllocPooledString("backpack_eye_chest");
 
 			eyeGlow->alpha = LONGFALL_GLOW_CHEST_A;
 			eyeGlow->brightness = LONGFALL_GLOW_CHEST_BRIGHT;
@@ -3769,8 +3769,8 @@ EyeGlow_t * CNPC_Citizen::GetEyeGlowData( int index )
 
 			return eyeGlow;
 		case 1:
-			eyeGlow->spriteName = LONGFALL_GLOW_SHOULDER_SPRITE;
-			eyeGlow->attachment = "backpack_eye_shoulder";
+			eyeGlow->spriteName = AllocPooledString(LONGFALL_GLOW_SHOULDER_SPRITE);
+			eyeGlow->attachment = AllocPooledString("backpack_eye_shoulder");
 
 			eyeGlow->alpha = 192;
 			eyeGlow->brightness = 164;

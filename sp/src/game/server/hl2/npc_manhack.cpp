@@ -2597,8 +2597,8 @@ EyeGlow_t * CNPC_Manhack::GetEyeGlowData(int index)
 
 	switch(index){
 	case 0 :
-		eyeGlow->spriteName = MANHACK_GLOW_SPRITE;
-		eyeGlow->attachment = "Eye";
+		eyeGlow->spriteName = AllocPooledString(MANHACK_GLOW_SPRITE);
+		eyeGlow->attachment = AllocPooledString("Eye");
 
 		eyeGlow->alpha = 128;
 		eyeGlow->brightness = 164;
@@ -2622,8 +2622,8 @@ EyeGlow_t * CNPC_Manhack::GetEyeGlowData(int index)
 		eyeGlow->scale = 0.25f;
 		return eyeGlow;
 	case 1:
-		eyeGlow->spriteName = MANHACK_GLOW_SPRITE;
-		eyeGlow->attachment = "Light";
+		eyeGlow->spriteName = AllocPooledString(MANHACK_GLOW_SPRITE);
+		eyeGlow->attachment = AllocPooledString("Light");
 
 		eyeGlow->alpha = 128;
 		eyeGlow->brightness = 164;

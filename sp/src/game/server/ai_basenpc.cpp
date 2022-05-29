@@ -1945,7 +1945,6 @@ void CAI_BaseNPC::DoImpactEffect( trace_t &tr, int nDamageType )
 //-----------------------------------------------------------------------------
 // Purpose: Start all glow effects for this NPC.
 //		Based on Manhack eye glows
-//		1upD
 //-----------------------------------------------------------------------------
 void CAI_BaseNPC::StartEye(void)
 {
@@ -1966,8 +1965,8 @@ void CAI_BaseNPC::StartEye(void)
 		//Create our Eye sprite
 		if (sprite == NULL)
 		{
-			sprite = CSprite::SpriteCreate(glowData->spriteName, GetLocalOrigin(), false);
-			sprite->SetAttachment(this, LookupAttachment(glowData->attachment));
+			sprite = CSprite::SpriteCreate(STRING(glowData->spriteName), GetLocalOrigin(), false);
+			sprite->SetAttachment(this, LookupAttachment(STRING(glowData->attachment)));
 
 			sprite->SetTransparency(glowData->renderMode, glowData->red, glowData->green, glowData->blue, glowData->alpha, kRenderFxNoDissipation);
 			sprite->SetColor(glowData->red, glowData->green, glowData->blue);
@@ -2066,8 +2065,8 @@ EyeGlow_t * CAI_BaseNPC::GetEyeGlowData( int i )
 					eyeGlow->blue = color.b();
 					eyeGlow->alpha = color.a();
 
-					eyeGlow->spriteName = pSkin->GetString( "spriteName", "sprites/light_glow02.vmt" );
-					eyeGlow->attachment = pSkin->GetString( "attachment", "eyes" );
+					eyeGlow->spriteName = AllocPooledString(pSkin->GetString( "spriteName", "sprites/light_glow02.vmt" ));
+					eyeGlow->attachment = AllocPooledString(pSkin->GetString( "attachment", "eyes" ));
 					eyeGlow->renderMode = (RenderMode_t)pSkin->GetInt( "renderMode", kRenderGlow );
 					eyeGlow->scale = pSkin->GetFloat( "scale", 0.3f );
 					eyeGlow->proxyScale = pSkin->GetFloat( "proxyScale", 3.0f );
