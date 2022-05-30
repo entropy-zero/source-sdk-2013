@@ -2345,10 +2345,15 @@ void CNPC_Vortigaunt::MaintainGlows( void )
 //-----------------------------------------------------------------------------
 EyeGlow_t * CNPC_Vortigaunt::GetEyeGlowData(int i)
 {
+	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData( i );
+
+	if (eyeGlow != NULL)
+		return eyeGlow;
+
 	if (i != 0)
 		return NULL;
 
-	EyeGlow_t * eyeGlow = new EyeGlow_t();
+	eyeGlow = new EyeGlow_t();
 
 	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
 	eyeGlow->attachment = AllocPooledString("eyes");

@@ -6107,13 +6107,13 @@ void CNPC_MetroPolice::PrecriminalUse( CBaseEntity *pActivator, CBaseEntity *pCa
 //-----------------------------------------------------------------------------
 EyeGlow_t * CNPC_MetroPolice::GetEyeGlowData(int i)
 {
+	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData( i );
+
+	if (eyeGlow != NULL)
+		return eyeGlow;
+
 	if (i != 0)
 		return NULL;
-
-	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData(i);
-
-	if ( eyeGlow != NULL )
-		return eyeGlow;
 
 	eyeGlow = new EyeGlow_t();
 
