@@ -212,6 +212,9 @@ private:
 	void InputAddWarnings( inputdata_t &inputdata );
 	void InputSetWarnings( inputdata_t &inputdata );
 #endif
+#ifdef EZ
+	void InputTriggerIdleQuestion( inputdata_t &inputdata );
+#endif
 
 	void NotifyDeadFriend ( CBaseEntity* pFriend );
 
