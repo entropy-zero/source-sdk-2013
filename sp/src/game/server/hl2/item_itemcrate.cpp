@@ -16,9 +16,6 @@
 #include "particle_parse.h"
 #include "ai_basenpc.h"
 #include "grenade_hopwire.h"
-
-#include "hl2_player.h"
-#include "ai_basenpc.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
