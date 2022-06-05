@@ -156,6 +156,10 @@ ConVar sk_suit_maxarmor("sk_suit_maxarmor", "100", FCVAR_REPLICATED);
 ConVar sk_flashlight_drain_time( "sk_flashlight_drain_time", "1.1111", FCVAR_REPLICATED ); // 100 units / 90 secs
 ConVar sk_flashlight_charge_time( "sk_flashlight_charge_time", "50.0", FCVAR_REPLICATED ); // 100 units / 2 secs
 
+#ifdef EZ
+ConVar sk_flashlight_hud( "sk_flashlight_hud", "0", FCVAR_REPLICATED ); // Should we draw the flashlight HUD? 
+#endif
+
 #ifdef MAPBASE
 ConVar player_autoswitch_enabled( "player_autoswitch_enabled", "1", FCVAR_NONE, "This convar was added by Mapbase to toggle whether players automatically switch to their ''best'' weapon upon picking up ammo for it after it was dry." );
 #endif
@@ -1029,10 +1033,17 @@ void CHL2_Player::PreThink(void)
 	WaterMove();
 	VPROF_SCOPE_END();
 
+#ifdef EZ
+	if (g_pGameRules && g_pGameRules->FAllowFlashlight() && sk_flashlight_hud.GetBool() )
+		m_Local.m_iHideHUD &= ~HIDEHUD_FLASHLIGHT;
+	else
+		m_Local.m_iHideHUD |= HIDEHUD_FLASHLIGHT;
+#else
 	if ( g_pGameRules && g_pGameRules->FAllowFlashlight() )
 		m_Local.m_iHideHUD &= ~HIDEHUD_FLASHLIGHT;
 	else
 		m_Local.m_iHideHUD |= HIDEHUD_FLASHLIGHT;
+#endif
 
 	
 	VPROF_SCOPE_BEGIN( "CHL2_Player::PreThink-CommanderUpdate" );
