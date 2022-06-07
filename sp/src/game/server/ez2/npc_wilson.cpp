@@ -342,6 +342,8 @@ void CNPC_Wilson::Spawn()
 	// Don't allow us to skip animation setup because our attachments are critical to us!
 	SetBoneCacheFlags( BCF_NO_ANIMATION_SKIP );
 
+	Activate();
+
 	//SetState(NPC_STATE_IDLE);
 }
 
