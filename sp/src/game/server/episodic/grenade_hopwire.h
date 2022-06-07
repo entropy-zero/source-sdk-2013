@@ -122,6 +122,9 @@ private:
 
 	float	m_flSchlorpMass;	// The mass consumed in the past 0.2 seconds (used for "schlorp")
 
+	float	m_flStartTime;		// When the vortex opened
+	float	m_flPullFadeTime;	// How long the pull fade should last
+
 							// If this points to an entity, the Xen grenade will always call g_interactionXenGrenadeRelease on it instead of spawning Xen life.
 							// This is so Will-E pops back out of Xen grenades.
 	EHANDLE	m_hReleaseEntity;
