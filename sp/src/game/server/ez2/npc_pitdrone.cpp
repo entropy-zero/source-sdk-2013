@@ -452,13 +452,18 @@ extern int g_interactionXenGrenadeCreate;
 
 bool CNPC_PitDrone::HandleInteraction( int interactionType, void * data, CBaseCombatCharacter * sourceEnt )
 {
+	// First do the normal interaction handling, then Pit Drone exceptions
+	bool bReturn = BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+	
+	// If the interaction is 'created by Xen grenade', change some of the properties set by default
 	if ( interactionType == g_interactionXenGrenadeCreate )
 	{
-		InputSetWanderAlways( inputdata_t() );
-		InputEnableSpawning( inputdata_t() );
+		SetReadyToSpawn( false ); // Not ready to call reinforcements yet
+		SetHungryTime( gpGlobals->curtime ); // Be ready to eat as soon as we come through
+		SetTimesFed( 0 ); // Not fed yet
 	}
-
-	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+	
+	return bReturn;
 }
 
 //=========================================================
