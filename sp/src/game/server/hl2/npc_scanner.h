@@ -148,7 +148,13 @@ protected:
 
 private:
 	bool			MovingToInspectTarget( void );
+#ifdef EZ2
+protected:
 	virtual float	GetGoalDistance( void );
+private:
+#else
+	virtual float	GetGoalDistance( void );
+#endif
 
 	bool m_bIsClawScanner;	// Formerly the shield scanner.
 	bool m_bIsOpen;			// Only for claw scanner
