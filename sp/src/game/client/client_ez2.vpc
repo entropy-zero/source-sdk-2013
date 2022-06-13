@@ -30,6 +30,7 @@ $Project "Client (Entropy Zero 2)"
 		$Folder "HE DLL"
 		{
 			$File	"Human_Error\c_vehicle_drivable_apc.cpp"
+			$File	"Human_Error\c_weapon_sniperrifle.cpp"
 		}
 		$Folder "EZ2 DLL"
 		{
