@@ -9846,6 +9846,21 @@ void CAI_BaseNPC::HandleAnimEvent( animevent_t *pEvent )
 			}
 			else if ( pEvent->event == AE_NPC_RAGDOLL )
 			{
+#ifdef EZ
+				// Drop a serverside ragdoll instead if needed
+				if ( m_bForceServerRagdoll == true )
+				{
+					if ( CanBecomeServerRagdoll() == false )
+						return;
+
+					CBaseEntity *pRagdoll = CreateServerRagdoll( this, m_nForceBone, CTakeDamageInfo(), COLLISION_GROUP_INTERACTIVE_DEBRIS, true );
+					FixupBurningServerRagdoll( pRagdoll );
+					m_hDeathRagdoll = pRagdoll;
+					RemoveDeferred();
+					return;
+				}
+#endif
+
 				// Convert to ragdoll immediately
 				BecomeRagdollOnClient( vec3_origin );
 				return;

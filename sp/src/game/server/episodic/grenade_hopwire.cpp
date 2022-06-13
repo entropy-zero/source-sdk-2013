@@ -945,6 +945,13 @@ void CGravityVortexController::PullPlayersInRange( void )
 	float mass = pPlayer->VPhysicsGetObject()->GetMass();
 	float playerForce = m_flStrength * 0.05f;
 
+#ifdef EZ2
+	if (m_flPullFadeTime > 0.0f)
+	{
+		playerForce *= ((gpGlobals->curtime - m_flStartTime) / m_flPullFadeTime);
+	}
+#endif
+
 	// Find the pull force
 	// NOTE: We might want to make this non-linear to give more of a "grace distance"
 	vecForce *= ( 1.0f - ( dist / m_flRadius ) ) * playerForce * mass;
@@ -1791,6 +1798,8 @@ void CGravityVortexController::SchlorpThink( void )
 //-----------------------------------------------------------------------------
 void CGravityVortexController::PullThink( void )
 {
+	float flStrength = m_flStrength;
+
 #ifdef EZ2
 	// Pull any players close enough to us
 	PullPlayersInRange();
@@ -1824,6 +1833,11 @@ void CGravityVortexController::PullThink( void )
 	{
 		// Create a PVS for this entity
 		engine->GetPVSForCluster( engine->GetClusterForOrigin( GetAbsOrigin() ), sizeof(m_PVS), m_PVS );
+	}
+
+	if (m_flPullFadeTime > 0.0f)
+	{
+		flStrength *= ((gpGlobals->curtime - m_flStartTime) / m_flPullFadeTime);
 	}
 #else
 	// Pull any players close enough to us
@@ -1885,10 +1899,10 @@ void CGravityVortexController::PullThink( void )
 			{
 				// Find the pull force
 				// Minimum pull force is 10% of strength here
-				vecForce *= MAX( 1.0f - ( abs( dist2D ) / m_flRadius), 0.1f ) * m_flStrength;
+				vecForce *= MAX( 1.0f - ( abs( dist2D ) / m_flRadius), 0.1f ) * flStrength;
 
 				// Physics damage info
-				CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), m_flStrength, DMG_BLAST );
+				CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), flStrength, DMG_BLAST );
 
 				// Dispatch interaction. Skip pulling if it returns true
 				if ( pEnts[i]->DispatchInteraction( g_interactionXenGrenadePull, &info, GetThrower() ) )
@@ -1987,11 +2001,11 @@ void CGravityVortexController::PullThink( void )
 
 		// Find the pull force
 		// Minimum pull force is 10% of strength here
-		vecForce *= MAX( 1.0f - ( abs( dist2D ) / m_flRadius ), 0.1f ) * m_flStrength * mass;
+		vecForce *= MAX( 1.0f - ( abs( dist2D ) / m_flRadius ), 0.1f ) * flStrength * mass;
 		
 
 #ifdef EZ2
-		CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), m_flStrength, DMG_BLAST );
+		CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), flStrength, DMG_BLAST );
 		if ( !pEnts[i]->DispatchInteraction( g_interactionXenGrenadePull, &info, GetThrower() ) && pPhysObject != NULL )
 		{
 			// Pull the object in if there was no special handling
@@ -2001,7 +2015,7 @@ void CGravityVortexController::PullThink( void )
 		if ( pEnts[i]->VPhysicsGetObject() )
 		{
 			// Pull the object in
-			pEnts[i]->VPhysicsTakeDamage( CTakeDamageInfo( this, this, vecForce, GetAbsOrigin(), m_flStrength, DMG_BLAST ) );
+			pEnts[i]->VPhysicsTakeDamage( CTakeDamageInfo( this, this, vecForce, GetAbsOrigin(), flStrength, DMG_BLAST ) );
 		}
 #endif
 	}
@@ -2088,6 +2102,8 @@ void CGravityVortexController::StartPull( const Vector &origin, float radius, fl
 
 	SetDefLessFunc( m_SpawnList );
 	m_SpawnList.EnsureCapacity( 16 );
+
+	m_flStartTime = gpGlobals->curtime;
 #endif
 
 	SetThink( &CGravityVortexController::PullThink );
@@ -2138,6 +2154,9 @@ BEGIN_DATADESC( CGravityVortexController )
 	DEFINE_KEYFIELD( m_flNodeRadius, FIELD_FLOAT, "node_radius" ),
 
 	DEFINE_KEYFIELD( m_flConsumeRadius, FIELD_FLOAT, "consume_radius" ),
+
+	DEFINE_FIELD( m_flStartTime, FIELD_TIME ),
+	DEFINE_KEYFIELD( m_flPullFadeTime, FIELD_FLOAT, "pull_fade_in" ),
 
 	DEFINE_FIELD( m_hReleaseEntity, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hThrower, FIELD_EHANDLE ),

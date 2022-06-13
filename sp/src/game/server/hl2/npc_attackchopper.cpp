@@ -5966,6 +5966,18 @@ void CAvoidBox::ComputeAvoidanceForces( CBaseEntity *pEntity, float flEntityRadi
 }
 
 
+#ifdef EZ2
+void GetAvoidanceForcesForAdvisor( Vector &vecOutForce, CBaseEntity *pEntity, float flEntityRadius, float flAvoidTime )
+{
+	Vector vecAvoidForce;
+	CAvoidSphere::ComputeAvoidanceForces( pEntity, flEntityRadius, flAvoidTime, &vecAvoidForce );
+	vecOutForce += vecAvoidForce;
+	CAvoidBox::ComputeAvoidanceForces( pEntity, flEntityRadius, flAvoidTime, &vecAvoidForce );
+	vecOutForce += vecAvoidForce;
+}
+#endif
+
+
 //-----------------------------------------------------------------------------
 //
 // This entity is used to create little force boxes that the helicopters should avoid. 
