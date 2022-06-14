@@ -164,6 +164,7 @@ public:
 	virtual void	RemoveFromPlayerSquad();
 	virtual void	FixupPlayerSquad();
 	virtual void	UpdateSquadGlow();
+	virtual bool    ShouldSquadGlow();
 	virtual bool	ShouldRegenerateHealth(void);
 	virtual void	UpdateFollowCommandPoint();
 	virtual bool	IsFollowingCommandPoint();

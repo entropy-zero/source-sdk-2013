@@ -671,11 +671,11 @@ void CNPC_Combine::FixupPlayerSquad()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Update glow effects on this soldier
+// Purpose: Add or remove glow effects as necessary, then update the color
 //-----------------------------------------------------------------------------
 void CNPC_Combine::UpdateSquadGlow()
 {
-	bool shouldGlow = sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad();
+	bool shouldGlow = ShouldSquadGlow();
 	if ( !m_bGlowEnabled.Get() && shouldGlow )
 	{
 		AddGlowEffect();
@@ -709,6 +709,11 @@ void CNPC_Combine::UpdateSquadGlow()
 
 		SetGlowColor( red, green, blue, sv_squadmate_glow_alpha.GetFloat() );
 	}
+}
+
+bool CNPC_Combine::ShouldSquadGlow()
+{
+	return sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad();
 }
 
 //-----------------------------------------------------------------------------
@@ -1511,7 +1516,7 @@ void CNPC_Combine::PrescheduleThink()
 
 
 	// Update glow if we are commandable
-	if ( sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad() && ( !m_bGlowEnabled.Get() || ( GetHealth() < GetMaxHealth() && ShouldRegenerateHealth() ) ) )
+	if ( ShouldSquadGlow() && ( !m_bGlowEnabled.Get() || ( GetHealth() < GetMaxHealth() && ShouldRegenerateHealth() ) ) )
 	{
 		UpdateSquadGlow();
 	}
