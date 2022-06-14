@@ -675,10 +675,17 @@ void CNPC_Combine::FixupPlayerSquad()
 //-----------------------------------------------------------------------------
 void CNPC_Combine::UpdateSquadGlow()
 {
-	if ( m_bGlowEnabled )
+	bool shouldGlow = sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad();
+	if ( !m_bGlowEnabled.Get() && shouldGlow )
+	{
+		AddGlowEffect();
+	}
+	else if ( m_bGlowEnabled.Get() && !shouldGlow )
+	{
 		RemoveGlowEffect();
+	}
 
-	if( sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad())
+	if ( m_bGlowEnabled.Get() )
 	{
 		float healthPercentage = ((float)m_iHealth / ((float)m_iMaxHealth));
 
@@ -686,7 +693,7 @@ void CNPC_Combine::UpdateSquadGlow()
 		float blue = 0;
 		float green = 0;
 
-		switch (sv_squadmate_glow_style.GetInt()) 
+		switch (sv_squadmate_glow_style.GetInt())
 		{
 		case COMBINE_GLOW_STYLE_REDGREEN:
 			red = 1.0f - healthPercentage;
@@ -700,9 +707,7 @@ void CNPC_Combine::UpdateSquadGlow()
 			break;
 		}
 
-		DevMsg( "%s - CNPC_Combine::UpdateSquadGlow() - r:%f\tg:%f\tb:%f\ta:%f\n", GetDebugName(), red, green, blue, sv_squadmate_glow_alpha.GetFloat() );
 		SetGlowColor( red, green, blue, sv_squadmate_glow_alpha.GetFloat() );
-		AddGlowEffect();
 	}
 }
 
@@ -1503,6 +1508,13 @@ void CNPC_Combine::PrescheduleThink()
 #ifdef EZ
 	// 1upD - Copied from citizen
 	UpdateFollowCommandPoint();
+
+
+	// Update glow if we are commandable
+	if ( sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad() && ( !m_bGlowEnabled.Get() || ( GetHealth() < GetMaxHealth() && ShouldRegenerateHealth() ) ) )
+	{
+		UpdateSquadGlow();
+	}
 #endif
 
 	// Speak any queued sentences
@@ -4389,9 +4401,6 @@ void CNPC_Combine::PainSound ( void )
 //=========================================================
 void CNPC_Combine::RegenSound()
 {
-	// Putting this here for convenience - every time we test regen sound, also check the glow
-	UpdateSquadGlow();
-
 	// Don't call out regeneration immediately after taking damage 
 	if (gpGlobals->curtime <= m_flNextPainSoundTime)
 	{
