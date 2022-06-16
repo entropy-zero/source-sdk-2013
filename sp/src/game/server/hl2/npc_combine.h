@@ -137,6 +137,8 @@ public:
 	void InputSetManhacks( inputdata_t &inputdata );
 	void InputEnablePlayerUse( inputdata_t &inputdata );
 	void InputDisablePlayerUse( inputdata_t &inputdata );
+	void InputEnableOrderSurrender( inputdata_t &inputdata );
+	void InputDisableOrderSurrender( inputdata_t &inputdata );
 	COutputEHANDLE	m_OutManhack;
 
 	//-----------------------------------------------------
@@ -177,6 +179,8 @@ public:
 	virtual int 	SelectScheduleRetrieveItem();
 
 	virtual bool	IsMajorCharacter() { return IsCommandable(); }
+
+	virtual bool	CanOrderSurrender() { return m_bCanOrderSurrender; }
 
 	// Blixibon - Elites in ball attacks should aim while moving, even if they can't shoot
 	bool			HasAttackSlot() { return BaseClass::HasAttackSlot() || HasStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ); }
@@ -340,6 +344,8 @@ protected:
 
 	// 1upD - If true, player +USE has no effect
 	bool m_bDisablePlayerUse;
+
+	bool m_bCanOrderSurrender;
 #endif
 
 #ifdef EZ2
@@ -388,6 +394,9 @@ private:
 #ifdef EZ
 		SCHED_COMBINE_DEPLOY_MANHACK,
 #endif
+#ifdef EZ2
+		SCHED_COMBINE_ORDER_SURRENDER,
+#endif
 		NEXT_SCHEDULE,
 	};
 
@@ -420,6 +429,9 @@ private:
 		COND_COMBINE_DROP_GRENADE,
 		COND_COMBINE_ON_FIRE,
 		COND_COMBINE_ATTACK_SLOT_AVAILABLE,
+#ifdef EZ2
+		COND_COMBINE_CAN_ORDER_SURRENDER,
+#endif
 		NEXT_CONDITION
 	};
 

@@ -39,6 +39,7 @@
 
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "npc_combine.h"
 #endif
 
 #include "ai_squad.h"
@@ -1290,11 +1291,19 @@ void CNPC_Citizen::GatherWillpowerConditions()
 		l_iWillpower--;
 
 #ifdef EZ2
-	// If this citizen is not a brute or a jump rebel, their willpower is below a certain threshold, the enemy can see them, and the enemy is Bad Cop,
+	// If this citizen is not a brute or a jump rebel, their willpower is below a certain threshold, the enemy can see them, and the enemy is either Bad Cop or a soldier,
 	// try to surrender
-	if (typeCanPanic && l_iWillpower <= sk_citizen_very_low_willpower.GetInt() && HasCondition( COND_ENEMY_FACING_ME ) && GetEnemy() && GetEnemy()->IsPlayer() )
+	if (typeCanPanic && l_iWillpower <= sk_citizen_very_low_willpower.GetInt() && HasCondition( COND_ENEMY_FACING_ME ) && GetEnemy())
 	{
-		if (!HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
+		bool bCanSurrender = GetEnemy()->IsPlayer();
+		if (!bCanSurrender)
+		{
+			// Allow surrender if the enemy is a Combine soldier capable of ordering it
+			if (CNPC_Combine *pCombine = dynamic_cast<CNPC_Combine *>(GetEnemy()))
+				bCanSurrender = pCombine->CanOrderSurrender();
+		}
+
+		if (bCanSurrender && !HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
 		{
 			if (m_pSquad && m_pSquad->NumMembers() == 1) // Last one
 			{
