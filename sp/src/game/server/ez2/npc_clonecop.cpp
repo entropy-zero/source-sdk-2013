@@ -20,12 +20,15 @@
 #include "prop_combine_ball.h"
 #include "ez2_player.h"
 #include "ai_interactions.h"
+#include "items.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 ConVar	sk_clonecop_health( "sk_clonecop_health","1000" );
 ConVar	sk_clonecop_kick( "sk_clonecop_kick", "40" );
+
+ConVar	npc_clonecop_suppress_min_occlude_dist( "npc_clonecop_suppress_min_occlude_dist", "128" );
 
 extern ConVar sk_plr_dmg_buckshot;
 extern ConVar sk_plr_num_shotgun_pellets;
@@ -48,6 +51,7 @@ BEGIN_DATADESC( CNPC_CloneCop )
 	DEFINE_FIELD( m_bIsBleeding, FIELD_BOOLEAN ),
 
 	DEFINE_INPUT( m_bThrowXenGrenades, FIELD_BOOLEAN, "SetThrowXenGrenades" ),
+	DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
 
 	// Function Pointers
 	DEFINE_THINKFUNC( BleedThink ),
@@ -62,9 +66,11 @@ CNPC_CloneCop::CNPC_CloneCop()
 	AddGrenades( 99 );
 	SetAlternateCapable( true );
 	AddSpawnFlags( SF_COMBINE_REGENERATE );
+	RemoveSpawnFlags( SF_COMBINE_COMMANDABLE );
 	m_tEzVariant = EZ_VARIANT_RAD;
 	m_ArmorValue = 200;
 	m_bThrowXenGrenades = true;
+	m_bLookForItems = true;
 	SetDisplacementImpossible( true );
 	m_SquadName = MAKE_STRING( IsBadCop() ? "bc_squad" : "cc_squad" );
 }
@@ -132,6 +138,11 @@ void CNPC_CloneCop::Precache()
 		PrecacheParticleSystem( "blood_impact_blue_01" );
 	}
 
+	if (m_bThrowXenGrenades)
+	{
+		VerifyXenRecipeManager( GetClassname() );
+	}
+
 	BaseClass::Precache();
 }
 
@@ -179,6 +190,54 @@ void CNPC_CloneCop::ClearAttackConditions()
 		// We don't allow the base class to clear this condition because we
 		// don't sense for it every frame.
 		SetCondition( COND_CAN_RANGE_ATTACK2 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Check the innate weapon LOS for an owner at an arbitrary position
+//			If bSetConditions is true, LOS related conditions will also be set
+// Input  :
+// Output :
+//-----------------------------------------------------------------------------
+bool CNPC_CloneCop::WeaponLOSCondition( const Vector &ownerPos, const Vector &targetPos, bool bSetConditions )
+{
+	bool bBase = BaseClass::WeaponLOSCondition( ownerPos, targetPos, bSetConditions );
+
+	if (HasCondition( COND_WEAPON_SIGHT_OCCLUDED ) && bSetConditions)
+	{
+		// Re-do the trace, but this time from our eye position
+		trace_t tr;
+		AI_TraceLine( EyePosition(), targetPos, MASK_SHOT, this, COLLISION_GROUP_NONE, &tr);
+
+		// If the end pos is within a certain number of units (or the start pos is solid), set the custom condition
+		if (tr.startsolid || (EyePosition() - tr.endpos).LengthSqr() <= Square( npc_clonecop_suppress_min_occlude_dist.GetFloat() ))
+		{
+			SetCondition( COND_COMBINE_WEAPON_SIGHT_OCCLUDED );
+		}
+	}
+
+	return bBase;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_CloneCop::GatherConditions()
+{
+	BaseClass::GatherConditions();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Allows for modification of the interrupt mask for the current schedule.
+//			In the most cases the base implementation should be called first.
+//-----------------------------------------------------------------------------
+void CNPC_CloneCop::BuildScheduleTestBits( void )
+{
+	BaseClass::BuildScheduleTestBits();
+	
+	// Health opportunities can interrupt alert schedules
+	if ( GetState() == NPC_STATE_IDLE || IsCurSchedule( SCHED_ALERT_STAND ) || IsCurSchedule( SCHED_COMBINE_PATROL ) || IsCurSchedule( SCHED_INVESTIGATE_SOUND ) )
+	{
+		SetCustomInterruptCondition( COND_HEALTH_ITEM_AVAILABLE );
 	}
 }
 
@@ -272,12 +331,19 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 		case SCHED_COMBINE_PRESS_ATTACK:
 		case SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE:
 		{
-			// Just suppress if we've been damaged recently and we see our enemy's last seen position
-			if (gpGlobals->curtime - GetLastDamageTime() < 15.0f && GetEnemy() && CBaseCombatCharacter::FVisible(GetEnemies()->LastSeenPosition(GetEnemy())))
-				return SCHED_COMBINE_MERCILESS_SUPPRESS;
+			if (!HasCondition(COND_COMBINE_CAN_ORDER_SURRENDER))
+			{
+				// Just suppress if we've been damaged recently and we see our enemy's last seen position
+				if (gpGlobals->curtime - GetLastDamageTime() < 15.0f && GetEnemy() && CBaseCombatCharacter::FVisible(GetEnemies()->LastSeenPosition(GetEnemy())))
+					return SCHED_COMBINE_MERCILESS_SUPPRESS;
 
-			// Clone Cop attempts to flank
-			return SCHED_COMBINE_FLANK_LINE_OF_FIRE;
+				// Clone Cop attempts to flank unless he hasn't seen his enemy in a bit
+				float flTimeLastSeen = GetEnemies()->LastTimeSeen(GetEnemy());
+				if ( flTimeLastSeen != AI_INVALID_TIME && gpGlobals->curtime - flTimeLastSeen < 5.0f )
+				{
+					return SCHED_COMBINE_FLANK_LINE_OF_FIRE;
+				}
+			}
 		} break;
 
 		case SCHED_RANGE_ATTACK1:
@@ -293,9 +359,85 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 			// Merciless
 			return SCHED_COMBINE_MERCILESS_SUPPRESS;
 		} break;
+
+		case SCHED_RUN_FROM_ENEMY:
+		{
+			if (HasCondition( COND_CAN_MELEE_ATTACK1 ))
+			{
+				// HACKHACK: CNPC_PlayerCompanion's melee code thinks the schedule is still SCHED_RUN_FROM_ENEMY, so don't let it interrupt and get stuck in a loop
+				ClearCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
+
+				return SCHED_PC_MELEE_AND_MOVE_AWAY;
+			}
+		} break;
 	}
 
 	return scheduleType;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_CloneCop::ShouldLookForHealthItem()
+{
+	if( !m_bLookForItems )
+		return false;
+
+	return BaseClass::ShouldLookForHealthItem();
+}
+
+extern ConVar sk_healthkit;
+extern ConVar sk_healthvial;
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CNPC_CloneCop::PickupItem( CBaseEntity *pItem )
+{
+	// Overrides base class for suit sounds
+
+	// Must cache number of elements in case any fire only once (therefore being removed after being fired)
+	int iNumElements = m_OnItemPickup.NumberOfElements();
+	if (iNumElements > 0)
+		m_OnItemPickup.Set( pItem, pItem, this );
+
+	Assert( pItem != NULL );
+	if( FClassnameIs( pItem, "item_healthkit" ) )
+	{
+		if ( TakeHealth( sk_healthkit.GetFloat(), DMG_GENERIC ) )
+		{
+			RemoveAllDecals();
+			UTIL_Remove( pItem );
+			EmitSound( "HealthKit.Touch" ); // TODO: E:Z variant distinction
+		}
+	}
+	else if( FClassnameIs( pItem, "item_healthvial" ) )
+	{
+		if ( TakeHealth( sk_healthvial.GetFloat(), DMG_GENERIC ) )
+		{
+			RemoveAllDecals();
+			UTIL_Remove( pItem );
+			EmitSound( "HealthKit.Touch" ); // TODO: E:Z variant distinction
+		}
+	}
+	else if (FClassnameIs( pItem, "item_battery" ))
+	{
+		// Add batteries to armor value
+		m_ArmorValue += 25;
+		UTIL_Remove( pItem );
+		EmitSound( "ItemBattery.Touch" );
+	}
+	else if ( FClassnameIs(pItem, "item_ammo_ar2_altfire") || FClassnameIs(pItem, "item_ammo_smg1_grenade") ||
+		FClassnameIs(pItem, "weapon_frag") )
+	{
+		AddGrenades( 1 );
+		UTIL_Remove( pItem );
+	}
+
+	// Only warn if we didn't have any elements of OnItemPickup
+	else if (iNumElements <= 0)
+	{
+		DevMsg("%s doesn't know how to pick up %s!\n", GetClassname(), pItem->GetClassname() );
+	}
 }
 
 extern ConVar sk_npc_dmg_combineball;
@@ -483,7 +625,7 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 					vecThrow = forward * 750 + up * 175;
 
 					CBaseEntity *pGrenade = NULL;
-					if ( m_bThrowXenGrenades )
+					if ( ShouldThrowXenGrenades() )
 					{
 						pGrenade = HopWire_Create( vecStart, vec3_angle, vecThrow, vecSpin, this, COMBINE_GRENADE_TIMER );
 					}
@@ -498,7 +640,7 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 				{
 					// Use the Velocity that AI gave us.
 					CBaseEntity *pGrenade = NULL;
-					if ( m_bThrowXenGrenades )
+					if ( ShouldThrowXenGrenades() )
 					{
 						pGrenade = HopWire_Create( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this, COMBINE_GRENADE_TIMER );
 					}
@@ -552,7 +694,6 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 			if (pBCC)
 			{
 				CTakeDamageInfo dmgInfo( this, this, sk_clonecop_kick.GetFloat(), DMG_CLUB );
-				tr;
 
 				UTIL_TraceLine( WorldSpaceCenter(), pHurt->WorldSpaceCenter(), MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
 				KickInfo_t kickInfo( &tr, &dmgInfo );
@@ -642,6 +783,35 @@ void CNPC_CloneCop::StopBleeding()
 	StopParticleEffects( this );
 
 	SetContextThink( &CNPC_CloneCop::BleedThink, TICK_NEVER_THINK, CC_BLEED_THINK );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pEvent - 
+//-----------------------------------------------------------------------------
+bool CNPC_CloneCop::ShouldThrowXenGrenades()
+{
+	if (!m_bThrowXenGrenades)
+		return false;
+
+	if (GetEnemy() && !m_hForcedGrenadeTarget)
+	{
+		// Don't throw Xen grenades at Xen enemies (prevents Clone Cop from getting stuck in a loop)
+		if (GetEnemy()->GetEZVariant() == EZ_VARIANT_XEN)
+			return false;
+
+		// If we have just one enemy (and they're not a player), only throw a Xen grenade if we've been engaged for a bit
+		if (GetEnemies()->NumEnemies() == 1 && !GetEnemy()->IsPlayer())
+		{
+			float flTimeAtFirstHand = GetEnemies()->TimeAtFirstHand(GetEnemy());
+			if ( flTimeAtFirstHand != AI_INVALID_TIME && gpGlobals->curtime - flTimeAtFirstHand < 15.0f )
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -794,18 +964,6 @@ Activity CNPC_CloneCop::NPC_TranslateActivity( Activity eNewActivity )
 //-----------------------------------------------------------------------------
 Activity CNPC_CloneCop::Weapon_TranslateActivity( Activity eNewActivity )
 {
-	if ( HasCondition(COND_HEAVY_DAMAGE) && IsCurSchedule(SCHED_RUN_FROM_ENEMY) )
-	{
-		// When we have heavy damage and we're taking cover from an enemy,
-		// try using crouch activities
-		switch (eNewActivity)
-		{
-		case ACT_IDLE:		eNewActivity = ACT_RANGE_AIM_LOW; break;
-		case ACT_WALK:		eNewActivity = ACT_WALK_CROUCH; break;
-		case ACT_RUN:		eNewActivity = ACT_RUN_CROUCH; break;
-		}
-	}
-
 	return BaseClass::Weapon_TranslateActivity( eNewActivity );
 }
 
@@ -996,6 +1154,8 @@ void CNPC_BadCop::Activate()
 
 AI_BEGIN_CUSTOM_NPC( npc_clonecop, CNPC_CloneCop )
 
+DECLARE_CONDITION( COND_COMBINE_WEAPON_SIGHT_OCCLUDED )
+
  DEFINE_SCHEDULE 
  (
 	 SCHED_COMBINE_FLANK_LINE_OF_FIRE,
@@ -1037,6 +1197,7 @@ AI_BEGIN_CUSTOM_NPC( npc_clonecop, CNPC_CloneCop )
  	"		TASK_RANGE_ATTACK1		0"
  	""
  	"	Interrupts"
+	"		COND_NEW_ENEMY"
  	"		COND_ENEMY_WENT_NULL"
  	"		COND_HEAVY_DAMAGE"
  	"		COND_ENEMY_OCCLUDED"
@@ -1066,6 +1227,7 @@ AI_BEGIN_CUSTOM_NPC( npc_clonecop, CNPC_CloneCop )
 	 "		COND_HEAR_MOVE_AWAY"
 	 "		COND_COMBINE_NO_FIRE"
 	 "		COND_WEAPON_BLOCKED_BY_FRIEND"
+	 "		COND_COMBINE_WEAPON_SIGHT_OCCLUDED"
  )
 
  AI_END_CUSTOM_NPC()

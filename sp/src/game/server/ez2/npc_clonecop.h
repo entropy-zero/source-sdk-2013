@@ -34,9 +34,15 @@ public:
 	void		DeathSound( const CTakeDamageInfo &info );
 
 	void		ClearAttackConditions( void );
+	bool		WeaponLOSCondition( const Vector &ownerPos, const Vector &targetPos, bool bSetConditions );
+	void		GatherConditions();
+	void		BuildScheduleTestBits( void );
 	void		PrescheduleThink();
 	int			SelectSchedule( void );
 	int			TranslateSchedule( int scheduleType );
+
+	bool		ShouldLookForHealthItem();
+	void		PickupItem( CBaseEntity *pItem );
 
 	int			OnTakeDamage( const CTakeDamageInfo &info );
 	float		GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamageInfo &info );
@@ -48,6 +54,8 @@ public:
 	void		StartBleeding();
 	void		StopBleeding();
 	inline bool	IsBleeding() { return m_bIsBleeding; }
+
+	bool		ShouldThrowXenGrenades();
 
 	void		HandleManhackSpawn( CAI_BaseNPC *pNPC );
 
@@ -101,6 +109,9 @@ protected:
 		SCHED_COMBINE_MERCILESS_RANGE_ATTACK1,
 		SCHED_COMBINE_MERCILESS_SUPPRESS,
 		NEXT_SCHEDULE,
+
+		COND_COMBINE_WEAPON_SIGHT_OCCLUDED = BaseClass::NEXT_CONDITION,	// Only set if the occlusion is very close to the sight (stops suppression)
+		NEXT_CONDITION
 	};
 
 	DEFINE_CUSTOM_AI;
@@ -114,6 +125,7 @@ private:
 	bool	m_bIsBleeding;
 
 	bool	m_bThrowXenGrenades;
+	bool	m_bLookForItems;
 };
 
 class CNPC_BadCop : public CNPC_CloneCop
