@@ -2801,7 +2801,8 @@ void CNPC_Combine::AnnounceAssault(void)
 	if ( FVisible( pBCC ) )
 	{
 #ifdef EZ2
-		AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
+		if (GetSquad() && GetSquad()->NumMembers() > 1)
+			AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
 #endif
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
 		SpeakIfAllowed( TLK_CMB_ASSAULT );
