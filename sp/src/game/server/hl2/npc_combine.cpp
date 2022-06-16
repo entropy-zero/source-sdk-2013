@@ -4836,7 +4836,12 @@ int CNPC_Combine::MeleeAttack1Conditions ( float flDot, float flDist )
 	if ( GetEnemy() && fabs(GetEnemy()->GetAbsOrigin().z - GetAbsOrigin().z) > 64 )
 		return COND_NONE;
 
+#ifdef EZ
+	// Soldiers are incapable of kicking the babies
+	if ( GetEnemy() && GetEnemy()->IsNPC() && GetEnemy()->MyNPCPointer()->GetHullType() == HULL_TINY )
+#else
 	if ( dynamic_cast<CBaseHeadcrab *>(GetEnemy()) != NULL )
+#endif
 	{
 		return COND_NONE;
 	}
