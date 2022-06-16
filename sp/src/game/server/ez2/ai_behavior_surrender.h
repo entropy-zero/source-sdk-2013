@@ -94,7 +94,7 @@ public:
 	void	ComputeAndSetRenderBounds();
 	void	ResetBounds();
 
-	bool CanSurrender() { return m_bCanSurrender; }
+	bool CanSurrender();
 	virtual void Surrender( CBaseCombatCharacter *pCaptor );
 	void StopSurrendering();
 	inline bool IsSurrendered() const { return m_bSurrendered; }
