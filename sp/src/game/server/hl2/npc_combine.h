@@ -170,6 +170,9 @@ public:
 	virtual bool	ShouldAlwaysThink();
 	virtual bool	ShouldBehaviorSelectSchedule( CAI_BehaviorBase *pBehavior );
 	virtual bool	ShouldLookForBetterWeapon();
+	virtual bool	ShouldLookForHealthItem();
+	CBaseEntity		*FindHealthItem( const Vector &vecPosition, const Vector &range );
+	void			PickupItem( CBaseEntity *pItem );
 	virtual void	Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
 	virtual void	PickupWeapon( CBaseCombatWeapon *pWeapon );
 
@@ -487,6 +490,8 @@ private:
 
 	float			m_flTimePlayerStare;
 	bool			m_bTemporarilyNeedWeapon; // Soldiers who drop their weapons but aren't supposed to pick them up autonomously are given this so that they arm themselves again
+
+	float			m_flNextHealthSearchTime;
 #endif
 
 	// Time Variables

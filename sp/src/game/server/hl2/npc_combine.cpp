@@ -244,6 +244,7 @@ DEFINE_FIELD( m_iszOriginalSquad, FIELD_STRING ), // Added by Blixibon to save o
 DEFINE_FIELD( m_bHoldPositionGoal, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flTimePlayerStare, FIELD_TIME ),
 DEFINE_FIELD( m_bTemporarilyNeedWeapon, FIELD_BOOLEAN ),
+DEFINE_FIELD( m_flNextHealthSearchTime, FIELD_TIME ),
 #endif
 #ifndef MAPBASE // See ai_grenade.h
 DEFINE_KEYFIELD( m_iNumGrenades, FIELD_INTEGER, "NumGrenades" ),
@@ -852,6 +853,96 @@ bool CNPC_Combine::ShouldLookForBetterWeapon()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldLookForHealthItem()
+{
+	if( gpGlobals->curtime < m_flNextHealthSearchTime )
+		return false;
+
+	// Only major characters (commandable soldiers and Clone Cop) can pick up health.
+	if( !IsMajorCharacter() )
+		return false;
+
+	// We get our health back anyway.
+	// (undone since the conditions below indicate a situation where regeneration can't meet the demand)
+	//if (HasSpawnFlags( SF_COMBINE_REGENERATE ))
+	//	return false;
+
+	// Wait till you're standing still.
+	if( IsMoving() )
+		return false;
+
+	if (IsCommandable())
+	{
+		// Commandable soldiers cannot get health unless in the player squad.
+		if (!IsInPlayerSquad())
+			return false;
+
+		// Only begin considering this when low on health.
+		if ((GetHealth() / GetMaxHealth()) > 0.5f)
+			return false;
+
+		// Player is hurt, don't steal their health.
+		if( AI_IsSinglePlayer() && UTIL_GetLocalPlayer()->GetHealth() <= UTIL_GetLocalPlayer()->GetHealth() * 0.75f )
+			return false;
+	}
+	else
+	{
+		// Always consider health when not fully healthy.
+		if (GetHealth() >= GetMaxHealth())
+			return false;
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+CBaseEntity *CNPC_Combine::FindHealthItem( const Vector &vecPosition, const Vector &range )
+{
+	CBaseEntity *list[1024];
+	int count = UTIL_EntitiesInBox( list, 1024, vecPosition - range, vecPosition + range, 0 );
+
+	for ( int i = 0; i < count; i++ )
+	{
+		CItem *pItem = dynamic_cast<CItem *>(list[ i ]);
+
+		if( pItem )
+		{
+			if (pItem->HasSpawnFlags(SF_ITEM_NO_NPC_PICKUP))
+				continue;
+
+			// Healthkits, healthvials, and batteries
+			if( (pItem->ClassMatches( "item_health*" ) || pItem->ClassMatches( "item_battery" )) && FVisible( pItem ) )
+			{
+				return pItem;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CNPC_Combine::PickupItem( CBaseEntity *pItem )
+{
+	BaseClass::PickupItem( pItem );
+
+	// Combine soldiers can pick up batteries and use them as health kits
+	if (FClassnameIs( pItem, "item_battery" ))
+	{
+		if ( TakeHealth( 25, DMG_GENERIC ) )
+		{
+			RemoveAllDecals();
+			UTIL_Remove( pItem );
+			EmitSound( "ItemBattery.Touch" );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 int CNPC_Combine::SelectSchedulePriorityAction()
 {
 	int schedule = BaseClass::SelectSchedulePriorityAction();
@@ -882,19 +973,18 @@ int CNPC_Combine::SelectScheduleRetrieveItem()
 		}
 	}
 
-	// Not needed due to regenerating health, although everything in this code works out of the box and all that's needed to make it function
-	// is a check in GatherConditions()
-	/*
 	if( HasCondition(COND_HEALTH_ITEM_AVAILABLE) )
 	{
-		if( !IsInPlayerSquad() )
+		if( !IsInPlayerSquad() && IsCommandable() )
 		{
 			// Been kicked out of the player squad since the time I located the health.
 			ClearCondition( COND_HEALTH_ITEM_AVAILABLE );
 		}
 		else
 		{
-			CBaseEntity *pBase = FindHealthItem(m_FollowBehavior.GetFollowTarget()->GetAbsOrigin(), Vector( 120, 120, 120 ) );
+			CBaseEntity *pBase = FindHealthItem(
+				m_FollowBehavior.GetFollowTarget() ? m_FollowBehavior.GetFollowTarget()->GetAbsOrigin() : GetAbsOrigin(),
+				m_FollowBehavior.GetFollowTarget() ? Vector( 120, 120, 120 ) : Vector( 240, 240, 240 ) );
 			CItem *pItem = dynamic_cast<CItem *>(pBase);
 
 			if( pItem )
@@ -904,7 +994,6 @@ int CNPC_Combine::SelectScheduleRetrieveItem()
 			}
 		}
 	}
-	*/
 
 	return SCHED_NONE;
 }
@@ -1368,6 +1457,16 @@ void CNPC_Combine::GatherConditions()
 	}
 
 #ifdef EZ
+	if( ShouldLookForHealthItem() )
+	{
+		if( FindHealthItem( GetAbsOrigin(), Vector( 240, 240, 240 ) ) )
+			SetCondition( COND_HEALTH_ITEM_AVAILABLE );
+		else
+			ClearCondition( COND_HEALTH_ITEM_AVAILABLE );
+
+		m_flNextHealthSearchTime = gpGlobals->curtime + 4.0;
+	}
+
 	if ( IsCommandable() && !IsInAScript() && HasCondition(COND_TALKER_PLAYER_STARING) && npc_combine_give_enabled.GetBool() )
 	{
 		CBasePlayer *pPlayer = AI_GetSinglePlayer();
