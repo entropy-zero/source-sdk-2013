@@ -180,7 +180,7 @@ const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too fa
 #ifdef EZ
 #define BRUTE_MASK_MODEL "models/humans/group03b/welding_mask.mdl"
 #define BRUTE_MASK_NUM_SKINS 3
-#define BRUTE_MASK_BODYGROUP 1
+#define BRUTE_MASK_BODYGROUP FindBodygroupByName("mask")
 
 #define LONGFALL_GEAR_BODYGROUP 1
 #define LONGFALL_GLOW_CHEST_SPRITE	"sprites/light_glow01.vmt"
