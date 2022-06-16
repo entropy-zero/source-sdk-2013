@@ -2057,9 +2057,17 @@ EyeGlow_t * CAI_BaseNPC::GetEyeGlowData( int i )
 				pSkin = glowskins[m_nSkin % glowskins.Count()];
 				if (pSkin)
 				{
+					Color color = pSkin->GetColor( "color" );
+
+					// 0 alpha means this skin should not use an eye glow
+					if (color.a() == 0)
+					{
+						modelKeyValues->deleteThis();
+						return NULL;
+					}
+
 					eyeGlow = new EyeGlow_t();
 
-					Color color = pSkin->GetColor( "color" );
 					eyeGlow->red = color.r();
 					eyeGlow->green = color.g();
 					eyeGlow->blue = color.b();
