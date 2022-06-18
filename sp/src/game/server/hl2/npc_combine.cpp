@@ -245,6 +245,7 @@ DEFINE_FIELD( m_bHoldPositionGoal, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flTimePlayerStare, FIELD_TIME ),
 DEFINE_FIELD( m_bTemporarilyNeedWeapon, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flNextHealthSearchTime, FIELD_TIME ),
+DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
 #endif
 #ifndef MAPBASE // See ai_grenade.h
 DEFINE_KEYFIELD( m_iNumGrenades, FIELD_INTEGER, "NumGrenades" ),
@@ -855,17 +856,11 @@ bool CNPC_Combine::ShouldLookForBetterWeapon()
 //-----------------------------------------------------------------------------
 bool CNPC_Combine::ShouldLookForHealthItem()
 {
+	if( !m_bLookForItems )
+		return false;
+
 	if( gpGlobals->curtime < m_flNextHealthSearchTime )
 		return false;
-
-	// Only major characters (commandable soldiers and Clone Cop) can pick up health.
-	if( !IsMajorCharacter() )
-		return false;
-
-	// We get our health back anyway.
-	// (undone since the conditions below indicate a situation where regeneration can't meet the demand)
-	//if (HasSpawnFlags( SF_COMBINE_REGENERATE ))
-	//	return false;
 
 	// Wait till you're standing still.
 	if( IsMoving() )
