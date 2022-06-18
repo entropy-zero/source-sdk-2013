@@ -352,6 +352,11 @@ CNPC_Combine::CNPC_Combine()
 	m_iNumGrenades = 5;
 
 	m_bDontPickupWeapons = true;
+
+	// TODO - Ordering surrender is on by default. This could become an issue.
+	// Consider making it a three-state variable and using a ConVar or Global Var
+	// to track default behavior.
+	m_bCanOrderSurrender = true;
 #endif
 }
 
