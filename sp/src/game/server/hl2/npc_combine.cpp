@@ -1478,9 +1478,10 @@ void CNPC_Combine::GatherConditions()
 					// Make sure they're not about to pick up a weapon
 					if (!pCitizen->IsCurSchedule( SCHED_NEW_WEAPON, false ))
 					{
-						// Finally, check if the citizen has begged already
+						// Finally, check if the citizen has spoken beg or surrender concepts already
+						float flTimeSpeakSurrender = pCitizen->GetTimeSpokeConcept( TLK_SURRENDER );
 						float flTimeSpeakBeg = pCitizen->GetTimeSpokeConcept( TLK_BEG );
-						if (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= 2.0f)
+						if ((flTimeSpeakSurrender != -1 && gpGlobals->curtime - flTimeSpeakSurrender >= 2.0f) || (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= 2.0f))
 						{
 							SetCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
 
