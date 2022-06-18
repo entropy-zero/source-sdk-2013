@@ -1303,20 +1303,23 @@ void CNPC_Citizen::GatherWillpowerConditions()
 				bCanSurrender = pCombine->CanOrderSurrender();
 		}
 
-		if (bCanSurrender && !HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
+		if (bCanSurrender)
 		{
-			if (m_pSquad && m_pSquad->NumMembers() == 1) // Last one
+			if (!HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
 			{
-				MsgWillpower( "%s is now panicked and is the last squadmate!\tWillpower: %i\n", l_iWillpower );
+				if (m_pSquad && m_pSquad->NumMembers() == 1) // Last one
+				{
+					MsgWillpower( "%s is now panicked and is the last squadmate!\tWillpower: %i\n", l_iWillpower );
+				}
+				else
+				{
+					MsgWillpower( "%s is now panicked!\tWillpower: %i\n", l_iWillpower );
+				}
 			}
-			else
-			{
-				MsgWillpower( "%s is now panicked!\tWillpower: %i\n", l_iWillpower );
-			}
+			ClearCondition( COND_CIT_WILLPOWER_HIGH );
+			SetCondition( COND_CIT_WILLPOWER_LOW );
+			SetCondition( COND_CIT_WILLPOWER_VERY_LOW );
 		}
-		ClearCondition( COND_CIT_WILLPOWER_HIGH );
-		SetCondition( COND_CIT_WILLPOWER_LOW );
-		SetCondition( COND_CIT_WILLPOWER_VERY_LOW );
 	}
 	else
 #endif
