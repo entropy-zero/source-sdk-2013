@@ -65,6 +65,10 @@ ConVar npc_combine_new_cover_behavior( "npc_combine_new_cover_behavior", "1", FC
 ConVar npc_combine_give_enabled( "npc_combine_give_enabled", "1", FCVAR_NONE, "Allows players to \"give\" weapons to Combine soldiers in their squad by holding one in front of them for a few seconds." );
 ConVar npc_combine_give_stare_dist( "npc_combine_give_stare_dist", "112", FCVAR_NONE, "The distance needed for soldiers to consider the possibility the player wants to give them a weapon." );
 ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NONE, "The amount of time the player needs to be staring at a soldier in order for them to pick up a weapon they're holding." );
+
+ConVar npc_combine_order_surrender_max_dist( "npc_combine_order_surrender_max_dist", "224", FCVAR_NONE, "The maximum distance a soldier can order surrenders from. Beyond that, they will only pursue." );
+ConVar npc_combine_order_surrender_min_tlk_surrender( "npc_combine_order_surrender_min_tlk_surrender", "2.0", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_SURRENDER before being considered for surrenders, assuming they haven't already spoken TLK_BEG." );
+ConVar npc_combine_order_surrender_min_tlk_beg( "npc_combine_order_surrender_min_tlk_beg", "0.5", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_BEG before being considered for surrenders, assuming they haven't already spoken TLK_SURRENDER." );
 #endif
 
 #define COMBINE_SKIN_DEFAULT		0
@@ -1481,7 +1485,7 @@ void CNPC_Combine::GatherConditions()
 						// Finally, check if the citizen has spoken beg or surrender concepts already
 						float flTimeSpeakSurrender = pCitizen->GetTimeSpokeConcept( TLK_SURRENDER );
 						float flTimeSpeakBeg = pCitizen->GetTimeSpokeConcept( TLK_BEG );
-						if ((flTimeSpeakSurrender != -1 && gpGlobals->curtime - flTimeSpeakSurrender >= 2.0f) || (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= 2.0f))
+						if ((flTimeSpeakSurrender != -1 && gpGlobals->curtime - flTimeSpeakSurrender >= npc_combine_order_surrender_min_tlk_surrender.GetFloat()) || (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= npc_combine_order_surrender_min_tlk_beg.GetFloat()))
 						{
 							SetCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
 
@@ -3067,7 +3071,7 @@ int CNPC_Combine::SelectCombatSchedule()
 	// ---------------------
 	if (HasCondition( COND_COMBINE_CAN_ORDER_SURRENDER ))
 	{
-		if (HasCondition( COND_SEE_ENEMY ) && GetEnemy() && GetAbsOrigin().DistToSqr( GetEnemy()->GetAbsOrigin() ) <= Square( 224.0f ))
+		if (HasCondition( COND_SEE_ENEMY ) && GetEnemy() && GetAbsOrigin().DistToSqr( GetEnemy()->GetAbsOrigin() ) <= Square( npc_combine_order_surrender_max_dist.GetFloat() ))
 		{
 			return SCHED_COMBINE_ORDER_SURRENDER;
 		}
