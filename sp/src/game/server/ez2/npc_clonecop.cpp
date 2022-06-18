@@ -51,7 +51,6 @@ BEGIN_DATADESC( CNPC_CloneCop )
 	DEFINE_FIELD( m_bIsBleeding, FIELD_BOOLEAN ),
 
 	DEFINE_INPUT( m_bThrowXenGrenades, FIELD_BOOLEAN, "SetThrowXenGrenades" ),
-	DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
 
 	// Function Pointers
 	DEFINE_THINKFUNC( BleedThink ),
@@ -373,16 +372,6 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 	}
 
 	return scheduleType;
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-bool CNPC_CloneCop::ShouldLookForHealthItem()
-{
-	if( !m_bLookForItems )
-		return false;
-
-	return BaseClass::ShouldLookForHealthItem();
 }
 
 extern ConVar sk_healthkit;

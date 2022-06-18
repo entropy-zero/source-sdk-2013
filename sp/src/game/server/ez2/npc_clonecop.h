@@ -41,7 +41,6 @@ public:
 	int			SelectSchedule( void );
 	int			TranslateSchedule( int scheduleType );
 
-	bool		ShouldLookForHealthItem();
 	void		PickupItem( CBaseEntity *pItem );
 
 	int			OnTakeDamage( const CTakeDamageInfo &info );
@@ -125,7 +124,6 @@ private:
 	bool	m_bIsBleeding;
 
 	bool	m_bThrowXenGrenades;
-	bool	m_bLookForItems;
 };
 
 class CNPC_BadCop : public CNPC_CloneCop
