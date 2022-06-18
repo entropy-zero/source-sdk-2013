@@ -181,7 +181,7 @@ const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too fa
 #ifdef EZ
 #define BRUTE_MASK_MODEL "models/humans/group03b/welding_mask.mdl"
 #define BRUTE_MASK_NUM_SKINS 3
-#define BRUTE_MASK_BODYGROUP 1
+#define BRUTE_MASK_BODYGROUP FindBodygroupByName("mask")
 
 #define LONGFALL_GEAR_BODYGROUP 1
 #define LONGFALL_GLOW_CHEST_SPRITE	"sprites/light_glow01.vmt"
@@ -189,7 +189,7 @@ const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too fa
 #define LONGFALL_GLOW_CHEST_A		255
 #define LONGFALL_GLOW_CHEST_R		255
 #define LONGFALL_GLOW_CHEST_G		230
-#define LONGFALL_GLOW_CHEST_B		105
+#define LONGFALL_GLOW_CHEST_B		IsMedic() ? 200 : 105
 #define LONGFALL_GLOW_CHEST_SCALE	0.5f
 #define LONGFALL_GLOW_CHEST_JUMP_BRIGHT	255
 #define LONGFALL_GLOW_CHEST_JUMP_A		255
@@ -376,8 +376,8 @@ static const char *g_ppszModelLocs[] =
 	"Group02",
 	"Group03%s",
 	"Group03%s",
-	"Group03b",
-	"Group03x", // May wish to change this to "Group04%s" IF a brute and medic version of the long fall rebel are created - then we can have Group04, Group04b, Group04m
+	"Group03b%s",
+	"Group03x%s",
 	"Group04%s",
 	"Group05",
 	"Group05b",
@@ -595,7 +595,7 @@ void CNPC_Citizen::PrecacheAllOfType( CitizenType_t type )
 	}
 
 #ifdef EZ
-	if ( m_Type == CT_REBEL || m_Type == CT_ARCTIC )
+	if ( IsMedic() && (m_Type == CT_REBEL || m_Type == CT_ARCTIC || m_Type == CT_BRUTE || m_Type == CT_LONGFALL) )
 #else
 	if ( m_Type == CT_REBEL )
 #endif
@@ -993,24 +993,7 @@ void CNPC_Citizen::SelectModel()
 	// Unique citizen models are left alone
 	if ( m_Type != CT_UNIQUE )
 	{
-#ifdef EZ2
-		const char * subtype = ""; // 1upD - used to be the only subtype was "m" for medic
-
-		// if (m_Type == CT_REBEL)
-		// 	subtype = (m_spawnEquipment == AllocPooledString("weapon_shotgun")) ? "b" : subtype;	// Rebel Brute - may wish to rethink this approach
-		// 																							//	Currently, rebels with shotguns are still CT_REBEL with modelset Group03b
-		// 																							//	If we want any special behaviors for the brute, we will need to set the type of
-		// 																							//	shotgun rebels to "CT_BRUTE".
-		subtype = (IsMedic()) ? "m" : subtype; // Rebel Medic takes precedence
-
-		// If this citizen's type is "LongFall", they should use the appropriate subtype
-		if (m_Type == CT_LONGFALL)
-			subtype = "x"; // We may wish to change this so that long fall boot rebels are Group04. We would do this in order to get a separate -b and -m group for long fall citizens - for now let's not bother
-
-		SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], subtype )), pszModelName ) ) );
-#else		
-	SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszModelName ) ) );
-#endif
+		SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszModelName ) ) );
 	}
 }
 

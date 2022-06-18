@@ -69,6 +69,13 @@ ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NO
 ConVar npc_combine_order_surrender_max_dist( "npc_combine_order_surrender_max_dist", "224", FCVAR_NONE, "The maximum distance a soldier can order surrenders from. Beyond that, they will only pursue." );
 ConVar npc_combine_order_surrender_min_tlk_surrender( "npc_combine_order_surrender_min_tlk_surrender", "2.0", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_SURRENDER before being considered for surrenders, assuming they haven't already spoken TLK_BEG." );
 ConVar npc_combine_order_surrender_min_tlk_beg( "npc_combine_order_surrender_min_tlk_beg", "0.5", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_BEG before being considered for surrenders, assuming they haven't already spoken TLK_SURRENDER." );
+
+ConVar	sv_squadmate_glow( "sv_squadmate_glow", "1", FCVAR_REPLICATED, "If 1, Combine soldier squadmates will glow when they are in the player's squad. The color of the glow represents their HP." );
+ConVar	sv_squadmate_glow_style( "sv_squadmate_glow_style", "1", FCVAR_REPLICATED, "Different colors for Combine squadmate glows. 0: Green means 100 HP, red means 0 HP\t1: White means 100 HP, red means 0 HP");
+ConVar	sv_squadmate_glow_alpha( "sv_squadmate_glow_alpha", "0.6", FCVAR_REPLICATED, "On a scale of 0-1, how much alpha should the squadmate glow have" );
+
+#define COMBINE_GLOW_STYLE_REDGREEN	0
+#define COMBINE_GLOW_STYLE_REDWHITE	1
 #endif
 
 #define COMBINE_SKIN_DEFAULT		0
@@ -668,6 +675,54 @@ void CNPC_Combine::FixupPlayerSquad()
 	m_bHoldPositionGoal = false;
 
 	ToggleSquadCommand();
+
+	UpdateSquadGlow();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Add or remove glow effects as necessary, then update the color
+//-----------------------------------------------------------------------------
+void CNPC_Combine::UpdateSquadGlow()
+{
+	bool shouldGlow = ShouldSquadGlow();
+	if ( !m_bGlowEnabled.Get() && shouldGlow )
+	{
+		AddGlowEffect();
+	}
+	else if ( m_bGlowEnabled.Get() && !shouldGlow )
+	{
+		RemoveGlowEffect();
+	}
+
+	if ( m_bGlowEnabled.Get() )
+	{
+		float healthPercentage = ((float)m_iHealth / ((float)m_iMaxHealth));
+
+		float red = 0;
+		float blue = 0;
+		float green = 0;
+
+		switch (sv_squadmate_glow_style.GetInt())
+		{
+		case COMBINE_GLOW_STYLE_REDGREEN:
+			red = 1.0f - healthPercentage;
+			green = healthPercentage;
+			blue = 0.0f;
+			break;
+		case COMBINE_GLOW_STYLE_REDWHITE:
+			red = 1.0f;
+			green = healthPercentage;
+			blue = healthPercentage;
+			break;
+		}
+
+		SetGlowColor( red, green, blue, sv_squadmate_glow_alpha.GetFloat() );
+	}
+}
+
+bool CNPC_Combine::ShouldSquadGlow()
+{
+	return sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad();
 }
 
 //-----------------------------------------------------------------------------
@@ -729,6 +784,8 @@ void CNPC_Combine::RemoveFromPlayerSquad()
 	{
 		SetCommandGoal( vec3_invalid );
 	}
+
+	UpdateSquadGlow();
 }
 
 //-----------------------------------------------------------------------------
@@ -1512,6 +1569,13 @@ void CNPC_Combine::PrescheduleThink()
 #ifdef EZ
 	// 1upD - Copied from citizen
 	UpdateFollowCommandPoint();
+
+
+	// Update glow if we are commandable
+	if ( ShouldSquadGlow() && ( !m_bGlowEnabled.Get() || ( GetHealth() < GetMaxHealth() && ShouldRegenerateHealth() ) ) )
+	{
+		UpdateSquadGlow();
+	}
 #endif
 
 	// Speak any queued sentences
@@ -2609,6 +2673,14 @@ bool CNPC_Combine::PassesDamageFilter( const CTakeDamageInfo &info )
 
 	return BaseClass::PassesDamageFilter(info);
 }
+
+// Overridden to update glow effects when taking damage
+int CNPC_Combine::OnTakeDamage_Alive( const CTakeDamageInfo & info )
+{
+	int ret = BaseClass::OnTakeDamage_Alive(info);
+	UpdateSquadGlow();
+	return ret;
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -2872,7 +2944,8 @@ void CNPC_Combine::AnnounceAssault(void)
 	if ( FVisible( pBCC ) )
 	{
 #ifdef EZ2
-		AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
+		if (GetSquad() && GetSquad()->NumMembers() > 1)
+			AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
 #endif
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
 		SpeakIfAllowed( TLK_CMB_ASSAULT );
@@ -4944,7 +5017,12 @@ int CNPC_Combine::MeleeAttack1Conditions ( float flDot, float flDist )
 	if ( GetEnemy() && fabs(GetEnemy()->GetAbsOrigin().z - GetAbsOrigin().z) > 64 )
 		return COND_NONE;
 
+#ifdef EZ
+	// Soldiers are incapable of kicking the babies
+	if ( GetEnemy() && GetEnemy()->IsNPC() && GetEnemy()->MyNPCPointer()->GetHullType() == HULL_TINY )
+#else
 	if ( dynamic_cast<CBaseHeadcrab *>(GetEnemy()) != NULL )
+#endif
 	{
 		return COND_NONE;
 	}

@@ -102,6 +102,7 @@ public:
 	void Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info );
 
 	virtual bool	PassesDamageFilter( const CTakeDamageInfo &info );
+	virtual int 	OnTakeDamage_Alive( const CTakeDamageInfo &info );
 #endif
 
 	void SetActivity( Activity NewActivity );
@@ -164,6 +165,8 @@ public:
 	virtual void	AddToPlayerSquad();
 	virtual void	RemoveFromPlayerSquad();
 	virtual void	FixupPlayerSquad();
+	virtual void	UpdateSquadGlow();
+	virtual bool    ShouldSquadGlow();
 	virtual bool	ShouldRegenerateHealth(void);
 	virtual void	UpdateFollowCommandPoint();
 	virtual bool	IsFollowingCommandPoint();

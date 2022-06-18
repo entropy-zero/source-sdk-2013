@@ -32,6 +32,7 @@ $Project "Server (Entropy Zero 2)"
 		{
 			$File	"Human_Error\vehicle_drivable_apc.h"
 			$File	"Human_Error\vehicle_drivable_apc.cpp"
+			$File	"Human_Error\hlss_weapon_id.h"
 		}
 		$Folder	"EZ2 DLL"
 		{
@@ -332,6 +333,7 @@ $Project "Server (Entropy Zero 2)"
 			$File	"hl2\weapon_rpg.h"
 			$File	"hl2\weapon_shotgun.cpp"
 			$File	"hl2\weapon_smg1.cpp"
+			$File	"hl2\weapon_sniperrifle.cpp"
 			$File	"episodic\weapon_striderbuster.cpp"
 			$File	"episodic\weapon_striderbuster.h"
 			$File	"$SRCDIR\game\shared\hl2mp\weapon_stunstick.cpp"

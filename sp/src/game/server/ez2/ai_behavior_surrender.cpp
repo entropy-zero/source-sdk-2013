@@ -449,6 +449,11 @@ void CAI_SurrenderBehavior::ComputeAndSetRenderBounds()
 				GetOuter()->SetupVPhysicsHull();
 			}
 			m_bUsingCustomBounds = true;
+
+			// For now, don't allow surrendered NPCs to fall
+			// (fixes falling through displacements)
+			// TODO: Cover cases where citizens surrender on moveable ground?
+			GetOuter()->AddFlag( FL_FLY );
 		}
 	}
 }
@@ -460,6 +465,7 @@ void CAI_SurrenderBehavior::ResetBounds()
 	if ( m_bUsingCustomBounds )
 	{
 		GetOuter()->SetHullSizeNormal( true );
+		GetOuter()->RemoveFlag( FL_FLY );
 		m_bUsingCustomBounds = false;
 	}
 }
@@ -769,6 +775,19 @@ bool CAI_SurrenderBehavior::IsInterruptable( void )
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+bool CAI_SurrenderBehavior::CanSurrender()
+{
+	if (!m_bCanSurrender)
+		return false;
+
+	if (GetNpcState() == NPC_STATE_SCRIPT || GetOuter()->IsInAScript())
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 void CAI_SurrenderBehavior::Surrender( CBaseCombatCharacter *pCaptor )
 {
 	m_bSurrendered = true;
@@ -781,6 +800,8 @@ void CAI_SurrenderBehavior::Surrender( CBaseCombatCharacter *pCaptor )
 		m_iSurrenderFlags |= SURRENDER_FLAGS_SURRENDER_AUTOMATICALLY;
 
 	m_bJustSurrendered = true; //SetCondition( COND_SURRENDER_INITIAL );
+
+	SetCondition( COND_RECEIVED_ORDERS ); // Interrupts running schedules
 
 	GetOuter()->FireNamedOutput( "OnSurrender", variant_t(), pCaptor, GetOuter(), 0.0f );
 }
@@ -870,6 +891,7 @@ CBaseCombatCharacter *CAI_SurrenderBehavior::GetNearestPotentialCaptor( bool bIn
 			case CLASS_PROTOSNIPER:
 			case CLASS_SCANNER:
 			case CLASS_ARBEIT_TECH: // Arbeit turrets can be used. Oh, and Wilson too
+			case CLASS_COMBINE_NEMESIS:
 				bCombine = true;
 				break;
 			}
