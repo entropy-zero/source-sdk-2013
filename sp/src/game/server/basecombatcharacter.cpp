@@ -1670,6 +1670,12 @@ CBaseEntity *CBaseCombatCharacter::BecomeRagdollBoogie( CBaseEntity *pKiller, co
 #ifdef EZ
 bool CBaseCombatCharacter::TestRagdollPin( const Vector &vecOrigin, const Vector &vecDirection )
 {
+	// Temporal variants cannot be pinned because their bodies fade out
+	if (GetEZVariant() == EZ_VARIANT_TEMPORAL )
+	{
+		return false;
+	}
+
 	trace_t tr;
 
 	UTIL_TraceLine( vecOrigin, vecOrigin + vecDirection * 32, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
