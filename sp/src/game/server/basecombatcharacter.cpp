@@ -1701,7 +1701,7 @@ bool CBaseCombatCharacter::BecomeRagdoll( const CTakeDamageInfo &info, const Vec
 
 	// DMG_NEVERGIB is used exclusively by crossbows at the moment. Things other than crossbows with that
 	// damage type may cause client ragdolls when we want server ragdolls. Consider a better check.
-	if ( info.GetDamageType() & DMG_NEVERGIB && TestRagdollPin( GetAbsOrigin(), forceVector / forceVector.Length() ) )
+	if ( info.GetDamageType() & DMG_NEVERGIB && TestRagdollPin( info.GetDamagePosition(), forceVector.Normalized() ) )
 	{
 		// Server ragdolls can't be pinned, so use a client ragdoll
 		return BecomeRagdollOnClient( forceVector );
