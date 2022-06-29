@@ -303,10 +303,10 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 				UTIL_SetOrigin( pBolt, vSpitPos );
 				pBolt->SetAbsAngles( angAiming );
 				pBolt->KeyValue( "ImpactEffect", "DroneBoltImpact" );
+				pBolt->SetModel( "models/pitdrone_projectile.mdl" );
 				pBolt->Spawn();
 				pBolt->SetOwnerEntity( this );
 				pBolt->SetDamage( GetProjectileDamge() );
-				pBolt->SetModel( "models/pitdrone_projectile.mdl" );
 
 				if ( this->GetWaterLevel() == 3 )
 				{
