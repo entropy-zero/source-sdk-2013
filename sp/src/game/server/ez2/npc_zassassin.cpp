@@ -850,15 +850,23 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH );
 			if ( pHurt )
 			{
+				EmitSound( filter, entindex(), "Zombie.AttackHit" );
+			}
+			else // Play a random attack miss sound
+			{
+				EmitSound( filter, entindex(), "Zombie.AttackMiss" );
+			}
+
+			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
+			if ( pHurt && ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS ) )
+			{
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
 				pHurt->SetGroundEntity( NULL );
-				EmitSound( filter, entindex(), "Zombie.AttackHit" );
 			}
-			else // Play a random attack miss sound
-			EmitSound( filter, entindex(), "Zombie.AttackMiss" );
+
 		}
 		break;
 
@@ -869,14 +877,18 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			if ( pHurt ) 
 			{
 				EmitSound( filter, entindex(), "Gonome.Bite" );
-				Vector right, up;
-				AngleVectors( GetAbsAngles(), NULL, &right, &up );
 
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
-					 pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
-			
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
+
+				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+				{
+					Vector right, up;
+					AngleVectors( GetAbsAngles(), NULL, &right, &up );
+
+					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
+					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+				}
 
 				// If we were trying to spawn and hit something by accident, defer spawning for a while
 				if (m_bReadyToSpawn)

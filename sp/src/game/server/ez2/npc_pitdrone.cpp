@@ -334,7 +334,11 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 			if (pHurt)
 			{
 				BiteSound(); // Only play the bite sound if we have a target
+			}
 
+			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
+			if ( pHurt && ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS ) )
+			{
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 				pHurt->ApplyAbsVelocityImpulse( 100 * (up-forward) * GetModelScale() );
@@ -354,13 +358,16 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetWhipDamage(), DMG_SLASH | DMG_ALWAYSGIB );
 			if (pHurt)
 			{
-				Vector right, up;
-				AngleVectors( GetAbsAngles(), NULL, &right, &up );
-
 				if (pHurt->GetFlags() & (FL_NPC | FL_CLIENT))
 					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
 
-				pHurt->ApplyAbsVelocityImpulse( 100 * (up+2*right) * GetModelScale() );
+				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+				{
+					Vector right, up;
+					AngleVectors( GetAbsAngles(), NULL, &right, &up );
+
+					pHurt->ApplyAbsVelocityImpulse( 100 * (up+2*right) * GetModelScale() );
+				}
 			}
 		}
 		break;
