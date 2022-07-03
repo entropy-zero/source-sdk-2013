@@ -1499,6 +1499,16 @@ void CHudWeaponSelection::SelectWeaponSlot( int iSlot )
 			{
 				pActiveWeapon = GetNextActivePos( iSlot, 0 );
 			}
+
+#ifdef EZ2
+			if ( iSlot == 0 && !pActiveWeapon )
+			{
+				// If we have no weapons in the first slot, look for a weapon in the second slot.
+				// This is so that people who reach for a melee weapon in E:Z2 will access their pulse pistol.
+				SelectWeaponSlot( 2 );
+				return;
+			}
+#endif
 			
 			if ( pActiveWeapon != NULL )
 			{
