@@ -1696,6 +1696,11 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
 		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
 	}
+
+	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( m_Type == CT_BRUTE || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	{
+		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
+	}
 #endif
 
 	if ( IsCurSchedule( SCHED_IDLE_STAND ) || IsCurSchedule( SCHED_ALERT_STAND ) )
@@ -1812,9 +1817,19 @@ int CNPC_Citizen::SelectFailSchedule( int failedSchedule, int failedTask, AI_Tas
 //-----------------------------------------------------------------------------
 int CNPC_Citizen::SelectSchedule()
 {
-// TODO - Find a better spot for this!
 #ifdef EZ
+	// TODO - Find a better spot for this!
 	TrySpeakBeg();
+
+	// Reserve strategy slot if I am a rebel brute, otherwise clear
+	if ( m_Type == CT_BRUTE && !IsStrategySlotRangeOccupied( SQUAD_SLOT_CITIZEN_ADVANCE, SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	{
+		OccupyStrategySlot( SQUAD_SLOT_CITIZEN_ADVANCE );
+	}
+	else if (m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE)
+	{
+		VacateStrategySlot();
+	}
 #endif
 
 #ifdef MAPBASE
