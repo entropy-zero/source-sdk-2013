@@ -34,7 +34,6 @@ $Project "Client (Entropy Zero 2)"
 		}
 		$Folder "EZ2 DLL"
 		{
-			$File	"ez2\achievements_EZ2_client.cpp"
 			$File	"ez2\c_ez2_player.cpp"
 			$File	"ez2\c_ez2_player.h"
 			$File	"ez2\c_npc_wilson.cpp"
