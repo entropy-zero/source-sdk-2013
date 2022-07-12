@@ -463,7 +463,7 @@ void CItem_ItemCrate::OnBreak( const Vector &vecVelocity, const AngularImpulse &
 
 		if ( pSpawn->IsNPC() )
 		{
-			OnSpawnNPC( pSpawn, pBreaker->MyCombatCharacterPointer() );
+			OnSpawnNPC( pSpawn, pBreaker ? pBreaker->MyCombatCharacterPointer() : NULL );
 		}
 #endif
 
