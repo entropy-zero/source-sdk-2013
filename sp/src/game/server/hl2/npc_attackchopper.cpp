@@ -6556,14 +6556,14 @@ void CNPC_ArbeitHelicopter::OpenDoorsThink( void )
 {
 	if (m_flDoorTransitionTime <= gpGlobals->curtime)
 	{
-		Msg("Done opening doors\n");
+		//Msg("Done opening doors\n");
 		m_flDoorTransitionTime = -1.0f;
 		SetPoseParameter( m_poseDoors, 25.0f );
 		SetContextThink( NULL, TICK_NEVER_THINK, g_pszGunnerSpawnContext );
 		return;
 	}
 
-	Msg("Opening doors (%f)\n", Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 0.0f, 25.0f ) );
+	//Msg("Opening doors (%f)\n", Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 0.0f, 25.0f ) );
 
 	SetPoseParameter( m_poseDoors, Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 25.0f, 0.0f ) );
 
@@ -6577,7 +6577,7 @@ void CNPC_ArbeitHelicopter::CloseDoorsThink( void )
 {
 	if (m_flDoorTransitionTime <= gpGlobals->curtime)
 	{
-		Msg("Done closing doors\n");
+		//Msg("Done closing doors\n");
 		m_flDoorTransitionTime = -1.0f;
 		SetPoseParameter( m_poseDoors, 0.0f );
 
@@ -6590,7 +6590,7 @@ void CNPC_ArbeitHelicopter::CloseDoorsThink( void )
 		return;
 	}
 
-	Msg("Closing doors (%f)\n", Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 25.0f, 0.0f ) );
+	//Msg("Closing doors (%f)\n", Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 25.0f, 0.0f ) );
 
 	SetPoseParameter( m_poseDoors, Lerp( m_flDoorTransitionTime - gpGlobals->curtime, 0.0f, 25.0f ) );
 
