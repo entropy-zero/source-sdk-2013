@@ -655,6 +655,10 @@ private:
 	void SpotlightStartup();
 	void SpotlightShutdown();
 
+#ifdef EZ2
+protected:
+#endif
+
 	CBaseEntity *GetCrashPoint()	{ return m_hCrashPoint.Get(); }
 
 private:
@@ -708,6 +712,9 @@ protected:
 	QAngle		m_vecAngAcceleration;
 	int			m_iAmmoType;
 	float		m_flLastCorpseFall;
+#ifdef EZ2
+private:
+#endif
 	GunState_t	m_nGunState;
 	float		m_flChargeTime;
 	float		m_flIdleTimeDelay;
@@ -729,7 +736,14 @@ protected:
 	bool		m_bIndestructible;
 	float		m_flGracePeriod;
 	bool		m_bBombsExplodeOnContact;
+
+#ifdef EZ2
+protected:
+#endif
 	bool		m_bNonCombat;
+#ifdef EZ2
+private:
+#endif
 
 	int			m_nNearShots;
 	int			m_nMaxNearShots;
@@ -776,6 +790,10 @@ protected:
 	// Fun damage effects
 	float		m_flGoalRollDmg;
 	float		m_flGoalYawDmg;
+
+#ifdef EZ2
+protected:
+#endif
 
 	// Sounds
 	CSoundPatch	*m_pGunFiringSound;
