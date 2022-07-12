@@ -6302,6 +6302,7 @@ public:
 	Class_T Classify ( void ) { return CLASS_PLAYER_ALLY; }
 
 	virtual int	OnTakeDamage_Alive( const CTakeDamageInfo &info );
+	virtual void Event_Killed( const CTakeDamageInfo &info );
 
 	// Think!
 	virtual void PrescheduleThink( void );
@@ -6485,6 +6486,11 @@ bool CNPC_ArbeitHelicopter::CreateVPhysics( void )
 void CNPC_ArbeitHelicopter::Precache( void )
 {
 	BaseClass::Precache();
+
+	if (!m_bNonCombat)
+	{
+		PrecacheModel( "models/props_vehicles/arbeit_heli_stationary.mdl" );
+	}
 
 	PrecacheScriptSound( "NPC_ArbeitHelicopter.RotorBlast" );
 	PrecacheScriptSound( "NPC_ArbeitHelicopter.RotorsLoud" );
@@ -6730,6 +6736,91 @@ int CNPC_ArbeitHelicopter::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 	}
 
 	return nRetVal;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Start us crashing
+//-----------------------------------------------------------------------------
+void CNPC_ArbeitHelicopter::Event_Killed( const CTakeDamageInfo &info )
+{
+	if( m_lifeState == LIFE_ALIVE )
+	{
+		m_OnShotDown.FireOutput( this, this );
+	}
+
+	m_lifeState	= LIFE_DYING;
+
+	if (m_pGunFiringSound)
+	{
+		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+		controller.SoundChangeVolume( m_pGunFiringSound, 0.0, 0.1f );
+	}
+
+	if( GetCrashPoint() == NULL )
+	{
+		CBaseEntity *pCrashPoint = gEntList.FindEntityByClassname( NULL, "info_target_helicopter_crash" );
+		if( pCrashPoint != NULL )
+		{
+			m_hCrashPoint.Set( pCrashPoint );
+			SetDesiredPosition( pCrashPoint->GetAbsOrigin() );
+
+			// Start the failing engine sound
+			CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+			controller.SoundDestroy( m_pRotorSound );
+
+			CPASAttenuationFilter filter( this );
+			m_pRotorSound = controller.SoundCreate( filter, entindex(), "NPC_AttackHelicopter.EngineFailure" );
+			controller.Play( m_pRotorSound, 1.0, 100 );
+
+			if ( HaveSequenceForActivity( ACT_HELICOPTER_CRASHING ) )
+			{
+				// Tailspin!!
+				SetActivity( ACT_HELICOPTER_CRASHING );
+			}
+
+			// Intentionally returning with m_lifeState set to LIFE_DYING
+			return;
+		}
+	}
+
+	// Kill our gunners
+	for (int i = 0; i < ARBEIT_HELI_MAX_GUNNERS; i++)
+	{
+		CAI_BaseNPC *pNPC = m_hGunners[i];
+		if (!pNPC)
+			continue;
+
+		pNPC->TakeDamage( info );
+
+		m_hGunners[i] = NULL;
+	}
+
+	// For now, create a charred stationary version of ourselves
+	// TODO: Unique crash model
+	CHelicopterChunk *pBodyChunk = CHelicopterChunk::CreateHelicopterChunk( GetAbsOrigin(), GetAbsAngles(), GetAbsVelocity(), "models/props_vehicles/arbeit_heli_stationary.mdl", CHUNK_BODY );
+	if (pBodyChunk)
+	{
+		pBodyChunk->SetRenderColor( 64, 64, 64 );
+	}
+
+	StopLoopingSounds();
+
+	m_lifeState = LIFE_DEAD;
+
+	EmitSound( "NPC_CombineGunship.Explode" );
+
+	SetThink( &CNPC_AttackHelicopter::SUB_Remove );
+	SetNextThink( gpGlobals->curtime + 0.1f );
+
+	AddEffects( EF_NODRAW );
+
+	// Makes the slower rotors fade back in
+	SetStartupTime( gpGlobals->curtime + 99.0f );
+
+	m_iHealth = 0;
+	m_takedamage = DAMAGE_NO;
+
+	m_OnDeath.FireOutput( info.GetAttacker(), this );
 }
 
 //------------------------------------------------------------------------------
