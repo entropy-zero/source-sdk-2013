@@ -22,6 +22,8 @@ public:
 	virtual void	Spawn( void );
 	virtual void	Precache( void );
 
+	virtual void	BuildScheduleTestBits( void );
+
 	virtual bool	SelectIdleSpeech( AISpeechSelection_t *pSelection );
 	virtual void	OnStartSchedule( int scheduleType );
 
@@ -43,12 +45,29 @@ protected:
 	bool MovementCost( int moveType, const Vector &vecStart, const Vector &vecEnd, float *pCost );
 
 	// Since all dynamic interactions are shared with vortigaunts, zombigaunts cannot use dynamic interactions
+	// TODO - Replace this with code that checks that the other NPC isn't a vortigaunt.
+	// Hypothetically, this shouldn't be an issue - but vortigaunts and zombigaunts still use antlion dynamic intaeractions on each other occasionally.
 	virtual bool CanRunAScriptedNPCInteraction( bool bForced = false ) { return false;  }
 
 	// Zombigaunts have a much slower recharge time than vortigaunts, making them more likely to close in for the kill
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 5.0f, 10.0f ); }
 	virtual float GetNextDispelTime( void );
 	virtual float GetNextHealthDrainTime( void );
+
+	virtual float	GetDispelAttackRange();
+
+	// Overridden to handle particle effects
+	virtual void		StartEye( void ); // Start glow effects for this NPC
+	virtual void		Wake( bool bFireOutput = true );
+	virtual void		Wake( CBaseEntity *pActivator );
+	void				BleedThink();
+	void				Event_Killed( const CTakeDamageInfo &info );
+
+private:
+
+	// Blixibon - Needed so charge scenes can be canceled properly
+	string_t m_iszChargeResponse;
+	float m_flChargeResponseEnd;
 
 public:
 	DECLARE_DATADESC();
