@@ -238,6 +238,12 @@ void CNPC_CloneCop::BuildScheduleTestBits( void )
 	{
 		SetCustomInterruptCondition( COND_HEALTH_ITEM_AVAILABLE );
 	}
+
+	if ( IsCurSchedule( SCHED_RUN_FROM_ENEMY, true ) && IsCurSchedule( SCHED_PC_MELEE_AND_MOVE_AWAY, false ) )
+	{
+		// HACKHACK: CNPC_PlayerCompanion's melee code thinks the schedule is still SCHED_RUN_FROM_ENEMY, so don't let it interrupt and get stuck in a loop
+		ClearCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -363,9 +369,6 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 		{
 			if (HasCondition( COND_CAN_MELEE_ATTACK1 ))
 			{
-				// HACKHACK: CNPC_PlayerCompanion's melee code thinks the schedule is still SCHED_RUN_FROM_ENEMY, so don't let it interrupt and get stuck in a loop
-				ClearCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
-
 				return SCHED_PC_MELEE_AND_MOVE_AWAY;
 			}
 		} break;
