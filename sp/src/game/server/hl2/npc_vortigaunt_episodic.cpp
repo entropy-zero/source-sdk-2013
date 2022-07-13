@@ -864,7 +864,11 @@ int CNPC_Vortigaunt::MeleeAttack1Conditions( float flDot, float flDist )
 	{
 		m_flDispelTestTime = gpGlobals->curtime + 1.0f;
 
-		if (flDist < 128 )
+#ifndef EZ2
+		if ( flDist < 128 )
+#else
+		if ( flDist < GetDispelAttackRange() )
+#endif
 		{
 			m_flDispelTestTime = gpGlobals->curtime + GetNextDispelTime();
 			return COND_VORTIGAUNT_DISPEL_ANTLIONS;
@@ -874,6 +878,16 @@ int CNPC_Vortigaunt::MeleeAttack1Conditions( float flDot, float flDist )
 	return condition;
 #endif
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: How far away will this vortigaunt attempt a dispel attack
+//-----------------------------------------------------------------------------
+float CNPC_Vortigaunt::GetDispelAttackRange()
+{
+	return 128.0f;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 

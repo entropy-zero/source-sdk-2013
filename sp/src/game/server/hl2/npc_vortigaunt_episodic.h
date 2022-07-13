@@ -69,6 +69,7 @@ public:
 	virtual float	InnateRange1MaxRange( void ) { return sk_vortigaunt_zap_range.GetFloat()*12; }
 #else
 	virtual float	InnateRange1MaxRange( void ) { return MAX( sk_vortigaunt_zap_range.GetFloat()*12, m_flZapRange ); }
+	virtual float	GetDispelAttackRange();
 #endif
 	virtual int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual bool	FInViewCone( CBaseEntity *pEntity );
@@ -170,7 +171,11 @@ private:
 
 	void	CreateBeamBlast( const Vector &vecOrigin );
 
+#ifndef EZ
 private:
+#else
+protected:
+#endif
 	//=========================================================
 	// Vortigaunt schedules
 	//=========================================================
@@ -215,6 +220,10 @@ private:
 		COND_VORTIGAUNT_HEAL_VALID,				// All conditions satisfied	
 		COND_VORTIGAUNT_DISPEL_ANTLIONS,		// Repulse all antlions around us
 	};
+
+#ifdef EZ
+private:
+#endif
 
 	// ------------
 	// Beams
