@@ -96,6 +96,10 @@ bool C_AnimationLayer::IsActive( void )
 	return (m_nOrder != C_BaseAnimatingOverlay::MAX_OVERLAYS);
 }
 
+#ifdef EZ
+ConVar cl_SuppressNonPlayerMaterialFootsteps( "cl_SuppressNonPlayerMaterialFootsteps", "0", FCVAR_NONE, "Prevent base animating entities from making material footstep sounds like the player does." );
+#endif
+
 //-----------------------------------------------------------------------------
 // Relative lighting entity
 //-----------------------------------------------------------------------------
@@ -3836,6 +3840,17 @@ bool C_BaseAnimating::DispatchMuzzleEffect( const char *options, bool isFirstPer
 //-----------------------------------------------------------------------------
 void MaterialFootstepSound( C_BaseAnimating *pEnt, bool bLeftFoot, float flVolume )
 {
+#ifdef EZ
+	// Not happy about this, but since material footstep sounds are treated as being exclusive
+	// to the player in EZ2, we need a way to force off all material footstep sounds.
+	// Ideally we should find a way to separate out player footstep sounds!
+	if ( cl_SuppressNonPlayerMaterialFootsteps.GetBool() )
+	{
+		return;
+	}
+#endif
+
+
 	trace_t tr;
 	Vector traceStart;
 	QAngle angles;

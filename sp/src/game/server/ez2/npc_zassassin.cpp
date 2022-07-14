@@ -81,6 +81,7 @@ ConVar sk_zombie_assassin_dmg_spit ( "sk_zombie_assassin_dmg_spit", "15" );
 ConVar sk_zombie_assassin_spawn_time( "sk_zombie_assassin_spawn_time", "5.0" );
 ConVar sk_zombie_assassin_look_dist( "sk_zombie_assassin_look_dist", "1024.0" );
 ConVar sk_zombie_assassin_eatincombat_percent( "sk_zombie_assassin_eatincombat_percent", "1.0", FCVAR_NONE, "Below what percentage of health should gonomes eat during combat?" );
+ConVar sk_zombie_assassin_armsout_dist( "sk_zombie_assassin_armsout_dist", "350.0", FCVAR_NONE, "How far away to begin reaching out to the enemy" );
 
 //=========================================================
 // monster-specific schedule types
@@ -91,6 +92,9 @@ enum
 	SCHED_GONOME_RANGE_ATTACK1, // Like standard range attack, but with no interrupts for damage
 	SCHED_GONOME_SCHED_RUN_FROM_ENEMY, // Like standard run from enemy, but looks for a point to run to 512 units away
 	SCHED_GONOME_FRUSTRATION, // Almost caught enemy, but they escaped, so throw a fit
+	SCHED_GONOME_FLANK_ENEMY, // Try to go around to attack the enemy
+
+	TASK_GONOME_GET_FLANK_PATH = LAST_SHARED_PREDATOR_TASK + 1, // Try a number of flanking methods
 };
 
 //=========================================================
@@ -322,6 +326,8 @@ void CNPC_Gonome::Spawn()
 
 	// Separate convar for gonome look distance to make them "blind"
 	SetDistLook( sk_zombie_assassin_look_dist.GetFloat() );
+
+	m_poseArmsOut = LookupPoseParameter( "arms_out" );
 }
 
 //=========================================================
@@ -411,6 +417,12 @@ int CNPC_Gonome::TranslateSchedule( int scheduleType )
 	switch	( scheduleType )
 	{
 		case SCHED_CHASE_ENEMY:
+
+			if (RandomInt( 0, 1 ) == 1 && HasCondition(COND_LIGHT_DAMAGE) && GetMaxHealth() != 0 && GetAbsOrigin().AsVector2D().DistToSqr( GetEnemyLKP().AsVector2D() ) > Square(256.0f))
+			{
+				return SCHED_GONOME_FLANK_ENEMY;
+			}
+
 			return SCHED_GONOME_CHASE_ENEMY;
 			break;
 		// 1upD - Gonome specific range attack cannot be interrupted by damage
@@ -578,6 +590,122 @@ bool CNPC_Gonome::IsJumpLegal(const Vector &startPos, const Vector &apex, const 
 	return false;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Gonome::OnChangeActivity( Activity eNewActivity )
+{
+	BaseClass::OnChangeActivity( eNewActivity );
+
+	if ( /*(GetActivity() == ACT_RUN || 
+		 GetActivity() == ACT_RUN_AIM ||
+		 GetActivity() == ACT_WALK) &&*/
+		eNewActivity != ACT_IDLE )
+	{
+		// If we're no longer in the same movement activity, stop the range attack
+		if (IsPlayingGesture( ACT_GESTURE_RANGE_ATTACK1 ))
+			RemoveGesture( ACT_GESTURE_RANGE_ATTACK1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: turn in the direction of movement
+// Output :
+//-----------------------------------------------------------------------------
+bool CNPC_Gonome::OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval )
+{
+	if (!HasPoseParameter( GetSequence(), m_poseMove_Yaw ))
+	{
+		return BaseClass::OverrideMoveFacing( move, flInterval );
+	}
+
+	if (IsPlayingGesture( ACT_GESTURE_RANGE_ATTACK1 ))
+	{
+		return BaseClass::OverrideMoveFacing( move, flInterval );
+	}
+
+	if (IsCurSchedule( SCHED_GONOME_FLANK_ENEMY, false ) && GetEnemy())
+	{
+		// Always face enemy when flanking
+		GetMotor()->SetIdealYawToTargetAndUpdate( GetEnemyLKP() );
+		return true;
+	}
+
+	// required movement direction
+	float flMoveYaw = UTIL_VecToYaw( move.dir );
+	float idealYaw = UTIL_AngleMod( flMoveYaw );
+
+	if (GetEnemy())
+	{
+		float flEDist = UTIL_DistApprox2D( WorldSpaceCenter(), GetEnemy()->WorldSpaceCenter() );
+
+		if (flEDist < 512.0)
+		{
+			float flEYaw = UTIL_VecToYaw( GetEnemy()->WorldSpaceCenter() - WorldSpaceCenter() );
+
+			if (flEDist < 128.0)
+			{
+				idealYaw = flEYaw;
+			}
+			else
+			{
+				idealYaw = flMoveYaw + UTIL_AngleDiff( flEYaw, flMoveYaw ) * (2 - flEDist / 128.0);
+			}
+
+			//DevMsg("was %.0f now %.0f\n", flMoveYaw, idealYaw );
+		}
+	}
+
+	GetMotor()->SetIdealYawAndUpdate( idealYaw );
+
+	// find movement direction to compensate for not being turned far enough
+	float fSequenceMoveYaw = GetSequenceMoveYaw( GetSequence() );
+	float flDiff = UTIL_AngleDiff( flMoveYaw, GetLocalAngles().y + fSequenceMoveYaw );
+	SetPoseParameter( m_poseMove_Yaw, GetPoseParameter( m_poseMove_Yaw ) + flDiff );
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Returns the maximum yaw speed based on the monster's current activity.
+//-----------------------------------------------------------------------------
+float CNPC_Gonome::MaxYawSpeed( void )
+{
+	if (IsMoving() && HasPoseParameter( GetSequence(), m_poseMove_Yaw ))
+	{
+		// Make sure we can turn quickly when throwing
+		if ( IsPlayingGesture(ACT_GESTURE_RANGE_ATTACK1) )
+			return 30;
+
+		return( 15 );
+	}
+	else
+	{
+		switch( GetActivity() )
+		{
+		case ACT_TURN_LEFT:
+		case ACT_TURN_RIGHT:
+			return 100;
+			break;
+		case ACT_RUN:
+			return 15;
+			break;
+		case ACT_WALK:
+		case ACT_IDLE:
+			return 25;
+			break;
+		case ACT_RANGE_ATTACK1:
+		case ACT_RANGE_ATTACK2:
+		case ACT_MELEE_ATTACK1:
+		case ACT_MELEE_ATTACK2:
+			return 120;
+		default:
+			return 90;
+			break;
+		}
+	}
+}
+
 //=========================================================
 // IdleSound 
 //=========================================================
@@ -722,6 +850,16 @@ void CNPC_Gonome::PrescheduleThink( void )
 	{
 		m_flBurnDamage = 0;
 	}
+
+	if ( GetEnemy() && HasCondition( COND_SEE_ENEMY ) )
+	{
+		float flValue = (GetEnemy()->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() / Square( sk_zombie_assassin_armsout_dist.GetFloat() );
+		SetPoseParameter( m_poseArmsOut, EdgeLimitPoseParameter( m_poseArmsOut, flValue ) );
+	}
+	else
+	{
+		SetPoseParameter( m_poseArmsOut, 1.0f );
+	}
 }
 
 //=========================================================
@@ -850,15 +988,23 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH );
 			if ( pHurt )
 			{
+				EmitSound( filter, entindex(), "Zombie.AttackHit" );
+			}
+			else // Play a random attack miss sound
+			{
+				EmitSound( filter, entindex(), "Zombie.AttackMiss" );
+			}
+
+			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
+			if ( pHurt && ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS ) )
+			{
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
 				pHurt->SetGroundEntity( NULL );
-				EmitSound( filter, entindex(), "Zombie.AttackHit" );
 			}
-			else // Play a random attack miss sound
-			EmitSound( filter, entindex(), "Zombie.AttackMiss" );
+
 		}
 		break;
 
@@ -869,14 +1015,18 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			if ( pHurt ) 
 			{
 				EmitSound( filter, entindex(), "Gonome.Bite" );
-				Vector right, up;
-				AngleVectors( GetAbsAngles(), NULL, &right, &up );
 
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
-					 pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
-			
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
+
+				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+				{
+					Vector right, up;
+					AngleVectors( GetAbsAngles(), NULL, &right, &up );
+
+					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
+					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+				}
 
 				// If we were trying to spawn and hit something by accident, defer spawning for a while
 				if (m_bReadyToSpawn)
@@ -988,6 +1138,19 @@ void CNPC_Gonome::InputGoHomeInstant( inputdata_t &inputdata )
 	}
 
 	m_BeastBehavior.GoHome( true );
+}
+
+//=========================================================
+// 
+//=========================================================
+float CNPC_Gonome::GetMaxSpitWaitTime( void )
+{
+	return IsCurSchedule( SCHED_GONOME_FLANK_ENEMY, false ) ? 3.0f : 5.0f;
+}
+
+float CNPC_Gonome::GetMinSpitWaitTime( void )
+{
+	return 0.5f;
 }
 
 //=========================================================
@@ -1238,6 +1401,25 @@ void CNPC_Gonome::StartTask( const Task_t *pTask )
 		SetIdealActivity( (Activity)ACT_MELEE_ATTACK1 );
 		break;
 	}
+	case TASK_GONOME_GET_FLANK_PATH:
+	{
+		// First, try getting a wide arc path
+		ChainStartTask( TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS, 90.0f );
+
+		if (TaskIsComplete())
+			break;
+
+		// If that didn't work, try getting a node within radius
+		ChainStartTask( TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS, 150.0f );
+
+		if (TaskIsComplete())
+			break;
+
+		// Finally, just try taking cover
+		ChainStartTask( TASK_FIND_NODE_COVER_FROM_ENEMY, 0.0f );
+
+		break;
+	}
 	default:
 	{
 		BaseClass::StartTask( pTask );
@@ -1262,6 +1444,18 @@ void CNPC_Gonome::RunTask ( const Task_t *pTask )
 		}
 		break;
 	}
+	case TASK_WAIT_FOR_MOVEMENT:
+	{
+		if (HasCondition( COND_CAN_RANGE_ATTACK1 ) && GetEnemy())
+		{
+			// Try throwing while moving
+			int iLayer = AddGesture( ACT_GESTURE_RANGE_ATTACK1 );
+
+			AddFacingTarget( GetEnemy(), 1.0f, GetLayerDuration( iLayer ) );
+		}
+		BaseClass::RunTask( pTask );
+		break;
+	}
 	default:
 	{
 		BaseClass::RunTask( pTask );
@@ -1281,6 +1475,8 @@ AI_BEGIN_CUSTOM_NPC( monster_gonome, CNPC_Gonome )
 
 	DECLARE_ANIMEVENT( GONOME_AE_LAND )
 	DECLARE_ANIMEVENT( GONOME_AE_WALL_POUND )
+
+	DECLARE_TASK( TASK_GONOME_GET_FLANK_PATH )
 		
 	//=========================================================
 	// > SCHED_GONOME_CHASE_ENEMY
@@ -1301,7 +1497,7 @@ AI_BEGIN_CUSTOM_NPC( monster_gonome, CNPC_Gonome )
 		"		COND_NEW_ENEMY"
 		"		COND_ENEMY_DEAD"
 		"		COND_SMELL"
-		"		COND_CAN_RANGE_ATTACK1"
+		//"		COND_CAN_RANGE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK2"
 		"		COND_TASK_FAILED"
@@ -1369,6 +1565,32 @@ AI_BEGIN_CUSTOM_NPC( monster_gonome, CNPC_Gonome )
 		"	Interrupts"
 		"		COND_LIGHT_DAMAGE"
 		"		COND_HEAVY_DAMAGE"
+	)
+		
+	//=========================================================
+	// > SCHED_GONOME_FLANK_ENEMY
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_GONOME_FLANK_ENEMY,
+
+		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_GONOME_CHASE_ENEMY"
+		"		TASK_GONOME_GET_FLANK_PATH		0"
+		"		TASK_RUN_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"	"
+		"	Interrupts"
+		//"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_NEW_ENEMY"
+		"		COND_ENEMY_DEAD"
+		"		COND_SMELL"
+		//"		COND_CAN_RANGE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+		"		COND_TASK_FAILED"
+		"		COND_NEW_BOSS_STATE"
 	)
 
 AI_END_CUSTOM_NPC()

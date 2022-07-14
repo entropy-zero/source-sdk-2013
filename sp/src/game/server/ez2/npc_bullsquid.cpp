@@ -457,13 +457,15 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 			if ( pHurt ) 
 			{
 				// TODO - This should ALWAYS create a server ragdoll regardless of the convar setting
-				Vector right, up;
-				AngleVectors( GetAbsAngles(), NULL, &right, &up );
-
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
 					 pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
 			
-				pHurt->ApplyAbsVelocityImpulse( 100 * (up+2*right) * GetModelScale() * ( m_bIsBaby ? 0.5f : 1.0f ) );
+				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+				{
+					Vector right, up;
+					AngleVectors( GetAbsAngles(), NULL, &right, &up );
+					pHurt->ApplyAbsVelocityImpulse( 100 * (up+2*right) * GetModelScale() * (m_bIsBaby ? 0.5f : 1.0f) );
+				}
 			}
 		}
 		break;
@@ -553,7 +555,7 @@ CBaseEntity * CNPC_Bullsquid::BiteAttack( float flDist, const Vector & mins, con
 			m_flHungryTime = gpGlobals->curtime + 10.0f; // Headcrabs only satiate the squid for 10 seconds
 		}
 		// I don't want that!
-		else
+		else if( pVictim || pHurt->GetMoveType() == MOVETYPE_FLY )
 		{
 			Vector forward, up;
 			AngleVectors( GetAbsAngles(), &forward, NULL, &up );

@@ -215,9 +215,13 @@ bool CCrossbowBolt::CreateSprites( void )
 //-----------------------------------------------------------------------------
 void CCrossbowBolt::Spawn( void )
 {
+#ifndef EZ
 	Precache( );
 
 	SetModel( "models/crossbow_bolt.mdl" );
+#else
+	Precache();
+#endif
 	SetMoveType( MOVETYPE_FLYGRAVITY, MOVECOLLIDE_FLY_CUSTOM );
 	UTIL_SetSize( this, -Vector(0.3f,0.3f,0.3f), Vector(0.3f,0.3f,0.3f) );
 	SetSolid( SOLID_BBOX );
@@ -243,7 +247,14 @@ void CCrossbowBolt::Precache( void )
 	PrecacheModel( BOLT_MODEL );
 
 	// This is used by C_TEStickyBolt, despte being different from above!!!
+#ifndef EZ
 	PrecacheModel( "models/crossbow_bolt.mdl" );
+#else
+	if ( GetModelName() == NULL_STRING )
+		SetModel( "models/crossbow_bolt.mdl" );
+
+	PrecacheModel( STRING( GetModelName() ) );
+#endif
 
 	PrecacheModel( "sprites/light_glow02_noz.vmt" );
 }

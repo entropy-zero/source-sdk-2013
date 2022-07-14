@@ -1986,6 +1986,11 @@ public:
 	virtual bool		CurrentWeaponLOSCondition(const Vector &targetPos, bool bSetConditions) { return WeaponLOSCondition( GetAbsOrigin(), targetPos, bSetConditions ); }
 	virtual bool		IsWaitingToRappel( void ) { return false; }
 	virtual void		BeginRappel() {}
+#ifdef EZ2
+	// Used by the Arbeit helicopter
+	virtual bool		HasRappelBehavior() { return false; }
+	virtual void		StartWaitingForRappel() {}
+#endif
 
 	// override to change the chase location of an enemy
 	// This is where your origin should go when you are chasing pEnemy when his origin is at chasePosition

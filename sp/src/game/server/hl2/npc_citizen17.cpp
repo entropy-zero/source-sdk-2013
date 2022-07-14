@@ -39,6 +39,7 @@
 
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "npc_combine.h"
 #endif
 
 #include "ai_squad.h"
@@ -180,7 +181,7 @@ const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too fa
 #ifdef EZ
 #define BRUTE_MASK_MODEL "models/humans/group03b/welding_mask.mdl"
 #define BRUTE_MASK_NUM_SKINS 3
-#define BRUTE_MASK_BODYGROUP 1
+#define BRUTE_MASK_BODYGROUP FindBodygroupByName("mask")
 
 #define LONGFALL_GEAR_BODYGROUP 1
 #define LONGFALL_GLOW_CHEST_SPRITE	"sprites/light_glow01.vmt"
@@ -188,7 +189,7 @@ const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too fa
 #define LONGFALL_GLOW_CHEST_A		255
 #define LONGFALL_GLOW_CHEST_R		255
 #define LONGFALL_GLOW_CHEST_G		230
-#define LONGFALL_GLOW_CHEST_B		105
+#define LONGFALL_GLOW_CHEST_B		IsMedic() ? 200 : 105
 #define LONGFALL_GLOW_CHEST_SCALE	0.5f
 #define LONGFALL_GLOW_CHEST_JUMP_BRIGHT	255
 #define LONGFALL_GLOW_CHEST_JUMP_A		255
@@ -375,8 +376,8 @@ static const char *g_ppszModelLocs[] =
 	"Group02",
 	"Group03%s",
 	"Group03%s",
-	"Group03b",
-	"Group03x", // May wish to change this to "Group04%s" IF a brute and medic version of the long fall rebel are created - then we can have Group04, Group04b, Group04m
+	"Group03b%s",
+	"Group03x%s",
 	"Group04%s",
 	"Group05",
 	"Group05b",
@@ -594,7 +595,7 @@ void CNPC_Citizen::PrecacheAllOfType( CitizenType_t type )
 	}
 
 #ifdef EZ
-	if ( m_Type == CT_REBEL || m_Type == CT_ARCTIC )
+	if ( IsMedic() && (m_Type == CT_REBEL || m_Type == CT_ARCTIC || m_Type == CT_BRUTE || m_Type == CT_LONGFALL) )
 #else
 	if ( m_Type == CT_REBEL )
 #endif
@@ -992,24 +993,7 @@ void CNPC_Citizen::SelectModel()
 	// Unique citizen models are left alone
 	if ( m_Type != CT_UNIQUE )
 	{
-#ifdef EZ2
-		const char * subtype = ""; // 1upD - used to be the only subtype was "m" for medic
-
-		// if (m_Type == CT_REBEL)
-		// 	subtype = (m_spawnEquipment == AllocPooledString("weapon_shotgun")) ? "b" : subtype;	// Rebel Brute - may wish to rethink this approach
-		// 																							//	Currently, rebels with shotguns are still CT_REBEL with modelset Group03b
-		// 																							//	If we want any special behaviors for the brute, we will need to set the type of
-		// 																							//	shotgun rebels to "CT_BRUTE".
-		subtype = (IsMedic()) ? "m" : subtype; // Rebel Medic takes precedence
-
-		// If this citizen's type is "LongFall", they should use the appropriate subtype
-		if (m_Type == CT_LONGFALL)
-			subtype = "x"; // We may wish to change this so that long fall boot rebels are Group04. We would do this in order to get a separate -b and -m group for long fall citizens - for now let's not bother
-
-		SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], subtype )), pszModelName ) ) );
-#else		
-	SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszModelName ) ) );
-#endif
+		SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszModelName ) ) );
 	}
 }
 
@@ -1290,24 +1274,35 @@ void CNPC_Citizen::GatherWillpowerConditions()
 		l_iWillpower--;
 
 #ifdef EZ2
-	// If this citizen is not a brute or a jump rebel, their willpower is below a certain threshold, the enemy can see them, and the enemy is Bad Cop,
+	// If this citizen is not a brute or a jump rebel, their willpower is below a certain threshold, the enemy can see them, and the enemy is either Bad Cop or a soldier,
 	// try to surrender
-	if (typeCanPanic && l_iWillpower <= sk_citizen_very_low_willpower.GetInt() && HasCondition( COND_ENEMY_FACING_ME ) && GetEnemy() && GetEnemy()->IsPlayer() )
+	if (typeCanPanic && l_iWillpower <= sk_citizen_very_low_willpower.GetInt() && HasCondition( COND_ENEMY_FACING_ME ) && GetEnemy())
 	{
-		if (!HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
+		bool bCanSurrender = GetEnemy()->IsPlayer();
+		if (!bCanSurrender)
 		{
-			if (m_pSquad && m_pSquad->NumMembers() == 1) // Last one
-			{
-				MsgWillpower( "%s is now panicked and is the last squadmate!\tWillpower: %i\n", l_iWillpower );
-			}
-			else
-			{
-				MsgWillpower( "%s is now panicked!\tWillpower: %i\n", l_iWillpower );
-			}
+			// Allow surrender if the enemy is a Combine soldier capable of ordering it
+			if (CNPC_Combine *pCombine = dynamic_cast<CNPC_Combine *>(GetEnemy()))
+				bCanSurrender = pCombine->CanOrderSurrender();
 		}
-		ClearCondition( COND_CIT_WILLPOWER_HIGH );
-		SetCondition( COND_CIT_WILLPOWER_LOW );
-		SetCondition( COND_CIT_WILLPOWER_VERY_LOW );
+
+		if (bCanSurrender)
+		{
+			if (!HasCondition( COND_CIT_WILLPOWER_VERY_LOW ))
+			{
+				if (m_pSquad && m_pSquad->NumMembers() == 1) // Last one
+				{
+					MsgWillpower( "%s is now panicked and is the last squadmate!\tWillpower: %i\n", l_iWillpower );
+				}
+				else
+				{
+					MsgWillpower( "%s is now panicked!\tWillpower: %i\n", l_iWillpower );
+				}
+			}
+			ClearCondition( COND_CIT_WILLPOWER_HIGH );
+			SetCondition( COND_CIT_WILLPOWER_LOW );
+			SetCondition( COND_CIT_WILLPOWER_VERY_LOW );
+		}
 	}
 	else
 #endif
@@ -1701,6 +1696,11 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
 		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
 	}
+
+	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( m_Type == CT_BRUTE || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	{
+		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
+	}
 #endif
 
 	if ( IsCurSchedule( SCHED_IDLE_STAND ) || IsCurSchedule( SCHED_ALERT_STAND ) )
@@ -1817,9 +1817,19 @@ int CNPC_Citizen::SelectFailSchedule( int failedSchedule, int failedTask, AI_Tas
 //-----------------------------------------------------------------------------
 int CNPC_Citizen::SelectSchedule()
 {
-// TODO - Find a better spot for this!
 #ifdef EZ
+	// TODO - Find a better spot for this!
 	TrySpeakBeg();
+
+	// Reserve strategy slot if I am a rebel brute, otherwise clear
+	if ( m_Type == CT_BRUTE && !IsStrategySlotRangeOccupied( SQUAD_SLOT_CITIZEN_ADVANCE, SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	{
+		OccupyStrategySlot( SQUAD_SLOT_CITIZEN_ADVANCE );
+	}
+	else if (m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE)
+	{
+		VacateStrategySlot();
+	}
 #endif
 
 #ifdef MAPBASE

@@ -45,6 +45,7 @@
 #endif
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "npc_citizen17.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -64,6 +65,17 @@ ConVar npc_combine_new_cover_behavior( "npc_combine_new_cover_behavior", "1", FC
 ConVar npc_combine_give_enabled( "npc_combine_give_enabled", "1", FCVAR_NONE, "Allows players to \"give\" weapons to Combine soldiers in their squad by holding one in front of them for a few seconds." );
 ConVar npc_combine_give_stare_dist( "npc_combine_give_stare_dist", "112", FCVAR_NONE, "The distance needed for soldiers to consider the possibility the player wants to give them a weapon." );
 ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NONE, "The amount of time the player needs to be staring at a soldier in order for them to pick up a weapon they're holding." );
+
+ConVar npc_combine_order_surrender_max_dist( "npc_combine_order_surrender_max_dist", "224", FCVAR_NONE, "The maximum distance a soldier can order surrenders from. Beyond that, they will only pursue." );
+ConVar npc_combine_order_surrender_min_tlk_surrender( "npc_combine_order_surrender_min_tlk_surrender", "2.0", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_SURRENDER before being considered for surrenders, assuming they haven't already spoken TLK_BEG." );
+ConVar npc_combine_order_surrender_min_tlk_beg( "npc_combine_order_surrender_min_tlk_beg", "0.5", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_BEG before being considered for surrenders, assuming they haven't already spoken TLK_SURRENDER." );
+
+ConVar	sv_squadmate_glow( "sv_squadmate_glow", "1", FCVAR_REPLICATED, "If 1, Combine soldier squadmates will glow when they are in the player's squad. The color of the glow represents their HP." );
+ConVar	sv_squadmate_glow_style( "sv_squadmate_glow_style", "1", FCVAR_REPLICATED, "Different colors for Combine squadmate glows. 0: Green means 100 HP, red means 0 HP\t1: White means 100 HP, red means 0 HP");
+ConVar	sv_squadmate_glow_alpha( "sv_squadmate_glow_alpha", "0.6", FCVAR_REPLICATED, "On a scale of 0-1, how much alpha should the squadmate glow have" );
+
+#define COMBINE_GLOW_STYLE_REDGREEN	0
+#define COMBINE_GLOW_STYLE_REDWHITE	1
 #endif
 
 #define COMBINE_SKIN_DEFAULT		0
@@ -310,6 +322,10 @@ DEFINE_OUTPUT( m_OnPlayerUse, "OnPlayerUse" ),
 DEFINE_KEYFIELD( m_bDisablePlayerUse, FIELD_BOOLEAN, "DisablePlayerUse" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnablePlayerUse", InputEnablePlayerUse ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisablePlayerUse", InputDisablePlayerUse ),
+
+DEFINE_KEYFIELD( m_bCanOrderSurrender, FIELD_BOOLEAN, "CanOrderSurrender" ),
+DEFINE_INPUTFUNC( FIELD_VOID, "EnableOrderSurrender", InputEnableOrderSurrender ),
+DEFINE_INPUTFUNC( FIELD_VOID, "DisableOrderSurrender", InputDisableOrderSurrender ),
 #endif
 
 DEFINE_FIELD( m_iLastAnimEventHandled, FIELD_INTEGER ),
@@ -336,6 +352,11 @@ CNPC_Combine::CNPC_Combine()
 	m_iNumGrenades = 5;
 
 	m_bDontPickupWeapons = true;
+
+	// TODO - Ordering surrender is on by default. This could become an issue.
+	// Consider making it a three-state variable and using a ConVar or Global Var
+	// to track default behavior.
+	m_bCanOrderSurrender = true;
 #endif
 }
 
@@ -661,6 +682,54 @@ void CNPC_Combine::FixupPlayerSquad()
 	m_bHoldPositionGoal = false;
 
 	ToggleSquadCommand();
+
+	UpdateSquadGlow();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Add or remove glow effects as necessary, then update the color
+//-----------------------------------------------------------------------------
+void CNPC_Combine::UpdateSquadGlow()
+{
+	bool shouldGlow = ShouldSquadGlow();
+	if ( !m_bGlowEnabled.Get() && shouldGlow )
+	{
+		AddGlowEffect();
+	}
+	else if ( m_bGlowEnabled.Get() && !shouldGlow )
+	{
+		RemoveGlowEffect();
+	}
+
+	if ( m_bGlowEnabled.Get() )
+	{
+		float healthPercentage = ((float)m_iHealth / ((float)m_iMaxHealth));
+
+		float red = 0;
+		float blue = 0;
+		float green = 0;
+
+		switch (sv_squadmate_glow_style.GetInt())
+		{
+		case COMBINE_GLOW_STYLE_REDGREEN:
+			red = 1.0f - healthPercentage;
+			green = healthPercentage;
+			blue = 0.0f;
+			break;
+		case COMBINE_GLOW_STYLE_REDWHITE:
+			red = 1.0f;
+			green = healthPercentage;
+			blue = healthPercentage;
+			break;
+		}
+
+		SetGlowColor( red, green, blue, sv_squadmate_glow_alpha.GetFloat() );
+	}
+}
+
+bool CNPC_Combine::ShouldSquadGlow()
+{
+	return sv_squadmate_glow.GetBool() && IsCommandable() && IsInPlayerSquad();
 }
 
 //-----------------------------------------------------------------------------
@@ -722,6 +791,8 @@ void CNPC_Combine::RemoveFromPlayerSquad()
 	{
 		SetCommandGoal( vec3_invalid );
 	}
+
+	UpdateSquadGlow();
 }
 
 //-----------------------------------------------------------------------------
@@ -1255,6 +1326,19 @@ void CNPC_Combine::InputEnablePlayerUse( inputdata_t &inputdata )
 	m_bDisablePlayerUse = false;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Toggles soldier surrendering
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputEnableOrderSurrender( inputdata_t &inputdata )
+{
+	m_bCanOrderSurrender = true;
+}
+
+void CNPC_Combine::InputDisableOrderSurrender( inputdata_t &inputdata )
+{
+	m_bCanOrderSurrender = false;
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -1538,6 +1622,40 @@ void CNPC_Combine::GatherConditions()
 		}
 	}
 #endif
+
+#ifdef EZ2
+	ClearCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
+
+	if (HasCondition(COND_CAN_RANGE_ATTACK1))
+	{
+		if (CanOrderSurrender())
+		{
+			if ( GetEnemy() /*&& GetEnemies()->NumEnemies() <= 2*/ && GetEnemy()->ClassMatches("npc_citizen") && GetEnemy()->MyNPCPointer()->GetActiveWeapon() == NULL )
+			{
+				CNPC_Citizen *pCitizen = static_cast<CNPC_Citizen*>(GetEnemy());
+				if (pCitizen && pCitizen->CanSurrender())
+				{
+					// Make sure they're not about to pick up a weapon
+					if (!pCitizen->IsCurSchedule( SCHED_NEW_WEAPON, false ))
+					{
+						// Finally, check if the citizen has spoken beg or surrender concepts already
+						float flTimeSpeakSurrender = pCitizen->GetTimeSpokeConcept( TLK_SURRENDER );
+						float flTimeSpeakBeg = pCitizen->GetTimeSpokeConcept( TLK_BEG );
+						if ((flTimeSpeakSurrender != -1 && gpGlobals->curtime - flTimeSpeakSurrender >= npc_combine_order_surrender_min_tlk_surrender.GetFloat()) || (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= npc_combine_order_surrender_min_tlk_beg.GetFloat()))
+						{
+							SetCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
+
+							// Don't attack while ordering to surrender
+							ClearCondition( COND_CAN_RANGE_ATTACK1 );
+							ClearCondition( COND_CAN_RANGE_ATTACK2 );
+							ClearCondition( COND_CAN_MELEE_ATTACK1 );
+						}
+					}
+				}
+			}
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1550,6 +1668,13 @@ void CNPC_Combine::PrescheduleThink()
 #ifdef EZ
 	// 1upD - Copied from citizen
 	UpdateFollowCommandPoint();
+
+
+	// Update glow if we are commandable
+	if ( ShouldSquadGlow() && ( !m_bGlowEnabled.Get() || ( GetHealth() < GetMaxHealth() && ShouldRegenerateHealth() ) ) )
+	{
+		UpdateSquadGlow();
+	}
 #endif
 
 	// Speak any queued sentences
@@ -1648,6 +1773,14 @@ int CNPC_Combine::IRelationPriority( CBaseEntity *pTarget )
 
 			priority += 1;
 		}
+	}
+
+	CAI_BaseNPC *pNPC = pTarget->MyNPCPointer();
+	if (pNPC && pNPC->GetActiveWeapon() == NULL && pNPC->ClassMatches( "npc_citizen" ) &&
+		(!pNPC->GetRunningBehavior() || pNPC->GetRunningBehavior()->GetName() != m_FuncTankBehavior.GetName()))
+	{
+		// Unarmed citizens have less priority
+		priority -= 2;
 	}
 
 	return priority;
@@ -2639,6 +2772,14 @@ bool CNPC_Combine::PassesDamageFilter( const CTakeDamageInfo &info )
 
 	return BaseClass::PassesDamageFilter(info);
 }
+
+// Overridden to update glow effects when taking damage
+int CNPC_Combine::OnTakeDamage_Alive( const CTakeDamageInfo & info )
+{
+	int ret = BaseClass::OnTakeDamage_Alive(info);
+	UpdateSquadGlow();
+	return ret;
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -2669,6 +2810,13 @@ void CNPC_Combine::BuildScheduleTestBits( void )
 	if( !IsCurSchedule( SCHED_NEW_WEAPON ) )
 	{
 		SetCustomInterruptCondition( COND_RECEIVED_ORDERS );
+	}
+#endif
+
+#ifdef EZ2
+	if ( !IsCurSchedule( SCHED_COMBINE_ORDER_SURRENDER ) && !IsCurSchedule( SCHED_COMBINE_PRESS_ATTACK ) && !m_StandoffBehavior.IsRunning() /*&& !IsCurSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE ) && !IsCurSchedule( SCHED_MOVE_TO_WEAPON_RANGE )*/ )
+	{
+		SetCustomInterruptCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
 	}
 #endif
 
@@ -2895,7 +3043,8 @@ void CNPC_Combine::AnnounceAssault(void)
 	if ( FVisible( pBCC ) )
 	{
 #ifdef EZ2
-		AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
+		if (GetSquad() && GetSquad()->NumMembers() > 1)
+			AddGesture( ACT_GESTURE_SIGNAL_ADVANCE );
 #endif
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
 		SpeakIfAllowed( TLK_CMB_ASSAULT );
@@ -3087,6 +3236,24 @@ int CNPC_Combine::SelectCombatSchedule()
 			}
 		}
 	}
+
+#ifdef EZ2
+	// ---------------------
+	// surrender
+	// ---------------------
+	if (HasCondition( COND_COMBINE_CAN_ORDER_SURRENDER ))
+	{
+		if (HasCondition( COND_SEE_ENEMY ) && GetEnemy() && GetAbsOrigin().DistToSqr( GetEnemy()->GetAbsOrigin() ) <= Square( npc_combine_order_surrender_max_dist.GetFloat() ))
+		{
+			return SCHED_COMBINE_ORDER_SURRENDER;
+		}
+		else
+		{
+			// Get closer
+			return SCHED_COMBINE_PRESS_ATTACK;
+		}
+	}
+#endif
 
 	// ---------------------
 	// no ammo
@@ -4309,6 +4476,14 @@ void CNPC_Combine::SpeakSentence( int sentenceType )
 #endif
 		}
 		break;
+
+#ifdef EZ2
+	case 6: // Ordering enemy to surrender
+		SpeakIfAllowed( TLK_USE, "order_surrender:1" );
+		if (GetEnemy())
+			GetEnemy()->DispatchInteraction( g_interactionBadCopOrderSurrender, NULL, this );
+		break;
+#endif
 	}
 }
 
@@ -4895,6 +5070,17 @@ bool CNPC_Combine::CanGrenadeEnemy( bool bUseFreeKnowledge )
 		if ( IsCurSchedule(SCHED_DROPSHIP_DUSTOFF) )
 			return false;
 
+#ifdef EZ2
+		if (GetEnemy()->ClassMatches( "npc_citizen" ) && GetEnemy()->MyNPCPointer())
+		{
+			// Grenading unarmed citizens isn't necessary unless they're using a func_tank
+			CAI_BaseNPC *pNPC = GetEnemy()->MyNPCPointer();
+			if (pNPC->GetActiveWeapon() == NULL &&
+				(!pNPC->GetRunningBehavior() || pNPC->GetRunningBehavior()->GetName() != m_FuncTankBehavior.GetName()))
+				return false;
+		}
+#endif
+
 		if( bUseFreeKnowledge )
 		{
 			// throw to where we think they are.
@@ -4930,7 +5116,12 @@ int CNPC_Combine::MeleeAttack1Conditions ( float flDot, float flDist )
 	if ( GetEnemy() && fabs(GetEnemy()->GetAbsOrigin().z - GetAbsOrigin().z) > 64 )
 		return COND_NONE;
 
+#ifdef EZ
+	// Soldiers are incapable of kicking the babies
+	if ( GetEnemy() && GetEnemy()->IsNPC() && GetEnemy()->MyNPCPointer()->GetHullType() == HULL_TINY )
+#else
 	if ( dynamic_cast<CBaseHeadcrab *>(GetEnemy()) != NULL )
+#endif
 	{
 		return COND_NONE;
 	}
@@ -5627,6 +5818,9 @@ DECLARE_CONDITION( COND_COMBINE_HIT_BY_BUGBAIT )
 DECLARE_CONDITION( COND_COMBINE_DROP_GRENADE )
 DECLARE_CONDITION( COND_COMBINE_ON_FIRE )
 DECLARE_CONDITION( COND_COMBINE_ATTACK_SLOT_AVAILABLE )
+#ifdef EZ2
+DECLARE_CONDITION( COND_COMBINE_CAN_ORDER_SURRENDER )
+#endif
 
 DECLARE_INTERACTION( g_interactionCombineBash );
 #ifdef EZ2
@@ -6397,6 +6591,26 @@ DEFINE_SCHEDULE
  	"	"
  	"	Interrupts"
  	"		COND_RECEIVED_ORDERS"
+ )
+#endif
+
+#ifdef EZ2
+ //=========================================================
+ // Soldier orders surrender and plays a sequence
+ //=========================================================
+ DEFINE_SCHEDULE
+ (
+	 SCHED_COMBINE_ORDER_SURRENDER,
+ 
+ 	"	Tasks"
+	"		TASK_STOP_MOVING					0"
+	"		TASK_FACE_IDEAL						0"
+ 	"		TASK_SPEAK_SENTENCE					6"	// Order surrender
+	"		TASK_PLAY_SEQUENCE_FACE_ENEMY		ACTIVITY:ACT_SIGNAL_TAKECOVER"
+ 	"	"
+ 	"	Interrupts"
+	"		COND_ENEMY_DEAD"
+	"		COND_ENEMY_WENT_NULL"
  )
 #endif
 

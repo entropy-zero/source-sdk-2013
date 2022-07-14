@@ -6165,47 +6165,6 @@ void CNPC_MetroPolice::PrecriminalUse( CBaseEntity *pActivator, CBaseEntity *pCa
 	}
 }
 
-#ifdef EZ
-//-----------------------------------------------------------------------------
-// Purpose: Return the glow attributes for a given index
-//-----------------------------------------------------------------------------
-EyeGlow_t * CNPC_MetroPolice::GetEyeGlowData(int i)
-{
-	EyeGlow_t * eyeGlow = BaseClass::GetEyeGlowData( i );
-
-	if (eyeGlow != NULL)
-		return eyeGlow;
-
-	if (i != 0)
-		return NULL;
-
-	eyeGlow = new EyeGlow_t();
-
-	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
-	eyeGlow->attachment = AllocPooledString("eyes");
-
-	eyeGlow->alpha = 100;
-	eyeGlow->red = 0;
-	eyeGlow->green = 255;
-	eyeGlow->blue = 255;
-	eyeGlow->scale = 0.3f;
-	eyeGlow->proxyScale = 3.0f;
-	eyeGlow->renderMode = kRenderGlow;
-	return eyeGlow;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: If the metrocop has NVG on, it has 1 glow sprite
-//		Otherwise 0
-//-----------------------------------------------------------------------------
-int CNPC_MetroPolice::GetNumGlows()
-{
-	if (m_nSkin == 1)
-		return 1;
-	return 0;
-}
-#endif
-
 //-----------------------------------------------------------------------------
 //
 // Schedules

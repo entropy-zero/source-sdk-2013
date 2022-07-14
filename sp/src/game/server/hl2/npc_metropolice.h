@@ -359,10 +359,10 @@ private:
 	// Rappel
 	virtual bool IsWaitingToRappel( void ) { return m_RappelBehavior.IsWaitingToRappel(); }
 	void BeginRappel() { m_RappelBehavior.BeginRappel(); }
-
-#ifdef EZ
-	EyeGlow_t	* GetEyeGlowData(int i);
-	int			  GetNumGlows();
+#ifdef EZ2
+	// Used by the Arbeit helicopter
+	virtual bool HasRappelBehavior() { return true; }
+	virtual void StartWaitingForRappel() { m_RappelBehavior.StartWaitingForRappel(); }
 #endif
 
 private:

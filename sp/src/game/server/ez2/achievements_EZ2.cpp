@@ -12,6 +12,8 @@
 #include "achievementmgr.h"
 #include "baseachievement.h"
 #include "npc_citizen17.h"
+#include "point_bonusmaps_accessor.h"
+#include "hl2_shareddefs.h"
 
 #define KILL_ALIENSWXBOW_COUNT 25
 #define KILL_REBELSW357_COUNT 18
@@ -921,4 +923,92 @@ protected:
 	virtual const char *GetEvaluationEventName() { return "EZ2_BEAT_GAME"; }
 };
 DECLARE_ACHIEVEMENT(CAchievementEZ2FinishHard, ACHIEVEMENT_EZ2_HMODE, "ACH_EZ2_HMODE", 15);
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#define NUM_CHALLENGE_MAPS 8
+#define NUM_CHALLENGES (NUM_CHALLENGE_MAPS * 5) // 40
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+class CBaseAchievementEZ2ChallengeAllMedal : public CBaseAchievement
+{
+protected:
+
+	void Init() 
+	{
+		SetFlags( ACH_SAVE_GLOBAL );
+		SetGameDirFilter( "EntropyZero2" );
+		SetGoal( NUM_CHALLENGES );
+	}
+
+	virtual void ListenForEvents()
+	{
+		ListenForGameEvent( "challenge_map_complete" );
+	}
+
+	void FireGameEvent_Internal( IGameEvent *event )
+	{
+		if ( 0 == Q_strcmp( event->GetName(), "challenge_map_complete" ) )
+		{
+			int numMedals = event->GetInt( Medal(), 0 );
+			SetCount( numMedals );
+
+			// if we've hit goal, award the achievement
+			if (m_iGoal > 0)
+			{
+				if (m_iCount >= m_iGoal)
+				{
+					AwardAchievement();
+				}
+				else
+				{
+					HandleProgressUpdate();
+				}
+			}
+		}
+	}
+
+	// Show progress for this achievement
+	virtual bool ShouldShowProgressNotification() { return true; }
+
+	// Show progress every time we complete a challenge
+	void CalcProgressMsgIncrement()
+	{
+		m_iProgressMsgIncrement = 1;
+	}
+
+	virtual const char *Medal() { return "numgold"; }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get bronze medals on all challenges
+////////////////////////////////////////////////////////////////////////////////////////////////////
+class CAchievementEZ2ChallengesAllBronze : public CBaseAchievementEZ2ChallengeAllMedal
+{
+protected:
+	virtual const char *Medal() { return "numbronze"; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2ChallengesAllBronze, ACHIEVEMENT_EZ2_CHALLENGES_ALL_BRONZE, "ACH_EZ2_CHALLENGES_ALL_BRONZE", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get silver medals on all challenges
+////////////////////////////////////////////////////////////////////////////////////////////////////
+class CAchievementEZ2ChallengesAllSilver : public CBaseAchievementEZ2ChallengeAllMedal
+{
+protected:
+	virtual const char *Medal() { return "numsilver"; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2ChallengesAllSilver, ACHIEVEMENT_EZ2_CHALLENGES_ALL_SILVER, "ACH_EZ2_CHALLENGES_ALL_SILVER", 5 );
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get gold medals on all challenges
+////////////////////////////////////////////////////////////////////////////////////////////////////
+class CAchievementEZ2ChallengesAllGold : public CBaseAchievementEZ2ChallengeAllMedal
+{
+protected:
+	virtual const char *Medal() { return "numgold"; }
+};
+DECLARE_ACHIEVEMENT( CAchievementEZ2ChallengesAllGold, ACHIEVEMENT_EZ2_CHALLENGES_ALL_GOLD, "ACH_EZ2_CHALLENGES_ALL_GOLD", 5 );
 #endif // GAME_DLL

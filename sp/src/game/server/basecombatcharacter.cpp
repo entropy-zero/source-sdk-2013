@@ -293,6 +293,8 @@ END_SEND_TABLE();
 IMPLEMENT_SERVERCLASS_ST(CBaseCombatCharacter, DT_BaseCombatCharacter)
 #ifdef GLOWS_ENABLE
 	SendPropBool( SENDINFO( m_bGlowEnabled ) ),
+	SendPropVector( SENDINFO( m_GlowColor ), 8, 0, 0, 1 ),
+	SendPropFloat( SENDINFO( m_GlowAlpha ) ),
 #endif // GLOWS_ENABLE
 	// Data that only gets sent to the local player.
 	SendPropDataTable( "bcc_localdata", 0, &REFERENCE_SEND_TABLE(DT_BCCLocalPlayerExclusive), SendProxy_SendBaseCombatCharacterLocalDataTable ),
@@ -887,6 +889,8 @@ CBaseCombatCharacter::CBaseCombatCharacter( void )
 
 #ifdef GLOWS_ENABLE
 	m_bGlowEnabled.Set( false );
+	m_GlowColor.GetForModify().Init( 0.76f, 0.76f, 0.76f );
+	m_GlowAlpha.Set(1.0f);
 #endif // GLOWS_ENABLE
 }
 
@@ -1666,6 +1670,12 @@ CBaseEntity *CBaseCombatCharacter::BecomeRagdollBoogie( CBaseEntity *pKiller, co
 #ifdef EZ
 bool CBaseCombatCharacter::TestRagdollPin( const Vector &vecOrigin, const Vector &vecDirection )
 {
+	// Temporal variants cannot be pinned because their bodies fade out
+	if (GetEZVariant() == EZ_VARIANT_TEMPORAL )
+	{
+		return false;
+	}
+
 	trace_t tr;
 
 	UTIL_TraceLine( vecOrigin, vecOrigin + vecDirection * 32, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
@@ -1691,7 +1701,7 @@ bool CBaseCombatCharacter::BecomeRagdoll( const CTakeDamageInfo &info, const Vec
 
 	// DMG_NEVERGIB is used exclusively by crossbows at the moment. Things other than crossbows with that
 	// damage type may cause client ragdolls when we want server ragdolls. Consider a better check.
-	if ( info.GetDamageType() & DMG_NEVERGIB && TestRagdollPin( GetAbsOrigin(), forceVector / forceVector.Length() ) )
+	if ( info.GetDamageType() & DMG_NEVERGIB && TestRagdollPin( info.GetDamagePosition(), forceVector.Normalized() ) )
 	{
 		// Server ragdolls can't be pinned, so use a client ragdoll
 		return BecomeRagdollOnClient( forceVector );
@@ -4130,6 +4140,12 @@ void CBaseCombatCharacter::RemoveGlowEffect( void )
 bool CBaseCombatCharacter::IsGlowEffectActive( void )
 {
 	return m_bGlowEnabled;
+}
+
+void CBaseCombatCharacter::SetGlowColor( float red, float green, float blue, float alpha )
+{
+	m_GlowColor.GetForModify().Init( red, green, blue );
+	m_GlowAlpha.Set( alpha );
 }
 #endif // GLOWS_ENABLE
 

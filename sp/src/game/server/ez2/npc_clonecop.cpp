@@ -72,6 +72,10 @@ CNPC_CloneCop::CNPC_CloneCop()
 	m_bLookForItems = true;
 	SetDisplacementImpossible( true );
 	m_SquadName = MAKE_STRING( IsBadCop() ? "bc_squad" : "cc_squad" );
+
+	// TODO - See comment in npc_combine.cpp
+	// Clone Cop probably shouldn't order surrender by default
+	m_bCanOrderSurrender = false;
 }
 
 //-----------------------------------------------------------------------------

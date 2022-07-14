@@ -46,8 +46,8 @@ public:
 
 	void HandleAnimEvent( animevent_t *pEvent );
 
-	float GetMaxSpitWaitTime( void ) { return 5.0f; };
-	float GetMinSpitWaitTime( void ) { return 0.5f; };
+	float GetMaxSpitWaitTime( void );
+	float GetMinSpitWaitTime( void );
 	float GetWhipDamage( void );
 	float GetEatInCombatPercentHealth( void );
 	
@@ -55,6 +55,11 @@ public:
 
 	bool IsJumpLegal(const Vector &startPos, const Vector &apex, const Vector &endPos) const;
 	bool ShouldIgnite( const CTakeDamageInfo &info );
+
+	void OnChangeActivity( Activity eNewActivity );
+
+	bool OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval );
+	float MaxYawSpeed( void );		// Get max yaw speed
 
 	mutable float	m_flJumpDist;
 
@@ -94,6 +99,8 @@ public:
 
 private:
 	int	m_nGonomeSpitSprite;
+
+	int m_poseArmsOut;
 
 	COutputEvent m_OnBeastHome;
 	COutputEvent m_OnBeastLeaveHome;
