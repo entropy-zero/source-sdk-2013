@@ -13506,6 +13506,15 @@ bool CAI_BaseNPC::HandleInteraction(int interactionType, void *data, CBaseCombat
 			}
 		}
 
+		// If the thrower has an enemy, prioritize that enemy
+		CBaseEntity * pThrowerEnemy = sourceEnt->GetEnemy();
+		Disposition_t throwerEnemyRel = pThrowerEnemy ? IRelationType( pThrowerEnemy ) : D_LI;
+		if ( throwerEnemyRel <= D_FR)
+		{
+			AddEntityRelationship( pThrowerEnemy, throwerEnemyRel, IRelationPriority( pThrowerEnemy ) + 1 );
+			UpdateEnemyMemory( pThrowerEnemy, pThrowerEnemy->GetAbsOrigin(), sourceEnt );
+		}
+
 		// Create a temporary enemy finder so the XenPC can locate enemies immediately
 		CBaseEntity *pFinder = CreateNoSpawn( "npc_enemyfinder", GetAbsOrigin(), GetAbsAngles(), this );
 		pFinder->KeyValue( "FieldOfView", "-1.0" );
