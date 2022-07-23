@@ -31,6 +31,11 @@
 #include "episodic/ai_behavior_passenger_zombie.h"
 #endif	// HL2_EPISODIC
 
+#ifdef EZ2
+#include "ez2/ez2_player.h"
+#include "ai_interactions.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -69,6 +74,10 @@ ConVar	sk_zombie_fast_dmg_both_slash("sk_zombie_fast_dmg_leap", "22"); // Origin
 ConVar sk_zombie_fast_health( "sk_zombie_fast_health", "50");
 ConVar sk_zombie_fast_dmg_one_slash( "sk_zombie_fast_dmg_claw","3");
 ConVar sk_zombie_fast_dmg_both_slash( "sk_zombie_fast_dmg_leap","5");
+#endif
+
+#ifdef EZ2
+ConVar	sk_zombie_fast_kick_multiplier( "sk_zombie_fast_kick_multiplier", "300" );
 #endif
 
 envelopePoint_t envFastZombieVolumeJump[] =
@@ -240,6 +249,10 @@ public:
 	float InnateRange1MaxRange( void );
 	int RangeAttack1Conditions( float flDot, float flDist );
 	int MeleeAttack1Conditions( float flDot, float flDist );
+
+#ifdef EZ2
+	virtual bool HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
+#endif
 
 	virtual float GetClawAttackRange() const { return 50; }
 
@@ -1067,6 +1080,37 @@ int CFastZombie::MeleeAttack1Conditions( float flDot, float flDist )
 
 	return baseResult;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose:  This is a generic function (to be implemented by sub-classes) to
+//			 handle specific interactions between different types of characters
+//			 (For example the barnacle grabbing an NPC)
+// Input  :  Constant for the type of interaction
+// Output :	 true  - if sub-class has a response for the interaction
+//			 false - if sub-class has no response
+//-----------------------------------------------------------------------------
+bool CFastZombie::HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt )
+{
+	if ( interactionType == g_interactionBadCopKick && sk_zombie_fast_kick_multiplier.GetFloat() > 0.0f )
+	{
+		KickInfo_t * pInfo = static_cast< KickInfo_t *>(data);
+
+		// Only continue if our damage filter allows us to
+		if (pInfo->dmgInfo && !PassesDamageFilter( *pInfo->dmgInfo ))
+			return false;
+
+		Vector forward, up;
+		AngleVectors( sourceEnt->GetAbsAngles(), &forward, NULL, &up );
+		this->ApplyAbsVelocityImpulse( sk_zombie_fast_kick_multiplier.GetFloat() * ( up+forward ) );
+		this->SetGroundEntity( NULL );
+
+		// Don't return - do base zombie kick handling
+	}
+
+	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Returns a moan sound for this class of zombie.
