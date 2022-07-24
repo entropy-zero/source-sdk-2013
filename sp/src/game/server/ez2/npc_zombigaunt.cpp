@@ -18,7 +18,7 @@ ConVar sk_zombigaunt_health( "sk_zombigaunt_health", "150" );
 ConVar sk_zombigaunt_dmg_rake( "sk_zombigaunt_dmg_rake", "15" );
 ConVar sk_zombigaunt_dispel_time( "sk_zombigaunt_dispel_time", "5" );
 ConVar sk_zombigaunt_health_drain_time( "sk_zombigaunt_health_drain_time", "10" );
-ConVar sk_zombigaunt_dispel_radius( "sk_zombigaunt_dispel_radius", "512" );
+ConVar sk_zombigaunt_dispel_radius( "sk_zombigaunt_dispel_radius", "300" );
 // The range of a zombigaunt's attack is notably less than a vortigaunt's
 ConVar sk_zombigaunt_zap_range( "sk_zombigaunt_zap_range", "30", FCVAR_NONE, "Range of zombie vortigaunt's ranged attack (feet)" );
 
@@ -120,21 +120,6 @@ void CNPC_Zombigaunt::Precache()
 
 
 	BaseClass::Precache();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_Zombigaunt::BuildScheduleTestBits( void )
-{
-	// Call to base
-	BaseClass::BuildScheduleTestBits();
-
-	if ( IsCurSchedule( SCHED_CHASE_ENEMY ) )
-	{
-		SetCustomInterruptCondition( COND_VORTIGAUNT_DISPEL_ANTLIONS );
-		SetCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -304,6 +289,26 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 	// Blixibon - Make weird motions while charging
 	if (scheduleType == SCHED_CHASE_ENEMY)
 	{
+#ifdef NEW_RESPONSE_SYSTEM
+		// We need to do this hacky stuff so the response doesn't interrupt sounds
+		AI_Response response;
+		bool result = SpeakFindResponse( response, TLK_VORT_CHARGE );
+		if ( result )
+		{
+			if ( response.GetType() == ResponseRules::RESPONSE_SCENE )
+			{
+				char scene[256];
+				response.GetResponse( scene, sizeof( scene ) );
+
+				m_flChargeResponseEnd = PlayScene( scene, response.GetDelay(), &response );
+				m_iszChargeResponse = AllocPooledString( scene );
+			}
+			else
+			{
+				SpeakDispatchResponse( TLK_VORT_CHARGE, &response );
+			}
+		}
+#else
 		// We need to do this hacky stuff so the response doesn't interrupt sounds
 		AI_Response *result = GetExpresser()->SpeakFindResponse( TLK_VORT_CHARGE );
 		if ( result )
@@ -321,6 +326,7 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 				SpeakDispatchResponse( TLK_VORT_CHARGE, result );
 			}
 		}
+#endif
 	}
 	else
 	{
@@ -343,15 +349,6 @@ float CNPC_Zombigaunt::GetNextDispelTime( void )
 float CNPC_Zombigaunt::GetNextHealthDrainTime( void )
 {
 	return sk_zombigaunt_health_drain_time.GetFloat();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: How far away will this vortigaunt attempt a dispel attack
-//-----------------------------------------------------------------------------
-float CNPC_Zombigaunt::GetDispelAttackRange()
-{
-	// For zombigaunts, use 1/3 of the effective distance
-	return sk_zombigaunt_dispel_radius.GetFloat() / 3.0f;
 }
 
 //-----------------------------------------------------------------------------

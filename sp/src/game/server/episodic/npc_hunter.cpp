@@ -1493,6 +1493,10 @@ private:
 	string_t		m_iszFollowTarget;		// Name of the strider we should follow.
 	CSimpleStopwatch m_BeginFollowDelay;
 
+#ifdef MAPBASE
+	bool			m_bNoIdlePatrol;
+#endif
+
 	int				m_nKillingDamageType;
 	HunterEyeStates_t m_eEyeState;
 
@@ -1606,6 +1610,10 @@ LINK_ENTITY_TO_CLASS( npc_hunter, CNPC_Hunter );
 BEGIN_DATADESC( CNPC_Hunter )
 
 	DEFINE_KEYFIELD( m_iszFollowTarget, FIELD_STRING, "FollowTarget" ),
+
+#ifdef MAPBASE
+	DEFINE_KEYFIELD( m_bNoIdlePatrol, FIELD_BOOLEAN, "NoIdlePatrol" ),
+#endif
 
 	DEFINE_FIELD( m_aimYaw,				FIELD_FLOAT ),
 	DEFINE_FIELD( m_aimPitch,				FIELD_FLOAT ),
@@ -1752,8 +1760,16 @@ CNPC_Hunter::~CNPC_Hunter()
 //-----------------------------------------------------------------------------
 void CNPC_Hunter::Precache()
 {
+#ifdef MAPBASE
+	if (GetModelName() == NULL_STRING)
+		SetModelName( AllocPooledString( "models/hunter.mdl" ) );
+
+	PrecacheModel( STRING( GetModelName() ) );
+	PropBreakablePrecacheAll( GetModelName() );
+#else
 	PrecacheModel( "models/hunter.mdl" );
 	PropBreakablePrecacheAll( MAKE_STRING("models/hunter.mdl") );
+#endif
 
 	PrecacheScriptSound( "NPC_Hunter.Idle" );
 	PrecacheScriptSound( "NPC_Hunter.Scan" );
@@ -1814,7 +1830,11 @@ void CNPC_Hunter::Spawn()
 {
 	Precache();
 
+#ifdef MAPBASE
+	SetModel( STRING( GetModelName() ) );
+#else
 	SetModel( "models/hunter.mdl" );
+#endif
 	BaseClass::Spawn();
 
 	//m_debugOverlays |= OVERLAY_NPC_ROUTE_BIT | OVERLAY_BBOX_BIT | OVERLAY_PIVOT_BIT;
@@ -3359,6 +3379,9 @@ int CNPC_Hunter::SelectSchedule()
 		{
 			case NPC_STATE_IDLE:
 			{
+#ifdef MAPBASE
+				if (!m_bNoIdlePatrol)
+#endif
 				return SCHED_HUNTER_PATROL;
 			}
 

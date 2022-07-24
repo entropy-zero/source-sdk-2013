@@ -1289,7 +1289,7 @@ void CTriggerLook::Touch(CBaseEntity *pOther)
 			VectorNormalize(vTargetDir);
 
 			float fDotPr = DotProduct(vLookDir,vTargetDir);
-			if (fDotPr > m_flFieldOfView && (!m_bUseLOS || pOther->FVisible(pOther)))
+			if (fDotPr > m_flFieldOfView && (!m_bUseLOS || pOther->FVisible(m_hLookTargets[i])))
 			{
 				hLookingAtEntity = m_hLookTargets[i];
 				break;
@@ -3142,6 +3142,7 @@ BEGIN_DATADESC( CTriggerCamera )
 #ifdef MAPBASE
 	DEFINE_KEYFIELD( m_fov, FIELD_FLOAT, "fov" ),
 	DEFINE_KEYFIELD( m_fovSpeed, FIELD_FLOAT, "fov_rate" ),
+	DEFINE_KEYFIELD( m_flTrackSpeed, FIELD_FLOAT, "trackspeed" ),
 
 	DEFINE_KEYFIELD( m_bDontSetPlayerView, FIELD_BOOLEAN, "DontSetPlayerView" ),
 #endif
@@ -3152,6 +3153,10 @@ BEGIN_DATADESC( CTriggerCamera )
 #ifdef MAPBASE
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFOV", InputSetFOV ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFOVRate", InputSetFOVRate ),
+
+	//DEFINE_INPUTFUNC( FIELD_STRING, "SetTarget", InputSetTarget ), // Defined by base class
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetTargetAttachment", InputSetTargetAttachment ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetTrackSpeed", InputSetTrackSpeed ),
 #endif
 
 	// Function Pointers
@@ -3180,6 +3185,7 @@ CTriggerCamera::CTriggerCamera()
 {
 	m_fov = 90;
 	m_fovSpeed = 1;
+	m_flTrackSpeed = 40.0f;
 }
 
 //------------------------------------------------------------------------------
@@ -3300,6 +3306,61 @@ void CTriggerCamera::InputSetFOV( inputdata_t &inputdata )
 void CTriggerCamera::InputSetFOVRate( inputdata_t &inputdata )
 { 
 	m_fovSpeed = inputdata.value.Float();
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CTriggerCamera::InputSetTarget( inputdata_t &inputdata )
+{
+	BaseClass::InputSetTarget( inputdata );
+
+	if ( FStrEq(STRING(m_target), "!player") )
+	{
+		AddSpawnFlags( SF_CAMERA_PLAYER_TARGET );
+		m_hTarget = m_hPlayer;
+	}
+	else
+	{
+		RemoveSpawnFlags( SF_CAMERA_PLAYER_TARGET );
+		m_hTarget = GetNextTarget();
+	}
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CTriggerCamera::InputSetTargetAttachment( inputdata_t &inputdata )
+{
+	m_iszTargetAttachment = inputdata.value.StringID();
+	m_iAttachmentIndex = 0;
+
+	if (m_hTarget)
+	{
+		if ( m_iszTargetAttachment != NULL_STRING )
+		{
+			if ( !m_hTarget->GetBaseAnimating() )
+			{
+				Warning("%s tried to target an attachment (%s) on target %s, which has no model.\n", GetClassname(), STRING(m_iszTargetAttachment), STRING(m_hTarget->GetEntityName()) );
+			}
+			else
+			{
+				m_iAttachmentIndex = m_hTarget->GetBaseAnimating()->LookupAttachment( STRING(m_iszTargetAttachment) );
+				if ( m_iAttachmentIndex <= 0 )
+				{
+					Warning("%s could not find attachment %s on target %s.\n", GetClassname(), STRING(m_iszTargetAttachment), STRING(m_hTarget->GetEntityName()) );
+				}
+			}
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CTriggerCamera::InputSetTrackSpeed( inputdata_t &inputdata )
+{
+	m_flTrackSpeed = inputdata.value.Float();
 }
 #endif
 
@@ -3478,12 +3539,14 @@ void CTriggerCamera::Enable( void )
 #ifdef MAPBASE
 	if (!m_bDontSetPlayerView)
 #endif
-	pPlayer->SetViewEntity( this );
-
-	// Hide the player's viewmodel
-	if ( pPlayer->GetActiveWeapon() )
 	{
-		pPlayer->GetActiveWeapon()->AddEffects( EF_NODRAW );
+		pPlayer->SetViewEntity( this );
+
+		// Hide the player's viewmodel
+		if ( pPlayer->GetActiveWeapon() )
+		{
+			pPlayer->GetActiveWeapon()->AddEffects( EF_NODRAW );
+		}
 	}
 
 	// Only track if we have a target
@@ -3529,11 +3592,16 @@ void CTriggerCamera::Disable( void )
 				pBasePlayer->RemoveSolidFlags( FSOLID_NOT_SOLID );
 			}
 
-			if (!m_bDontSetPlayerView)
-				pBasePlayer->SetViewEntity( NULL );
+			if ( HasSpawnFlags( SF_CAMERA_PLAYER_TAKECONTROL ) )
+			{
+				pBasePlayer->EnableControl( TRUE );
+			}
 
-			pBasePlayer->EnableControl(TRUE);
-			pBasePlayer->m_Local.m_bDrawViewmodel = true;
+			if (!m_bDontSetPlayerView)
+			{
+				pBasePlayer->SetViewEntity( NULL );
+				pBasePlayer->m_Local.m_bDrawViewmodel = true;
+			}
 		}
 
 		if ( HasSpawnFlags( SF_CAMERA_PLAYER_SETFOV ) )
@@ -3668,7 +3736,11 @@ void CTriggerCamera::FollowTarget( )
 			dy = dy - 360;
 
 		QAngle vecAngVel;
+#ifdef MAPBASE
+		vecAngVel.Init( dx * m_flTrackSpeed * gpGlobals->frametime, dy * m_flTrackSpeed * gpGlobals->frametime, GetLocalAngularVelocity().z );
+#else
 		vecAngVel.Init( dx * 40 * gpGlobals->frametime, dy * 40 * gpGlobals->frametime, GetLocalAngularVelocity().z );
+#endif
 		SetLocalAngularVelocity(vecAngVel);
 	}
 

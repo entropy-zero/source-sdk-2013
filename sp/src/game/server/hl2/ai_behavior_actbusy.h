@@ -163,6 +163,10 @@ public:
 	bool	IsBeastActBusy();
 #endif
 
+#ifdef MAPBASE
+	CAI_ActBusyGoal	*GetActBusyGoal() const { return m_hActBusyGoal; }
+#endif
+
 private:
 	virtual int		SelectSchedule( void );
 	int				SelectScheduleForLeaving( void );

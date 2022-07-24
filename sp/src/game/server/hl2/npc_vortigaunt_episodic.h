@@ -69,7 +69,6 @@ public:
 	virtual float	InnateRange1MaxRange( void ) { return sk_vortigaunt_zap_range.GetFloat()*12; }
 #else
 	virtual float	InnateRange1MaxRange( void ) { return MAX( sk_vortigaunt_zap_range.GetFloat()*12, m_flZapRange ); }
-	virtual float	GetDispelAttackRange();
 #endif
 	virtual int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual bool	FInViewCone( CBaseEntity *pEntity );
@@ -143,12 +142,20 @@ public:
 	// used so a grub can notify me that I stepped on it. Says a line.
 	void	OnSquishedGrub( const CBaseEntity *pGrub );
 
+#ifdef MAPBASE
+	// Use the vortigaunts' default subtitle color (188,241,174)
+	bool	GetGameTextSpeechParams( hudtextparms_t &params ) { params.r1 = 188; params.g1 = 241; params.b1 = 174; return BaseClass::GetGameTextSpeechParams( params ); }
+	
+	const char*		GetGrenadeAttachment() { return "rightclaw"; }
+#endif
+
 #ifdef EZ
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
 	virtual float GetNextDispelTime( void );
 #ifdef EZ2
 	virtual float GetNextHealthDrainTime( void );
 #endif
+
 
 	// Copied from BaseZombie for now
 	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
@@ -171,11 +178,7 @@ private:
 
 	void	CreateBeamBlast( const Vector &vecOrigin );
 
-#ifndef EZ
 private:
-#else
-protected:
-#endif
 	//=========================================================
 	// Vortigaunt schedules
 	//=========================================================
@@ -220,10 +223,6 @@ protected:
 		COND_VORTIGAUNT_HEAL_VALID,				// All conditions satisfied	
 		COND_VORTIGAUNT_DISPEL_ANTLIONS,		// Repulse all antlions around us
 	};
-
-#ifdef EZ
-private:
-#endif
 
 	// ------------
 	// Beams

@@ -38,7 +38,7 @@ class CBounceBomb : public CBaseAnimating, public CDefaultPlayerPickupVPhysics
 
 public:
 #ifdef MAPBASE
-	CBounceBomb() { m_pWarnSound = NULL; m_bPlacedByPlayer = false; m_flExplosionDelay = 0.5f; m_iLOSMask = MASK_SOLID_BRUSHONLY; }
+	CBounceBomb() { m_pWarnSound = NULL; m_bPlacedByPlayer = false; m_flExplosionDelay = 0.5f; m_iLOSMask = MASK_SOLID_BRUSHONLY; m_vecPlantOrientation = vec3_invalid; }
 #else
 	CBounceBomb() { m_pWarnSound = NULL; m_bPlacedByPlayer = false; }
 #endif
@@ -143,6 +143,10 @@ private:
 	int		m_iLOSMask;
 
 	bool	m_bUnavoidable;
+
+	// What direction the mine should be facing when planting itself (i.e. facing up, facing left, etc.)
+	// vec3_invalid = use default (0 0 1 or -90 0 0)
+	Vector	m_vecPlantOrientation;
 #endif
 
 	bool	m_bPlacedByPlayer;
@@ -177,6 +181,8 @@ private:
 #ifdef MAPBASE
 	void InputBounce( inputdata_t &inputdata );
 	void InputBounceAtTarget( inputdata_t &inputdata );
+	void InputSetPlantOrientation( inputdata_t &inputdata );
+	void InputSetPlantOrientationRaw( inputdata_t &inputdata );
 	COutputEvent	m_OnTriggered;
 	COutputEvent	m_OnExplode;
 #endif

@@ -1087,8 +1087,13 @@ void CEZ2_Player::ModifyOrAppendEnemyCriteria(AI_CriteriaSet& set, CBaseEntity *
 			{
 				// That's enough outta you.
 				// (IsSpeaking() accounts for the delay as well, so it lingers beyond actual speech time)
+#ifdef NEW_RESPONSE_SYSTEM
+				if (gpGlobals->curtime < pNPC->GetExpresser()->GetTimeSpeechCompleteWithoutDelay()
+						&& !WasUnremarkableConcept(pNPC->GetExpresser()->GetLastSpokeConcept()))
+#else
 				if (gpGlobals->curtime < pNPC->GetExpresser()->GetRealTimeSpeechComplete()
 						&& !WasUnremarkableConcept(pNPC->GetExpresser()->GetLastSpokeConcept()))
+#endif
 					set.AppendCriteria("enemy_is_speaking", "1");
 			}
 
@@ -1360,6 +1365,16 @@ bool CEZ2_Player::SelectSpeechResponse( AIConcept_t concept, AI_CriteriaSet *mod
 	if ( IsAllowedToSpeak( concept ) )
 	{
 		// If we have modifiers, send them, otherwise create a new object
+#ifdef NEW_RESPONSE_SYSTEM
+		bool result = FindResponse( pSelection->Response, concept, modifiers );
+
+		if ( result )
+		{
+			pSelection->concept = concept;
+			pSelection->hSpeechTarget = pTarget;
+			return true;
+		}
+#else
 		AI_Response *pResponse = SpeakFindResponse( concept, (modifiers != NULL ? *modifiers : AI_CriteriaSet()) );
 
 		if ( pResponse )
@@ -1367,6 +1382,7 @@ bool CEZ2_Player::SelectSpeechResponse( AIConcept_t concept, AI_CriteriaSet *mod
 			pSelection->Set( concept, pResponse, pTarget );
 			return true;
 		}
+#endif
 	}
 	return false;
 }

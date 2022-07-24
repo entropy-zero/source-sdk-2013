@@ -517,14 +517,12 @@ void CPropDrivableAPC::Spawn( void )
 void CPropDrivableAPC::CreateAPCLaserDot( void )
 {
 	// Create a laser if we don't have one
-#ifdef EZ
-	if ( m_hLaserDot == NULL && GetDriver() )
+	if ( m_hLaserDot == NULL )
 	{
+#ifdef EZ
 		// Rockets are now owned by the driver, so the laser dot must be owned by the driver as well
 		m_hLaserDot = CreateLaserDot( GetAbsOrigin(), GetDriver(), false );
 #else
-	if ( m_hLaserDot == NULL )
-	{
 		m_hLaserDot = CreateLaserDot( GetAbsOrigin(), this, false );
 #endif
 	}

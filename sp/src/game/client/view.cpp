@@ -107,18 +107,16 @@ extern ConVar cl_forwardspeed;
 static ConVar v_centermove( "v_centermove", "0.15");
 static ConVar v_centerspeed( "v_centerspeed","500" );
 
-#ifdef TF_CLIENT_DLL
+#if defined(TF_CLIENT_DLL) || defined(MAPBASE)
 // 54 degrees approximates a 35mm camera - we determined that this makes the viewmodels
 // and motions look the most natural.
 ConVar v_viewmodel_fov( "viewmodel_fov", "54", FCVAR_ARCHIVE );
+ConVar v_viewmodel_fov_script_override( "viewmodel_fov_script_override", "0", FCVAR_NONE, "If nonzero, overrides the viewmodel FOV of weapon scripts which override the viewmodel FOV." );
 #elif EZ
 // Viewmodel FOV is no longer a cheat command so that it may be configured.
 ConVar v_viewmodel_fov( "viewmodel_fov", "54", FCVAR_ARCHIVE );
 #else
 ConVar v_viewmodel_fov( "viewmodel_fov", "54", FCVAR_CHEAT );
-#endif
-#ifdef CSS_WEAPONS_IN_HL2 // This code originates from Mapbase v7.0. In the event of a merge conflict, it should take precedence over this code.
-ConVar v_viewmodel_fov_script_override( "viewmodel_fov_script_override", "0", FCVAR_NONE, "If nonzero, overrides the viewmodel FOV of weapon scripts which override the viewmodel FOV." );
 #endif
 ConVar mat_viewportscale( "mat_viewportscale", "1.0", FCVAR_ARCHIVE, "Scale down the main viewport (to reduce GPU impact on CPU profiling)", true, (1.0f / 640.0f), true, 1.0f );
 ConVar mat_viewportupscale( "mat_viewportupscale", "1", FCVAR_ARCHIVE, "Scale the viewport back up" );
@@ -681,7 +679,7 @@ void CViewRender::SetUpViews()
 	Vector ViewModelOrigin;
 	QAngle ViewModelAngles;
 	
-#ifdef CSS_WEAPONS_IN_HL2 // This code originates from Mapbase v7.0. In the event of a merge conflict, it should take precedence over this code.
+#ifdef MAPBASE
 	view.fovViewmodel = g_pClientMode->GetViewModelFOV();
 #endif
 
@@ -720,16 +718,16 @@ void CViewRender::SetUpViews()
 			bCalcViewModelView = true;
 			ViewModelOrigin = view.origin;
 			ViewModelAngles = view.angles;
-			
-#ifdef CSS_WEAPONS_IN_HL2 // This code originates from Mapbase v7.0. In the event of a merge conflict, it should take precedence over this code.
+
+#ifdef MAPBASE
 			// Allow weapons to override viewmodel FOV
 			C_BaseCombatWeapon *pWeapon = pPlayer->GetActiveWeapon();
-			if (pWeapon && pWeapon->GetWpnData().m_flViewmodelFOV != 0.0f)
+			if (pWeapon && pWeapon->GetViewmodelFOVOverride() != 0.0f)
 			{
 				if (v_viewmodel_fov_script_override.GetFloat() > 0.0f)
 					view.fovViewmodel = v_viewmodel_fov_script_override.GetFloat();
 				else
-					view.fovViewmodel = pWeapon->GetWpnData().m_flViewmodelFOV;
+					view.fovViewmodel = pWeapon->GetViewmodelFOVOverride();
 			}
 #endif
 		}

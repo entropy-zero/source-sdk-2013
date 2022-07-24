@@ -739,6 +739,12 @@ bool CNPC_Barnacle::CanPickup( CBaseCombatCharacter *pBCC )
 		return false;
 #endif
 
+#ifdef MAPBASE
+	// Don't pickup rollermines
+	if( FClassnameIs( pBCC, "npc_rollermine" ) )
+		return false;
+#endif
+
 	// Don't pick up a dead player or NPC
 	if( !pBCC->IsAlive() )
 		return false;

@@ -22,8 +22,6 @@ public:
 	virtual void	Spawn( void );
 	virtual void	Precache( void );
 
-	virtual void	BuildScheduleTestBits( void );
-
 	virtual bool	SelectIdleSpeech( AISpeechSelection_t *pSelection );
 	virtual void	OnStartSchedule( int scheduleType );
 
@@ -53,8 +51,6 @@ protected:
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 5.0f, 10.0f ); }
 	virtual float GetNextDispelTime( void );
 	virtual float GetNextHealthDrainTime( void );
-
-	virtual float	GetDispelAttackRange();
 
 	// Overridden to handle particle effects
 	virtual void		StartEye( void ); // Start glow effects for this NPC
