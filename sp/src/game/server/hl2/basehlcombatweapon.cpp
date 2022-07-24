@@ -412,6 +412,10 @@ void CHLSelectFireMachineGun::SecondaryAttack( void )
 	{
 		m_iSecondaryAttacks++;
 		gamestats->Event_WeaponFired( pOwner, false, GetClassname() );
+
+#ifdef MAPBASE
+		pOwner->SetAnimation( PLAYER_ATTACK2 );
+#endif
 	}
 }
 

@@ -1213,7 +1213,11 @@ void CNPC_Wilson::HandlePrescheduleIdleSpeech( void )
 	if ( DoIdleSpeechAI( &selection, GetState() ) )
 	{
 		SetSpeechTarget( selection.hSpeechTarget );
+#ifdef NEW_RESPONSE_SYSTEM
+		SpeakDispatchResponse( selection.concept.c_str(), selection.Response );
+#else
 		SpeakDispatchResponse( selection.concept.c_str(), selection.pResponse );
+#endif
 		SetNextIdleSpeechTime( gpGlobals->curtime + RandomFloat( 10,20 ) );
 	}
 	else

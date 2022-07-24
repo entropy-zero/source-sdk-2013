@@ -104,8 +104,8 @@ END_DATADESC()
 #ifdef MAPBASE_VSCRIPT
 BEGIN_ENT_SCRIPTDESC( CAI_BaseActor, CAI_BaseNPC, "The base class for NPCs which act in complex choreo scenes." )
 
-	DEFINE_SCRIPTFUNC_NAMED( ScriptAddLookTarget, "AddLookTarget", "Add a potential look target for this actor." )
-	DEFINE_SCRIPTFUNC_NAMED( ScriptAddLookTargetPos, "AddLookTargetPos", "Add a potential look target position for this actor." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptAddLookTarget, "AddLookTarget", "Add a potential look target for this actor with the specified importance, duration, and ramp." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptAddLookTargetPos, "AddLookTargetPos", "Add a potential look target position for this actor with the specified importance, duration, and ramp." )
 
 END_SCRIPTDESC();
 #endif
@@ -838,7 +838,11 @@ void CAI_BaseActor::UpdateLatchedValues( )
 		// set head latch
 		m_fLatchedPositions |= HUMANOID_LATCHED_HEAD;
 
+#ifdef MAPBASE // From Alien Swarm SDK
+		if ( CanSkipAnimation() || !GetAttachment( "eyes", m_latchedEyeOrigin, &m_latchedHeadDirection ))
+#else
 		if (!HasCondition( COND_IN_PVS ) || !GetAttachment( "eyes", m_latchedEyeOrigin, &m_latchedHeadDirection ))
+#endif
 		{
 			m_latchedEyeOrigin = BaseClass::EyePosition( );
 			AngleVectors( GetLocalAngles(), &m_latchedHeadDirection );
@@ -1140,6 +1144,18 @@ void CAI_BaseActor::UpdateHeadControl( const Vector &vHeadTarget, float flHeadIn
 	matrix3x4_t headXform;
 	ConcatTransforms( worldToForward, targetXform, headXform );
 	MatrixAngles( headXform, vTargetAngles );
+
+#ifdef MAPBASE
+	// This is here to cover an edge case where pose parameters set to NaN invalidate the model.
+	if (!vTargetAngles.IsValid())
+	{
+		Warning(	"================================================================================\n"
+					"!!!!! %s tried to set a NaN head angle (can happen when look targets have >1 importance) !!!!!\n"
+					"================================================================================\n", GetDebugName() );
+		vTargetAngles.x = 0;
+		vTargetAngles.y = 0;
+	}
+#endif
 
 	// partially debounce head goal
 	float s0 = 1.0 - flHeadInfluence + GetHeadDebounce() * flHeadInfluence;
@@ -1675,7 +1691,11 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 	}
 
 	// don't bother with any of the rest if the player can't see you
+#ifdef MAPBASE // From Alien Swarm SDK
+	if ( CanSkipAnimation() )
+#else
 	if (!HasCondition( COND_IN_PVS ))
+#endif
 	{
 		return;
 	}
@@ -2082,7 +2102,11 @@ bool CAI_BaseActor::UseSemaphore( void )
 
 CAI_Expresser *CAI_BaseActor::CreateExpresser()
 {
+#ifdef NEW_RESPONSE_SYSTEM
+	m_pExpresser = new CAI_ExpresserWithFollowup(this);
+#else
 	m_pExpresser = new CAI_Expresser(this);
+#endif
 	return m_pExpresser;
 }
 
