@@ -77,7 +77,7 @@ ConVar sk_zombie_fast_dmg_both_slash( "sk_zombie_fast_dmg_leap","5");
 #endif
 
 #ifdef EZ2
-ConVar	sk_zombie_fast_kick_multiplier( "sk_zombie_fast_kick_multiplier", "300" );
+ConVar	sk_zombie_fast_kick_multiplier( "sk_zombie_fast_kick_multiplier", "0" );
 #endif
 
 envelopePoint_t envFastZombieVolumeJump[] =
