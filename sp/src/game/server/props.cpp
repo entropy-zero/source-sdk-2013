@@ -49,6 +49,7 @@
 
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "eventqueue.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -4251,6 +4252,8 @@ BEGIN_DATADESC(CBasePropDoor)
 	DEFINE_KEYFIELD( m_bOpenOnKick, FIELD_BOOLEAN, "openonkick" ),
 	DEFINE_KEYFIELD( m_bUnlockOnKick, FIELD_BOOLEAN, "unlockonkick" ),
 	DEFINE_FIELD( m_bKicked, FIELD_BOOLEAN ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "KickOpen", InputKickOpen ),
 #endif
 
 	DEFINE_INPUTFUNC(FIELD_VOID, "Open", InputOpen),
@@ -5388,33 +5391,53 @@ bool CBasePropDoor::HandleInteraction( int interactionType, void *data, CBaseCom
 {
 	if ( interactionType == g_interactionBadCopKick)
 	{
-		// Fire an output
-		m_OnKicked.FireOutput( sourceEnt, this, 0.0f );
+		bool kicked = KickOpen( sourceEnt );
 
-		// If kicking is meant to unlock this door, unlock
-		if ( m_bUnlockOnKick )
-		{
-			Unlock();
-		}
+		// Set success if we opened
+		KickInfo_t *info = static_cast<KickInfo_t*>(data);
+		if (info)
+			info->success = kicked;
 
-		if ( CanOpenOnKick( sourceEnt ) )
-		{
-			// Set the door speed to the kicking speed
-			m_bKicked = true;
-
-			// Open the door away from the source entity if you can
-			OpenIfUnlocked( sourceEnt, sourceEnt );
-
-			// Return successful if we're opening
-			KickInfo_t *info = static_cast<KickInfo_t*>(data);
-			if (info)
-				info->success = IsDoorOpening();
-		}
+		g_EventQueue.AddEvent( STRING( GetEntityName() ), "KickOpen", variant_t(), 0.0f, this, this, 0 );
 
 		return true;
 	}
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+
+void CBasePropDoor::InputKickOpen( inputdata_t & inputdata )
+{
+	KickOpen( inputdata.pActivator );
+}
+
+bool CBasePropDoor::KickOpen(CBaseEntity * pSourceEnt)
+{
+	// Don't kick open if we're already kicking open
+	if ( m_bKicked && IsDoorOpening() )
+		return false;
+
+	// Fire an output
+	m_OnKicked.FireOutput( pSourceEnt, this, 0.0f );
+
+	// If kicking is meant to unlock this door, unlock
+	if ( m_bUnlockOnKick )
+	{
+		Unlock();
+	}
+
+	if ( CanOpenOnKick( pSourceEnt ) )
+	{
+		// Set the door speed to the kicking speed
+		m_bKicked = true;
+
+		// Open the door away from the source entity if you can
+		OpenIfUnlocked( pSourceEnt, pSourceEnt );
+
+		return IsDoorOpening();
+	}
+
+	return false;
 }
 #endif
 

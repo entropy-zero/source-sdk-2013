@@ -83,6 +83,8 @@ public:
 
 #ifdef EZ2
 	bool	HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
+	bool	KickOpen( CBaseEntity * pSourceEnt );
+	void	InputKickOpen( inputdata_t &inputdata );
 #endif
 
 protected:
