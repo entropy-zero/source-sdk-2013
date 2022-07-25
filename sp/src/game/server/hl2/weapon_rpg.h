@@ -218,6 +218,9 @@ public:
 	int		WeaponRangeAttack1Condition( float flDot, float flDist );
 
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
+#ifdef MAPBASE
+	void	Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
+#endif
 	void	StartGuiding( void );
 	void	StopGuiding( void );
 	void	ToggleGuiding( void );

@@ -117,8 +117,15 @@ public:
 	bool					m_bAllowFlipping;	// False to disallow flipping the model, regardless of whether
 												// it is built left or right handed.
 
-#ifdef CSS_WEAPONS_IN_HL2 // This code originates from Mapbase v7.0. In the event of a merge conflict, it should take precedence over this code.
+#ifdef MAPBASE
 	float					m_flViewmodelFOV;
+	float					m_flBobScale;
+	float					m_flSwayScale;
+	float					m_flSwaySpeedScale;
+
+	char					szDroppedModel[MAX_WEAPON_STRING];		// Model of this weapon when dropped on the ground
+
+	bool					m_bUsesHands;
 #endif
 
 #ifdef EZ2

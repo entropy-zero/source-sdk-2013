@@ -304,6 +304,26 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 	// Blixibon - Make weird motions while charging
 	if (scheduleType == SCHED_CHASE_ENEMY)
 	{
+#ifdef NEW_RESPONSE_SYSTEM
+		// We need to do this hacky stuff so the response doesn't interrupt sounds
+		AI_Response response;
+		bool result = SpeakFindResponse( response, TLK_VORT_CHARGE );
+		if ( result )
+		{
+			if ( response.GetType() == ResponseRules::RESPONSE_SCENE )
+			{
+				char scene[256];
+				response.GetResponse( scene, sizeof( scene ) );
+
+				m_flChargeResponseEnd = PlayScene( scene, response.GetDelay(), &response );
+				m_iszChargeResponse = AllocPooledString( scene );
+			}
+			else
+			{
+				SpeakDispatchResponse( TLK_VORT_CHARGE, &response );
+			}
+		}
+#else
 		// We need to do this hacky stuff so the response doesn't interrupt sounds
 		AI_Response *result = GetExpresser()->SpeakFindResponse( TLK_VORT_CHARGE );
 		if ( result )
@@ -321,6 +341,7 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 				SpeakDispatchResponse( TLK_VORT_CHARGE, result );
 			}
 		}
+#endif
 	}
 	else
 	{

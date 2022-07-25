@@ -50,10 +50,6 @@ ConVar sk_weapon_ar2_alt_fire_proto_duration( "sk_weapon_ar2_alt_fire_proto_dura
 
 int BurstMax = 0; // Breadman. It's called BurstMax but is actually the number of times to cycle before completing
 
-#ifdef MAPBASE
-extern acttable_t *GetSMG1Acttable();
-#endif
-
 //=========================================================
 //=========================================================
 
@@ -112,14 +108,14 @@ acttable_t	CWeaponAR2::m_acttable[] =
 	{ ACT_WALK_CROUCH,				ACT_WALK_CROUCH_RIFLE,			true },
 	{ ACT_WALK_CROUCH_AIM,			ACT_WALK_CROUCH_AIM_RIFLE,		true },
 	{ ACT_RUN,						ACT_RUN_AR2,					true },
-	{ ACT_RUN_AIM,					ACT_RUN_AIM_RIFLE,				true },
+	{ ACT_RUN_AIM,					ACT_RUN_AIM_AR2,				true },
 	{ ACT_RUN_CROUCH,				ACT_RUN_CROUCH_RIFLE,			true },
 	{ ACT_RUN_CROUCH_AIM,			ACT_RUN_CROUCH_AIM_RIFLE,		true },
 	{ ACT_GESTURE_RANGE_ATTACK1,	ACT_GESTURE_RANGE_ATTACK_AR2,	false },
-	{ ACT_COVER_LOW,				ACT_COVER_SMG1_LOW,				false },
+	{ ACT_COVER_LOW,				ACT_COVER_AR2_LOW,				true },
 	{ ACT_RANGE_AIM_LOW,			ACT_RANGE_AIM_AR2_LOW,			false },
 	{ ACT_RANGE_ATTACK1_LOW,		ACT_RANGE_ATTACK_AR2_LOW,		false },
-	{ ACT_RELOAD_LOW,				ACT_RELOAD_SMG1_LOW,			false },
+	{ ACT_RELOAD_LOW,				ACT_RELOAD_AR2_LOW,			false },
 	{ ACT_GESTURE_RELOAD,			ACT_GESTURE_RELOAD_AR2,		true },
 //	{ ACT_RANGE_ATTACK2, ACT_RANGE_ATTACK_AR2_GRENADE, true },
 #else
@@ -172,9 +168,52 @@ acttable_t	CWeaponAR2::m_acttable[] =
 	{ ACT_GESTURE_RELOAD,			ACT_GESTURE_RELOAD_SMG1,		true },
 //	{ ACT_RANGE_ATTACK2, ACT_RANGE_ATTACK_AR2_GRENADE, true },
 #endif
+
+#if EXPANDED_HL2_WEAPON_ACTIVITIES
+	{ ACT_ARM,						ACT_ARM_RIFLE,					false },
+	{ ACT_DISARM,					ACT_DISARM_RIFLE,				false },
+#endif
+
+#if EXPANDED_HL2_COVER_ACTIVITIES
+	{ ACT_RANGE_AIM_MED,			ACT_RANGE_AIM_AR2_MED,			false },
+	{ ACT_RANGE_ATTACK1_MED,		ACT_RANGE_ATTACK_AR2_MED,		false },
+
+	{ ACT_COVER_WALL_R,				ACT_COVER_WALL_R_RIFLE,			false },
+	{ ACT_COVER_WALL_L,				ACT_COVER_WALL_L_RIFLE,			false },
+	{ ACT_COVER_WALL_LOW_R,			ACT_COVER_WALL_LOW_R_RIFLE,		false },
+	{ ACT_COVER_WALL_LOW_L,			ACT_COVER_WALL_LOW_L_RIFLE,		false },
+#endif
+
+#ifdef MAPBASE
+	// HL2:DM activities (for third-person animations in SP)
+	{ ACT_HL2MP_IDLE,					ACT_HL2MP_IDLE_AR2,                    false },
+	{ ACT_HL2MP_RUN,					ACT_HL2MP_RUN_AR2,                    false },
+	{ ACT_HL2MP_IDLE_CROUCH,			ACT_HL2MP_IDLE_CROUCH_AR2,            false },
+	{ ACT_HL2MP_WALK_CROUCH,			ACT_HL2MP_WALK_CROUCH_AR2,            false },
+	{ ACT_HL2MP_GESTURE_RANGE_ATTACK,	ACT_HL2MP_GESTURE_RANGE_ATTACK_AR2,    false },
+	{ ACT_HL2MP_GESTURE_RELOAD,			ACT_HL2MP_GESTURE_RELOAD_AR2,        false },
+	{ ACT_HL2MP_JUMP,					ACT_HL2MP_JUMP_AR2,                    false },
+#if EXPANDED_HL2DM_ACTIVITIES
+	{ ACT_HL2MP_WALK,					ACT_HL2MP_WALK_AR2,						false },
+	{ ACT_HL2MP_GESTURE_RANGE_ATTACK2,	ACT_HL2MP_GESTURE_RANGE_ATTACK2_AR2,	false },
+#endif
+#endif
 };
 
 IMPLEMENT_ACTTABLE(CWeaponAR2);
+
+#ifdef MAPBASE
+// Allows Weapon_BackupActivity() to access the AR2's activity table.
+acttable_t *GetAR2Acttable()
+{
+	return CWeaponAR2::m_acttable;
+}
+
+int GetAR2ActtableCount()
+{
+	return ARRAYSIZE(CWeaponAR2::m_acttable);
+}
+#endif
 
 CWeaponAR2::CWeaponAR2( )
 {
@@ -434,6 +473,9 @@ void CWeaponAR2::SecondaryAttack( void )
 	if( pPlayer )
 	{
 		pPlayer->RumbleEffect(RUMBLE_AR2_ALT_FIRE, 0, RUMBLE_FLAG_RESTART );
+#ifdef MAPBASE
+		pPlayer->SetAnimation( PLAYER_ATTACK2 );
+#endif
 	}
 
 	SendWeaponAnim( ACT_VM_FIDGET );
