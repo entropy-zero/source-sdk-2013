@@ -1460,13 +1460,13 @@ bool CNPC_Citizen::GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * 
 			return false;
 		}
 		// Is this weapon already a side arm?
-		else if ( pWeapon->ClassMatches( "weapon_smg1" ) || pWeapon->ClassMatches( "weapon_smg2" ) || pWeapon->ClassMatches( "weapon_pistol" ) )
+		else if ( pWeapon->ClassMatches( "weapon_smg1" ) || pWeapon->ClassMatches( "weapon_smg2" ) || pWeapon->WeaponClassify() == WEPCLASS_HANDGUN )
 		{
 			// Very lucky citizens get crowbars as backup
 			if ( RandomInt( 1, 6 ) == 1 )
 			{
 				CBaseCombatWeapon * pCrowbar = GiveWeaponHolstered( AllocPooledString( "weapon_crowbar" ) );
-				pCrowbar->AddSpawnFlags( SF_WEAPON_NO_PLAYER_PICKUP );
+				//pCrowbar->AddSpawnFlags( SF_WEAPON_NO_PLAYER_PICKUP );
 				pCrowbar->SetName( AllocPooledString( "worthless" ) ); // Bad Cop will say the crowbar pickup line upon interacting with this
 
 				return true;
