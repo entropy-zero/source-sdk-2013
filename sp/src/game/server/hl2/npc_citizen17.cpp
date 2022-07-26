@@ -145,6 +145,7 @@ ConVar npc_citizen_gib( "npc_citizen_gib", "1" );
 ConVar npc_citizen_longfall_death_height("npc_citizen_longfall_death_height", "32768");
 ConVar npc_citizen_longfall_glow_chest_jump_fade_enter( "npc_citizen_longfall_glow_chest_jump_fade_enter", "0.25" );
 ConVar npc_citizen_longfall_glow_chest_jump_fade_exit( "npc_citizen_longfall_glow_chest_jump_fade_exit", "0.5" );
+ConVar npc_citizen_longfall_test_high_ground( "npc_citizen_longfall_test_high_ground", "0", FCVAR_NONE, "Should longfall / jump citizens only try to shoot from positions above their target?" );
 ConVar npc_citizen_brute_mask_eject_threshold("npc_citizen_brute_mask_eject_threshold", "100");
 #ifdef EZ2
 ConVar npc_citizen_surrender_auto_distance( "npc_citizen_surrender_auto_distance", "720" );
@@ -6980,5 +6981,18 @@ bool CNPC_Citizen::IsJumpLegal(const Vector &startPos, const Vector &apex, const
 	}
 
 	return BaseClass::IsJumpLegal(startPos, apex, endPos);
+}
+
+//-----------------------------------------------------------------------------
+// Override TestShootPosition for jump rebels - if the potential shoot position is not above the target, don't select it
+//-----------------------------------------------------------------------------
+bool CNPC_Citizen::TestShootPosition( const Vector &vecShootPos, const Vector &targetPos )
+{
+	if ( m_Type == CT_LONGFALL && npc_citizen_longfall_test_high_ground.GetBool() &&  vecShootPos.z <= targetPos.z )
+	{
+		return false;
+	}
+
+	return BaseClass::TestShootPosition( vecShootPos, targetPos );
 }
 #endif

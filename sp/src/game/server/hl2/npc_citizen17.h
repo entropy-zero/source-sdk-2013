@@ -206,6 +206,7 @@ public:
 #ifdef EZ
 	WeaponProficiency_t CalcWeaponProficiency(CBaseCombatWeapon *pWeapon); // Added by 1upD - Citizen proficiency should be configurable
 	bool			IsJumpLegal(const Vector & startPos, const Vector & apex, const Vector & endPos) const; // Added by 1upD - Override for jump rebels
+	bool			TestShootPosition( const Vector &vecShootPos, const Vector &targetPos );
 
 	//---------------------------------
 	// Willpower
