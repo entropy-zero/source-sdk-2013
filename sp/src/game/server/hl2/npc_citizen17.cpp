@@ -1570,6 +1570,9 @@ void CNPC_Citizen::GatherConditions()
 	BaseClass::GatherConditions();
 #ifdef EZ
 	GatherWillpowerConditions();
+
+	// Clear the disarmed condition if it was set by being kicked
+	ClearCondition( COND_CIT_DISARMED );
 #endif
 	if( IsInPlayerSquad() && hl2_episodic.GetBool() )
 	{
@@ -1772,11 +1775,18 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_NEW_ENEMY );
 		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
 		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
+		SetCustomInterruptCondition( COND_CIT_DISARMED );
 	}
 
 	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( m_Type == CT_BRUTE || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
 	{
 		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
+	}
+
+	// Any schedule involving attacking or weapons should be interrupted by being disarmed
+	if ( IsCurSchedule ( SCHED_RANGE_ATTACK1 ) || IsCurSchedule ( SCHED_RELOAD ) || IsCurSchedule ( SCHED_CITIZEN_RANGE_ATTACK1_ADVANCE ) || IsCurSchedule( SCHED_CITIZEN_RANGE_ATTACK1_SUPPRESS ) || IsCurSchedule( SCHED_PC_MELEE_AND_MOVE_AWAY ) )
+	{
+		SetCustomInterruptCondition( COND_CIT_DISARMED );
 	}
 #endif
 
@@ -2541,6 +2551,17 @@ int CNPC_Citizen::TranslateSuppressingFireSchedule(int scheduleType)
 	return scheduleType;
 }
 
+// Overridden to check if we are panicking currently
+int CNPC_Citizen::SelectRangeAttack2Schedule()
+{
+	if ( !m_bWillpowerDisabled && HasCondition( COND_CIT_WILLPOWER_VERY_LOW ) )
+	{
+		return SCHED_NONE;
+	}
+
+	return BaseClass::SelectRangeAttack2Schedule();
+}
+
 #define CITIZEN_DECOY_RADIUS 128.0f
 #define CITIZEN_NUM_DECOYS 10
 #define CITIZEN_DECOY_MAX_MASS 200.0f
@@ -3222,7 +3243,9 @@ Activity CNPC_Citizen::NPC_TranslateActivity( Activity activity )
 
 #ifdef EZ2
 	// Unarmed citizens use 'panic readiness' activities!
-	if ( (!m_bWillpowerDisabled && GetActiveWeapon() == NULL && m_NPCState == NPC_STATE_COMBAT) /*|| IsSurrendered()*/ )
+	// Only if they have no weapon and either cannot throw grenades or are panicking, and are not jump rebels 
+	bool disarmed = GetActiveWeapon() == NULL && m_Type != CT_LONGFALL && ( HasCondition( COND_CIT_WILLPOWER_VERY_LOW ) || !IsGrenadeCapable() || m_iNumGrenades == 0 );
+	if ( (!m_bWillpowerDisabled && disarmed && m_NPCState == NPC_STATE_COMBAT) /*|| IsSurrendered()*/ )
 	{
 		switch (activity)
 		{
@@ -5562,6 +5585,8 @@ bool CNPC_Citizen::HandleInteraction(int interactionType, void *data, CBaseComba
 			const Vector weaponTarget = pWeaponPos + (pTr->endpos - pTr->startpos);
 			const Vector weaponVelocity = ( (pTr->endpos - pTr->startpos) * 1024.0f );
 
+			SetCondition( COND_CIT_DISARMED );
+
 			Weapon_Drop( pWeapon, &weaponTarget, &weaponVelocity );
 		}
 
@@ -5570,13 +5595,12 @@ bool CNPC_Citizen::HandleInteraction(int interactionType, void *data, CBaseComba
 
 		if (GetActiveWeapon() == NULL)
 		{
-			TaskFail( FAIL_ITEM_TAKEN );
-
 			// If I don't have any weapons to switch to, lose willpower and stop attacking
 			if ( pWeapon == NULL || !GiveBackupWeapon( pWeapon, sourceEnt ) )
 			{
 				ClearCondition( COND_CIT_WILLPOWER_HIGH );
-				SetCondition( COND_CIT_WILLPOWER_LOW );
+				if(!m_bWillpowerDisabled)
+					SetCondition( COND_CIT_WILLPOWER_LOW );
 				SetCondition( COND_TOO_CLOSE_TO_ATTACK );
 			}
 		}
@@ -6468,6 +6492,7 @@ AI_BEGIN_CUSTOM_NPC( npc_citizen, CNPC_Citizen )
 	DECLARE_CONDITION(COND_CIT_WILLPOWER_LOW)
 	DECLARE_CONDITION(COND_CIT_WILLPOWER_HIGH)
 	DECLARE_CONDITION(COND_CIT_ON_FIRE)
+	DECLARE_CONDITION(COND_CIT_DISARMED)
 
 	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_RPG1) // Previously, RPG squad slots were undeclared
 	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_RPG2)
@@ -6970,7 +6995,8 @@ WeaponProficiency_t CNPC_Citizen::CalcWeaponProficiency(CBaseCombatWeapon *pWeap
 //-----------------------------------------------------------------------------
 bool CNPC_Citizen::IsJumpLegal(const Vector &startPos, const Vector &apex, const Vector &endPos) const
 {
-	if (m_Type == CT_LONGFALL) 
+	// Jump rebels can jump incredible distances, but not if they have surrendered
+	if ( m_Type == CT_LONGFALL && !m_SurrenderBehavior.IsSurrendered() )
 	{
 		const float MAX_JUMP_RISE = 1024.0f; // This one might need some adjustment - how high is too high?
 		const float MAX_JUMP_DISTANCE = 1024.0f;

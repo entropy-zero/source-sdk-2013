@@ -1117,7 +1117,7 @@ int CNPC_PlayerCompanion::SelectScheduleCombat()
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 int CNPC_PlayerCompanion::SelectRangeAttack2Schedule() {
-	if ( HasGrenades() && GetEnemy() && !HasCondition( COND_SEE_ENEMY ) )
+	if ( HasGrenades() && GetEnemy() && (!HasCondition( COND_SEE_ENEMY ) || GetActiveWeapon() == NULL ) )
 	{
 		// We don't see our enemy. If it hasn't been long since I last saw him,
 		// and he's pretty close to the last place I saw him, throw a grenade in 
