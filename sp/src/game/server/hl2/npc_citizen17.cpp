@@ -1543,7 +1543,6 @@ bool CNPC_Citizen::GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * 
 			if ( RandomInt( 1, 6 ) == 1 )
 			{
 				CBaseCombatWeapon * pCrowbar = GiveWeaponHolstered( AllocPooledString( "weapon_crowbar" ) );
-				//pCrowbar->AddSpawnFlags( SF_WEAPON_NO_PLAYER_PICKUP );
 				pCrowbar->SetName( AllocPooledString( "worthless" ) ); // Bad Cop will say the crowbar pickup line upon interacting with this
 
 				return true;
