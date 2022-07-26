@@ -1080,6 +1080,14 @@ void CNPC_Combine::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTa
 		// Make sure they're allowed to re-arm themselves in case they fail to pick up this weapon.
 		m_bTemporarilyNeedWeapon = true;
 		m_bDontPickupWeapons = false;
+		m_flNextWeaponSearchTime = gpGlobals->curtime + 1.0f;
+
+		// Check if we don't have other weapons in our inventory
+		if ( !m_hMyWeapons[1].Get() )
+		{
+			// In case we get into combat while unarmed, have a pistol on-hand
+			GiveWeaponHolstered( AllocPooledString( "weapon_pistol" ) );
+		}
 	}
 }
 
