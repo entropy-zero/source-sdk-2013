@@ -572,6 +572,14 @@ void CNPC_Citizen::Precache()
 	else
 		PrecacheModel( STRING( GetModelName() ) );
 
+#ifdef EZ2
+	if ( m_Type >= CT_BRUTE && m_Type <= CT_ARBEIT_SEC ) // CT_BRUTE, CT_LONGFALL, CT_ARCTIC, CT_ARBEIT, CT_ARBEIT_SEC
+	{
+		// Potential backup weapon
+		UTIL_PrecacheOther( "weapon_css_glock" );
+	}
+#endif
+
 	if ( NameMatches( "matt" ) )
 		PrecacheModel( "models/props_canal/mattpipe.mdl" );
 
@@ -1520,29 +1528,45 @@ bool CNPC_Citizen::GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * 
 	// Don't give any more backup weapons!
 	m_bUsedBackupWeapon = true;
 
-	// Is this weapon already a side arm?
-	if ( pWeapon != NULL && pWeapon->ClassMatches( "weapon_smg1" ) || pWeapon->ClassMatches( "weapon_smg2" ) || pWeapon->ClassMatches( "weapon_pistol" ) )
+	if ( pWeapon != NULL )
 	{
-		// Very lucky citizens get crowbars as backup
-		if ( random->RandomInt( 1, 6 ) == 1 )
+		// Is this a melee weapon?
+		if ( pWeapon->IsMeleeWeapon() || pWeapon->ClassMatches( "weapon_crowbar" ) )
 		{
-			CBaseCombatWeapon * pCrowbar = GiveWeaponHolstered( AllocPooledString( "weapon_crowbar" ) );
-			pCrowbar->AddSpawnFlags( SF_WEAPON_NO_PLAYER_PICKUP );
-			pCrowbar->SetName( AllocPooledString( "worthless" ) ); // Bad Cop will say the crowbar pickup line upon interacting with this
-
-			return true;
+			// No more backups
+			return false;
 		}
+		// Is this weapon already a side arm?
+		else if ( pWeapon->ClassMatches( "weapon_smg1" ) || pWeapon->ClassMatches( "weapon_smg2" ) || pWeapon->WeaponClassify() == WEPCLASS_HANDGUN )
+		{
+			// Very lucky citizens get crowbars as backup
+			if ( RandomInt( 1, 6 ) == 1 )
+			{
+				CBaseCombatWeapon * pCrowbar = GiveWeaponHolstered( AllocPooledString( "weapon_crowbar" ) );
+				//pCrowbar->AddSpawnFlags( SF_WEAPON_NO_PLAYER_PICKUP );
+				pCrowbar->SetName( AllocPooledString( "worthless" ) ); // Bad Cop will say the crowbar pickup line upon interacting with this
 
-		return false;
+				return true;
+			}
+			// Others usually just get a pistol if they didn't have one already
+			else if ( !pWeapon->WeaponClassify() != WEPCLASS_HANDGUN && RandomInt( 1, 4 ) != 1 )
+			{
+				// If we're an Arbeit type, 50% chance of giving a glock
+				if (GetEZVariant() == EZ_VARIANT_ARBEIT && RandomInt(1,2) == 1)
+				{
+					GiveWeaponHolstered( AllocPooledString( "weapon_css_glock" ) );
+				}
+				else
+				{
+					GiveWeaponHolstered( AllocPooledString( "weapon_pistol" ) );
+				}
+				return true;
+			}
+
+			return false;
+		}
 	}
 
-	// Is this a melee weapon?
-	if ( pWeapon != NULL && pWeapon->IsMeleeWeapon() || pWeapon->ClassMatches( "weapon_crowbar" ) )
-	{
-		return false;
-	}
-
-	// TODO - Pistols would be very nice.
 	GiveWeaponHolstered( AllocPooledString( m_Type == CT_BRUTE ? "weapon_smg2" : "weapon_smg1" ) );
 	return true;
 }
