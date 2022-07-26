@@ -5398,7 +5398,7 @@ bool CBasePropDoor::HandleInteraction( int interactionType, void *data, CBaseCom
 		if (info)
 			info->success = kicked;
 
-		g_EventQueue.AddEvent( STRING( GetEntityName() ), "KickOpen", variant_t(), 0.0f, this, this, 0 );
+		g_EventQueue.AddEvent( STRING( GetEntityName() ), "KickOpen", variant_t(), 0.0f, sourceEnt, this, 0 );
 
 		return true;
 	}
