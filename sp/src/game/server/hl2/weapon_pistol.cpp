@@ -370,7 +370,17 @@ void CWeaponPistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vecto
 	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
 
 	WeaponSound( SINGLE_NPC );
-	pOperator->FireBullets( 1, vecShootOrigin, vecShootDir, VECTOR_CONE_PRECALCULATED, MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 2 );
+
+	FireBulletsInfo_t info;
+	info.m_iShots = 1;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_PRECALCULATED;
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 2;
+
+	pOperator->FireBullets( info );
 	pOperator->DoMuzzleFlash();
 	m_iClip1 = m_iClip1 - 1;
 }
@@ -587,6 +597,8 @@ public:
 	DECLARE_CLASS(CWeaponPulsePistol, CWeaponPistol);
 	DECLARE_SERVERCLASS();
 
+	CWeaponPulsePistol();
+
 	void	Activate( void );
 	void	Precache();
 	bool	IsChargePressed( int chargeButton, CBasePlayer * pOwner );
@@ -600,6 +612,8 @@ public:
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
 	virtual bool Reload( void ) { return false; } // The pulse pistol does not reload
+
+	virtual int GetMaxClip2( void ) const { int iBase = BaseClass::GetMaxClip2(); return iBase > 0 ? iBase : sv_pulse_pistol_max_charge.GetInt(); }
 
 	virtual const Vector& GetBulletSpread( void )
 	{
@@ -648,12 +662,16 @@ private:
 	// For recharging the ammo
 	void			RechargeAmmo();
 	int				m_nAmmoCount = 50;
-	int				m_nChargeAttackAmmo = 0;
 	float			m_flDrainRemainder;
 	float			m_flChargeRemainder;
 	float			m_flLastChargeTime;
 	float			m_flLastChargeSoundTime;
 };
+
+CWeaponPulsePistol::CWeaponPulsePistol()
+{
+	m_iClip2 = 0;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -697,11 +715,11 @@ void CWeaponPulsePistol::UpdateOnRemove( void )
 bool CWeaponPulsePistol::IsChargePressed( int chargeButton, CBasePlayer * pOwner )
 {
 	// If "no charge hold" is set, and we're at the maximum charge, treat it as though the player let go of the attack button
-	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_nChargeAttackAmmo >= sv_pulse_pistol_max_charge.GetFloat())
+	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_iClip2 >= GetMaxClip2())
 		return false;
 
 	// If "no charge hold" is set, we're out of ammo, but we have a charge, treat it as though the player let go of the attack button
-	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_nChargeAttackAmmo > 0 && m_iClip1 <= 10)
+	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_iClip2 > 0 && m_iClip1 <= 10)
 		return false;
 
 	return (pOwner->m_nButtons & chargeButton) > 0;
@@ -733,7 +751,7 @@ void CWeaponPulsePistol::ItemPostFrame( void )
 	}
 
 	// Player has released attack 2 and there is more than 1 ammo charged to fire
-	if (!chargePressed && ( m_nChargeAttackAmmo > 0 ) && (m_flNextPrimaryAttack <= gpGlobals->curtime) )
+	if (!chargePressed && ( m_iClip2 > 0 ) && (m_flNextPrimaryAttack <= gpGlobals->curtime) )
 	{
 		// Reset the next attack to the current time to avoid multiple shots queuing up
 		m_flNextPrimaryAttack = gpGlobals->curtime;
@@ -746,14 +764,14 @@ void CWeaponPulsePistol::ItemPostFrame( void )
 
 		return;
 	}
-	else if (chargePressed || ( m_nChargeAttackAmmo > 0 ) )
+	else if (chargePressed || ( m_iClip2 > 0 ) )
 	{
 		// Charge the next shot
 		ChargeAttack();
 		return;
 	}
 	// If the charge up and fire wasn't either charged or shot this frame, reset so the gun doesn't go off unexpectedly
-	m_nChargeAttackAmmo = 0;
+	m_iClip2 = 0;
 
 	RechargeAmmo();
 
@@ -817,7 +835,7 @@ bool CWeaponPulsePistol::Deploy( void )
 //-----------------------------------------------------------------------------
 bool CWeaponPulsePistol::Holster( CBaseCombatWeapon *pSwitchingTo )
 {
-	if (m_nChargeAttackAmmo > 0)
+	if (m_iClip2 > 0)
 	{
 		// If there is any charge, play a click
 		// Mostly just to cancel the current charge sound
@@ -825,7 +843,7 @@ bool CWeaponPulsePistol::Holster( CBaseCombatWeapon *pSwitchingTo )
 	}
 
 	// Holstering resets charge
-	m_nChargeAttackAmmo = 0;
+	m_iClip2 = 0;
 	SetChargeEffectBrightness( 0.0f );
 
 	return BaseClass::Holster( pSwitchingTo );
@@ -837,7 +855,7 @@ bool CWeaponPulsePistol::Holster( CBaseCombatWeapon *pSwitchingTo )
 void CWeaponPulsePistol::RechargeAmmo( void )
 {
 	// If there is a fully charged shot waiting, don't recharge
-	if (m_nChargeAttackAmmo >= sv_pulse_pistol_max_charge.GetFloat())
+	if (m_iClip2 >= GetMaxClip2())
 	{
 		return;
 	}
@@ -925,7 +943,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		int iBulletsToFire = 0;
 		float fireRate = GetFireRate();
 
-		int iExtraChargeBullets = m_nChargeAttackAmmo / sv_pulse_pistol_charge_per_extra_shot.GetInt();
+		int iExtraChargeBullets = m_iClip2 / sv_pulse_pistol_charge_per_extra_shot.GetInt();
 
 		// The pulse pistol fires one extra round per ten ammo charged
 		iBulletsToFire += iExtraChargeBullets;
@@ -957,7 +975,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 
 		// Subtract the charge
 		m_iClip1 = MAX(m_iClip1 - 10, 1); // Never drop the charge below 1
-		m_nChargeAttackAmmo = 0;
+		m_iClip2 = 0;
 
 		m_iPrimaryAttacks++;
 		gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
@@ -1011,22 +1029,22 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 void CWeaponPulsePistol::ChargeAttack( void )
 {
 	// Play the slide rack animation if we're trying to charge but have no ammo
-	if ( m_iClip1 <= 10 && m_nChargeAttackAmmo <= 0 ) {
+	if ( m_iClip1 <= 10 && m_iClip2 <= 0 ) {
 		if( m_flNextPrimaryAttack <= gpGlobals->curtime )
 			DryFire();
 		return;
 	}
 
-	int nMaxCharge = sv_pulse_pistol_max_charge.GetFloat();
+	int nMaxCharge = GetMaxClip2();
 	// If there is only one shot left or the charge has reached maximum, do not charge!
-	if (m_iClip1 <= 10 || m_nChargeAttackAmmo == nMaxCharge)
+	if (m_iClip1 <= 10 || m_iClip2 == nMaxCharge)
 	{
 		RechargeAmmo();
 		return;
 	}
 
 	// Play sound
-	if (gpGlobals->curtime - m_flLastChargeSoundTime > 4.0f && m_nChargeAttackAmmo == 0)
+	if (gpGlobals->curtime - m_flLastChargeSoundTime > 4.0f && m_iClip2 == 0)
 	{
 		WeaponSound( SPECIAL1 );
 		m_flLastChargeSoundTime = gpGlobals->curtime;
@@ -1042,17 +1060,17 @@ void CWeaponPulsePistol::ChargeAttack( void )
 	m_flChargeRemainder += flChargeAmount;
 	int nAmmoToAdd = (int)m_flChargeRemainder;
 	m_flChargeRemainder -= nAmmoToAdd;
-	m_nChargeAttackAmmo += nAmmoToAdd;
+	m_iClip2 += nAmmoToAdd;
 	m_iClip1 = MAX( m_iClip1 - nAmmoToAdd, 1); // Never drop the charge below 1
-	if (m_nChargeAttackAmmo > nMaxCharge)
+	if (m_iClip2 > nMaxCharge)
 	{
-		m_nChargeAttackAmmo = nMaxCharge;
+		m_iClip2 = nMaxCharge;
 		m_flChargeRemainder = 0.0f;
 	}
 
 	// Display the charge sprite
 	StartChargeEffects();
-	SetChargeEffectBrightness( m_nChargeAttackAmmo );
+	SetChargeEffectBrightness( m_iClip2 );
 }
 
 //-----------------------------------------------------------------------------
@@ -1155,7 +1173,7 @@ void CWeaponPulsePistol::SetChargeEffectBrightness( float alpha )
 {
 	if (m_hChargeSprite != NULL)
 	{
-		m_hChargeSprite->SetBrightness( m_nChargeAttackAmmo, 0.1f );
+		m_hChargeSprite->SetBrightness( m_iClip2, 0.1f );
 	}
 }
 
