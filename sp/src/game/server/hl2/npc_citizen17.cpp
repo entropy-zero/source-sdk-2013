@@ -1593,9 +1593,6 @@ void CNPC_Citizen::GatherConditions()
 	BaseClass::GatherConditions();
 #ifdef EZ
 	GatherWillpowerConditions();
-
-	// Clear the disarmed condition if it was set by being kicked
-	ClearCondition( COND_CIT_DISARMED );
 #endif
 	if( IsInPlayerSquad() && hl2_episodic.GetBool() )
 	{
@@ -1798,7 +1795,7 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_NEW_ENEMY );
 		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
 		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
-		SetCustomInterruptCondition( COND_CIT_DISARMED );
+		
 	}
 
 	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( m_Type == CT_BRUTE || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
@@ -1806,11 +1803,8 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
 	}
 
-	// Any schedule involving attacking or weapons should be interrupted by being disarmed
-	if ( IsCurSchedule ( SCHED_RANGE_ATTACK1 ) || IsCurSchedule ( SCHED_RELOAD ) || IsCurSchedule ( SCHED_CITIZEN_RANGE_ATTACK1_ADVANCE ) || IsCurSchedule( SCHED_CITIZEN_RANGE_ATTACK1_SUPPRESS ) || IsCurSchedule( SCHED_PC_MELEE_AND_MOVE_AWAY ) )
-	{
-		SetCustomInterruptCondition( COND_CIT_DISARMED );
-	}
+	// Being disarmed interrupts any schedule
+	SetCustomInterruptCondition( COND_CIT_DISARMED );
 #endif
 
 	if ( IsCurSchedule( SCHED_IDLE_STAND ) || IsCurSchedule( SCHED_ALERT_STAND ) )
@@ -1940,6 +1934,9 @@ int CNPC_Citizen::SelectSchedule()
 	{
 		VacateStrategySlot();
 	}
+
+	// Clear the disarmed condition if it was set by being kicked
+	ClearCondition( COND_CIT_DISARMED );
 #endif
 
 #ifdef MAPBASE
