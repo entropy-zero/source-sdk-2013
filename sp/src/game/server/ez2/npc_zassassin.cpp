@@ -721,8 +721,12 @@ void CNPC_Gonome::IdleSound( void )
 //=========================================================
 void CNPC_Gonome::PainSound( const CTakeDamageInfo &info )
 {
-	CPASAttenuationFilter filter( this );
-	EmitSound( filter, entindex(), "Gonome.Pain" );	
+	// Burning creatures shouldn't play pain sounds constantly
+	if ( !( IsOnFire() && info.GetDamageType() & DMG_BURN ) )
+	{
+		CPASAttenuationFilter filter( this );
+		EmitSound( filter, entindex(), "Gonome.Pain" );
+	}
 }
 
 //=========================================================

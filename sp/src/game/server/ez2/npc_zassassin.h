@@ -95,6 +95,8 @@ public:
 	float	m_flBurnDamage;				// Keeps track of how much burn damage we've incurred in the last few seconds.
 	float	m_flBurnDamageResetTime;	// Time at which we reset the burn damage.
 
+	void Scorch( int rate, int floor ) {}; // The gonome model doesn't look right scorched
+
 	CAI_BeastBehavior	m_BeastBehavior;
 
 private:

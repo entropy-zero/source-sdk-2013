@@ -166,7 +166,9 @@ void CNPC_BasePredator::IdleSound( void )
 //=========================================================
 void CNPC_BasePredator::PainSound( const CTakeDamageInfo &info )
 {
-	EmitSound( UTIL_VarArgs( "%s.Pain", GetSoundscriptClassname() ) );
+	// Burning creatures shouldn't play pain sounds constantly
+	if ( !( IsOnFire() && info.GetDamageType() & DMG_BURN ) )
+		EmitSound( UTIL_VarArgs( "%s.Pain", GetSoundscriptClassname() ) );
 }
 
 //=========================================================
@@ -503,6 +505,7 @@ void CNPC_BasePredator::Event_Killed( const CTakeDamageInfo & info )
 		this->m_iHealth = this->m_iMaxHealth;
 		DevMsg( "Boss health reset! \n" );
 		m_OnBossHealthReset.FireOutput( info.GetAttacker(), this );
+		Extinguish(); // No longer on fire
 	}
 	else {
 		BaseClass::Event_Killed( info );
@@ -547,7 +550,7 @@ Disposition_t CNPC_BasePredator::IRelationType( CBaseEntity *pTarget )
 			PredMsg( "Predator %s disregarding prey because of injury.\n" );
 			return D_NU;
 		}
-		else if ( !IsBoss() && m_iHealth < m_iMaxHealth / 3.0f)
+		else if ( !IsBoss() && ( m_iHealth < m_iMaxHealth / 3.0f || IsOnFire() ) )
 		{
 #ifdef EZ2
 			if ( m_flStartedFearingEnemy == -1 )
@@ -628,6 +631,12 @@ void CNPC_BasePredator::OnFed()
 	{
 		HealEffects();
 		m_iHealth = maxHealth;
+	}
+
+	// Extinguish flames (Not super realistic, but makes sense with the healing)
+	if ( IsOnFire() )
+	{
+		Extinguish();
 	}
 
 	// Increment feeding counter
