@@ -117,3 +117,57 @@ CWeapon_CSS_HL2_XM1014::CWeapon_CSS_HL2_XM1014( void )
 {
 	m_bFiresUnderwater	= true;
 }
+
+#ifdef EZ
+//-----------------------------------------------------------------------------
+// CWeapon_Arbeit_Shotgun
+//-----------------------------------------------------------------------------
+class CWeapon_Arbeit_Shotgun : public CBase_CSS_HL2_Shotgun
+{
+public:
+	DECLARE_CLASS( CWeapon_Arbeit_Shotgun, CBase_CSS_HL2_Shotgun );
+	DECLARE_NETWORKCLASS();
+	DECLARE_PREDICTABLE();
+	DECLARE_DATADESC();
+
+	CWeapon_Arbeit_Shotgun( void );
+
+	virtual const Vector& GetBulletSpread( void )
+	{
+		static const Vector cone = VECTOR_CONE_10DEGREES;
+		return cone;
+	}
+
+	virtual bool PumpsInOtherAnims() { return true; }
+
+	virtual int GetNumPellets() const { return 9; }
+
+	// No secondary attack
+	void SecondaryAttack( void ) {}
+
+	virtual float GetFireRate( void ) { return 0.88f; }
+};
+
+IMPLEMENT_NETWORKCLASS_DT( CWeapon_Arbeit_Shotgun, DT_Weapon_Arbeit_Shotgun )
+END_NETWORK_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_arbeit_shotgun, CWeapon_Arbeit_Shotgun );
+PRECACHE_WEAPON_REGISTER( weapon_arbeit_shotgun );
+
+BEGIN_DATADESC( CWeapon_Arbeit_Shotgun )
+END_DATADESC()
+
+#ifdef CLIENT_DLL
+BEGIN_PREDICTION_DATA( CWeapon_Arbeit_Shotgun )
+END_PREDICTION_DATA()
+#endif
+
+#endif
+
+//-----------------------------------------------------------------------------
+// Purpose: Constructor
+//-----------------------------------------------------------------------------
+CWeapon_Arbeit_Shotgun::CWeapon_Arbeit_Shotgun( void )
+{
+	m_bFiresUnderwater	= true;
+}

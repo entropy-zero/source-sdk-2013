@@ -593,3 +593,71 @@ Activity CWeapon_CSS_HL2_DualBerettas::GetPrimaryAttackActivity( void )
 
 	return ACT_VM_PRIMARYATTACK;
 }
+
+#ifdef EZ
+//-----------------------------------------------------------------------------
+// CWeapon_Arbeit_Pistol
+//-----------------------------------------------------------------------------
+class CWeapon_Arbeit_Pistol : public CBase_CSS_HL2_Pistol
+{
+public:
+	DECLARE_CLASS( CWeapon_Arbeit_Pistol, CBase_CSS_HL2_Pistol );
+	DECLARE_NETWORKCLASS();
+	DECLARE_PREDICTABLE();
+	DECLARE_DATADESC();
+
+	CWeapon_Arbeit_Pistol( void );
+
+	virtual float GetViewKickBase() { return 1.25f; }
+
+	virtual float GetShotPenaltyTime() { return 0.3f; }
+
+	virtual const Vector& GetBulletSpread( void )
+	{
+		// Handle NPCs first
+		static Vector npcCone = VECTOR_CONE_5DEGREES;
+		if (GetOwner() && GetOwner()->IsNPC())
+			return npcCone;
+
+		static Vector cone;
+
+		float ramp = RemapValClamped( GetAccuracyPenalty(),
+			0.0f,
+			1.5f,
+			0.0f,
+			1.0f );
+
+		// We lerp from very accurate to inaccurate over time
+		VectorLerp( VECTOR_CONE_1DEGREES, VECTOR_CONE_6DEGREES, ramp, cone );
+
+		return cone;
+	}
+
+	virtual float GetFireRate( void ) { return 0.5f; }
+	virtual float GetRefireRate( void ) { return 0.15f; }
+	virtual float GetDryRefireRate( void ) { return 0.2f; }
+};
+
+IMPLEMENT_NETWORKCLASS_DT( CWeapon_Arbeit_Pistol, DT_Weapon_Arbeit_Pistol )
+END_NETWORK_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_arbeit_pistol, CWeapon_Arbeit_Pistol );
+#if PRECACHE_REGISTER_CSS_WEAPONS == 1
+PRECACHE_WEAPON_REGISTER( weapon_arbeit_pistol );
+#endif
+
+BEGIN_DATADESC( CWeapon_Arbeit_Pistol )
+END_DATADESC()
+
+#ifdef CLIENT_DLL
+BEGIN_PREDICTION_DATA( CWeapon_Arbeit_Pistol )
+END_PREDICTION_DATA()
+#endif
+
+//-----------------------------------------------------------------------------
+// Purpose: Constructor
+//-----------------------------------------------------------------------------
+CWeapon_Arbeit_Pistol::CWeapon_Arbeit_Pistol( void )
+{
+}
+#endif
