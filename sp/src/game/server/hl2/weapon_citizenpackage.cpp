@@ -86,3 +86,23 @@ acttable_t	CWeaponCitizenSuitcase::m_acttable[] =
 #endif
 };
 IMPLEMENT_ACTTABLE(CWeaponCitizenSuitcase);
+
+#ifdef EZ2
+class CWeaponArbeitClipboard : public CWeaponCitizenPackage
+{
+	DECLARE_CLASS( CWeaponArbeitClipboard, CWeaponCitizenPackage );
+public:
+
+	DECLARE_SERVERCLASS();
+	DECLARE_DATADESC();
+};
+
+IMPLEMENT_SERVERCLASS_ST(CWeaponArbeitClipboard, DT_WeaponArbeitClipboard)
+END_SEND_TABLE()
+
+BEGIN_DATADESC( CWeaponArbeitClipboard )
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( weapon_arbeit_clipboard, CWeaponArbeitClipboard );
+PRECACHE_WEAPON_REGISTER( weapon_arbeit_clipboard );
+#endif

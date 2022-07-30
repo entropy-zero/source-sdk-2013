@@ -55,6 +55,7 @@ STUB_WEAPON_CLASS( weapon_pulsepistol, WeaponPulsePistol, C_BaseHLCombatWeapon )
 STUB_WEAPON_CLASS( weapon_displacer_pistol, DisplacerPistol, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_ar2_proto, WeaponAR2Proto, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_endgame, WeaponEndGame, C_BaseHLCombatWeapon );
+STUB_WEAPON_CLASS( weapon_arbeit_clipboard, WeaponArbeitClipboard, C_WeaponCitizenPackage );
 #endif
 
 
