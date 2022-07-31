@@ -162,8 +162,6 @@ BEGIN_PREDICTION_DATA( CWeapon_Arbeit_Shotgun )
 END_PREDICTION_DATA()
 #endif
 
-#endif
-
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
@@ -171,3 +169,4 @@ CWeapon_Arbeit_Shotgun::CWeapon_Arbeit_Shotgun( void )
 {
 	m_bFiresUnderwater	= true;
 }
+#endif
