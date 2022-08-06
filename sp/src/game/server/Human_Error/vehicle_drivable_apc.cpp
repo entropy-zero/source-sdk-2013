@@ -629,6 +629,9 @@ void CPropDrivableAPC::Activate()
 		angularVelocity *= 0.5f;
 		VPhysicsGetObject()->SetVelocityInstantaneous( &velocity, &angularVelocity );
 	}
+
+	// Reset the next think time on Activate()
+	SetNextThink( gpGlobals->curtime );
 #endif
 }
 
@@ -1810,15 +1813,6 @@ void CPropDrivableAPC::OnRestore( void )
 		// Restore the passenger information we're holding on to
 		pServerVehicle->RestorePassengerInfo();
 	}
-
-#ifdef EZ2
-	// HACKHACK - On restore, the attachment point doesn't seem to work.
-	// Brute force workaround by calling Spawn() again
-	else if (GetDriver() == NULL)
-	{
-		Spawn();
-	}
-#endif
 }
 
 //-----------------------------------------------------------------------------
