@@ -29,6 +29,7 @@
 ConVar weapon_smg2_altfire_enabled( "weapon_smg2_altfire_enabled", "1", FCVAR_NONE, "Allows weapon_smg2 to fire full auto if the player holds down the secondary attack button." );
 ConVar weapon_smg2_altfire_ammo_modifier( "weapon_smg2_altfire_ammo_modifier", "1", FCVAR_NONE, "Multiply the number of bullets per shot by this amount for altfire" );
 ConVar weapon_smg2_altfire_spread_divisor( "weapon_smg2_altfire_spread_divisor", "3", FCVAR_NONE, "How much to divide the spread component for altfire (higher numbers = better sustained accuracy)" );
+ConVar weapon_smg2_altfire_rate( "weapon_smg2_altfire_rate", "0.06", FCVAR_NONE, "weapon_smg2's full-auto fire rate." );
 ConVar weapon_smg2_min_spread( "weapon_smg2_min_spread", "0.015", FCVAR_NONE, "SMG2 minimum fire cone vector component" );
 ConVar weapon_smg2_max_spread( "weapon_smg2_max_spread", "0.075", FCVAR_NONE, "SMG2 maximum fire cone vector component" );
 ConVar weapon_smg2_burst_cycle_rate( "weapon_smg2_burst_cycle_rate", "0.2", FCVAR_NONE, "SMG2 maximum fire cone vector component" );
@@ -63,7 +64,7 @@ public:
 	bool	Reload( void );
 
 	float	GetFireRate( void ) { return 0.02f; }
-	float	GetFullAutoFireRate( void ) { return 0.06f; }
+	float	GetFullAutoFireRate( void ) { return weapon_smg2_altfire_rate.GetFloat(); }
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 	Activity	GetPrimaryAttackActivity( void );
 
