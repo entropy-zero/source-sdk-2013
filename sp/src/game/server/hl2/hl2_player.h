@@ -400,7 +400,7 @@ protected:
 
 #ifdef EZ2
 	virtual void		HandleKickAttack();
-	virtual void		TraceKickAttack();
+	virtual void		TraceKickAttack( CBaseEntity* pKickedEntity = NULL );
 
 	void  HandleKickAnimation( void );
 	void  StartKickAnimation( void );

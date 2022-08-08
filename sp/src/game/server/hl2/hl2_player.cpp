@@ -135,6 +135,7 @@ ConVar sv_infinite_sprint_power( "sv_infinite_sprint_power", "1", FCVAR_CHEAT );
 ConVar sv_infinite_flashlight_power( "sv_infinite_flashlight_power", "0", FCVAR_CHEAT );
 ConVar sv_player_death_smell( "sv_player_death_smell", "1", FCVAR_REPLICATED );
 ConVar sv_player_kick_attack_enabled( "sv_player_kick_attack_enabled", "1", FCVAR_REPLICATED );
+ConVar sv_player_stomp_tiny_hull( "sv_player_stomp_tiny_hull", "0", FCVAR_REPLICATED, "Should a kick attack be dispatched to NPCs with tiny hulls when the player stands on top of them?" );
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "1", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "0", FCVAR_REPLICATED);
 ConVar sv_flashlight_cc_enabled( "sv_flashlight_cc_enabled", "1", FCVAR_REPLICATED );
@@ -1268,6 +1269,14 @@ void CHL2_Player::PostThink( void )
 	{
 		 HandleAdmireGlovesAnimation();
 	}
+
+#ifdef EZ
+	if ( sv_player_stomp_tiny_hull.GetBool() && GetGroundEntity() && GetGroundEntity()->MyCombatCharacterPointer() && GetGroundEntity()->MyCombatCharacterPointer()->GetHullType() == HULL_TINY)
+	{
+		TraceKickAttack( GetGroundEntity() );
+		SetGroundEntity( NULL );
+	}
+#endif
 
 	HandleKickAnimation();
 
@@ -4633,7 +4642,7 @@ void CHL2_Player::HandleKickAttack()
 static const Vector g_kickMins( -KICK_HULL_DIM, -KICK_HULL_DIM, -KICK_HULL_DIM );
 static const Vector g_kickMaxs( KICK_HULL_DIM, KICK_HULL_DIM, KICK_HULL_DIM );
 
-void CHL2_Player::TraceKickAttack()
+void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 {
 	Vector vecSrc = GetFlags() & FL_DUCKING ? EyePosition() : EyePosition() - Vector(0, 0, 32);
 	Vector vecAim = BaseClass::GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );
@@ -4667,8 +4676,12 @@ void CHL2_Player::TraceKickAttack()
 		}
 	}
 
-	CBaseEntity *pEntity = tr.m_pEnt;
-	if ( pEntity != NULL )
+	if ( pKickedEntity == NULL )
+	{
+		pKickedEntity = tr.m_pEnt;
+	}
+
+	if ( pKickedEntity != NULL )
 	{
 		float dmg = sk_plr_dmg_kick.GetFloat();;
 		int dmgType = DMG_CLUB;
@@ -4681,26 +4694,26 @@ void CHL2_Player::TraceKickAttack()
 
 		// Try to dispatch an interaction
 		KickInfo_t kickInfo( &tr, &dmgInfo );
-		if ( !pEntity->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
+		if ( !pKickedEntity->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
 		{
-			if (pEntity->m_takedamage == DAMAGE_NO && pEntity->GetParent())
+			if (pKickedEntity->m_takedamage == DAMAGE_NO && pKickedEntity->GetParent())
 			{
 				// Send the damage to the recipient's parent instead
 				// (important for brush doors, charger trailers, etc.)
-				if ( !pEntity->GetParent()->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
+				if ( !pKickedEntity->GetParent()->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
 				{
-					pEntity->GetParent()->DispatchTraceAttack( dmgInfo, vecAim, &tr );
+					pKickedEntity->GetParent()->DispatchTraceAttack( dmgInfo, vecAim, &tr );
 					ApplyMultiDamage();
 				}
 
 				// Use pEntity for the remaining stuff below
 				// (allows brush doors to count towards achievements)
-				pEntity = pEntity->GetParent();
+				pKickedEntity = pKickedEntity->GetParent();
 			}
 			else
 			{
 				// Send the damage to the recipient
-				pEntity->DispatchTraceAttack( dmgInfo, vecAim, &tr );
+				pKickedEntity->DispatchTraceAttack( dmgInfo, vecAim, &tr );
 				ApplyMultiDamage();
 			}
 		}
@@ -4711,7 +4724,7 @@ void CHL2_Player::TraceKickAttack()
 			IGameEvent *event = gameeventmanager->CreateEvent( "entity_kicked" );
 			if (event)
 			{
-				event->SetInt( "entindex_kicked", pEntity ? pEntity->entindex() : 0 );
+				event->SetInt( "entindex_kicked", pKickedEntity ? pKickedEntity->entindex() : 0 );
 				event->SetInt( "entindex_attacker", this->entindex() );
 				event->SetInt( "entindex_inflictor", this->entindex() );
 				event->SetInt( "damagebits", dmgInfo.GetDamageType() );
@@ -4719,17 +4732,17 @@ void CHL2_Player::TraceKickAttack()
 			}
 
 			// Add a context counting how many times this entity has been kicked
-			if (pEntity)
+			if (pKickedEntity)
 			{
-				int iIndex = pEntity->FindContextByName( "kicked" );
+				int iIndex = pKickedEntity->FindContextByName( "kicked" );
 				int iNumKicks = 1;
 				if (iIndex != -1)
 				{
 					// Increment for each kick
-					iNumKicks += atoi( pEntity->GetContextValue( iIndex ) );
+					iNumKicks += atoi( pKickedEntity->GetContextValue( iIndex ) );
 				}
 
-				pEntity->AddContext( "kicked", CNumStr( iNumKicks ) );
+				pKickedEntity->AddContext( "kicked", CNumStr( iNumKicks ) );
 			}
 		}
 
