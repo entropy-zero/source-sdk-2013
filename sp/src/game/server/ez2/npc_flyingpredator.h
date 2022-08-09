@@ -48,6 +48,7 @@ public:
 
 	virtual void	GatherConditions( void );
 	bool CanLand();
+	bool CeilingNear();
 
 	virtual Activity NPC_TranslateActivity( Activity eNewActivity );
 	virtual int TranslateSchedule( int scheduleType );

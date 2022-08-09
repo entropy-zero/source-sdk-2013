@@ -50,7 +50,8 @@ enum
 	SCHED_TAKEOFF_CEILING,
 	SCHED_FLY_DIVE_BOMB,
 	SCHED_LAND,
-	SCHED_FALL
+	SCHED_FALL,
+	SCHED_START_FLYING
 };
 
 //-----------------------------------------------------------------------------
@@ -60,7 +61,8 @@ enum
 {
 	COND_FORCED_FLY	= NEXT_CONDITION + 1,
 	COND_CAN_LAND,
-	COND_FORCED_FALL
+	COND_FORCED_FALL,
+	COND_CEILING_NEAR
 };
 
 //---------------------------------------------------------
@@ -252,6 +254,9 @@ void CNPC_FlyingPredator::GatherConditions( void )
 {
 	BaseClass::GatherConditions();
 
+	ClearCondition( COND_CAN_LAND );
+	ClearCondition( COND_CEILING_NEAR );
+
 	switch (m_tFlyState)
 	{
 	case FlyState_Falling:
@@ -261,12 +266,25 @@ void CNPC_FlyingPredator::GatherConditions( void )
 		}
 		break;
 	}
+
+	if ( CeilingNear() )
+	{
+		DevMsg( "%s - Ceiling is near, setting COND_CEILING_NEAR\n", GetDebugName() );
+		SetCondition( COND_CEILING_NEAR );
+	}
 }
 
 bool CNPC_FlyingPredator::CanLand() {
 	trace_t tr;
-	Vector checkPos = GetAbsOrigin() - Vector( 0, 0, 32 );
-	AI_TraceLine( GetAbsOrigin(), checkPos, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+	Vector checkPos = WorldSpaceCenter() - Vector( 0, 0, 32 );
+	AI_TraceLine( WorldSpaceCenter(), checkPos, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+	return tr.fraction < 1.0f || GetGroundEntity() != NULL;
+}
+
+bool CNPC_FlyingPredator::CeilingNear() {
+	trace_t tr;
+	Vector checkPos = WorldSpaceCenter() + Vector( 0, 0, 64 );
+	AI_TraceLine( WorldSpaceCenter(), checkPos, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
 	return tr.fraction < 1.0f;
 }
 
@@ -446,7 +464,18 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 
 			return SCHED_PREDATOR_GROW;
 		}
+
 		break;
+
+	case FlyState_Flying:
+		if ( HasCondition( COND_CEILING_NEAR ) && GetAbsVelocity().z >= 32.0f )
+		{
+			DevMsg( "%s - Ceiling is near, Stukabat is going to start flying immediately!\n", GetDebugName() );
+			return SCHED_START_FLYING;
+		}
+
+		break;
+
 	}
 
 	return BaseClass::SelectSchedule();
@@ -964,6 +993,7 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 	DECLARE_CONDITION( COND_FORCED_FLY );
 	DECLARE_CONDITION( COND_CAN_LAND );
 	DECLARE_CONDITION( COND_FORCED_FALL );
+	DECLARE_CONDITION( COND_CEILING_NEAR );
 
 	DECLARE_TASK( TASK_TAKEOFF )
 	DECLARE_TASK( TASK_FLY_DIVE_BOMB )
@@ -986,6 +1016,8 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 		"		"
 		"	Interrupts"
 		"		COND_FORCED_FALL"
+		"		COND_CEILING_NEAR"
+
 	)
 
 	DEFINE_SCHEDULE
@@ -1042,4 +1074,16 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 		"		"
 	)
 
+	DEFINE_SCHEDULE
+	(
+		SCHED_START_FLYING,
+
+		"	Tasks"
+		"		TASK_START_FLYING				0"
+		"		"
+		"	Interrupts"
+		"		COND_FORCED_FALL"
+	)
+
+		
 AI_END_CUSTOM_NPC()
