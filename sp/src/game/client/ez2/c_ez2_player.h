@@ -18,7 +18,13 @@ public:
 
 	void OnDataChanged( DataUpdateType_t updateType );
 
+	void UpdateGlowTargetEffect( void );
+	void DestroyGlowTargetEffect( void );
+
 	bool m_bBonusChallengeUpdate;
+	
+	EHANDLE m_hWarningTarget;
+	CGlowObject *m_pGlowTargetEffect;
 };
 
 

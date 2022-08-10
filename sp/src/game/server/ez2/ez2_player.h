@@ -195,6 +195,8 @@ public:
 
 	bool			HidingBonusProgressHUD();
 
+	void			SetWarningTarget( CBaseEntity *pTarget ) { m_hWarningTarget = pTarget; }
+
 	void			FireBullets( const FireBulletsInfo_t &info );
 
 	// Blixibon - StartScripting for gag replacement
@@ -304,6 +306,8 @@ private:
 	// These don't need to be saved
 	CNetworkVar( bool, m_bBonusChallengeUpdate );
 	bool m_bMaskInterrupt;
+
+	CNetworkHandle( CBaseEntity, m_hWarningTarget );
 };
 
 //-----------------------------------------------------------------------------
@@ -434,7 +438,7 @@ struct SightEvent_t
 {
 	//DECLARE_SIMPLE_DATADESC();
 
-	SightEvent_t( const char *_pName, float _flCooldown, SIGHTEVENTPTR _pTestFunc, SIGHTEVENTPTR _pMainFunc )
+	SightEvent_t( const char *_pName, float _flCooldown, SIGHTEVENTPTR _pTestFunc, SIGHTEVENTPTR _pMainFunc, float _flFailedCooldown = 2.0f )
 	{
 		pName = _pName;
 		flCooldown = _flCooldown;
@@ -442,6 +446,7 @@ struct SightEvent_t
 		pMainFunc = _pMainFunc;
 		flNextHintTime = 0.0f;
 		flLastHintTime = 0.0f;
+		flFailedCooldown = _flFailedCooldown;
 	}
 
 	bool Test( CEZ2_Player *pPlayer, CBaseEntity *pActivator ) { return (*pTestFunc)(pPlayer, pActivator); }
@@ -453,6 +458,7 @@ struct SightEvent_t
 	float	flLastHintTime;
 
 	float	flCooldown;
+	float	flFailedCooldown; // When to check again when test fails
 
 private:
 

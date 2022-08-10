@@ -67,6 +67,11 @@ void CGrenadeAR2::Spawn( void )
 	UTIL_SetSize(this, Vector(-3, -3, -3), Vector(3, 3, 3));
 //	UTIL_SetSize(this, Vector(0, 0, 0), Vector(0, 0, 0));
 
+#ifdef EZ2
+	// For player sight event
+	AddFlag( FL_OBJECT );
+#endif
+
 	SetUse( &CGrenadeAR2::DetonateUse );
 	SetTouch( &CGrenadeAR2::GrenadeAR2Touch );
 	SetThink( &CGrenadeAR2::GrenadeAR2Think );

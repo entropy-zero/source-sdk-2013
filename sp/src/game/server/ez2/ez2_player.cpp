@@ -100,6 +100,7 @@ END_SCRIPTDESC();
 
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
+	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
 END_SEND_TABLE()
 
 /*
@@ -186,8 +187,8 @@ void CEZ2_Player::PostThink(void)
 
 					if (m_SightEvents[i]->flNextHintTime < gpGlobals->curtime)
 					{
-						// Just check again in 2 seconds if we can't find what we're looking for
-						m_SightEvents[i]->flNextHintTime = gpGlobals->curtime + 2.0f;
+						// Just check again in X seconds if we can't find what we're looking for
+						m_SightEvents[i]->flNextHintTime = gpGlobals->curtime + m_SightEvents[i]->flFailedCooldown;
 					}
 				}
 			}
@@ -408,6 +409,49 @@ SIGHT_EVENT_HINT_END( "#EZ2_HudHint_SurrenderedMedic" )
 SightEvent_t g_SightHintSurrenderedMedic( "Surrendered Medic", 100.0f, SurrenderedMedicHintTest, SurrenderedMedicHintShow );
 
 //-----------------------------------------------------------------------------
+
+ConVar player_smg_grenade_warning_cone( "player_smg_grenade_warning_cone", ".4" );
+ConVar player_smg_grenade_warning_dist( "player_smg_grenade_warning_dist", "5000" );
+
+bool SMGGrenadeWarnTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
+{
+	// Look for an SMG grenade that isn't ours and is approaching
+	if (pActivator->ClassMatches( "grenade_ar2" ) && pActivator->GetOwnerEntity() != pPlayer)
+	{
+		Vector2D vecMoveDir = pActivator->GetSmoothedVelocity().AsVector2D();
+		vecMoveDir.NormalizeInPlace();
+		Vector2D vecDirToPlayer = pPlayer->GetAbsOrigin().AsVector2D() - pActivator->GetAbsOrigin().AsVector2D();
+		Vector2D vecDirToPlayerNorm = vecDirToPlayer;
+		vecDirToPlayerNorm.NormalizeInPlace();
+
+		if ( vecDirToPlayer.LengthSqr() <= Square(player_smg_grenade_warning_dist.GetFloat()) && DotProduct2D( vecMoveDir, vecDirToPlayerNorm ) > player_smg_grenade_warning_cone.GetFloat() )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool SMGGrenadeWarn( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
+{
+	pPlayer->SetWarningTarget( pActivator );
+
+	IGameEvent *event = gameeventmanager->CreateEvent( "player_target_warning" );
+	if (event)
+	{
+		event->SetInt( "userid", pPlayer->GetUserID() );
+		event->SetInt( "target", pActivator->entindex() );
+		gameeventmanager->FireEvent( event );
+	}
+
+	return true;
+}
+
+// Warn
+SightEvent_t g_SightIncomingSMGGrenade( "SMG Grenade Warning", 5.0f, SMGGrenadeWarnTest, SMGGrenadeWarn, 0.5f );
+
+//-----------------------------------------------------------------------------
 inline void CEZ2_Player::AddSightEvent( SightEvent_t &sightEvent )
 {
 	sightEvent.flLastHintTime = 0.0f;
@@ -423,6 +467,7 @@ CEZ2_Player::CEZ2_Player()
 	AddSightEvent( g_SightHintEnterVehicle );
 	AddSightEvent( g_SightHintSurrenderableCitizen );
 	AddSightEvent( g_SightHintSurrenderedMedic );
+	AddSightEvent( g_SightIncomingSMGGrenade );
 
 	if (sv_bonus_challenge.GetInt() != EZ_CHALLENGE_NONE)
 	{
