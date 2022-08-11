@@ -141,6 +141,8 @@ ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "0", FCVAR_REPLICATED);
 ConVar sv_flashlight_cc_enabled( "sv_flashlight_cc_enabled", "1", FCVAR_REPLICATED );
 ConVar sv_flashlight_cc_maxweight( "sv_flashlight_cc_maxweight", "100", FCVAR_REPLICATED );
 ConVar sv_flashlight_cc_filename( "sv_flashlight_cc_filename", "ez2_nvg.raw", FCVAR_REPLICATED );
+ConVar sv_player_hands_modelname( "sv_player_hands_modelname", "models/weapons/ez2/v_hands.mdl", FCVAR_REPLICATED, "Filename of model to use for suit inspect animation" );
+ConVar sv_player_kick_default_modelname( "sv_player_kick_default_modelname", "models/weapons/ez2/v_kick.mdl", FCVAR_REPLICATED, "Default filename of model to use for kick animation - can be overridden in map" );
 #else
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "0", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "1", FCVAR_REPLICATED);
@@ -774,7 +776,7 @@ void CHL2_Player::Precache( void )
 
 	if ( m_LegModelName == NULL_STRING )
 	{
-		m_LegModelName = AllocPooledString( "models/weapons/v_kick.mdl" );
+		m_LegModelName = AllocPooledString( sv_player_kick_default_modelname.GetString() );
 	}
 
 	PrecacheModel( STRING( m_LegModelName ) );
@@ -1298,7 +1300,13 @@ void CHL2_Player::StartAdmireGlovesAnimation( void )
 
 	if ( vm && !GetActiveWeapon() )
 	{
+#ifndef EZ2
 		vm->SetWeaponModel( "models/weapons/v_hands.mdl", NULL );
+#else
+		vm->SetWeaponModel( sv_player_hands_modelname.GetString(), NULL );		
+#endif
+
+
 		ShowViewModel( true );
 						
 		int	idealSequence = vm->SelectWeightedSequence( ACT_VM_IDLE );

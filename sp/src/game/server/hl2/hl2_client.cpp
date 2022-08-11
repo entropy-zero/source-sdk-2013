@@ -116,7 +116,11 @@ void ClientGamePrecache( void )
 	CBaseEntity::PrecacheModel( "models/gibs/hgibs_scapula.mdl" );
 	CBaseEntity::PrecacheModel( "models/gibs/hgibs_spine.mdl" );
 #endif
-	CBaseEntity::PrecacheModel ("models/weapons/v_hands.mdl");
+#ifndef EZ2
+	CBaseEntity::PrecacheModel ( "models/weapons/v_hands.mdl" );
+#else
+	CBaseEntity::PrecacheModel ( "models/weapons/ez2/v_hands.mdl" );
+#endif
 
 	CBaseEntity::PrecacheScriptSound( "HUDQuickInfo.LowAmmo" );
 	CBaseEntity::PrecacheScriptSound( "HUDQuickInfo.LowHealth" );
