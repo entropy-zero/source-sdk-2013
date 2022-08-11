@@ -4521,7 +4521,8 @@ void CNPC_Combine::SpeakSentence( int sentenceType )
 
 #ifdef EZ2
 	case 6: // Ordering enemy to surrender
-		SpeakIfAllowed( TLK_USE, "order_surrender:1" );
+		// Make sure the 'order surrender' concept is always dispatched as it is vital to telegraph when a soldier is ordering a citizen to surrender
+		SpeakIfAllowed( TLK_USE, "order_surrender:1", SENTENCE_PRIORITY_INVALID, SENTENCE_CRITERIA_ALWAYS );
 		if (GetEnemy())
 			GetEnemy()->DispatchInteraction( g_interactionBadCopOrderSurrender, NULL, this );
 		break;
