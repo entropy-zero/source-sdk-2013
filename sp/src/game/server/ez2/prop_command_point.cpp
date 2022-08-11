@@ -14,6 +14,8 @@ class CPropCommandPoint : public CBaseAnimating
 public:
 	DECLARE_CLASS(CPropCommandPoint, CBaseAnimating );
 
+	virtual int	ObjectCaps( void ) { return BaseClass::ObjectCaps() & ~FCAP_ACROSS_TRANSITION; }
+
 	virtual void Spawn( void );
 	virtual void Precache( void );
 };
