@@ -388,7 +388,7 @@ void CWeaponSMG2::BurstAttack( int burstSize, float cycleRate, int spentAmmoModi
 		// If the burst count is greater than the burst size, wait for the cycle rate and adjust
 		if (m_iBurstSize >= burstSize) {
 			m_iBurstSize = 0;
-			m_nShotsFired = 0; // Reset the shots fired counter so the correct activity plays
+			m_nShotsFired = burstSize > 1 ? 0 : m_nShotsFired; // Reset the shots fired counter so the correct activity plays
 			m_flNextPrimaryAttack = m_flNextPrimaryAttack + cycleRate;
 			m_flNextSecondaryAttack = m_flNextPrimaryAttack + cycleRate; // SMG2 shares primary attack between primary and secondary
 		}
@@ -529,7 +529,7 @@ void CWeaponSMG2::ItemPostFrame(void)
 	}
 
 	// Debounce the recoiling counter
-	if ((pOwner->m_nButtons & IN_ATTACK) == false)
+	if ((pOwner->m_nButtons & IN_ATTACK) == false && (pOwner->m_nButtons & IN_ATTACK2) == false)
 	{
 		m_nShotsFired = 0;
 	}
