@@ -251,6 +251,10 @@ public:
 	HSCRIPT		ScriptGetDriver() { return ToHScript( GetDriver() ); }
 #endif
 
+#ifdef EZ
+	virtual bool	IsDisplacementImpossible();
+#endif
+
 protected:
 
 	virtual bool	ShouldThink() { return ( GetDriver() != NULL ); }

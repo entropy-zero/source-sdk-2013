@@ -696,6 +696,20 @@ void CPropVehicleDriveable::ExitVehicle( int nRole )
 	m_pServerVehicle->InitViewSmoothing( vec3_origin, vec3_angle );
 }
 
+#ifdef EZ
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CPropVehicleDriveable::IsDisplacementImpossible()
+{
+	// For now, vehicles with player drivers in them should not be consumed (NPC drivers are OK)
+	if (m_hPlayer != NULL)
+		return true;
+
+	return BaseClass::IsDisplacementImpossible();
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
