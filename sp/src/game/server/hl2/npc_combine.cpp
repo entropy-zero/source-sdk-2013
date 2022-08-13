@@ -325,7 +325,7 @@ DEFINE_KEYFIELD( m_bDisablePlayerUse, FIELD_BOOLEAN, "DisablePlayerUse" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnablePlayerUse", InputEnablePlayerUse ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisablePlayerUse", InputDisablePlayerUse ),
 
-DEFINE_KEYFIELD( m_bCanOrderSurrender, FIELD_BOOLEAN, "CanOrderSurrender" ),
+DEFINE_KEYFIELD( m_iCanOrderSurrender, FIELD_INTEGER, "CanOrderSurrender" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnableOrderSurrender", InputEnableOrderSurrender ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisableOrderSurrender", InputDisableOrderSurrender ),
 #endif
@@ -357,10 +357,7 @@ CNPC_Combine::CNPC_Combine()
 
 	m_bDontPickupWeapons = true;
 
-	// TODO - Ordering surrender is on by default. This could become an issue.
-	// Consider making it a three-state variable and using a ConVar or Global Var
-	// to track default behavior.
-	m_bCanOrderSurrender = true;
+	m_iCanOrderSurrender = TRS_NONE;
 #endif
 }
 
@@ -1104,6 +1101,19 @@ void CNPC_Combine::PickupWeapon( CBaseCombatWeapon *pWeapon )
 		m_bDontPickupWeapons = true;
 	}
 }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanOrderSurrender()
+{
+	if (m_iCanOrderSurrender == TRS_NONE && IsPlayerAlly())
+	{
+		// Order surrenders if the player has ordered one before
+		return GlobalEntity_GetState( GLOBAL_PLAYER_ORDER_SURRENDER ) == GLOBAL_ON;
+	}
+
+	return m_iCanOrderSurrender == TRS_TRUE;
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -1344,12 +1354,12 @@ void CNPC_Combine::InputEnablePlayerUse( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputEnableOrderSurrender( inputdata_t &inputdata )
 {
-	m_bCanOrderSurrender = true;
+	m_iCanOrderSurrender = TRS_TRUE;
 }
 
 void CNPC_Combine::InputDisableOrderSurrender( inputdata_t &inputdata )
 {
-	m_bCanOrderSurrender = false;
+	m_iCanOrderSurrender = TRS_FALSE;
 }
 #endif
 

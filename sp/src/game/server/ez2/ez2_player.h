@@ -23,6 +23,8 @@ class CAI_PlayerNPCDummy;
 class CEZ2_Player;
 struct SightEvent_t;
 
+#define GLOBAL_PLAYER_ORDER_SURRENDER "player_ordered_surrenders"
+
 // 
 // Bad Cop-specific concepts
 // 
@@ -148,6 +150,8 @@ public:
 
 	void			OnUseEntity( CBaseEntity *pEntity );
 	bool			HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
+
+	void			OnOrderSurrender( CAI_BaseNPC *pNPC );
 
 	Disposition_t	IRelationType( CBaseEntity *pTarget );
 

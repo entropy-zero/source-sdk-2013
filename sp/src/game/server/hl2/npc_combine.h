@@ -186,7 +186,7 @@ public:
 
 	virtual bool	IsMajorCharacter() { return IsCommandable(); }
 
-	virtual bool	CanOrderSurrender() { return m_bCanOrderSurrender; }
+	virtual bool	CanOrderSurrender();
 
 	// Blixibon - Elites in ball attacks should aim while moving, even if they can't shoot
 	bool			HasAttackSlot() { return BaseClass::HasAttackSlot() || HasStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ); }
@@ -351,7 +351,10 @@ protected:
 	// 1upD - If true, player +USE has no effect
 	bool m_bDisablePlayerUse;
 
-	bool m_bCanOrderSurrender;
+	// TRS_NONE = Don't care, modified from global state if the player orders a surrender
+	// TRS_TRUE = Can always order surrender
+	// TRS_FALSE = Can never order surrender
+	ThreeState_t m_iCanOrderSurrender;
 #endif
 
 #ifdef EZ2

@@ -71,11 +71,11 @@ CNPC_CloneCop::CNPC_CloneCop()
 	m_bThrowXenGrenades = true;
 	m_bLookForItems = true;
 	SetDisplacementImpossible( true );
-	m_SquadName = MAKE_STRING( IsBadCop() ? "bc_squad" : "cc_squad" );
+	m_SquadName = MAKE_STRING( "cc_squad" );
 
 	// TODO - See comment in npc_combine.cpp
 	// Clone Cop probably shouldn't order surrender by default
-	m_bCanOrderSurrender = false;
+	m_iCanOrderSurrender = TRS_FALSE;
 }
 
 //-----------------------------------------------------------------------------
@@ -1109,6 +1109,7 @@ LINK_ENTITY_TO_CLASS( npc_badcop, CNPC_BadCop );
 
 CNPC_BadCop::CNPC_BadCop()
 {
+	m_SquadName = MAKE_STRING( "bc_squad" );
 }
 
 //-----------------------------------------------------------------------------

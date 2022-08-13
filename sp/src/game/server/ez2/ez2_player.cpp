@@ -614,7 +614,7 @@ void CEZ2_Player::OnUseEntity( CBaseEntity *pEntity )
 	{
 		if ( bOrderSurrender )
 		{
-			pNPC->DispatchInteraction( g_interactionBadCopOrderSurrender, NULL, this );
+			OnOrderSurrender( pNPC );
 		}
 		else if ( bStealthChat )
 		{
@@ -647,7 +647,7 @@ void CEZ2_Player::OnUseEntity( CBaseEntity *pEntity )
 		if (/*GetNumSquadCommandables() <= 0 &&*/ pNPC->FInViewCone( this ) && GetActiveWeapon() && player_silent_surrender.GetBool())
 		{
 			//GetActiveWeapon()->SendWeaponAnim( ACT_VM_COMMAND_SEND );
-			pNPC->DispatchInteraction( g_interactionBadCopOrderSurrender, NULL, this );
+			OnOrderSurrender( pNPC );
 		}
 	}
 }
@@ -697,6 +697,24 @@ bool CEZ2_Player::HandleInteraction( int interactionType, void *data, CBaseComba
 	}
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::OnOrderSurrender( CAI_BaseNPC *pNPC )
+{
+	pNPC->DispatchInteraction( g_interactionBadCopOrderSurrender, NULL, this );
+
+	// Increment the associated global
+	int iGlobal = GlobalEntity_GetIndex( GLOBAL_PLAYER_ORDER_SURRENDER );
+	if ( iGlobal < 0 )
+	{
+		iGlobal = GlobalEntity_Add( GLOBAL_PLAYER_ORDER_SURRENDER, STRING(gpGlobals->mapname), GLOBAL_ON );
+		GlobalEntity_SetCounter( iGlobal, 0 );
+	}
+
+	GlobalEntity_AddToCounter( iGlobal, 1 );
 }
 
 //-----------------------------------------------------------------------------
