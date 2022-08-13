@@ -63,6 +63,7 @@ ConVar	g_antlionguard_hemorrhage( "g_antlionguard_hemorrhage", "1", FCVAR_NONE, 
 
 #define ANTLIONGUARD_BLUE_MODEL		"models/antlion_guard_blue.mdl"
 #define ANTLIONGUARD_XEN_MODEL		"models/antlion_guard_xen.mdl"
+#define ANTLIONGUARD_BLOOD_MODEL	"models/bloodlion_guard.mdl"
 
 //==================================================
 //
@@ -691,6 +692,9 @@ void CNPC_AntlionGuard::Precache( void )
 				break;
 			case EZ_VARIANT_XEN:
 				SetModelName( AllocPooledString( ANTLIONGUARD_XEN_MODEL ) );
+				break;
+			case EZ_VARIANT_BLOODLION:
+				SetModelName( AllocPooledString( ANTLIONGUARD_BLOOD_MODEL ) );
 				break;
 			default:
 				SetModelName( AllocPooledString( ANTLIONGUARD_MODEL ) );

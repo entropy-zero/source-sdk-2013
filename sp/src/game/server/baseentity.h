@@ -157,6 +157,7 @@ enum EZ_VARIANT
 	EZ_VARIANT_RAD,				// Covered in blue radioactive goo. NPCs leave behind hazardous puddles when they die.
 	EZ_VARIANT_TEMPORAL,		// Affected by temporal anomalies. Used by temporal crabs.
 	EZ_VARIANT_ARBEIT,			// Property of Arbeit Communications. Used for Arbeit stuff that isn't covered in goo.
+	EZ_VARIANT_BLOODLION,		// Thirsty for blood. Used by the Nova Prospekt antlions from E:Z2 Chapter 1.
 
 	EZ_VARIANT_COUNT, // Keep this at the end
 };

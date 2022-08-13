@@ -123,7 +123,9 @@ extern int g_interactionBadCopKick;
 #define	ANTLION_MODEL			"models/antlion.mdl"
 #define	ANTLION_XEN_MODEL		"models/antlion_xen.mdl"
 #define	ANTLION_BLUE_MODEL		"models/antlion_blue.mdl"
+#define	ANTLION_BLOOD_MODEL		"models/bloodlion.mdl"
 #define ANTLION_WORKER_MODEL	"models/antlion_worker.mdl"
+#define ANTLION_WORKER_BLOOD_MODEL	"models/bloodlion_worker.mdl"
 
 #define	ANTLION_BURROW_IN	0
 #define	ANTLION_BURROW_OUT	1
@@ -296,7 +298,11 @@ void CNPC_Antlion::Spawn( void )
 #ifdef HL2_EPISODIC
 	if ( IsWorker() )
 	{
+#ifdef EZ
+		SetModel( DefaultOrCustomModel(m_tEzVariant == EZ_VARIANT_BLOODLION ? ANTLION_WORKER_BLOOD_MODEL : ANTLION_WORKER_MODEL) );
+#else
 		SetModel( DefaultOrCustomModel(ANTLION_WORKER_MODEL) );
+#endif
 		AddSpawnFlags( SF_NPC_LONG_RANGE );
 		SetBloodColor( BLOOD_COLOR_ANTLION_WORKER );
 	}
@@ -502,8 +508,26 @@ void CNPC_Antlion::Precache( void )
 #ifdef HL2_EPISODIC
 	if ( IsWorker() )
 	{
+#ifdef EZ
+		if (GetModelName() == NULL_STRING)
+		{
+			switch (m_tEzVariant)
+			{
+				case EZ_VARIANT_BLOODLION:
+					SetModelName( AllocPooledString( ANTLION_WORKER_BLOOD_MODEL ) );
+					break;
+				default:
+					SetModelName( AllocPooledString( ANTLION_WORKER_MODEL ) );
+					break;
+			}
+		}
+
+		PrecacheModel( STRING(GetModelName()) );
+		PropBreakablePrecacheAll( GetModelName() );
+#else
 		PrecacheModel( ANTLION_WORKER_MODEL );
 		PropBreakablePrecacheAll( MAKE_STRING( ANTLION_WORKER_MODEL ) );
+#endif
 		UTIL_PrecacheOther( "grenade_spit" );
 		PrecacheParticleSystem( "blood_impact_antlion_worker_01" );
 		PrecacheParticleSystem( "antlion_gib_02" );
@@ -521,6 +545,9 @@ void CNPC_Antlion::Precache( void )
 				break;
 			case EZ_VARIANT_XEN:
 				SetModelName( AllocPooledString( ANTLION_XEN_MODEL ) );
+				break;
+			case EZ_VARIANT_BLOODLION:
+				SetModelName( AllocPooledString( ANTLION_BLOOD_MODEL ) );
 				break;
 			default:
 				SetModelName( AllocPooledString( ANTLION_MODEL ) );
@@ -4678,6 +4705,10 @@ EyeGlow_t * CNPC_Antlion::GetEyeGlowData(int i)
 	if (i != 0)
 		return NULL;
 
+	// Default variants have no glow
+	if ( m_tEzVariant == EZ_VARIANT_DEFAULT )
+		return NULL;
+
 	// Antlion workers have no glow
 	if (IsWorker())
 		return NULL;
@@ -4701,6 +4732,7 @@ EyeGlow_t * CNPC_Antlion::GetEyeGlowData(int i)
 			eyeGlow->blue = 255;
 			eyeGlow->alpha = 200;
 			break;
+		case EZ_VARIANT_BLOODLION:
 		default:
 			eyeGlow->red = 250;
 			eyeGlow->green = 85;
