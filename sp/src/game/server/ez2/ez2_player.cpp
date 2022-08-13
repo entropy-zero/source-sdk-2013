@@ -317,14 +317,20 @@ SIGHT_EVENT_HINT_END( "" )
 SightEvent_t g_SightHintEnterVehicle( "Vehicle Enter", 200.0f, VehicleHintTest, VehicleHintShow );
 
 //-----------------------------------------------------------------------------
+
+ConVar player_hint_surrenderable_min_time_acquired( "player_hint_surrenderable_min_time_acquired", "3.5", FCVAR_NONE, "The minimum amount of time an enemy must've been the current enemy before the hint can appear" );
+ConVar player_hint_surrenderable_min_time_begged( "player_hint_surrenderable_min_time_begged", "2.0", FCVAR_NONE, "The minimum amount of time an enemy must've last begged before the hint can appear" );
+ConVar player_hint_surrenderable_max_time_last_seen( "player_hint_surrenderable_max_time_last_seen", "2.0", FCVAR_NONE, "The maximum amount of time since a NPC was last seen before the hint can appear" );
+ConVar player_hint_surrenderable_max_dist( "player_hint_surrenderable_max_dist", "224", FCVAR_NONE, "The maximum distance a NPC must be from the player before the hint can appear" );
+
 bool SurrenderableCitizenHintTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
 {
 	// Don't do this if there's too many enemies around
 	if (pPlayer->GetVisibleEnemies() > 2)
 		return false;
 
-	// Only our current enemy
-	if (pPlayer->GetEnemy() != pActivator)
+	// Only our current enemy and if they've been an enemy for X seconds
+	if (pPlayer->GetEnemy() != pActivator || (gpGlobals->curtime - pPlayer->GetNPCComponent()->GetTimeEnemyAcquired()) < player_hint_surrenderable_min_time_acquired.GetFloat())
 		return false;
 
 	if (pActivator->Classify() == CLASS_PLAYER_ALLY && pActivator->MyNPCPointer()->GetActiveWeapon() == NULL)
@@ -332,12 +338,12 @@ bool SurrenderableCitizenHintTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator
 		// Check our enemy memory; Make sure we see them
 		CAI_Enemies *pEnemies = pPlayer->GetNPCComponent()->GetEnemies();
 		AI_EnemyInfo_t *pEnemyInfo = pEnemies->Find( pActivator );
-		if (!pEnemyInfo || (gpGlobals->curtime - pEnemyInfo->timeLastSeen) > 2.0f)
+		if (!pEnemyInfo || (gpGlobals->curtime - pEnemyInfo->timeLastSeen) > player_hint_surrenderable_max_time_last_seen.GetFloat())
 			return false;
 
 		CNPC_Citizen *pCitizen = dynamic_cast<CNPC_Citizen*>(pActivator);
 		if (pCitizen && !pCitizen->IsSurrendered() && pCitizen->CanSurrender() && !pCitizen->SurrenderAutomatically()
-			&& pPlayer->GetAbsOrigin().DistToSqr( pActivator->GetAbsOrigin() ) <= Square( 224.0f ))
+			&& pPlayer->GetAbsOrigin().DistToSqr( pActivator->GetAbsOrigin() ) <= Square( player_hint_surrenderable_max_dist.GetFloat() ))
 		{
 			// Make sure they're not about to pick up a weapon
 			if (pCitizen->IsCurSchedule( SCHED_NEW_WEAPON, false ))
@@ -345,7 +351,7 @@ bool SurrenderableCitizenHintTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator
 
 			// Finally, check if the citizen has begged already
 			float flTimeSpeakBeg = pCitizen->GetTimeSpokeConcept( TLK_BEG );
-			if (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= 2.0f)
+			if (flTimeSpeakBeg != -1 && gpGlobals->curtime - flTimeSpeakBeg >= player_hint_surrenderable_min_time_begged.GetFloat())
 				return true;
 		}
 	}
