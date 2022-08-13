@@ -151,6 +151,7 @@ ConVar npc_citizen_brute_mask_eject_threshold("npc_citizen_brute_mask_eject_thre
 ConVar npc_citizen_surrender_auto_distance( "npc_citizen_surrender_auto_distance", "720" );
 ConVar npc_citizen_surrender_ammo_scale_min( "npc_citizen_surrender_ammo_scale_min", "0.05" );
 ConVar npc_citizen_surrender_ammo_scale_max( "npc_citizen_surrender_ammo_scale_max", "0.10" );
+ConVar npc_citizen_surrender_ammo_deplete_multiplier( "npc_citizen_surrender_ammo_deplete_multiplier", "0.80" );
 #endif
 #endif
 
@@ -800,14 +801,14 @@ void CNPC_Citizen::Spawn()
 #endif
 
 #ifdef EZ2
-	if (!IsMedic() && !IsAmmoResupplier() && m_Type == CT_BRUTE && CanSurrender() && ((m_iszAmmoSupply == NULL_STRING && m_iAmmoAmount == 0) || (FStrEq(STRING(m_iszAmmoSupply), "SMG1") && m_iAmmoAmount == 1)))
+	if (!IsMedic() && !IsAmmoResupplier() /*&& m_Type == CT_BRUTE*/ && CanSurrender() && ((m_iszAmmoSupply == NULL_STRING && m_iAmmoAmount == 0) || (FStrEq(STRING(m_iszAmmoSupply), "SMG1") && m_iAmmoAmount == 1)))
 	{
 		// Change the ammo supply and ammo ammount to reflect our equipment (for surrendering purposes)
-		if (HasGrenades() && RandomInt( 0, 1 ) == 1)
+		if (m_Type == CT_BRUTE && HasGrenades())
 		{
 			if (IsAltFireCapable())
 			{
-				m_iAmmoAmount = 1;
+				m_iAmmoAmount = RandomInt( 1, 2 );
 				if (GetActiveWeapon() && GetActiveWeapon()->ClassMatches("weapon_ar2*"))
 					m_iszAmmoSupply = AllocPooledString( "AR2AltFire" );
 				else
@@ -816,17 +817,30 @@ void CNPC_Citizen::Spawn()
 			else
 			{
 				m_iszAmmoSupply = AllocPooledString( "Grenade" );
-				m_iAmmoAmount = RandomInt( 1, 2 );
+				m_iAmmoAmount = RandomInt( 1, 3 );
 			}
 		}
-		else if (GetActiveWeapon() && GetActiveWeapon()->UsesPrimaryAmmo())
+		else
 		{
-			int iAmmoIndex = GetActiveWeapon()->GetPrimaryAmmoType();
-			const char *pszAmmoName = GetAmmoDef()->Name( iAmmoIndex );
+			int iAmmoIndex = 0;
+			const char *pszAmmoName = NULL;
+			if (GetActiveWeapon() && GetActiveWeapon()->UsesPrimaryAmmo())
+			{
+				iAmmoIndex = GetActiveWeapon()->GetPrimaryAmmoType();
+				pszAmmoName = GetAmmoDef()->Name( iAmmoIndex );
+			}
+			else
+			{
+				// Citizens with no starting weapon are rare, so for now, they provide 357 ammo
+				// (totally not a workaround for the ez2_c4_1 jacket rebel)
+				pszAmmoName = "357";
+				iAmmoIndex = GetAmmoDef()->Index( pszAmmoName );
+			}
+
 			if (pszAmmoName)
 			{
 				m_iszAmmoSupply = AllocPooledString( pszAmmoName );
-				m_iAmmoAmount = ((float)GetAmmoDef()->MaxCarry( iAmmoIndex ) * RandomFloat( npc_citizen_surrender_ammo_scale_min.GetFloat(), npc_citizen_surrender_ammo_scale_max.GetFloat() ));
+				m_iAmmoAmount = ceilf((float)GetAmmoDef()->MaxCarry( iAmmoIndex ) * RandomFloat( npc_citizen_surrender_ammo_scale_min.GetFloat(), npc_citizen_surrender_ammo_scale_max.GetFloat() ));
 			}
 		}
 	}
@@ -1260,8 +1274,8 @@ bool CNPC_Citizen::ShouldBehaviorSelectSchedule( CAI_BehaviorBase *pBehavior )
 		}
 	}
 #ifdef EZ2
-	// Don't use func_tanks while surrendered
-	else if ( IsSurrendered() && pBehavior == &m_FuncTankBehavior )
+	// Don't use func_tanks or passively act busy while surrendered
+	else if ( IsSurrendered() && ( pBehavior == &m_FuncTankBehavior || ( pBehavior == &m_ActBusyBehavior /*&& !m_ActBusyBehavior.IsActive()*/ ) ) )
 	{
 		return false;
 	}
@@ -5772,6 +5786,12 @@ bool CNPC_Citizen::ShouldHealTarget( CBaseEntity *pTarget, bool bActiveUse )
 			}
 			else
 			{
+
+#ifdef EZ2
+				// No ammo remaining
+				if (m_iAmmoAmount <= 0)
+					return false;
+#endif
 				// Does the player need the ammo we can give him?
 				int iMax = GetAmmoDef()->MaxCarry(iAmmoType);
 				int iCount = ((CBasePlayer*)pTarget)->GetAmmoCount(iAmmoType);
@@ -5980,6 +6000,14 @@ void CNPC_Citizen::Heal()
 
 #ifdef MAPBASE
 				m_OnGiveAmmo.FireOutput(pTarget, this);
+#endif
+
+#ifdef EZ2
+				if (IsSurrendered())
+				{
+					// Surrendered citizens slowly deplete their ammo supply.
+					m_iAmmoAmount = (((float)m_iAmmoAmount) * npc_citizen_surrender_ammo_deplete_multiplier.GetFloat());
+				}
 #endif
 			}
 
@@ -6346,7 +6374,8 @@ void CNPC_Citizen::CCitizenSurrenderBehavior::Surrender( CBaseCombatCharacter *p
 	GetOuterCit()->m_bUsedBackupWeapon = true;
 
 	// Brutes become very, very annoying ammo resuppliers
-	if (GetOuterCit()->m_Type == CT_BRUTE && !GetOuter()->HasSpawnFlags( SF_CITIZEN_AMMORESUPPLIER ) && GetOuterCit()->m_iszAmmoSupply != NULL_STRING)
+	// NEW: Now applies to all non-medic citizens
+	if (/*GetOuterCit()->m_Type == CT_BRUTE &&*/ !GetOuterCit()->IsMedic() && !GetOuterCit()->IsAmmoResupplier() && GetOuterCit()->m_iszAmmoSupply != NULL_STRING)
 	{
 		GetOuterCit()->AddSpawnFlags( SF_CITIZEN_AMMORESUPPLIER );
 	}

@@ -753,6 +753,9 @@ int CAI_SurrenderBehavior::TranslateSchedule( int scheduleType )
 
 	case SCHED_MOVE_AWAY:
 		return SCHED_SURRENDER_MOVE_AWAY;
+
+	case SCHED_INVESTIGATE_SOUND:
+		return SCHED_ALERT_FACE_BESTSOUND;
 	}
 
 	return BaseClass::TranslateSchedule( scheduleType );
