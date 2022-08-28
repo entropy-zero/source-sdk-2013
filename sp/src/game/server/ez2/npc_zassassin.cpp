@@ -989,10 +989,13 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 		{
 		// SOUND HERE!
 			CPASAttenuationFilter filter( this );
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if ( pHurt )
 			{
 				EmitSound( filter, entindex(), "Zombie.AttackHit" );
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 			}
 			else // Play a random attack miss sound
 			{
@@ -1015,10 +1018,13 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 		case GONOME_AE_TAILWHIP:
 		{
 			CPASAttenuationFilter filter( this );
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_whip.GetFloat(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_whip.GetFloat(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if ( pHurt ) 
 			{
 				EmitSound( filter, entindex(), "Gonome.Bite" );
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
 					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );

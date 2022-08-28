@@ -404,10 +404,13 @@ void CNPC_Voltigore::HandleAnimEvent( animevent_t *pEvent )
 		break;
 		case PREDATOR_AE_BITE:
 		{
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if (pHurt)
 			{
 				BiteSound(); // Only play the bite sound if we have a target
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
@@ -425,9 +428,12 @@ void CNPC_Voltigore::HandleAnimEvent( animevent_t *pEvent )
 
 		case PREDATOR_AE_TAILWHIP:
 		{
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetWhipDamage(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetWhipDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if (pHurt)
 			{
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
+
 				Vector right, up;
 				AngleVectors( GetAbsAngles(), NULL, &right, &up );
 

@@ -61,6 +61,8 @@ public:
 	virtual void OnFed();
 	virtual bool ShouldEatInCombat() { return m_bIsBaby || BaseClass::ShouldEatInCombat(); }
 
+	virtual bool ShouldAttackObstruction( CBaseEntity *pEntity ) { return false; }
+
 	// No fly. Jump good!
 	bool IsJumpLegal( const Vector & startPos, const Vector & apex, const Vector & endPos ) const { return true; }
 

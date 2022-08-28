@@ -50,6 +50,9 @@ public:
 	// On feeding
 	virtual void OnFed();
 
+	// Pit drones don't deal enough melee damage/force for this to be an effective strategy
+	virtual bool ShouldImmediatelyAttackObstructions() { return false; }
+
 	// Update bodygroups based on ammo count
 	void UpdateAmmoBodyGroups( void );
 

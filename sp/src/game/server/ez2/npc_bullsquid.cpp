@@ -543,10 +543,14 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 //=========================================================
 CBaseEntity * CNPC_Bullsquid::BiteAttack( float flDist, const Vector & mins, const Vector & maxs )
 {
-	CBaseEntity *pHurt = CheckTraceHullAttack( flDist, mins, maxs, GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB );
+	CBaseEntity *pHurt = CheckTraceHullAttack( flDist, mins, maxs, GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 	if ( pHurt )
 	{
 		BiteSound(); // Only play the bite sound if we have a target
+		
+		// If the player is holding this, make sure it's dropped
+		Pickup_ForcePlayerToDropThisObject( pHurt );
+
 		CBaseCombatCharacter *pVictim = ToBaseCombatCharacter( pHurt );
 		// Try to eat the target
 		if (pVictim && pVictim->DispatchInteraction( g_interactionBullsquidMonch, NULL, this ))
