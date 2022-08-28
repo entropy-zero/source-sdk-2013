@@ -1067,6 +1067,25 @@ int CNPC_Combine::SelectScheduleRetrieveItem()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+bool CNPC_Combine::IgnorePlayerPushing( void )
+{
+	CBasePlayer *pPlayer = AI_GetSinglePlayer();
+	if ( pPlayer )
+	{
+		if ( IsCommandable() && !IsInAScript() && npc_combine_give_enabled.GetBool() )
+		{
+			// Don't push if the player is carrying a weapon
+			CBaseEntity *pHeld = GetPlayerHeldEntity( pPlayer );
+			if (pHeld && pHeld->IsBaseCombatWeapon())
+				return true;
+		}
+	}
+
+	return BaseClass::IgnorePlayerPushing();
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 void CNPC_Combine::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget /* = NULL */, const Vector *pVelocity /* = NULL */ )
 {
 	BaseClass::Weapon_Drop( pWeapon, pvecTarget, pVelocity );
@@ -2676,7 +2695,7 @@ void CNPC_Combine::OnSeeEntity( CBaseEntity *pEntity )
 
 			if ( pUseEntity && FVisible(pUseEntity) )
 			{
-				AddLookTarget( pUseEntity, 1.25f, 5.0f, 1.0f );
+				AddLookTarget( pUseEntity, 1.0f, 5.0f, 1.0f );
 				Remember( bits_MEMORY_SAW_PLAYER_WEIRDNESS );
 			}
 		}
@@ -5831,6 +5850,24 @@ int CNPC_Combine::CCombineFollowBehavior::TranslateSchedule( int scheduleType )
 			break;
 	}
 	return BaseClass::TranslateSchedule( scheduleType );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CCombineFollowBehavior::PlayerIsPushing()
+{
+	if (!BaseClass::PlayerIsPushing())
+		return false;
+
+	// HACKHACK: By default, follow behavior uses its own push code
+	// that acts independent of CNPC_PlayerCompanion.
+	// Combine soldiers in the player's squad need to avoid moving
+	// away when players are trying to give them a new weapon.
+	if (GetOuterS()->IgnorePlayerPushing())
+		return false;
+
+	return true;
 }
 #endif
 

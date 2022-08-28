@@ -184,6 +184,8 @@ public:
 	int 			SelectSchedulePriorityAction();
 	virtual int 	SelectScheduleRetrieveItem();
 
+	virtual bool	IgnorePlayerPushing( void );
+
 	virtual bool	IsMajorCharacter() { return IsCommandable(); }
 
 	virtual bool	CanOrderSurrender();
@@ -481,6 +483,8 @@ private:
 
 		virtual int SelectSchedule();
 		virtual int	TranslateSchedule( int scheduleType );
+
+		virtual bool PlayerIsPushing();
 
 		inline CNPC_Combine *GetOuterS() { return static_cast<CNPC_Combine*>(GetOuter()); }
 	};
