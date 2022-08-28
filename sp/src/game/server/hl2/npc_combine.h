@@ -188,6 +188,9 @@ public:
 
 	virtual bool	CanOrderSurrender();
 
+	virtual bool	ShouldGib( const CTakeDamageInfo &info );
+	virtual bool	CorpseGib( const CTakeDamageInfo &info );
+
 	// Blixibon - Elites in ball attacks should aim while moving, even if they can't shoot
 	bool			HasAttackSlot() { return BaseClass::HasAttackSlot() || HasStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ); }
 
