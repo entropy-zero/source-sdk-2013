@@ -261,6 +261,11 @@ public:
 	virtual void	HandleManhackSpawn( CAI_BaseNPC *pNPC ) {}
 #endif
 
+#ifdef EZ2
+	virtual bool	OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
+	virtual bool	ShouldAttackObstruction( CBaseEntity *pEntity );
+#endif
+
 	bool			OnBeginMoveAndShoot();
 	void			OnEndMoveAndShoot();
 
@@ -405,6 +410,7 @@ private:
 #endif
 #ifdef EZ2
 		SCHED_COMBINE_ORDER_SURRENDER,
+		SCHED_COMBINE_ATTACK_TARGET,
 #endif
 		NEXT_SCHEDULE,
 	};
@@ -440,6 +446,7 @@ private:
 		COND_COMBINE_ATTACK_SLOT_AVAILABLE,
 #ifdef EZ2
 		COND_COMBINE_CAN_ORDER_SURRENDER,
+		COND_COMBINE_OBSTRUCTED,
 #endif
 		NEXT_CONDITION
 	};
@@ -518,6 +525,8 @@ private:
 protected:
 	bool			m_bLookForItems;
 private:
+	EHANDLE			m_hObstructor;
+	float			m_flTimeSinceObstructed;
 #endif
 
 	// Time Variables
