@@ -1126,6 +1126,10 @@ bool CNPC_Combine::ShouldGib( const CTakeDamageInfo &info )
 {
 	if ( !npc_combine_gib.GetBool() )
 		return false;
+	
+	// Don't gib if we're temporal
+	if (m_tEzVariant == EZ_VARIANT_TEMPORAL)
+		return false;
 
 	// If the damage type is "always gib", we better gib!
 	if ( info.GetDamageType() & DMG_ALWAYSGIB )
