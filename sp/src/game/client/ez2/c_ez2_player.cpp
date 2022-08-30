@@ -8,7 +8,7 @@
 	#undef CEZ2Player
 #endif
 
-ConVar cl_slam_glow( "cl_slam_glow", "1" );
+ConVar cl_slam_glow( "cl_slam_glow", "0" );
 
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropBool( RECVINFO( m_bBonusChallengeUpdate ) ),
