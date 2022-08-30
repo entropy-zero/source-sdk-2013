@@ -26,7 +26,7 @@
 ConVar ai_debug_predator( "ai_debug_predator", "0" );
 ConVar sv_predator_heal_render_effects( "sv_predator_heal_render_effects", "1", FCVAR_NONE, "Should predators like bullsquids turn green after healing?" );
 #ifdef EZ2
-ConVar npc_predator_obstruction_behavior( "npc_predator_obstruction_behavior", "1" );
+ConVar npc_predator_obstruction_behavior( "npc_predator_obstruction_behavior", "0" );
 #endif
 
 LINK_ENTITY_TO_CLASS( npc_basepredator, CNPC_BasePredator );
