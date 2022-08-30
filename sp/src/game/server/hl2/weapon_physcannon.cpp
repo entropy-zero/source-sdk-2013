@@ -68,7 +68,7 @@ ConVar player_throwforce( "player_throwforce", "1000" );
 ConVar physcannon_dmg_glass( "physcannon_dmg_glass", "15" );
 ConVar physcannon_right_turrets( "physcannon_right_turrets", "0" );
 #ifdef EZ2
-ConVar physcannon_ignore_contact_allowed( "physcannon_ignore_contact_allowed", "1" );
+ConVar physcannon_ignore_contact_allowed( "physcannon_ignore_contact_allowed", "0" );
 #endif
 
 extern ConVar hl2_normspeed;
