@@ -3707,7 +3707,7 @@ int CNPC_Combine::SelectFailSchedule( int failedSchedule, int failedTask, AI_Tas
 }
 
 #ifdef EZ2
-ConVar npc_combine_obstruction_behavior( "npc_combine_obstruction_behavior", "1" );
+ConVar npc_combine_obstruction_behavior( "npc_combine_obstruction_behavior", "0" );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
