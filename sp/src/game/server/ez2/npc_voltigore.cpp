@@ -18,7 +18,8 @@
 
 ConVar sk_voltigore_health( "sk_voltigore_health", "400" );
 ConVar sk_voltigore_dmg_spit( "sk_voltigore_dmg_spit", "15" );
-ConVar sk_voltigore_dmg_slash( "sk_voltigore_dmg_slash", "15" );
+ConVar sk_voltigore_dmg_slash( "sk_voltigore_dmg_slash", "30" );
+ConVar sk_voltigore_dmg_double_slash( "sk_voltigore_dmg_slash", "60" );
 ConVar sk_voltigore_spit_gravity( "sk_voltigore_spit_gravity", "600" );
 ConVar sk_voltigore_spit_arc_size( "sk_voltigore_spit_arc_size", "3");
 
@@ -106,7 +107,7 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	}
 
 	pSpit->SetThink( &CVoltigoreProjectile::ThinkRemove );
-	pSpit->SetNextThink( gpGlobals->curtime + 4.5f );
+	pSpit->SetNextThink( gpGlobals->curtime + 5.5f );
 
 	CPVSFilter filter( vecStart );
 
@@ -115,13 +116,27 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 
 
 	// Make a tesla to follow the projectile
-	CBaseEntity *pTesla = CreateEntityByName( "point_tesla" );
-	DispatchSpawn( pTesla );
+	CBaseEntity * pTesla = CreateNoSpawn( "point_tesla", vecStart, pSpit->GetAbsAngles(), pSpit );
 	pTesla->SetParent( pSpit );
-	int output = 0;
-	pTesla->AcceptInput( "TurnOn", pSpit, pSpit, variant_t(), output );
 
-	CBaseEntity *pGravityController = CGravityVortexController::Create( pSpit->GetAbsOrigin(), 128.0f, 128.0f, 5.0f );
+	pTesla->KeyValue( "beamcount_max", "8" );
+	pTesla->KeyValue( "beamcount_min", "6" );
+	pTesla->KeyValue( "interval_max", "6" );
+	pTesla->KeyValue( "interval_min", "3" );
+	pTesla->KeyValue( "lifetime_max", "0.3" );
+	pTesla->KeyValue( "lifetime_min", "0.3" );
+	pTesla->KeyValue( "thick_max", "5" );
+	pTesla->KeyValue( "thick_min", "4" );
+	pTesla->KeyValue( "m_Color", "54 54 218" );
+	pTesla->KeyValue( "texture", "sprites/hydragutbeam.vmt" );
+	pTesla->KeyValue( "m_flRadius", "434" );
+	pTesla->KeyValue( "m_SoundName", "DoSpark" );
+
+	DispatchSpawn( pTesla );
+	pTesla->AcceptInput( "TurnOn", pSpit, pOwner, variant_t(), 0 );
+
+	CBaseEntity *pGravityController = CGravityVortexController::Create( pSpit->GetAbsOrigin(), 128.0f, 128.0f, 5.0f, pSpit );
+	pGravityController->AddContext( "owner_classname:npc_voltigore" );
 	pGravityController->SetParent( pSpit );
 }
 
@@ -166,7 +181,7 @@ void CNPC_Voltigore::Spawn()
 
 	SetModel( STRING( GetModelName() ) );
 
-	SetHullType( HULL_MEDIUM );
+	SetHullType( HULL_LARGE );
 	SetHullSizeNormal();
 
 	SetSolid( SOLID_BBOX );
@@ -368,6 +383,37 @@ int CNPC_Voltigore::RangeAttack1Conditions( float flDot, float flDist )
 }
 
 //=========================================================
+// Translate missing activities to custom ones
+//=========================================================
+// Shared activities from base predator
+extern int ACT_EAT;
+extern int ACT_EXCITED;
+extern int ACT_DETECT_SCENT;
+extern int ACT_INSPECT_FLOOR;
+
+Activity CNPC_Voltigore::NPC_TranslateActivity( Activity eNewActivity )
+{
+	if (eNewActivity == ACT_EAT)
+	{
+		return (Activity)ACT_VICTORY_DANCE;
+	}
+	else if (eNewActivity == ACT_EXCITED)
+	{
+		return (Activity) ACT_IDLE;
+	}
+	else if ( eNewActivity == ACT_HOP )
+	{
+		return (Activity) ACT_BIG_FLINCH;
+	}
+	else if (eNewActivity == ACT_DETECT_SCENT)
+	{
+		return (Activity) ACT_INSPECT_FLOOR;
+	}
+
+	return BaseClass::NPC_TranslateActivity( eNewActivity );
+}
+
+//=========================================================
 // HandleAnimEvent - catches the monster-specific messages
 // that occur when tagged animation frames are played.
 //=========================================================
@@ -490,7 +536,7 @@ float CNPC_Voltigore::GetBiteDamage( void )
 //=========================================================
 float CNPC_Voltigore::GetWhipDamage( void )
 {
-	return sk_voltigore_dmg_slash.GetFloat();
+	return sk_voltigore_dmg_double_slash.GetFloat();
 }
 
 //------------------------------------------------------------------------------

@@ -38,6 +38,7 @@ public:
 
 	int RangeAttack1Conditions( float flDot, float flDist );
 
+	virtual Activity NPC_TranslateActivity( Activity eNewActivity );
 	void HandleAnimEvent( animevent_t *pEvent );
 
 	// Projectile methods
