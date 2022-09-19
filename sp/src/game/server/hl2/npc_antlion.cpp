@@ -3206,14 +3206,17 @@ bool CNPC_Antlion::HandleInteraction( int interactionType, void *data, CBaseComb
 		ApplyAbsVelocityImpulse( vecDir );
 		Flip();
 
-		// At the beginning of Ashes the non-damaging melee would be a disappointment like in Doom Eternal, so receive concussion damage without bleeding - HEVcrab
+		// If the player kicks the antlion, it receives concussion damage without bleeding - HEVcrab
 
-		if ( sender->IsPlayer() )
+		if (sender->IsPlayer())
 		{
-			float dmg = sk_antlion_health.GetFloat() / sk_plr_kicks_to_kill_antlion.GetFloat(); // Do receive damage of 1/sk_kicks... fraction of Antlion's max health to kill in sk_kicks... kick hits
-			CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
-			TakeDamage(dmgInfo); // HEVcrab - re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy...
-			return true; 
+			if (sk_plr_kicks_to_kill_antlion.GetFloat() > 0)
+			{
+				float dmg = sk_antlion_health.GetFloat() / sk_plr_kicks_to_kill_antlion.GetFloat(); // Receive damage of 1/kicks_to_kill... fraction of Antlion's max health to kill in kicks_to_kill kick hits
+				CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
+				TakeDamage(dmgInfo); // HEVcrab - re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy...
+			}
+			return true;
 		}
 
 		// Return false so the original melee damage code still runs.
