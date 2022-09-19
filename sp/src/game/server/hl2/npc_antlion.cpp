@@ -3206,8 +3206,13 @@ bool CNPC_Antlion::HandleInteraction( int interactionType, void *data, CBaseComb
 		Flip();
 
 		// If the Combine soldier is a player, don't deal damage on top of flipping
+		// No, at the beginning of Ashes the non-damaging melee would be a disappointment like in Doom Eternal - HEVcrab
+
 		if ( sender->IsPlayer() )
 		{
+			float dmg = sk_antlion_health.GetFloat()/5; // DO deal damage of 1/5 Antlion's max health to kill in 5 kicks
+			CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
+			TakeDamage(dmgInfo); // HEVcrab - re-enable kick damage to antlions, melee should be able to kill the first encountered enemy...
 			return true; 
 		}
 

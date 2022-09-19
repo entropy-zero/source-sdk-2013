@@ -4691,7 +4691,7 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 
 	if ( pKickedEntity != NULL )
 	{
-		float dmg = sk_plr_dmg_kick.GetFloat();;
+		float dmg = sk_plr_dmg_kick.GetFloat();
 		int dmgType = DMG_CLUB;
 
 		CTakeDamageInfo dmgInfo( this, this, dmg, dmgType );
