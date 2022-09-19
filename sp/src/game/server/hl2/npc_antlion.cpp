@@ -44,6 +44,7 @@ ConVar	g_debug_antlion( "g_debug_antlion", "0" );
 
 // base antlion stuff
 ConVar	sk_antlion_health( "sk_antlion_health", "0" );
+ConVar	sk_plr_kicks_to_kill_antlion("sk_plr_kicks_to_kill_antlion", "0");
 ConVar	sk_antlion_swipe_damage( "sk_antlion_swipe_damage", "0" );
 ConVar	sk_antlion_jump_damage( "sk_antlion_jump_damage", "0" );
 ConVar  sk_antlion_air_attack_dmg( "sk_antlion_air_attack_dmg", "0" );
@@ -3209,7 +3210,7 @@ bool CNPC_Antlion::HandleInteraction( int interactionType, void *data, CBaseComb
 
 		if ( sender->IsPlayer() )
 		{
-			float dmg = sk_antlion_health.GetFloat()/3; // DO receive damage of 1/3 Antlion's max health to kill in 3 kicks
+			float dmg = sk_antlion_health.GetFloat() / sk_plr_kicks_to_kill_antlion.GetFloat(); // Do receive damage of 1/sk_kicks... fraction of Antlion's max health to kill in sk_kicks... kick hits
 			CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
 			TakeDamage(dmgInfo); // HEVcrab - re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy...
 			return true; 
