@@ -3207,14 +3207,13 @@ bool CNPC_Antlion::HandleInteraction( int interactionType, void *data, CBaseComb
 		Flip();
 
 		// If the player kicks the antlion, it receives concussion damage without bleeding - HEVcrab
-
 		if (sender->IsPlayer())
 		{
 			if (sk_plr_kicks_to_kill_antlion.GetFloat() > 0)
 			{
 				float dmg = sk_antlion_health.GetFloat() / sk_plr_kicks_to_kill_antlion.GetFloat(); // Receive damage of 1/kicks_to_kill... fraction of Antlion's max health to kill in kicks_to_kill kick hits
 				CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
-				TakeDamage(dmgInfo); // HEVcrab - re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy...
+				TakeDamage(dmgInfo); // re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy - HEVcrab
 			}
 			return true;
 		}
