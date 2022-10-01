@@ -1380,8 +1380,14 @@ bool CNPC_BasePredator::HandleInteraction( int interactionType, void *data, CBas
 {
 	if ( interactionType == g_interactionXenGrenadeCreate )
 	{
-		InputSetWanderAlways( inputdata_t() );
-		InputEnableSpawning( inputdata_t() );
+		{
+			inputdata_t dummy;
+			InputSetWanderAlways( dummy );
+		}
+		{
+			inputdata_t dummy;
+			InputEnableSpawning( dummy );
+		}
 		if ( !m_bIsBaby )
 		{
 			// Xen predators come into the world ready to spawn.

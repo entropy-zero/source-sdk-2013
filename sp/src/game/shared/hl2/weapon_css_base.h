@@ -304,6 +304,7 @@ public:
 	}
 #endif
 
+#ifdef GAME_DLL
 	void InputSetSilencer( inputdata_t &inputdata )
 	{
 		this->m_bSilenced = inputdata.value.Bool();
@@ -313,6 +314,7 @@ public:
 	{
 		this->m_bSilenced = !this->m_bSilenced;
 	}
+#endif
 
 public:
 	CNetworkVar( bool, m_bCanToggleSilencer );
@@ -454,6 +456,7 @@ public:
 		this->SetNextThink( gpGlobals->curtime + this->GetFireRate() );
 	}
 
+#ifdef GAME_DLL
 	void InputSetBurstMode( inputdata_t &inputdata )
 	{
 		m_bInBurstMode = inputdata.value.Bool();
@@ -463,6 +466,7 @@ public:
 	{
 		m_bInBurstMode = !m_bInBurstMode;
 	}
+#endif
 
 public:
 	CNetworkVar( bool, m_bCanUseBurstMode );

@@ -199,8 +199,14 @@ bool CNPC_Egg::SpawnNPC()
 		if ( pPredator != NULL )
 		{
 			pPredator->SetIsBaby( true );
-			pPredator->InputSetWanderAlways( inputdata_t() );
-			pPredator->InputEnableSpawning( inputdata_t() );
+			{
+				inputdata_t dummy;
+				pPredator->InputSetWanderAlways( dummy );
+			}
+			{
+				inputdata_t dummy;
+				pPredator->InputEnableSpawning( dummy );
+			}
 
 			if ( m_AdultModelName != NULL_STRING )
 			{

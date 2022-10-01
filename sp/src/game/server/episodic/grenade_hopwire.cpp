@@ -1714,8 +1714,14 @@ bool CGravityVortexController::TryCreateComplexNPC( const char *className, bool 
 	if (pPredator != NULL)
 	{
 		pPredator->SetIsBaby( isBaby );
-		pPredator->InputSetWanderAlways( inputdata_t() );
-		pPredator->InputEnableSpawning( inputdata_t() );
+		{
+			inputdata_t dummy;
+			pPredator->InputSetWanderAlways( dummy );
+		}
+		{
+			inputdata_t dummy;
+			pPredator->InputEnableSpawning( dummy );
+		}
 		if ( !isBaby )
 		{
 			// Xen bullsquids come into the world ready to spawn.

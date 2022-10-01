@@ -3571,11 +3571,13 @@ void CNPC_Advisor::HandleAnimEvent(animevent_t *pEvent)
 	{
 		if ( pEvent->event == ADVISOR_AE_DETACH_R_ARM )
 		{
-			InputDetachRightArm( inputdata_t() );
+			inputdata_t dummy;
+			InputDetachRightArm( dummy );
 		}
 		else if ( pEvent->event == ADVISOR_AE_DETACH_L_ARM )
 		{
-			InputDetachLeftArm( inputdata_t() );
+			inputdata_t dummy;
+			InputDetachLeftArm( dummy );
 		}
 		else
 		{
@@ -3985,7 +3987,8 @@ void CNPC_Advisor::OnScheduleChange( void )
 		CBasePlayer *pLocalPlayer = AI_GetSinglePlayer();
 		if (pLocalPlayer && pLocalPlayer->GetMoveType() == MOVETYPE_FLY)
 		{
-			StopPinPlayer( inputdata_t() );
+			inputdata_t dummy;
+			StopPinPlayer( dummy );
 			pLocalPlayer->SetGravity( 1.0f );
 			pLocalPlayer->SetMoveType( MOVETYPE_WALK );
 			Write_BeamOff( pLocalPlayer );
@@ -4028,7 +4031,8 @@ void CNPC_Advisor::GatherConditions( void )
 		}
 
 		// Stop pinning
-		StopPinPlayer( inputdata_t() );
+		inputdata_t dummy;
+		StopPinPlayer( dummy );
 		CBasePlayer *pLocalPlayer = AI_GetSinglePlayer();
 		if (pLocalPlayer)
 		{

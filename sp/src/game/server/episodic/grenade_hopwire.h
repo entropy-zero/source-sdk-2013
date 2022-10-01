@@ -79,7 +79,7 @@ public:
 	bool	CanConsumeEntity( CBaseEntity *pEnt );
 
 	void	InputDetonate( inputdata_t &inputdata ) { StartPull( GetAbsOrigin(), m_flRadius, m_flStrength, m_flEndTime ); }
-	void	InputFakeSpawnEntity( inputdata_t &inputdata ) { inputdata.value.Entity() ? TrySpawnRecipeNPC( inputdata.value.Entity(), false ) : Warning("Warning: FakeSpawnEntity cannot spawn null entity\n"); }
+	void	InputFakeSpawnEntity( inputdata_t &inputdata ) { inputdata.value.Entity() ? (void)TrySpawnRecipeNPC( inputdata.value.Entity(), false ) : Warning("Warning: FakeSpawnEntity cannot spawn null entity\n"); }
 	void	InputCreateXenLife( inputdata_t &inputdata ) { CreateXenLife(); }
 
 	void	SetNodeRadius( float flRadius ) { m_flNodeRadius = flRadius; }

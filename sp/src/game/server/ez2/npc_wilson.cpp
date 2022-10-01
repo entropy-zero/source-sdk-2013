@@ -1462,7 +1462,7 @@ bool CNPC_Wilson::HandleInteraction(int interactionType, void *data, CBaseCombat
 		AI_CriteriaSet modifiers;
 		if (data)
 		{
-			CArbeitScanner *pScanner = assert_cast<CArbeitScanner*>(data);
+			CArbeitScanner *pScanner = assert_cast<CArbeitScanner*>(static_cast<CBaseEntity*>(data));
 			if (pScanner)
 				pScanner->AppendContextToCriteria( modifiers );
 		}
@@ -1476,7 +1476,7 @@ bool CNPC_Wilson::HandleInteraction(int interactionType, void *data, CBaseCombat
 		AI_CriteriaSet modifiers;
 		if (data)
 		{
-			CArbeitScanner *pScanner = assert_cast<CArbeitScanner*>(data);
+			CArbeitScanner *pScanner = assert_cast<CArbeitScanner*>(static_cast<CBaseEntity*>(data));
 			if (pScanner)
 				pScanner->AppendContextToCriteria( modifiers );
 		}
