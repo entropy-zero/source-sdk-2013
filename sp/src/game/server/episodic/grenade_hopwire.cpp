@@ -108,6 +108,7 @@ extern void GetXenGrenadeResponseFromSystem( char *szResponse, size_t szResponse
 #define XEN_GRENADE_RECIPE_SCRIPT "scripts/talker/xen_grenade_recipes.txt"
 
 static const Color XenColor = Color(0, 255, 0, 255);
+template<class ... Args> void XenGrenadeDebugMsg( PRINTF_FORMAT_STRING const char *szMsg, Args ... args ) FMTFUNCTION( 1, 0 );
 template<class ... Args> void XenGrenadeDebugMsg( const char *szMsg, Args ... args )
 {
 	if (!g_debug_hopwire.GetBool())
