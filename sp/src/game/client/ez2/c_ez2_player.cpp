@@ -34,24 +34,7 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 	if ( updateType == DATA_UPDATE_DATATABLE_CHANGED )
 	{
-		if ( m_bBonusChallengeUpdate )
-		{
-			// Borrow the achievement manager for this
-			CAchievementMgr *pAchievementMgr = dynamic_cast<CAchievementMgr *>(engine->GetAchievementMgr());
-			if (pAchievementMgr)
-			{
-				if (pAchievementMgr->WereCheatsEverOn())
-					return;
-			}
-
-			char szChallengeFileName[128];
-			char szChallengeMapName[128];
-			char szChallengeName[128];
-			BonusMapChallengeNames( szChallengeFileName, szChallengeMapName, szChallengeName );
-			BonusMapChallengeUpdate( szChallengeFileName, szChallengeMapName, szChallengeName, GetBonusProgress() );
-
-			m_bBonusChallengeUpdate = false;
-		}
+		BonusChallengeUpdate();
 
 		if (cl_slam_glow.GetBool())
 		{
@@ -89,6 +72,28 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 	UpdateGlowTargetEffect();
 	UpdateSLAMGlowEffect();
+}
+
+void C_EZ2_Player::BonusChallengeUpdate()
+{
+	if (m_bBonusChallengeUpdate)
+	{
+		// Borrow the achievement manager for this
+		CAchievementMgr *pAchievementMgr = dynamic_cast<CAchievementMgr *>(engine->GetAchievementMgr());
+		if (pAchievementMgr)
+		{
+			if (pAchievementMgr->WereCheatsEverOn())
+				return;
+		}
+
+		char szChallengeFileName[128];
+		char szChallengeMapName[128];
+		char szChallengeName[128];
+		BonusMapChallengeNames( szChallengeFileName, szChallengeMapName, szChallengeName );
+		BonusMapChallengeUpdate( szChallengeFileName, szChallengeMapName, szChallengeName, GetBonusProgress() );
+
+		m_bBonusChallengeUpdate = false;
+	}
 }
 
 //-----------------------------------------------------------------------------

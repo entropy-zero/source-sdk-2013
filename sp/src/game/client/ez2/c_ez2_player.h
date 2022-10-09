@@ -18,6 +18,8 @@ public:
 
 	void OnDataChanged( DataUpdateType_t updateType );
 
+	void BonusChallengeUpdate( );
+
 	void UpdateGlowTargetEffect( void );
 	void DestroyGlowTargetEffect( void );
 
