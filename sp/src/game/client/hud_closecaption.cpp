@@ -22,6 +22,9 @@
 #include "filesystem.h"
 #include "datacache/idatacache.h"
 #include "SoundEmitterSystem/isoundemittersystembase.h"
+#ifdef STEAM_INPUT
+#include "icommandline.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1591,6 +1594,17 @@ void CHudCloseCaption::CreateFonts( void )
 
 	m_hFonts[CCFONT_NORMAL] = pScheme->GetFont( "CloseCaption_Normal" );
 
+#ifdef STEAM_INPUT
+	if (IsDeck())
+	{
+		m_hFonts[CCFONT_NORMAL] = pScheme->GetFont( "CloseCaption_Normal_Deck" );
+		m_hFonts[CCFONT_BOLD] = pScheme->GetFont( "CloseCaption_Bold_Deck" );
+		m_hFonts[CCFONT_ITALIC] = pScheme->GetFont( "CloseCaption_Italic_Deck" );
+		m_hFonts[CCFONT_ITALICBOLD] = pScheme->GetFont( "CloseCaption_BoldItalic_Deck" );
+		//m_hFonts[CCFONT_SMALL] = pScheme->GetFont( "CloseCaption_Small_Deck" );
+	}
+	else
+#endif
 	if ( IsPC() )
 	{
 		m_hFonts[CCFONT_BOLD] = pScheme->GetFont( "CloseCaption_Bold" );

@@ -1,0 +1,63 @@
+﻿//-----------------------------------------------------------------------------
+//	STEAMWORKS_UPDATE.VPC
+//
+//	Definitions for the Steamworks SDK updates
+//
+//-----------------------------------------------------------------------------
+
+// STEAMWORKS_VERSION
+//
+// An integer interpretation of the version of the Steamworks SDK currently being used by this codebase
+// For example:
+//
+// - Steamworks SDK v1.23 would be "1230"
+// - Source SDK 2013 uses v1.26a by default, which is expressed as "1261"
+// - As of October 8 2022, the latest version of Steamworks SDK is v1.55, which is expressed as "1550"
+//
+// Newer versions of Steamworks are used to integrate newer Steam features
+//
+$Macro STEAMWORKS_VERSION	"1550"
+
+// STEAM_API_MOD_HACK
+//
+// Enables hacks intended to be used when the engine's steam_api.dll cannot be overwritten, which is the
+// case for regular Source 2013 mods.
+//
+// On Windows, this adds a manifest to the client/server.dll which forces them to load the Steam API from
+// the mod's own bin folder instead of from the Source 2013 engine bin folder.
+//
+// On Linux, this changes the server/client.so to call for a renamed "steam_ap2" library. Unfortunately,
+// this is not currently mounted adjacent to the mod .so files and this "steam_ap2" must be placed into
+// the user's Source 2013 engine bin folder next to the original library. This may change in the future.
+//
+// These steps are required for non-Steam mods to update the Steam API, but if you are responsible for a
+// Steam mod/standalone app and can overwrite engine binaries for all users, you should just overwrite the
+// original steam_api library yourself instead of using these hacks.
+//
+$Conditional STEAM_API_MOD_HACK	"1"
+
+// STEAM_INPUT
+// Adds Steam Input and Steam Deck integration.
+$Conditional STEAM_INPUT	"1"
+
+//-----------------------------------------------------------------------------
+
+$Configuration "Debug"
+{
+	$Compiler
+	{
+		$PreprocessorDefinitions		"$BASE;STEAMWORKS_VERSION=$STEAMWORKS_VERSION"
+		$PreprocessorDefinitions		"$BASE;STEAM_INPUT"		[$STEAM_INPUT]
+	}
+}
+
+$Configuration "Release"
+{
+	$Compiler
+	{
+		$PreprocessorDefinitions		"$BASE;STEAMWORKS_VERSION=$STEAMWORKS_VERSION"
+		$PreprocessorDefinitions		"$BASE;STEAM_INPUT"		[$STEAM_INPUT]
+	}
+}
+
+//-----------------------------------------------------------------------------

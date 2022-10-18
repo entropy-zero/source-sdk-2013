@@ -34,6 +34,10 @@
 #if !defined(NO_STEAM)
 #include "steam/steam_api.h"
 #endif
+
+#if defined(STEAM_INPUT)
+#include "in_steaminput.h"
+#endif
 #endif
 
 #include "vscript_singletons.h"
@@ -3232,6 +3236,14 @@ public:
 
 		return ret;
 	}
+#if STEAMWORKS_VERSION >= 1520
+	bool IsSteamRunningOnSteamDeck()
+	{
+		return SteamUtils()->IsSteamRunningOnSteamDeck();
+	}
+#else
+	bool IsSteamRunningOnSteamDeck() { return false; }
+#endif
 
 } g_ScriptSteamAPI;
 
@@ -3242,6 +3254,85 @@ BEGIN_SCRIPTDESC_ROOT_NAMED( CScriptSteamAPI, "CSteamAPI", SCRIPT_SINGLETON "" )
 	DEFINE_SCRIPTFUNC( GetCurrentBatteryPower, "Return the amount of battery power left in the current system in % [0..100], 255 for being on AC power" )
 	//DEFINE_SCRIPTFUNC( GetIPCountry, "Returns the 2 digit ISO 3166-1-alpha-2 format country code this client is running in (as looked up via an IP-to-location database)" )
 	DEFINE_SCRIPTFUNC( GetCurrentGameLanguage, "Gets the current language that the user has set as API language code. This falls back to the Steam UI language if the user hasn't explicitly picked a language for the title." )
+	DEFINE_SCRIPTFUNC( IsSteamRunningOnSteamDeck, "Returns true if the game is running on a Steam Deck." )
+END_SCRIPTDESC();
+#endif // !NO_STEAM
+
+
+//=============================================================================
+//=============================================================================
+
+
+#if defined(STEAM_INPUT)
+//=============================================================================
+// Steam Input
+//
+// Note that this interacts with ISource2013SteamInput, not ISteamInput directly.
+//=============================================================================
+class CScriptSteamInput
+{
+public:
+	bool IsEnabled()
+	{
+		return g_pSteamInput->IsEnabled();
+	}
+
+	const char *GetControllerName()
+	{
+		return g_pSteamInput->GetControllerName();
+	}
+
+	//-----------------------------------------------------------------------------
+
+	bool UsingJoysticks()
+	{
+		return g_pSteamInput->UsingJoysticks();
+	}
+	
+	void SetRumble( float fLeftMotor, float fRightMotor )
+	{
+		g_pSteamInput->SetRumble( fLeftMotor, fRightMotor );
+	}
+
+	void StopRumble()
+	{
+		g_pSteamInput->StopRumble();
+	}
+
+	//-----------------------------------------------------------------------------
+	
+	void SetLEDColor( int r, int g, int b )
+	{
+		g_pSteamInput->SetLEDColor( r, g, b );
+	}
+
+	void ResetLEDColor()
+	{
+		g_pSteamInput->ResetLEDColor();
+	}
+
+	//-----------------------------------------------------------------------------
+
+	const char *RemapHudHint( const char *pszInputHint )
+	{
+		g_pSteamInput->RemapHudHint( &pszInputHint );
+		return pszInputHint;
+	}
+
+} g_ScriptSteamInput;
+
+BEGIN_SCRIPTDESC_ROOT_NAMED( CScriptSteamInput, "CSource2013SteamInput", SCRIPT_SINGLETON "" )
+	DEFINE_SCRIPTFUNC( IsEnabled, "Returns true if a Steam Input controller is active." )
+	DEFINE_SCRIPTFUNC( GetControllerName, "Returns a shorthand string indicating the controller's name." )
+
+	DEFINE_SCRIPTFUNC( UsingJoysticks, "Returns true if controller is using joysticks." )
+	DEFINE_SCRIPTFUNC( SetRumble, "Sets the controller rumble on the left and right motor respectively." )
+	DEFINE_SCRIPTFUNC( StopRumble, "Stops all controller rumbling." )
+
+	DEFINE_SCRIPTFUNC( SetLEDColor, "Sets the controller's LED color if it supports it." )
+	DEFINE_SCRIPTFUNC( ResetLEDColor, "Resets any modified controller LED color to default." )
+
+	DEFINE_SCRIPTFUNC( RemapHudHint, "Remaps the input HUD hint if the controller should use a different one. See scripts/steaminput_hintremap.txt" )
 END_SCRIPTDESC();
 #endif // !NO_STEAM
 
@@ -3280,6 +3371,10 @@ void RegisterScriptSingletons()
 
 #if !defined(NO_STEAM)
 	g_pScriptVM->RegisterInstance( &g_ScriptSteamAPI, "steam" );
+#endif
+
+#if defined(STEAM_INPUT)
+	g_pScriptVM->RegisterInstance( &g_ScriptSteamInput, "steaminput" );
 #endif
 #endif
 

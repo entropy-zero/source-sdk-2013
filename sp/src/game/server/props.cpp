@@ -2345,11 +2345,7 @@ bool CDynamicProp::TestCollision( const Ray_t &ray, unsigned int mask, trace_t& 
 			}
 		}
 	}
-#ifdef MAPBASE // From Alien Swarm SDK
-	return BaseClass::TestCollision( ray, mask, trace );
-#else
 	return false;
-#endif
 }
 
 

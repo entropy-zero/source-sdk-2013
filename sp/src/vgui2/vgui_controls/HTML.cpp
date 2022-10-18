@@ -29,6 +29,19 @@ using namespace vgui;
 
 const int k_nMaxCustomCursors = 2; // the max number of custom cursors we keep cached PER html control
 
+#if NEW_STEAM_HTML
+// Some typo fixes
+#define INVALID_HTTMLBROWSER INVALID_HTMLBROWSER
+#define eHTMLKeyModifier_CrtlDown k_eHTMLKeyModifier_CtrlDown
+#define eHTMLKeyModifier_AltDown k_eHTMLKeyModifier_AltDown
+#define eHTMLKeyModifier_ShiftDown k_eHTMLKeyModifier_ShiftDown
+
+#ifdef _WIN32
+// disable this warning; this pattern need for steam callback registration
+#pragma warning( disable: 4355 )	// 'this' : used in base member initializer list
+#endif
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: A simple passthrough panel to render the border onto the HTML widget
 //-----------------------------------------------------------------------------
@@ -163,13 +176,17 @@ private:
 //-----------------------------------------------------------------------------
 HTML::HTML(Panel *parent, const char *name, bool allowJavaScript, bool bPopupWindow) : Panel(parent, name), 
 m_NeedsPaint( this, &HTML::BrowserNeedsPaint ),
+#if !NEW_STEAM_HTML
 m_ComboNeedsPaint( this, &HTML::BrowserComboNeedsPaint ),
+#endif
 m_StartRequest( this, &HTML::BrowserStartRequest ),
 m_URLChanged( this, &HTML::BrowserURLChanged ),
 m_FinishedRequest( this, &HTML::BrowserFinishedRequest ),
+#if !NEW_STEAM_HTML
 m_ShowPopup( this, &HTML::BrowserShowPopup ),
 m_HidePopup( this, &HTML::BrowserHidePopup ),
 m_SizePopup( this, &HTML::BrowserSizePopup ),
+#endif
 m_LinkInNewTab( this, &HTML::BrowserOpenNewTab ),
 m_ChangeTitle( this, &HTML::BrowserSetHTMLTitle ),
 m_FileLoadDialog( this, &HTML::BrowserFileLoadDialog ),
@@ -1442,6 +1459,7 @@ void HTML::BrowserNeedsPaint( HTML_NeedsPaint_t *pCallback )
 }
 
 
+#if !NEW_STEAM_HTML
 //-----------------------------------------------------------------------------
 // Purpose: we have a new texture to update
 //-----------------------------------------------------------------------------
@@ -1476,6 +1494,7 @@ void HTML::BrowserComboNeedsPaint( HTML_ComboNeedsPaint_t *pCallback )
 		}
 	}
 }
+#endif
 
 
 //-----------------------------------------------------------------------------
@@ -1580,6 +1599,7 @@ void HTML::BrowserFinishedRequest( HTML_FinishedRequest_t *pCmd )
 }
 
 
+#if !NEW_STEAM_HTML
 //-----------------------------------------------------------------------------
 // Purpose: show a popup dialog
 //-----------------------------------------------------------------------------
@@ -1587,6 +1607,7 @@ void HTML::BrowserShowPopup( HTML_ShowPopup_t *pCmd )
 {
 	m_pComboBoxHost->SetVisible( true );
 }
+#endif
 
 
 //-----------------------------------------------------------------------------
@@ -1598,6 +1619,7 @@ void HTML::HidePopup()
 }
 
 
+#if !NEW_STEAM_HTML
 //-----------------------------------------------------------------------------
 // Purpose: browser wants us to hide a popup
 //-----------------------------------------------------------------------------
@@ -1616,6 +1638,7 @@ void HTML::BrowserSizePopup( HTML_SizePopup_t *pCmd )
 	ipanel()->GetAbsPos( GetVPanel(), nAbsX, nAbsY );
 	m_pComboBoxHost->SetBounds( pCmd->unX + 1 + nAbsX, pCmd->unY+ nAbsY, pCmd->unWide, pCmd->unTall );
 }
+#endif
 
 
 //-----------------------------------------------------------------------------

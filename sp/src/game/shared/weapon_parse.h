@@ -92,6 +92,11 @@ public:
 	char					szAnimationPrefix[MAX_WEAPON_PREFIX];	// Prefix of the animations that should be used by the player carrying this weapon
 	int						iSlot;									// inventory slot.
 	int						iPosition;								// position in the inventory slot.
+#ifdef STEAM_INPUT
+	// Steam Input needs these to be interchangeable
+	int						iSlot360;								// inventory slot for hud_quickswitch 2.
+	int						iPosition360;							// position in the inventory slot for hud_quickswitch 2.
+#endif
 	int						iMaxClip1;								// max primary clip size (-1 if no clip)
 	int						iMaxClip2;								// max secondary clip size (-1 if no clip)
 	int						iDefaultClip1;							// amount of primary ammo in the gun when it's created

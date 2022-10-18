@@ -64,8 +64,14 @@ $Configuration
 
 	$Linker
 	{
+		$GenerateManifest				"Yes" [$STEAM_API_MOD_HACK]
 		$AdditionalDependencies			"$BASE winmm.lib" [$WIN32]
 		$SystemLibraries                                                        "iconv" [$OSXALL]
+	}
+	
+	$ManifestTool
+	{
+		$AdditionalManifestFiles		"$SRCDIR\public\new_steam_api.manifest" [$STEAM_API_MOD_HACK]
 	}
 }
 
@@ -1026,6 +1032,7 @@ $Project
 		$Lib	particles
 		$Lib	tier2
 		$Lib	tier3
-		$ImpLibexternal steam_api
+		$ImpLibexternal steam_api		[!$STEAM_API_MOD_HACK||!$LINUX]
+		$ImpLibexternal steam_ap2		[$STEAM_API_MOD_HACK&&$LINUX]
 	}
 }

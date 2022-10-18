@@ -65,6 +65,10 @@ public:
 	int			m_iBindingChoicesCount;
 	const char	*(m_pchBindingChoices[ MAX_LOCATOR_BINDINGS_SHOWN ]);
 	int			m_iBindChoicesOriginalToken[ MAX_LOCATOR_BINDINGS_SHOWN ];
+#ifdef STEAM_INPUT
+	// Indicates that m_pchBindingChoices strings need to be deleted
+	bool		m_bBindingChoicesWereAllocated = false;
+#endif
 
 	// Fields for drawing
 	int			m_targetX;				// screen X position of the actual target
@@ -95,6 +99,7 @@ public:
 	int			m_lastYPos;				// ''     Y
 
 	CLocatorTarget( void );
+	~CLocatorTarget( void );
 	void Activate( int serialNumber );
 	void Deactivate( bool bNoFade = false );
 	void Update();

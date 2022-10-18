@@ -64,6 +64,10 @@ ConVar tf_weapon_criticals_bucket_bottom( "tf_weapon_criticals_bucket_bottom", "
 ConVar tf_weapon_criticals_bucket_default( "tf_weapon_criticals_bucket_default", "300.0", FCVAR_REPLICATED | FCVAR_CHEAT );
 #endif // TF
 
+#if defined(STEAM_INPUT) && defined(CLIENT_DLL)
+extern ConVar hud_fastswitch;
+#endif
+
 CBaseCombatWeapon::CBaseCombatWeapon()
 {
 	// Constructor must call this
@@ -568,6 +572,11 @@ int CBaseCombatWeapon::GetWeaponFlags( void ) const
 //-----------------------------------------------------------------------------
 int CBaseCombatWeapon::GetSlot( void ) const
 {
+#if defined(STEAM_INPUT) && defined(CLIENT_DLL)
+	if (hud_fastswitch.GetInt() == 2)
+		return GetWpnData().iSlot360;
+#endif
+
 	return GetWpnData().iSlot;
 }
 
@@ -576,6 +585,11 @@ int CBaseCombatWeapon::GetSlot( void ) const
 //-----------------------------------------------------------------------------
 int CBaseCombatWeapon::GetPosition( void ) const
 {
+#if defined(STEAM_INPUT) && defined(CLIENT_DLL)
+	if (hud_fastswitch.GetInt() == 2)
+		return GetWpnData().iPosition360;
+#endif
+
 	return GetWpnData().iPosition;
 }
 
