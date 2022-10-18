@@ -75,6 +75,9 @@ static InputDigitalActionCommandBind_t g_DigitalActionBinds[] = {
 	// Custom
 	{ "attack3",						"+attack3" },
 	{ "screenshot",						"jpeg" },
+#ifdef EZ2
+	{ "detonate",						"impulse 36" },
+#endif
 };
 
 // Keep in sync with the above array!!!
