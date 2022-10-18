@@ -69,7 +69,7 @@ public:
 	CNPC_Manhack();
 	~CNPC_Manhack();
 
-	Class_T	CNPC_Manhack::Classify(void);
+	Class_T			Classify(void);
 
 	bool			CorpseGib( const CTakeDamageInfo &info );
 	void			Event_Dying(void);

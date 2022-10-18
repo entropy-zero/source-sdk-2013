@@ -251,9 +251,14 @@ void CCrossbowBolt::Precache( void )
 	PrecacheModel( "models/crossbow_bolt.mdl" );
 #else
 	if ( GetModelName() == NULL_STRING )
+	{
+		PrecacheModel( "models/crossbow_bolt.mdl" );
 		SetModel( "models/crossbow_bolt.mdl" );
-
-	PrecacheModel( STRING( GetModelName() ) );
+	}
+	else
+	{
+		PrecacheModel( STRING( GetModelName() ) );
+	}
 #endif
 
 	PrecacheModel( "sprites/light_glow02_noz.vmt" );

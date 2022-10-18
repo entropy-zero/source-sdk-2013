@@ -12,7 +12,7 @@
 #include "ai_baseactor.h"
 #include "ai_sensorydummy.h"
 
-#include "sprite.h"
+#include "Sprite.h"
 #include "filters.h"
 
 //-----------------------------------------------------------------------------

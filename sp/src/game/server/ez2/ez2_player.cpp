@@ -21,7 +21,7 @@
 #include "world.h"
 #include "sceneentity.h"
 #include "fmtstr.h"
-#include "mapbase\info_remarkable.h"
+#include "mapbase/info_remarkable.h"
 #include "combine_mine.h"
 #include "weapon_physcannon.h"
 #include "saverestore_utlvector.h"

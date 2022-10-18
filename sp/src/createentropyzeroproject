@@ -1,0 +1,7 @@
+#!/bin/bash
+
+pushd `dirname $0`
+devtools/bin/vpc /hl2 /episodic /ez1 /ez2 /v +everything /mksln everything_entropyzero
+devtools/bin/vpc /ez1 /v +game /mksln entropyzero
+devtools/bin/vpc /ez2 /v +game /mksln entropyzero2
+popd

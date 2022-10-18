@@ -8,7 +8,7 @@
 
 #include "cbase.h"
 #include "npcevent.h"
-#include "NPC_Voltigore.h"
+#include "npc_voltigore.h"
 #include "movevars_shared.h"
 #include "grenade_hopwire.h"
 #include "hl2_shareddefs.h"

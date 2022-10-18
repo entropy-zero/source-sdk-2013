@@ -10,8 +10,8 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "AI_Hint.h"
-#include "AI_Senses.h"
+#include "ai_hint.h"
+#include "ai_senses.h"
 #include "npc_basepredator.h"
 #include "ai_localnavigator.h"
 #include "fire.h"
@@ -1380,8 +1380,14 @@ bool CNPC_BasePredator::HandleInteraction( int interactionType, void *data, CBas
 {
 	if ( interactionType == g_interactionXenGrenadeCreate )
 	{
-		InputSetWanderAlways( inputdata_t() );
-		InputEnableSpawning( inputdata_t() );
+		{
+			inputdata_t dummy;
+			InputSetWanderAlways( dummy );
+		}
+		{
+			inputdata_t dummy;
+			InputEnableSpawning( dummy );
+		}
 		if ( !m_bIsBaby )
 		{
 			// Xen predators come into the world ready to spawn.

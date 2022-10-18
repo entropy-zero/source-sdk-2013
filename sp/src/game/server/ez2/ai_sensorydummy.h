@@ -62,11 +62,11 @@ void CAI_SensingDummy<BASE_NPC>::Spawn()
 {
 	BaseClass::Spawn();
 
-	NPCInit();
+	this->NPCInit();
 
-	SetState(NPC_STATE_IDLE);
+	this->SetState(NPC_STATE_IDLE);
 
-	GetSenses()->AddSensingFlags( GetSensingFlags() );
+	this->GetSenses()->AddSensingFlags( this->GetSensingFlags() );
 }
 
 //-----------------------------------------------------------------------------
@@ -77,10 +77,10 @@ void CAI_SensingDummy<BASE_NPC>::GatherConditions()
 {
 	BaseClass::GatherConditions();
 
-	if (GetState() == NPC_STATE_COMBAT && !GetEnemy())
+	if (this->GetState() == NPC_STATE_COMBAT && !this->GetEnemy())
 	{
 		// Prevents being stuck on SCHED_COMBAT_STAND forever when the enemy disappears.
-		SetCondition(COND_IDLE_INTERRUPT);
+		this->SetCondition(COND_IDLE_INTERRUPT);
 	}
 }
 
@@ -93,18 +93,18 @@ template <class BASE_NPC>
 int CAI_SensingDummy<BASE_NPC>::SelectSchedule( void )
 {
 	// Sensing dummies only care about a small number of schedules, otherwise their AI can freak out or run irrelvant code.
-	switch( m_NPCState )
+	switch( this->m_NPCState )
 	{
 	case NPC_STATE_IDLE:
-		AssertMsgOnce( GetEnemy() == NULL, "NPC has enemy but is not in combat state?" );
-		return SelectIdleSchedule();
+		AssertMsgOnce( this->GetEnemy() == NULL, "NPC has enemy but is not in combat state?" );
+		return this->SelectIdleSchedule();
 
 	case NPC_STATE_ALERT:
-		AssertMsgOnce( GetEnemy() == NULL, "NPC has enemy but is not in combat state?" );
-		return SelectAlertSchedule();
+		AssertMsgOnce( this->GetEnemy() == NULL, "NPC has enemy but is not in combat state?" );
+		return this->SelectAlertSchedule();
 
 	case NPC_STATE_COMBAT:
-		return SelectCombatSchedule();
+		return this->SelectCombatSchedule();
 	}
 
 	// Dummies probably won't find themselves in any other state, but whatever.
@@ -118,11 +118,11 @@ int CAI_SensingDummy<BASE_NPC>::SelectSchedule( void )
 template <class BASE_NPC>
 int CAI_SensingDummy<BASE_NPC>::SelectIdleSchedule( void )
 {
-	if ( HasCondition ( COND_HEAR_DANGER ) ||
-		 HasCondition ( COND_HEAR_COMBAT ) ||
-		 HasCondition ( COND_HEAR_WORLD  ) ||
-		 HasCondition ( COND_HEAR_BULLET_IMPACT ) ||
-		 HasCondition ( COND_HEAR_PLAYER ) )
+	if ( this->HasCondition ( COND_HEAR_DANGER ) ||
+		 this->HasCondition ( COND_HEAR_COMBAT ) ||
+		 this->HasCondition ( COND_HEAR_WORLD  ) ||
+		 this->HasCondition ( COND_HEAR_BULLET_IMPACT ) ||
+		 this->HasCondition ( COND_HEAR_PLAYER ) )
 	{
 		return SCHED_ALERT_FACE_BESTSOUND;
 	}
@@ -136,16 +136,16 @@ int CAI_SensingDummy<BASE_NPC>::SelectIdleSchedule( void )
 template <class BASE_NPC>
 int CAI_SensingDummy<BASE_NPC>::SelectAlertSchedule( void )
 {
-	if ( HasCondition ( COND_HEAR_DANGER ) ||
-		 HasCondition ( COND_HEAR_COMBAT ) ||
-		 HasCondition ( COND_HEAR_WORLD  ) ||
-		 HasCondition ( COND_HEAR_BULLET_IMPACT ) ||
-		 HasCondition ( COND_HEAR_PLAYER ) )
+	if ( this->HasCondition ( COND_HEAR_DANGER ) ||
+		 this->HasCondition ( COND_HEAR_COMBAT ) ||
+		 this->HasCondition ( COND_HEAR_WORLD  ) ||
+		 this->HasCondition ( COND_HEAR_BULLET_IMPACT ) ||
+		 this->HasCondition ( COND_HEAR_PLAYER ) )
 	{
 		return SCHED_ALERT_FACE_BESTSOUND;
 	}
 
-	if ( gpGlobals->curtime - GetEnemies()->LastTimeSeen( AI_UNKNOWN_ENEMY ) < TIME_CARE_ABOUT_DAMAGE )
+	if ( gpGlobals->curtime - this->GetEnemies()->LastTimeSeen( AI_UNKNOWN_ENEMY ) < TIME_CARE_ABOUT_DAMAGE )
 		return SCHED_ALERT_FACE;
 
 	return SCHED_ALERT_STAND;
@@ -157,24 +157,24 @@ int CAI_SensingDummy<BASE_NPC>::SelectAlertSchedule( void )
 template <class BASE_NPC>
 int CAI_SensingDummy<BASE_NPC>::SelectCombatSchedule( void )
 {
-	if ( HasCondition(COND_NEW_ENEMY) && gpGlobals->curtime - GetEnemies()->FirstTimeSeen(GetEnemy()) < 2.0 )
+	if ( this->HasCondition(COND_NEW_ENEMY) && gpGlobals->curtime - this->GetEnemies()->FirstTimeSeen(this->GetEnemy()) < 2.0 )
 	{
 		return SCHED_WAKE_ANGRY;
 	}
 	
-	if ( HasCondition( COND_ENEMY_DEAD ) || !GetEnemy() )
+	if ( this->HasCondition( COND_ENEMY_DEAD ) || !this->GetEnemy() )
 	{
 		// clear the current (dead) enemy and try to find another.
-		SetEnemy( NULL );
+		this->SetEnemy( NULL );
 		 
-		if ( ChooseEnemy() )
+		if ( this->ChooseEnemy() )
 		{
-			ClearCondition( COND_ENEMY_DEAD );
-			return SelectSchedule();
+			this->ClearCondition( COND_ENEMY_DEAD );
+			return this->SelectSchedule();
 		}
 
-		SetState( NPC_STATE_ALERT );
-		return SelectSchedule();
+		this->SetState( NPC_STATE_ALERT );
+		return this->SelectSchedule();
 	}
 
 	return SCHED_COMBAT_STAND;
@@ -201,7 +201,7 @@ void CAI_SensingDummy<BASE_NPC>::StartTask( const Task_t *pTask )
 		case TASK_FACE_PATH:
 		case TASK_FACE_REASONABLE:
 			{
-				TaskComplete();
+				this->TaskComplete();
 				break;
 			}
 	}

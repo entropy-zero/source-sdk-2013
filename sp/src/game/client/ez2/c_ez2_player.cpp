@@ -1,5 +1,5 @@
 #include "cbase.h"
-#include "c_EZ2_player.h"
+#include "c_ez2_player.h"
 #include "point_bonusmaps_accessor.h"
 #include "achievementmgr.h"
 #include "basegrenade_shared.h"

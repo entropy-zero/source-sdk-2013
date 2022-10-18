@@ -3016,7 +3016,7 @@ int CNPC_PlayerCompanion::MeleeAttack1Conditions ( float flDot, float flDist )
 #else
 	if ( !GetActiveWeapon() && !( CapabilitiesGet() & bits_CAP_INNATE_MELEE_ATTACK1 ) )
 		return COND_NONE;
-#endif{
+#endif
 
 	if (IsMoving())
 	{

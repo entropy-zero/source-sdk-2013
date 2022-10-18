@@ -685,7 +685,7 @@ void CAI_ScriptedSequence::StartScript( void )
 		if ( pTarget->GetSleepState() == AISS_IGNORE_INPUT )
 		{
 			DevMsg( "Scripted sequence killed by displaced target!\n" );
-			DevMsg( "Sequence: %s\tTarget: \n", GetDebugName(), pTarget->GetDebugName() );
+			DevMsg( "Sequence: %s\tTarget: %s\n", GetDebugName(), pTarget->GetDebugName() );
 			return;
 		}
 

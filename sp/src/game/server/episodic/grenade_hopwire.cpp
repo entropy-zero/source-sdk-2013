@@ -108,6 +108,7 @@ extern void GetXenGrenadeResponseFromSystem( char *szResponse, size_t szResponse
 #define XEN_GRENADE_RECIPE_SCRIPT "scripts/talker/xen_grenade_recipes.txt"
 
 static const Color XenColor = Color(0, 255, 0, 255);
+template<class ... Args> void XenGrenadeDebugMsg( PRINTF_FORMAT_STRING const char *szMsg, Args ... args ) FMTFUNCTION( 1, 0 );
 template<class ... Args> void XenGrenadeDebugMsg( const char *szMsg, Args ... args )
 {
 	if (!g_debug_hopwire.GetBool())
@@ -1714,8 +1715,14 @@ bool CGravityVortexController::TryCreateComplexNPC( const char *className, bool 
 	if (pPredator != NULL)
 	{
 		pPredator->SetIsBaby( isBaby );
-		pPredator->InputSetWanderAlways( inputdata_t() );
-		pPredator->InputEnableSpawning( inputdata_t() );
+		{
+			inputdata_t dummy;
+			pPredator->InputSetWanderAlways( dummy );
+		}
+		{
+			inputdata_t dummy;
+			pPredator->InputEnableSpawning( dummy );
+		}
 		if ( !isBaby )
 		{
 			// Xen bullsquids come into the world ready to spawn.
@@ -1756,7 +1763,7 @@ bool CGravityVortexController::TryCreateComplexNPC( const char *className, bool 
 	CHL2_Player *pPlayer = (CHL2_Player *)UTIL_GetLocalPlayer();
 	if ( pPredator == NULL && pPlayer != NULL )
 	{
-		DevMsg( "Updating xenpc '%s' enemy memory \n", baseNPC->GetDebugName(), squadname );
+		DevMsg( "Updating xenpc '%s' enemy memory \n", baseNPC->GetDebugName() );
 		baseNPC->UpdateEnemyMemory( pPlayer, pPlayer->GetAbsOrigin(), this );
 	}
 

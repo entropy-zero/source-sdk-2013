@@ -910,7 +910,7 @@ CWeaponShotgun::CWeaponShotgun( void )
 	m_fMaxRange1		= 500;
 #else
 	m_fMaxRange1		= 1400; // BREADMAN
-#endif;
+#endif
 	m_fMinRange2		= 0.0;
 #ifndef EZ2
 	m_fMaxRange2		= 200;

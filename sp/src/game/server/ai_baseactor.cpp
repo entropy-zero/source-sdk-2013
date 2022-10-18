@@ -16,7 +16,7 @@
 #include "bone_setup.h"
 #include "physics_npc_solver.h"
 #ifdef EZ2
-#include "mapbase\info_remarkable.h"
+#include "mapbase/info_remarkable.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!

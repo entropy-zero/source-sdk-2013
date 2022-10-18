@@ -185,7 +185,7 @@ Activity ACT_TURRET_CARRY_WALK;
 Activity ACT_TURRET_CARRY_RUN;
 #endif
 #ifdef EZ
-Activity ACT_METROPOLICE_DEPLOY_MANHACK;
+extern Activity ACT_METROPOLICE_DEPLOY_MANHACK;
 #endif
 
 // -----------------------------------------------
@@ -884,6 +884,11 @@ bool CNPC_Combine::ShouldLookForBetterWeapon()
 
 		if ( GetActiveWeapon() && IsMoving() )
 			return false;
+
+#ifdef DBGFLAG_ASSERT
+		// Cached off to make sure you change this if you ask the code to defer.
+		float flOldWeaponSearchTime = m_flNextWeaponSearchTime;
+#endif
 
 		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
 		if( pWeapon )
