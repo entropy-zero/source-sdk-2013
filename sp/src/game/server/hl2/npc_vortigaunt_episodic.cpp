@@ -94,6 +94,8 @@ ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_tok
 ConVar sk_vortigaunt_npc_health_charge_per_token( "sk_vortigaunt_npc_health_charge_per_token", "50" );
 ConVar sk_vortigaunt_health_drain_per_token( "sk_vortigaunt_health_drain_per_token", "5" );
 ConVar sk_vortigaunt_health_drain_time( "sk_vortigaunt_health_drain_time", "15" );
+
+ConVar sk_vortigaunt_zombie_infection( "sk_vortigaunt_zombie_infection", "0", FCVAR_NONE, "If 1, vortigaunts killed by zombigaunts will transform into zombigaunts" );
 #endif
 
 ConVar sk_vortigaunt_health( "sk_vortigaunt_health","0");
@@ -1467,6 +1469,39 @@ void CNPC_Vortigaunt::Event_Killed( const CTakeDamageInfo &info )
 {
 	ClearBeams();
 	ClearHandGlow();
+
+	if (sk_vortigaunt_zombie_infection.GetBool() && info.GetAttacker()->MyNPCPointer() && info.GetAttacker()->ClassMatches( "npc_zombigaunt" ) && Classify() == CLASS_VORTIGAUNT )
+	{
+		CNPC_Vortigaunt *pChild = dynamic_cast< CNPC_Vortigaunt * >(CreateEntityByName( "npc_zombigaunt" ));
+		if (pChild)
+		{
+			// TODO - Play eerie scream sound when vortigaunt is converted
+
+
+			pChild->SetName( GetEntityName() );
+			pChild->m_tEzVariant = this->m_tEzVariant;
+			pChild->m_nSkin = this->m_nSkin;
+			pChild->SetModelName( GetModelName() );
+			pChild->SetAbsAngles( GetAbsAngles() );
+			pChild->SetAbsOrigin( GetAbsOrigin() );
+			pChild->AddSpawnFlags( GetSpawnFlags() );
+			pChild->Precache();
+
+			DispatchSpawn( pChild );
+
+			pChild->SetSquad( info.GetAttacker()->MyNPCPointer()->GetSquad() );
+			pChild->Activate();
+			pChild->SetActivityAndSequence( GetActivity(), GetSequence(), GetActivity(), GetActivity() );
+			pChild->SetCycle( GetCycle() );
+
+			// Deal damage to new zombigaunt
+			pChild->TakeDamage( info );
+
+			// Remove self
+			SUB_Remove();
+			return;
+		}
+	}
 
 	BaseClass::Event_Killed( info );
 }
