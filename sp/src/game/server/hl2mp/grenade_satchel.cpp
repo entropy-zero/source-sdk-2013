@@ -42,6 +42,13 @@ BEGIN_DATADESC( CSatchelCharge )
 
 END_DATADESC()
 
+#ifdef EZ2
+IMPLEMENT_NETWORKCLASS_ALIASED( SatchelCharge, DT_SatchelCharge )
+
+BEGIN_SEND_TABLE( CSatchelCharge, DT_SatchelCharge )
+END_SEND_TABLE()
+#endif
+
 LINK_ENTITY_TO_CLASS( npc_satchel, CSatchelCharge );
 
 //=========================================================
@@ -187,6 +194,22 @@ void CSatchelCharge::Explode( trace_t *pTrace, int bitsDamageType )
 	}
 
 	BaseClass::Explode( pTrace, bitsDamageType );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+int CSatchelCharge::UpdateTransmitState()
+{
+	if ( GetThrower() && GetThrower()->IsPlayer() )
+	{
+		// Player satchels need to be transmitted for HUD glow
+		return SetTransmitState( FL_EDICT_ALWAYS );
+	}
+	else
+	{
+		return BaseClass::UpdateTransmitState();
+	}
 }
 #endif
 

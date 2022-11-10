@@ -1321,3 +1321,45 @@ CWeapon_SLAM::CWeapon_SLAM(void)
 	m_bNeedDetonatorDraw	= false;
 	m_bNeedDetonatorHolster	= false;
 }
+
+#if defined(EZ2) && defined(CLIENT_DLL)
+//-----------------------------------------------------------------------------
+// Purpose: Clientside stubs for the satchel charges and tripmines so that the
+//          client can differentiate between them
+//-----------------------------------------------------------------------------
+class C_SatchelCharge : public C_BaseGrenade
+{
+public:
+	DECLARE_CLASS( C_SatchelCharge, C_BaseGrenade );
+	DECLARE_CLIENTCLASS();
+	DECLARE_PREDICTABLE();
+};
+
+IMPLEMENT_NETWORKCLASS_ALIASED( SatchelCharge, DT_SatchelCharge )
+
+BEGIN_RECV_TABLE( C_SatchelCharge, DT_SatchelCharge )
+END_RECV_TABLE()
+
+BEGIN_PREDICTION_DATA( C_SatchelCharge )
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( npc_satchel, C_SatchelCharge );
+
+class C_TripmineGrenade : public C_BaseGrenade
+{
+public:
+	DECLARE_CLASS( C_TripmineGrenade, C_BaseGrenade );
+	DECLARE_CLIENTCLASS();
+	DECLARE_PREDICTABLE();
+};
+
+IMPLEMENT_NETWORKCLASS_ALIASED( TripmineGrenade, DT_TripmineGrenade )
+
+BEGIN_RECV_TABLE( C_TripmineGrenade, DT_TripmineGrenade )
+END_RECV_TABLE()
+
+BEGIN_PREDICTION_DATA( C_TripmineGrenade )
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( npc_tripmine, C_TripmineGrenade );
+#endif

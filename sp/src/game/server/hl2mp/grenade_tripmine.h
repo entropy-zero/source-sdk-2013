@@ -23,6 +23,9 @@ class CTripmineGrenade : public CBaseGrenade
 {
 public:
 	DECLARE_CLASS( CTripmineGrenade, CBaseGrenade );
+#ifdef EZ2
+	DECLARE_SERVERCLASS();
+#endif
 
 	CTripmineGrenade();
 	void Spawn( void );
@@ -42,6 +45,7 @@ public:
 
 #ifdef EZ2
 	virtual bool KeyValue( const char *szKeyName, const char *szValue );
+	int UpdateTransmitState();
 #endif
 
 #ifdef MAPBASE

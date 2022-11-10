@@ -65,6 +65,7 @@ enum
 	SCHED_PREDATOR_WANDER, // Similar to SCHED_PATROL_WALK, but with more interrupts for the [REDACTED]
 	SCHED_PREDATOR_SPAWN,
 	SCHED_PREDATOR_GROW,
+	SCHED_PREDATOR_ATTACK_TARGET,
 	LAST_SHARED_SCHEDULE_PREDATOR
 };
 
@@ -77,6 +78,7 @@ enum
 	COND_NEW_BOSS_STATE,
 	COND_PREDATOR_CAN_GROW,
 	COND_PREDATOR_GROWTH_INVALID,
+	COND_PREDATOR_OBSTRUCTED,
 	NEXT_CONDITION
 };
 
@@ -142,6 +144,7 @@ public:
 	float MaxYawSpeed ( void );
 
 	virtual void BuildScheduleTestBits();
+	virtual bool OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
 
 	virtual int RangeAttack1Conditions( float flDot, float flDist );
 	virtual int MeleeAttack1Conditions( float flDot, float flDist );
@@ -176,6 +179,9 @@ public:
 	virtual bool ShouldFindMate();
 	virtual bool CanMateWithTarget( CNPC_BasePredator * pTarget, bool receiving );
 	virtual bool ShouldEatInCombat();
+	virtual bool ShouldAttackObstruction( CBaseEntity *pEntity );
+	virtual bool ShouldImmediatelyAttackObstructions(); // If true, NPCs will immediately attack obstructions instead of waiting for the pathfinder to find a way around
+	virtual bool ShouldMeleeDamageAnyNPC() { return IsCurSchedule( SCHED_PREDATOR_ATTACK_TARGET, false ); }
 
 	virtual bool IsBaby() { return m_bIsBaby; };
 	virtual void SetIsBaby( bool bIsBaby ) { m_bIsBaby = bIsBaby; };
@@ -224,6 +230,8 @@ protected:
 	float m_flNextSpitTime;// last time the bullsquid used the spit attack.
 	float m_flHungryTime;// set this is a future time to stop the monster from eating for a while. 
 	float m_flNextSpawnTime; // Next time the bullsquid can birth offspring
+
+	EHANDLE	m_hObstructor; // Object obstructing path
 
 	float m_flStartedFearingEnemy; // Blixibon - Needed for Bad Cop's speech AI
 

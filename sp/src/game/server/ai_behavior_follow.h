@@ -235,6 +235,9 @@ protected:
 	bool 			UpdateFollowPosition();
 	const int		GetGoalFlags();
 	float 			GetGoalTolerance();
+#ifdef EZ2
+	virtual
+#endif
 	bool			PlayerIsPushing();
 
 	bool IsFollowTargetInRange( float rangeMultiplier = 1.0 );

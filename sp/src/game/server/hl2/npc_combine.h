@@ -184,9 +184,14 @@ public:
 	int 			SelectSchedulePriorityAction();
 	virtual int 	SelectScheduleRetrieveItem();
 
+	virtual bool	IgnorePlayerPushing( void );
+
 	virtual bool	IsMajorCharacter() { return IsCommandable(); }
 
 	virtual bool	CanOrderSurrender();
+
+	virtual bool	ShouldGib( const CTakeDamageInfo &info );
+	virtual bool	CorpseGib( const CTakeDamageInfo &info );
 
 	// Blixibon - Elites in ball attacks should aim while moving, even if they can't shoot
 	bool			HasAttackSlot() { return BaseClass::HasAttackSlot() || HasStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ); }
@@ -259,6 +264,11 @@ public:
 	void			OnAnimEventStartDeployManhack( void );
 	void			OnScheduleChange();
 	virtual void	HandleManhackSpawn( CAI_BaseNPC *pNPC ) {}
+#endif
+
+#ifdef EZ2
+	virtual bool	OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
+	virtual bool	ShouldAttackObstruction( CBaseEntity *pEntity );
 #endif
 
 	bool			OnBeginMoveAndShoot();
@@ -405,6 +415,7 @@ private:
 #endif
 #ifdef EZ2
 		SCHED_COMBINE_ORDER_SURRENDER,
+		SCHED_COMBINE_ATTACK_TARGET,
 #endif
 		NEXT_SCHEDULE,
 	};
@@ -440,6 +451,7 @@ private:
 		COND_COMBINE_ATTACK_SLOT_AVAILABLE,
 #ifdef EZ2
 		COND_COMBINE_CAN_ORDER_SURRENDER,
+		COND_COMBINE_OBSTRUCTED,
 #endif
 		NEXT_CONDITION
 	};
@@ -482,6 +494,8 @@ private:
 		virtual int SelectSchedule();
 		virtual int	TranslateSchedule( int scheduleType );
 
+		virtual bool PlayerIsPushing();
+
 		inline CNPC_Combine *GetOuterS() { return static_cast<CNPC_Combine*>(GetOuter()); }
 	};
 #endif
@@ -518,6 +532,8 @@ private:
 protected:
 	bool			m_bLookForItems;
 private:
+	EHANDLE			m_hObstructor;
+	float			m_flTimeSinceObstructed;
 #endif
 
 	// Time Variables

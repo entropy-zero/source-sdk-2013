@@ -24,6 +24,9 @@ class CSatchelCharge : public CBaseGrenade
 {
 public:
 	DECLARE_CLASS( CSatchelCharge, CBaseGrenade );
+#ifdef EZ2
+	DECLARE_SERVERCLASS();
+#endif
 
 	void			Spawn( void );
 	void			Precache( void );
@@ -37,6 +40,7 @@ public:
 #ifdef EZ2
 	void			Event_Killed( const CTakeDamageInfo &info );
 	void			Explode( trace_t *pTrace, int bitsDamageType );
+	int				UpdateTransmitState();
 #endif
 
 	float			m_flNextBounceSoundTime;

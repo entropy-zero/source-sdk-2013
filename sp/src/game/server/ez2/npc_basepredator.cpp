@@ -25,6 +25,9 @@
 
 ConVar ai_debug_predator( "ai_debug_predator", "0" );
 ConVar sv_predator_heal_render_effects( "sv_predator_heal_render_effects", "1", FCVAR_NONE, "Should predators like bullsquids turn green after healing?" );
+#ifdef EZ2
+ConVar npc_predator_obstruction_behavior( "npc_predator_obstruction_behavior", "0" );
+#endif
 
 LINK_ENTITY_TO_CLASS( npc_basepredator, CNPC_BasePredator );
 
@@ -46,6 +49,7 @@ BEGIN_DATADESC( CNPC_BasePredator )
 	DEFINE_FIELD( m_flLastHurtTime, FIELD_TIME ),
 	DEFINE_FIELD( m_flNextSpitTime, FIELD_TIME ),
 	DEFINE_FIELD( m_tBossState, FIELD_INTEGER ),
+	DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
 
 	DEFINE_FIELD( m_flHungryTime, FIELD_TIME ),
 	DEFINE_KEYFIELD( m_bSpawningEnabled, FIELD_BOOLEAN, "SpawningEnabled" ),
@@ -392,6 +396,12 @@ void CNPC_BasePredator::BuildScheduleTestBits()
 		SetCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
 	}
 
+	// If we're an absolute beast, allow our chase schedule to be interrupted by obstructions
+	if ( ShouldImmediatelyAttackObstructions() && IsCurSchedule( SCHED_CHASE_ENEMY ) )
+	{
+		SetCustomInterruptCondition( COND_PREDATOR_OBSTRUCTED );
+	}
+
 	// Like zombies, ignore damage if we're attacking.
 	switch (GetActivity())
 	{
@@ -402,6 +412,62 @@ void CNPC_BasePredator::BuildScheduleTestBits()
 		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
 		break;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_BasePredator::OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult )
+{
+	if ( pMoveGoal->directTrace.pObstruction && !pMoveGoal->directTrace.pObstruction->IsWorld() && GetGroundEntity() != pMoveGoal->directTrace.pObstruction )
+	{
+		if ( ShouldAttackObstruction( pMoveGoal->directTrace.pObstruction ) )
+		{
+			m_hObstructor = pMoveGoal->directTrace.pObstruction;
+			SetCondition( COND_PREDATOR_OBSTRUCTED );
+		}
+	}
+
+	return BaseClass::OnObstructionPreSteer( pMoveGoal, distClear, pResult );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_BasePredator::ShouldAttackObstruction( CBaseEntity *pEntity )
+{
+	if (!npc_predator_obstruction_behavior.GetBool())
+		return false;
+
+	// Don't attack obstructions if we can't melee attack
+	if ((CapabilitiesGet() & bits_CAP_INNATE_MELEE_ATTACK1) == 0)
+		return false;
+
+	// Only attack combat characters and physics props
+	if ( !pEntity->MyCombatCharacterPointer() && pEntity->GetMoveType() != MOVETYPE_VPHYSICS )
+		return false;
+
+	// Don't attack props which don't have motion enabled
+	if ( pEntity->VPhysicsGetObject() && !pEntity->VPhysicsGetObject()->IsMotionEnabled() )
+		return false;
+
+	// Don't attack NPCs in the same squad
+	if (pEntity->IsNPC() && pEntity->MyNPCPointer()->GetSquad() == GetSquad() && GetSquad() != NULL)
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: If true, NPCs will immediately attack obstructions instead of waiting for the pathfinder to find a way around
+//-----------------------------------------------------------------------------
+bool CNPC_BasePredator::ShouldImmediatelyAttackObstructions()
+{
+	// Babies are too small to throw their own weight around
+	if (IsBaby())
+		return false;
+
+	return true;
 }
 
 //=========================================================
@@ -1032,6 +1098,14 @@ int CNPC_BasePredator::SelectSchedule( void )
 		return SCHED_PREDATOR_SPAWN;
 	}
 
+	// If we immediately attack obstructions, just plow through
+	if ( ShouldImmediatelyAttackObstructions() && HasCondition( COND_PREDATOR_OBSTRUCTED ) )
+	{
+		SetTarget( m_hObstructor );
+		m_hObstructor = NULL;
+		return SCHED_PREDATOR_ATTACK_TARGET;
+	}
+
 	switch ( m_NPCState )
 	{
 	case NPC_STATE_ALERT:
@@ -1147,6 +1221,16 @@ int CNPC_BasePredator::SelectSchedule( void )
 
 int CNPC_BasePredator::SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode )
 {
+	// If we can swat physics objects, see if we can swat our obstructor
+	if ( IsPathTaskFailure( taskFailCode ) && 
+		 m_hObstructor != NULL && m_hObstructor->VPhysicsGetObject() )
+	{
+		SetTarget( m_hObstructor );
+		m_hObstructor = NULL;
+		return SCHED_PREDATOR_ATTACK_TARGET;
+	}
+	m_hObstructor = NULL;
+
 	// Need special case handling for when predators smell food they can't navigate too
 	switch (failedSchedule)
 	{
@@ -1448,6 +1532,7 @@ AI_BEGIN_CUSTOM_NPC( npc_predator, CNPC_BasePredator )
 	DECLARE_CONDITION( COND_NEW_BOSS_STATE )
 	DECLARE_CONDITION( COND_PREDATOR_CAN_GROW )
 	DECLARE_CONDITION( COND_PREDATOR_GROWTH_INVALID )
+	DECLARE_CONDITION( COND_PREDATOR_OBSTRUCTED )
 
 	DECLARE_SQUADSLOT( SQUAD_SLOT_FEED )
 	DECLARE_SQUADSLOT( SQUAD_SLOT_THREAT_DISPLAY )
@@ -1683,6 +1768,25 @@ AI_BEGIN_CUSTOM_NPC( npc_predator, CNPC_BasePredator )
 		"		COND_CAN_MELEE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK2"
 		"       COND_PREDATOR_GROWTH_INVALID"
+	)
+			
+	//=========================================================
+	// > SCHED_PREDATOR_ATTACK_TARGET
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_PREDATOR_ATTACK_TARGET,
+
+		"	Tasks"
+		"		TASK_GET_PATH_TO_TARGET		0"
+		"		TASK_MOVE_TO_TARGET_RANGE	50"
+		"		TASK_STOP_MOVING			0"
+		"		TASK_FACE_TARGET			0"
+		"		TASK_PLAY_SEQUENCE			ACTIVITY:ACT_MELEE_ATTACK1"
+		"	"
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_ENEMY_DEAD"
 	)
 
 AI_END_CUSTOM_NPC()

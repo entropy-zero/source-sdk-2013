@@ -69,6 +69,13 @@ BEGIN_DATADESC( CTripmineGrenade )
 
 END_DATADESC()
 
+#ifdef EZ2
+IMPLEMENT_NETWORKCLASS_ALIASED( TripmineGrenade, DT_TripmineGrenade )
+
+BEGIN_SEND_TABLE( CTripmineGrenade, DT_TripmineGrenade )
+END_SEND_TABLE()
+#endif
+
 CTripmineGrenade::CTripmineGrenade()
 {
 	m_vecDir.Init();
@@ -238,6 +245,22 @@ bool CTripmineGrenade::KeyValue( const char * szKeyName, const char * szValue )
 	}
 
 	return BaseClass::KeyValue( szKeyName, szValue );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+int CTripmineGrenade::UpdateTransmitState()
+{
+	if ( GetThrower() && GetThrower()->IsPlayer() )
+	{
+		// Player tripmines need to be transmitted for HUD glow
+		return SetTransmitState( FL_EDICT_ALWAYS );
+	}
+	else
+	{
+		return BaseClass::UpdateTransmitState();
+	}
 }
 #endif
 

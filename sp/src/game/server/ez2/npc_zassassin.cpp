@@ -490,6 +490,15 @@ void CNPC_Gonome::BuildScheduleTestBits()
 	{
 		SetCustomInterruptCondition( COND_PROVOKED );
 	}
+
+	if ( IsCurSchedule( SCHED_CHASE_ENEMY, true ) )
+	{
+		// Only interrupt by smell if we should eat in combat
+		if ( ShouldEatInCombat() )
+		{
+			SetCustomInterruptCondition( COND_SMELL );
+		}
+	}
 }
 
 //=========================================================
@@ -989,10 +998,13 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 		{
 		// SOUND HERE!
 			CPASAttenuationFilter filter( this );
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_bite.GetFloat(), DMG_SLASH, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if ( pHurt )
 			{
 				EmitSound( filter, entindex(), "Zombie.AttackHit" );
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 			}
 			else // Play a random attack miss sound
 			{
@@ -1015,10 +1027,13 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 		case GONOME_AE_TAILWHIP:
 		{
 			CPASAttenuationFilter filter( this );
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_whip.GetFloat(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_zombie_assassin_dmg_whip.GetFloat(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if ( pHurt ) 
 			{
 				EmitSound( filter, entindex(), "Gonome.Bite" );
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
 					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
@@ -1123,7 +1138,7 @@ void CNPC_Gonome::InputGoHome( inputdata_t &inputdata )
 {
 	if (!m_BeastBehavior.CanSelectSchedule())
 	{
-		Warning("%s received GoHome input, but beast behavior can't run! (global might be off)\n");
+		Warning("%s received GoHome input, but beast behavior can't run! (global might be off)\n", GetDebugName());
 		return;
 	}
 
@@ -1137,7 +1152,7 @@ void CNPC_Gonome::InputGoHomeInstant( inputdata_t &inputdata )
 {
 	if (!m_BeastBehavior.CanSelectSchedule())
 	{
-		Warning("%s received GoHomeInstant input, but beast behavior can't run! (global might be off)\n");
+		Warning("%s received GoHomeInstant input, but beast behavior can't run! (global might be off)\n", GetDebugName());
 		return;
 	}
 
@@ -1500,7 +1515,7 @@ AI_BEGIN_CUSTOM_NPC( monster_gonome, CNPC_Gonome )
 		"		COND_HEAVY_DAMAGE"
 		"		COND_NEW_ENEMY"
 		"		COND_ENEMY_DEAD"
-		"		COND_SMELL"
+		//"		COND_SMELL"
 		//"		COND_CAN_RANGE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK2"
@@ -1589,7 +1604,7 @@ AI_BEGIN_CUSTOM_NPC( monster_gonome, CNPC_Gonome )
 		"		COND_HEAVY_DAMAGE"
 		"		COND_NEW_ENEMY"
 		"		COND_ENEMY_DEAD"
-		"		COND_SMELL"
+		//"		COND_SMELL"
 		//"		COND_CAN_RANGE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK2"

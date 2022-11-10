@@ -67,6 +67,9 @@ ConVar physcannon_punt_cone( "physcannon_punt_cone", "0.997" );
 ConVar player_throwforce( "player_throwforce", "1000" );
 ConVar physcannon_dmg_glass( "physcannon_dmg_glass", "15" );
 ConVar physcannon_right_turrets( "physcannon_right_turrets", "0" );
+#ifdef EZ2
+ConVar physcannon_ignore_contact_allowed( "physcannon_ignore_contact_allowed", "0" );
+#endif
 
 extern ConVar hl2_normspeed;
 extern ConVar hl2_walkspeed;
@@ -527,6 +530,11 @@ private:
 	// NVNT player controlling this grab controller
 	CBasePlayer*	m_pControllingPlayer;
 
+#ifdef EZ2
+	// For hacks related to carrying Wilson
+	bool			m_bIgnoreContact;
+#endif
+
 	friend class CWeaponPhysCannon;
 };
 
@@ -577,6 +585,9 @@ CGrabController::CGrabController( void )
 	m_flDistanceOffset = 0;
 	// NVNT constructing m_pControllingPlayer to NULL
 	m_pControllingPlayer = NULL;
+#ifdef EZ2
+	m_bIgnoreContact = false;
+#endif
 }
 
 CGrabController::~CGrabController( void )
@@ -590,6 +601,14 @@ void CGrabController::OnRestore()
 	{
 		m_controller->SetEventHandler( this );
 	}
+
+#ifdef EZ2
+	// HACKHACK: Wilson should ignore contact to make him easier to pick up
+	if ( m_attachedEntity && m_attachedEntity->ClassMatches("npc_wilson" ) )
+	{
+		m_bIgnoreContact = true;
+	}
+#endif
 }
 
 void CGrabController::SetTargetPosition( const Vector &target, const QAngle &targetOrientation )
@@ -740,6 +759,18 @@ void CGrabController::AttachEntity( CBasePlayer *pPlayer, CBaseEntity *pEntity, 
 	pPhys->GetPosition( &position, &angles );
 	// If it has a preferred orientation, use that instead.
 	Pickup_GetPreferredCarryAngles( pEntity, pPlayer, pPlayer->EntityToWorldTransform(), angles );
+
+#ifdef EZ2
+	// HACKHACK: Wilson should ignore contact to make him easier to pick up
+	if ( pEntity->ClassMatches("npc_wilson" ) )
+	{
+		m_bIgnoreContact = true;
+	}
+	else
+	{
+		m_bIgnoreContact = false;
+	}
+#endif
 
 //	ComputeMaxSpeed( pEntity, pPhys );
 
@@ -911,6 +942,13 @@ static bool InContactWithHeavyObject( IPhysicsObject *pObject, float heavyMass )
 IMotionEvent::simresult_e CGrabController::Simulate( IPhysicsMotionController *pController, IPhysicsObject *pObject, float deltaTime, Vector &linear, AngularImpulse &angular )
 {
 	game_shadowcontrol_params_t shadowParams = m_shadow;
+#ifdef EZ2
+	if (m_bIgnoreContact && physcannon_ignore_contact_allowed.GetBool())
+	{
+		m_contactAmount = Approach( 1.0f, m_contactAmount, deltaTime*2.0f );
+	}
+	else
+#endif
 	if ( InContactWithHeavyObject( pObject, GetLoadWeight() ) )
 	{
 		m_contactAmount = Approach( 0.1f, m_contactAmount, deltaTime*2.0f );

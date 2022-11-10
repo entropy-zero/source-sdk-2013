@@ -261,6 +261,10 @@ DEFINE_FIELD( m_bTemporarilyNeedWeapon, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flNextHealthSearchTime, FIELD_TIME ),
 DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
 #endif
+#ifdef EZ2
+DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
+DEFINE_FIELD( m_flTimeSinceObstructed, FIELD_TIME ),
+#endif
 #ifndef MAPBASE // See ai_grenade.h
 DEFINE_KEYFIELD( m_iNumGrenades, FIELD_INTEGER, "NumGrenades" ),
 #else
@@ -1067,6 +1071,25 @@ int CNPC_Combine::SelectScheduleRetrieveItem()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+bool CNPC_Combine::IgnorePlayerPushing( void )
+{
+	CBasePlayer *pPlayer = AI_GetSinglePlayer();
+	if ( pPlayer )
+	{
+		if ( IsCommandable() && !IsInAScript() && npc_combine_give_enabled.GetBool() )
+		{
+			// Don't push if the player is carrying a weapon
+			CBaseEntity *pHeld = GetPlayerHeldEntity( pPlayer );
+			if (pHeld && pHeld->IsBaseCombatWeapon())
+				return true;
+		}
+	}
+
+	return BaseClass::IgnorePlayerPushing();
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 void CNPC_Combine::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget /* = NULL */, const Vector *pVelocity /* = NULL */ )
 {
 	BaseClass::Weapon_Drop( pWeapon, pvecTarget, pVelocity );
@@ -1113,6 +1136,44 @@ bool CNPC_Combine::CanOrderSurrender()
 	}
 
 	return m_iCanOrderSurrender == TRS_TRUE;
+}
+
+ConVar npc_combine_gib( "npc_combine_gib", "0" );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldGib( const CTakeDamageInfo &info )
+{
+	if ( !npc_combine_gib.GetBool() )
+		return false;
+	
+	// Don't gib if we're temporal
+	if (m_tEzVariant == EZ_VARIANT_TEMPORAL)
+		return false;
+
+	// If the damage type is "always gib", we better gib!
+	if ( info.GetDamageType() & DMG_ALWAYSGIB )
+		return true;
+
+	if ( info.GetDamageType() & ( DMG_NEVERGIB | DMG_DISSOLVE ) )
+		return false;
+
+	if ( ( info.GetDamageType() & ( DMG_BLAST | DMG_ACID | DMG_POISON | DMG_CRUSH ) ) && ( GetAbsOrigin() - info.GetDamagePosition() ).LengthSqr() <= 32.0f )
+		return true;
+
+	return false;
+}
+
+//------------------------------------------------------------------------------
+// Purpose: Override to do rebel specific gibs
+// Output :
+//------------------------------------------------------------------------------
+bool CNPC_Combine::CorpseGib( const CTakeDamageInfo &info )
+{
+	return BaseClass::CorpseGib( info );
 }
 #endif
 
@@ -2676,7 +2737,7 @@ void CNPC_Combine::OnSeeEntity( CBaseEntity *pEntity )
 
 			if ( pUseEntity && FVisible(pUseEntity) )
 			{
-				AddLookTarget( pUseEntity, 1.25f, 5.0f, 1.0f );
+				AddLookTarget( pUseEntity, 1.0f, 5.0f, 1.0f );
 				Remember( bits_MEMORY_SAW_PLAYER_WEIRDNESS );
 			}
 		}
@@ -2855,9 +2916,14 @@ void CNPC_Combine::BuildScheduleTestBits( void )
 #endif
 
 #ifdef EZ2
-	if ( !IsCurSchedule( SCHED_COMBINE_ORDER_SURRENDER ) && !IsCurSchedule( SCHED_COMBINE_PRESS_ATTACK ) && !m_StandoffBehavior.IsRunning() /*&& !IsCurSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE ) && !IsCurSchedule( SCHED_MOVE_TO_WEAPON_RANGE )*/ )
+	if ( !m_StandoffBehavior.IsRunning() )
 	{
-		SetCustomInterruptCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
+		if ( !IsCurSchedule( SCHED_COMBINE_ORDER_SURRENDER ) && !IsCurSchedule( SCHED_COMBINE_PRESS_ATTACK ) /*&& !IsCurSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE ) && !IsCurSchedule( SCHED_MOVE_TO_WEAPON_RANGE )*/ )
+		{
+			SetCustomInterruptCondition( COND_COMBINE_CAN_ORDER_SURRENDER );
+		}
+
+		SetCustomInterruptCondition( COND_COMBINE_OBSTRUCTED );
 	}
 #endif
 
@@ -3580,6 +3646,16 @@ int CNPC_Combine::SelectSchedule( void )
 			}
 		}
 
+#ifdef EZ2
+		// If we have an obstruction, just plow through
+		if ( HasCondition( COND_COMBINE_OBSTRUCTED ) )
+		{
+			SetTarget( m_hObstructor );
+			m_hObstructor = NULL;
+			return SCHED_COMBINE_ATTACK_TARGET;
+		}
+#endif
+
 #ifdef EZ // Blixibon - Follow behavior deferring
 		if ( ShouldDeferToFollowBehavior() )
 		{
@@ -3654,6 +3730,18 @@ int CNPC_Combine::SelectSchedule( void )
 //-----------------------------------------------------------------------------
 int CNPC_Combine::SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode )
 {
+#ifdef EZ2
+	// If we can swat physics objects, see if we can swat our obstructor
+	if ( IsPathTaskFailure( taskFailCode ) && 
+		 m_hObstructor != NULL && m_hObstructor->VPhysicsGetObject() )
+	{
+		SetTarget( m_hObstructor );
+		m_hObstructor = NULL;
+		return SCHED_COMBINE_ATTACK_TARGET;
+	}
+	m_hObstructor = NULL;
+#endif
+
 	if( failedSchedule == SCHED_COMBINE_TAKE_COVER1 )
 	{
 #ifdef MAPBASE
@@ -3674,6 +3762,83 @@ int CNPC_Combine::SelectFailSchedule( int failedSchedule, int failedTask, AI_Tas
 
 	return BaseClass::SelectFailSchedule( failedSchedule, failedTask, taskFailCode );
 }
+
+#ifdef EZ2
+ConVar npc_combine_obstruction_behavior( "npc_combine_obstruction_behavior", "0" );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult )
+{
+	if ( pMoveGoal->directTrace.pObstruction && !pMoveGoal->directTrace.pObstruction->IsWorld() && GetGroundEntity() != pMoveGoal->directTrace.pObstruction )
+	{
+		if ( ShouldAttackObstruction( pMoveGoal->directTrace.pObstruction ) )
+		{
+			if (m_hObstructor != pMoveGoal->directTrace.pObstruction)
+			{
+				if (!m_hObstructor)
+					m_flTimeSinceObstructed = gpGlobals->curtime;
+
+				m_hObstructor = pMoveGoal->directTrace.pObstruction;
+			}
+			else
+			{
+				// Interrupt obstructions based on state
+				switch (GetState())
+				{
+					case NPC_STATE_COMBAT:
+					{
+						// Always interrupt when in combat
+						SetCondition( COND_COMBINE_OBSTRUCTED );
+					}
+					break;
+
+					case NPC_STATE_IDLE:
+					case NPC_STATE_ALERT:
+					default:
+					{
+						// Interrupt if we've been obstructed for a bit or we have a command goal
+						if (gpGlobals->curtime - m_flTimeSinceObstructed >= 2.0f || HaveCommandGoal())
+							SetCondition( COND_COMBINE_OBSTRUCTED );
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	return BaseClass::OnObstructionPreSteer( pMoveGoal, distClear, pResult );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldAttackObstruction( CBaseEntity *pEntity )
+{
+	if (!npc_combine_obstruction_behavior.GetBool())
+		return false;
+
+	// Don't attack obstructions if we can't melee attack
+	if ((CapabilitiesGet() & bits_CAP_INNATE_MELEE_ATTACK1) == 0)
+		return false;
+
+	// Only attack physics props
+	if ( pEntity->MyCombatCharacterPointer() || pEntity->GetMoveType() != MOVETYPE_VPHYSICS )
+		return false;
+
+	// Don't attack props which don't have motion enabled
+	if ( pEntity->VPhysicsGetObject() && !pEntity->VPhysicsGetObject()->IsMotionEnabled() )
+		return false;
+
+	// Do not attack props which could explode
+	CBreakableProp *pProp = dynamic_cast<CBreakableProp*>(pEntity);
+	if (pProp && pProp->GetExplosiveDamage() > 0)
+		return false;
+
+	return true;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Should we charge the player?
@@ -4418,7 +4583,25 @@ void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 
 						EmitSound( "NPC_Combine.WeaponBash" );
 					}
-				}			
+				}	
+#ifdef EZ2
+				else
+				{
+					// Apply a velocity to hit entity if it has a physics movetype
+					if ( pHurt && pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+					{
+						Vector forward, up;
+						AngleVectors( GetLocalAngles(), &forward, NULL, &up );
+						pHurt->ApplyAbsVelocityImpulse( forward * 100 + up * 50 );
+
+						CTakeDamageInfo info( this, this, m_nKickDamage, DMG_CLUB );
+						CalculateMeleeDamageForce( &info, forward, pHurt->GetAbsOrigin() );
+						pHurt->TakeDamage( info );
+
+						EmitSound( "NPC_Combine.WeaponBash" );
+					}
+				}
+#endif
 
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
 				SpeakIfAllowed( TLK_CMB_KICK );
@@ -5491,6 +5674,13 @@ void CNPC_Combine::OnScheduleChange()
 	{
 		OnAnimEventDeployManhack( NULL );
 	}
+
+#ifdef EZ2
+	if (!HasCondition( COND_COMBINE_OBSTRUCTED ))
+	{
+		m_hObstructor = NULL;
+	}
+#endif
 }
 #endif
 
@@ -5832,6 +6022,24 @@ int CNPC_Combine::CCombineFollowBehavior::TranslateSchedule( int scheduleType )
 	}
 	return BaseClass::TranslateSchedule( scheduleType );
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CCombineFollowBehavior::PlayerIsPushing()
+{
+	if (!BaseClass::PlayerIsPushing())
+		return false;
+
+	// HACKHACK: By default, follow behavior uses its own push code
+	// that acts independent of CNPC_PlayerCompanion.
+	// Combine soldiers in the player's squad need to avoid moving
+	// away when players are trying to give them a new weapon.
+	if (GetOuterS()->IgnorePlayerPushing())
+		return false;
+
+	return true;
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -5892,6 +6100,7 @@ DECLARE_CONDITION( COND_COMBINE_ON_FIRE )
 DECLARE_CONDITION( COND_COMBINE_ATTACK_SLOT_AVAILABLE )
 #ifdef EZ2
 DECLARE_CONDITION( COND_COMBINE_CAN_ORDER_SURRENDER )
+DECLARE_CONDITION( COND_COMBINE_OBSTRUCTED )
 #endif
 
 DECLARE_INTERACTION( g_interactionCombineBash );
@@ -6683,6 +6892,25 @@ DEFINE_SCHEDULE
  	"	Interrupts"
 	"		COND_ENEMY_DEAD"
 	"		COND_ENEMY_WENT_NULL"
+ )
+
+ //=========================================================
+ // Soldier attacks a prop
+ //=========================================================
+ DEFINE_SCHEDULE
+ (
+	 SCHED_COMBINE_ATTACK_TARGET,
+ 
+ 	"	Tasks"
+ 	"		TASK_GET_PATH_TO_TARGET		0"
+ 	"		TASK_MOVE_TO_TARGET_RANGE	50"
+ 	"		TASK_STOP_MOVING			0"
+ 	"		TASK_FACE_TARGET			0"
+ 	"		TASK_PLAY_SEQUENCE			ACTIVITY:ACT_MELEE_ATTACK2"
+ 	"	"
+ 	"	Interrupts"
+ 	"		COND_NEW_ENEMY"
+ 	"		COND_ENEMY_DEAD"
  )
 #endif
 

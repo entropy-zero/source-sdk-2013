@@ -330,10 +330,13 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 		break;
 		case PREDATOR_AE_BITE:
 		{
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if (pHurt)
 			{
 				BiteSound(); // Only play the bite sound if we have a target
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
 			}
 
 			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
@@ -355,9 +358,12 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 
 		case PREDATOR_AE_TAILWHIP:
 		{
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetWhipDamage(), DMG_SLASH | DMG_ALWAYSGIB );
+			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ), GetWhipDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
 			if (pHurt)
 			{
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
+
 				if (pHurt->GetFlags() & (FL_NPC | FL_CLIENT))
 					pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
 

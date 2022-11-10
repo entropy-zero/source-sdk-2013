@@ -18,13 +18,22 @@ public:
 
 	void OnDataChanged( DataUpdateType_t updateType );
 
+	void BonusChallengeUpdate( );
+
 	void UpdateGlowTargetEffect( void );
 	void DestroyGlowTargetEffect( void );
+
+	void UpdateSLAMGlowEffect( void );
+	void DestroySLAMGlowEffect( void );
 
 	bool m_bBonusChallengeUpdate;
 	
 	EHANDLE m_hWarningTarget;
 	CGlowObject *m_pGlowTargetEffect;
+
+	CUtlVector<EHANDLE>	m_hActiveSatchels;
+	CUtlVector<EHANDLE>	m_hActiveTripmines;
+	CUtlVector<CGlowObject*>	m_pSLAMGlowEffects;
 };
 
 
