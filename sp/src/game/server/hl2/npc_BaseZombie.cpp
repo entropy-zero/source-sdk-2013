@@ -384,6 +384,12 @@ bool CNPC_BaseZombie::FindNearestPhysicsObject( int iMaxMass )
 			continue;
 
 		vcollide_t *pCollide = modelinfo->GetVCollide( pList[i]->GetModelIndex() );
+
+		if ( pCollide == NULL )
+		{
+			DevMsg( "ERROR: CNPC_BaseZombie::FindNearestPhysicsObject() tried to check model with null collision" );
+			continue;
+		}
 		
 		Vector objMins, objMaxs;
 		physcollision->CollideGetAABB( &objMins, &objMaxs, pCollide->solids[0], pList[i]->GetAbsOrigin(), pList[i]->GetAbsAngles() );

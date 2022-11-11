@@ -22,6 +22,7 @@ ConVar sk_voltigore_dmg_slash( "sk_voltigore_dmg_slash", "30" );
 ConVar sk_voltigore_dmg_double_slash( "sk_voltigore_dmg_slash", "60" );
 ConVar sk_voltigore_spit_gravity( "sk_voltigore_spit_gravity", "600" );
 ConVar sk_voltigore_spit_arc_size( "sk_voltigore_spit_arc_size", "3");
+ConVar sk_voltigore_always_gib( "sk_voltigore_always_gib", "1" );
 
 LINK_ENTITY_TO_CLASS( npc_voltigore, CNPC_Voltigore );
 
@@ -345,6 +346,24 @@ void CNPC_Voltigore::EatSound( void )
 	EmitSound( "NPC_Voltigore.Eat" );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Allows for modification of the interrupt mask for the current schedule.
+//			In the most cases the base implementation should be called first.
+//-----------------------------------------------------------------------------
+void CNPC_Voltigore::BuildScheduleTestBits()
+{
+	BaseClass::BuildScheduleTestBits();
+
+	// Allow these schedules to stop for melee attacks
+	// just like player companions
+	if (IsCurSchedule( SCHED_RANGE_ATTACK1 ) )
+	{
+		ClearCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
+		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
+		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
+	}
+}
+
 //=========================================================
 // SetYawSpeed - allows each sequence to have a different
 // turn rate associated with it.
@@ -444,7 +463,7 @@ void CNPC_Voltigore::HandleAnimEvent( animevent_t *pEvent )
 				vecSpitDir.z += random->RandomFloat( -0.05, 0 );
 
 				AttackSound();
-				CVoltigoreProjectile::Shoot( this, vecSpitOffset, vecSpitDir * 128.0f );
+				CVoltigoreProjectile::Shoot( this, vecSpitOffset, vecSpitDir * 256.0f );
 			}
 		}
 		break;
@@ -543,6 +562,29 @@ float CNPC_Voltigore::GetBiteDamage( void )
 float CNPC_Voltigore::GetWhipDamage( void )
 {
 	return sk_voltigore_dmg_double_slash.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CNPC_Voltigore::ShouldGib( const CTakeDamageInfo &info )
+{
+	if (sk_voltigore_always_gib.GetBool())
+		return true;
+
+	// If the damage type is "always gib", we better gib!
+	if (info.GetDamageType() & DMG_ALWAYSGIB)
+		return true;
+
+	// Babysquids gib if crushed, exploded, or overkilled
+	if (m_bIsBaby && (info.GetDamage() > GetMaxHealth() || info.GetDamageType() & DMG_CRUSH || info.GetDamageType() & DMG_BLAST))
+	{
+		return true;
+	}
+
+	return IsBoss() || BaseClass::ShouldGib( info );
 }
 
 //------------------------------------------------------------------------------
