@@ -370,7 +370,15 @@ void CAchievementMgr::PostInit()
 		// applies to, or truly cross-game) or, if it does have a game filter, the filter matches current game.
 		// (e.g. EP 1/2/... achievements are in shared binary but are game specific, they have a game filter for runtime check.)
 		const char *pGameDirFilter = pAchievement->m_pGameDirFilter;
+#if defined(EZ2) && defined(LINUX)
+		// HACKHACK: When we shipped E:Z2, we used the casing "EntropyZero2" for the achievements' game dir filters as well as the -game target.
+		// However, this did not match the actual folder's casing, "entropyzero2", and that causes a conflict with Linux's case sensitivty.
+		// Rather than trying to coordinate a change with the launch options on Steam and all of the achievements' game dir filters, we've just
+		// made this particular check case insensitive for now.
+		if ( !pGameDirFilter || ( 0 == Q_stricmp( pGameDir, pGameDirFilter ) ) )
+#else
 		if ( !pGameDirFilter || ( 0 == Q_strcmp( pGameDir, pGameDirFilter ) ) )
+#endif
 		{
 			m_mapAchievement.Insert( pAchievement->GetAchievementID(), pAchievement );
 			if ( pAchievement->IsMetaAchievement() )
