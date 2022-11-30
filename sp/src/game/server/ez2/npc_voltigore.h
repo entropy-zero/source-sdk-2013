@@ -48,7 +48,7 @@ public:
 	virtual float GetBiteDamage( void );
 	virtual float GetWhipDamage( void );
 
-	bool ShouldGib( const CTakeDamageInfo &info );
+	// bool ShouldGib( const CTakeDamageInfo &info );
 
 
 	bool IsPrey( CBaseEntity* pTarget ) { return pTarget->Classify() == CLASS_PLAYER_ALLY; }
