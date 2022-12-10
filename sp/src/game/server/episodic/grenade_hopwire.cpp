@@ -2130,8 +2130,15 @@ CGravityVortexController *CGravityVortexController::Create( const Vector &origin
 
 #ifdef EZ2
 	pVortex->SetOwnerEntity( pGrenade );
-	if (pGrenade)
+	CBaseGrenade * pGrenadeCast = static_cast<CBaseGrenade*>(pGrenade);
+	if (pGrenadeCast)
+	{
 		pVortex->SetThrower( static_cast<CBaseGrenade*>(pGrenade)->GetThrower() );
+	}
+	else if ( pGrenade->GetOwnerEntity() )
+	{
+		pVortex->SetThrower( pGrenade->GetOwnerEntity()->MyCombatCharacterPointer() );
+	}
 
 	pVortex->SetNodeRadius( hopwire_spawn_node_radius.GetFloat() );
 	pVortex->SetConsumeRadius( hopwire_conusme_radius.GetFloat() );
