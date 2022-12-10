@@ -100,8 +100,9 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	UTIL_SetOrigin( pSpit, vecStart );
 	pSpit->SetAbsVelocity( vecVelocity );
 	pSpit->SetOwnerEntity( pOwner );
+	pSpit->SetRenderColor( 231, 62, 2555 );
 
-	CSprite * pSprite = CSprite::SpriteCreate( "sprites/glownomespit.vmt", pOwner->GetAbsOrigin(), true );
+	CSprite * pSprite = CSprite::SpriteCreate( "sprites/glow01.spr", pOwner->GetAbsOrigin(), true );
 	pSpit->SetSprite( pSprite );
 
 	if ( pSprite )
@@ -109,8 +110,10 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 		pSprite->SetAttachment( pSpit, 0 );
 		pSprite->SetOwnerEntity( pSpit );
 
-		pSprite->SetScale( 0.75 );
-		pSprite->SetTransparency( pSpit->m_nRenderMode, pSpit->m_clrRender->r, pSpit->m_clrRender->g, pSpit->m_clrRender->b, pSpit->m_clrRender->a, pSpit->m_nRenderFX );
+		pSprite->SetColor( 231, 62, 255 );
+		pSprite->SetRenderMode( kRenderWorldGlow );
+
+		pSprite->SetScale( 2 );
 	}
 
 	pSpit->SetThink( &CVoltigoreProjectile::ThinkRemove );
@@ -134,7 +137,7 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	pTesla->KeyValue( "lifetime_min", "0.3" );
 	pTesla->KeyValue( "thick_max", "5" );
 	pTesla->KeyValue( "thick_min", "4" );
-	pTesla->KeyValue( "m_Color", "54 54 218" );
+	pTesla->KeyValue( "m_Color", "231 62 255" );
 	pTesla->KeyValue( "texture", "sprites/hydragutbeam.vmt" );
 	pTesla->KeyValue( "m_flRadius", "434" );
 	pTesla->KeyValue( "m_SoundName", "DoSpark" );
@@ -290,7 +293,7 @@ void CNPC_Voltigore::Precache()
 	PrecacheScriptSound( "NPC_Voltigore.Eat" );
 	PrecacheScriptSound( "NPC_Voltigore.Explode" );
 
-	PrecacheModel( "sprites/glownomespit.vmt" );// spit projectile.
+	PrecacheModel( "sprites/glow01.spr" );// spit projectile.
 
 	BaseClass::Precache();
 }
