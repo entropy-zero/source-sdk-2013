@@ -101,7 +101,6 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	pSpit->SetAbsVelocity( vecVelocity );
 	pSpit->SetOwnerEntity( pOwner );
 
-
 	CSprite * pSprite = CSprite::SpriteCreate( "sprites/glownomespit.vmt", pOwner->GetAbsOrigin(), true );
 	pSpit->SetSprite( pSprite );
 
@@ -124,13 +123,13 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 
 
 	// Make a tesla to follow the projectile
-	CBaseEntity * pTesla = CreateNoSpawn( "point_tesla", vecStart, pSpit->GetAbsAngles(), pSpit );
-	pTesla->SetParent( pSpit );
+	CBaseEntity * pTesla;
+	pTesla = CreateNoSpawn( "point_tesla", vecStart, pSpit->GetAbsAngles(), pSpit );
 
 	pTesla->KeyValue( "beamcount_max", "8" );
 	pTesla->KeyValue( "beamcount_min", "6" );
-	pTesla->KeyValue( "interval_max", "6" );
-	pTesla->KeyValue( "interval_min", "3" );
+	pTesla->KeyValue( "interval_max", "0.75" );
+	pTesla->KeyValue( "interval_min", "0.1" );
 	pTesla->KeyValue( "lifetime_max", "0.3" );
 	pTesla->KeyValue( "lifetime_min", "0.3" );
 	pTesla->KeyValue( "thick_max", "5" );
@@ -139,9 +138,14 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	pTesla->KeyValue( "texture", "sprites/hydragutbeam.vmt" );
 	pTesla->KeyValue( "m_flRadius", "434" );
 	pTesla->KeyValue( "m_SoundName", "DoSpark" );
+	pTesla->KeyValue( "m_bOn", "1" );
 
 	DispatchSpawn( pTesla );
-	pTesla->AcceptInput( "TurnOn", pSpit, pOwner, variant_t(), 0 );
+	pTesla->Activate();
+	pTesla->SetAbsOrigin( pSpit->GetAbsOrigin() );
+	pTesla->SetParent( pSpit );
+
+	pTesla->AcceptInput( "TurnOn", pSpit, pSpit, variant_t(), 0 );
 
 	CBaseEntity *pGravityController = CGravityVortexController::Create( pSpit->GetAbsOrigin(), 128.0f, 128.0f, 4.5f, pSpit );
 	pGravityController->AddContext( "owner_classname:npc_pitdrone" );
