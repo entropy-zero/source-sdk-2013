@@ -638,7 +638,12 @@ public:
 
 	virtual float GetFireRate( void )
 	{
-		return 3.0f;
+		if ( GetOwner() && GetOwner()->IsPlayer() )
+		{
+			return 3.0f;
+		} 
+
+		return BaseClass::GetFireRate();
 	}
 
 	virtual void	UpdateOnRemove( void );
