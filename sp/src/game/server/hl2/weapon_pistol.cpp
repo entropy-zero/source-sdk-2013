@@ -63,7 +63,7 @@ public:
 	void	DryFire( void );
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 #ifdef MAPBASE
-	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+	virtual void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
 	void	Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 #endif
 
@@ -611,6 +611,8 @@ public:
 
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
+	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+
 	virtual bool Reload( void ) { return false; } // The pulse pistol does not reload
 
 	virtual int GetMaxClip2( void ) const { int iBase = BaseClass::GetMaxClip2(); return iBase > 0 ? iBase : sv_pulse_pistol_max_charge.GetInt(); }
@@ -822,6 +824,30 @@ void CWeaponPulsePistol::Operator_HandleAnimEvent( animevent_t * pEvent, CBaseCo
 	}
 
 	BaseClass::Operator_HandleAnimEvent( pEvent, pOperator );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Overridden by CWeaponPulsePistol to handle unique clip sizes
+//-----------------------------------------------------------------------------
+void CWeaponPulsePistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
+{
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
+
+	WeaponSound( SINGLE_NPC );
+
+	FireBulletsInfo_t info;
+	info.m_iShots = 1;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_PRECALCULATED;
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 1; // Pulse pistol ALWAYS uses tracer
+
+	pOperator->FireBullets( info );
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = MAX(m_iClip1 - 10, 0);
+	DevMsg( "NPC pulse pistol clip: %i\n", m_iClip1 );
 }
 
 
