@@ -616,6 +616,60 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 		m_nRecentDamage = 0;
 		m_flRecentDamageTime = 0;
 	}
+
+#ifdef EZ
+	// Inspired by npc_clonecop weapon switching
+	// Metropolice should change to and from melee weapons
+	if (GetActiveWeapon() == NULL)
+		return;
+
+	if (GetEnemy() == NULL)
+		return;
+	
+
+	int iNumWeapons = 0;
+	int iMeleeWeaponIndex = -1;
+	int iRangedWeaponIndex = -1;
+	for (int i=0; i<MAX_WEAPONS; i++)
+	{
+		if (m_hMyWeapons[i].Get() == NULL)
+			continue;
+
+		iNumWeapons++;
+
+		// For now, the weapon at the highest index of each type is chosen.
+		// Can add more nuance later
+		if (m_hMyWeapons[i].Get()->IsMeleeWeapon())
+		{
+			iMeleeWeaponIndex = i;
+			DevMsg( "%s found melee weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+			continue;
+		}
+
+
+		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 == 0)
+			continue;
+
+		iRangedWeaponIndex = i;
+		DevMsg( "%s found ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
+	}
+
+	if(iRangedWeaponIndex != -1 && GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance(GetEnemy()) > 256.0f )
+	{
+		DevMsg( "%s is using melee weapon and enemy is beyond 256 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+		inputdata_t inputdata;
+		inputdata.value.SetString( m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
+		InputChangeWeapon( inputdata );
+	}
+	else if (iMeleeWeaponIndex != -1 && !GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) < 72.0f)
+	{
+		DevMsg( "%s is using ranged weapon and enemy is closer than 72 units, so switching to melee weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+		inputdata_t inputdata;
+		inputdata.value.SetString( m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+		InputChangeWeapon( inputdata );
+
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
