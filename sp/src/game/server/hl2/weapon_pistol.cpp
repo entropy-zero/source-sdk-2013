@@ -643,9 +643,9 @@ public:
 		if ( GetOwner() && GetOwner()->IsPlayer() )
 		{
 			return 3.0f;
-		} 
+		}
 
-		return BaseClass::GetFireRate();
+		return 1.0f;
 	}
 
 	virtual void	UpdateOnRemove( void );
@@ -836,7 +836,7 @@ void CWeaponPulsePistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, 
 	WeaponSound( SINGLE_NPC );
 
 	FireBulletsInfo_t info;
-	info.m_iShots = 1;
+	info.m_iShots = 2;
 	info.m_vecSrc = vecShootOrigin;
 	info.m_vecDirShooting = vecShootDir;
 	info.m_vecSpread = VECTOR_CONE_PRECALCULATED;
@@ -847,7 +847,9 @@ void CWeaponPulsePistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, 
 	pOperator->FireBullets( info );
 	pOperator->DoMuzzleFlash();
 	m_iClip1 = MAX(m_iClip1 - 10, 0);
-	DevMsg( "NPC pulse pistol clip: %i\n", m_iClip1 );
+
+	// NPCs handle recharging after every shot
+	RechargeAmmo();
 }
 
 
