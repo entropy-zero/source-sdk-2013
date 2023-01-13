@@ -123,7 +123,11 @@ public:
 	}
 
 	// Use secondary ammo as a way of checking if this is a weapon which can be alt-fired (e.g. AR2 or SMG)
+#ifdef EZ2 // HACKHACK
+	virtual bool	IsAltFireCapable() { return (this->GetActiveWeapon() && (this->GetActiveWeapon()->UsesSecondaryAmmo() || FClassnameIs(this->GetActiveWeapon(), "weapon_pulsepistol"))); }
+#else
 	virtual bool	IsAltFireCapable() { return (this->GetActiveWeapon() && this->GetActiveWeapon()->UsesSecondaryAmmo()); }
+#endif
 	virtual bool	IsGrenadeCapable() { return true; }
 	inline bool		HasGrenades() { return m_iNumGrenades > 0; }
 
@@ -408,7 +412,11 @@ bool CAI_GrenadeUser<BASE_NPC>::CanAltFireEnemy( bool bUseFreeKnowledge )
 	if( !this->GetEnemy() )
 		return false;
 
+#ifdef EZ2
+	if (!EntIsClass(this->GetActiveWeapon(), gm_isz_class_AR2) && !EntIsClass(this->GetActiveWeapon(), gm_isz_class_SMG1) && !FClassnameIs(this->GetActiveWeapon(), "weapon_pulsepistol"))
+#else
 	if (!EntIsClass(this->GetActiveWeapon(), gm_isz_class_AR2) && !EntIsClass(this->GetActiveWeapon(), gm_isz_class_SMG1))
+#endif
 		return false;
 
 	CBaseEntity *pEnemy = this->GetEnemy();

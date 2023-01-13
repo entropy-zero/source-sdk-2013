@@ -4543,6 +4543,19 @@ int CNPC_MetroPolice::SelectBehaviorOverrideSchedule()
 		nResult = SelectRangeAttackSchedule();
 		if ( !GetShotRegulator()->IsInRestInterval() && nResult != SCHED_METROPOLICE_ADVANCE && nResult != SCHED_RANGE_ATTACK1 )
 			return nResult;
+
+#ifdef EZ2 // TODO: Can be added to Mapbase in the future?
+		if ( nResult == SCHED_RANGE_ATTACK1 )
+		{
+			if (CanAltFireEnemy( true ) && OccupyStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ))
+			{
+				// Since I'm holding this squadslot, no one else can try right now. If I die before the shot 
+				// goes off, I won't have affected anyone else's ability to use this attack at their nearest
+				// convenience.
+				return SCHED_METROPOLICE_AR2_ALTFIRE;
+			}
+		}
+#endif
 	}
 
 	if ( HasCondition( COND_TOO_CLOSE_TO_ATTACK ) )
