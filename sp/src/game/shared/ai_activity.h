@@ -2671,6 +2671,16 @@ typedef enum
 	ACT_VM_FIRSTDRAW_QUICK,
 	ACT_VM_FIRSTDRAW_PUMP,
 
+#ifdef EZ2
+	// E:Z2 weapons
+	ACT_RELOAD_PULSE_PISTOL,
+	ACT_RELOAD_PULSE_PISTOL_LOW,
+	ACT_CHARGE_PULSE_PISTOL,
+	ACT_CHARGE_PULSE_PISTOL_LOW,
+	ACT_GESTURE_RELOAD_PULSE_PISTOL,
+	ACT_GESTURE_CHARGE_PULSE_PISTOL,
+#endif
+
 	// this is the end of the global activities, private per-monster activities start here.
 	LAST_SHARED_ACTIVITY,
 } Activity;
