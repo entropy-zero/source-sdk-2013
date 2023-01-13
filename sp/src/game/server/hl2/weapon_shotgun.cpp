@@ -18,6 +18,10 @@
 #include "soundent.h"
 #include "vstdlib/random.h"
 #include "gamestats.h"
+#ifdef EZ2
+#include "shot_manipulator.h"
+#include "npc_hunter.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -37,8 +41,9 @@ public:
 
 	DECLARE_SERVERCLASS();
 
-private:
+protected:
 	bool	m_bNeedPump;		// When emptied completely
+private:
 	bool	m_bDelayedFire1;	// Fire primary when finished reloading
 	bool	m_bDelayedFire2;	// Fire secondary when finished reloading
 
@@ -87,6 +92,9 @@ public:
 	virtual Activity GetDrawActivity( void );
 #endif
 
+#ifdef EZ2
+	virtual
+#endif
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
@@ -100,7 +108,7 @@ IMPLEMENT_SERVERCLASS_ST(CWeaponShotgun, DT_WeaponShotgun)
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( weapon_shotgun, CWeaponShotgun );
-PRECACHE_WEAPON_REGISTER(weapon_shotgun);
+//PRECACHE_WEAPON_REGISTER(weapon_shotgun);
 
 BEGIN_DATADESC( CWeaponShotgun )
 
@@ -971,3 +979,251 @@ void CWeaponShotgun::WeaponIdle( void )
 	}
 }
 */
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// CWeaponFlechetteShotgun
+//-----------------------------------------------------------------------------
+
+ConVar	sk_plr_flechette_shotgun_num_pellets( "sk_plr_flechette_shotgun_num_pellets","6", FCVAR_REPLICATED);
+ConVar	sk_plr_flechette_shotgun_num_pellets_double( "sk_plr_flechette_shotgun_num_pellets_double","11", FCVAR_REPLICATED);
+ConVar	sk_npc_flechette_shotgun_num_pellets( "sk_npc_flechette_shotgun_num_pellets","6", FCVAR_REPLICATED);
+ConVar	sk_plr_flechette_shotgun_speed_min( "sk_plr_flechette_shotgun_speed_min","900", FCVAR_REPLICATED);
+ConVar	sk_plr_flechette_shotgun_speed_max( "sk_plr_flechette_shotgun_speed_max","1000", FCVAR_REPLICATED);
+ConVar	sk_npc_flechette_shotgun_speed_min( "sk_npc_flechette_shotgun_speed_min","1250", FCVAR_REPLICATED);
+ConVar	sk_npc_flechette_shotgun_speed_max( "sk_npc_flechette_shotgun_speed_max","1250", FCVAR_REPLICATED);
+
+class CWeaponFlechetteShotgun : public CWeaponShotgun
+{
+public:
+	DECLARE_CLASS( CWeaponFlechetteShotgun, CWeaponShotgun );
+	DECLARE_SERVERCLASS();
+
+public:
+	void	Precache( void );
+
+	int CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
+
+	virtual const Vector& GetBulletSpread( void )
+	{
+		// NPCs need to return 100% accurate here because they calculate spread differently
+		static Vector npcCone = VECTOR_CONE_1DEGREES;
+		if ( GetOwner() && GetOwner()->IsNPC() )
+			return npcCone;
+
+		static Vector cone = VECTOR_CONE_10DEGREES;
+		return cone;
+	}
+
+	void PrimaryAttack( void );
+	void SecondaryAttack( void );
+
+	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
+
+	//DECLARE_ACTTABLE();
+
+	//CWeaponFlechetteShotgun(void);
+};
+
+IMPLEMENT_SERVERCLASS_ST( CWeaponFlechetteShotgun, DT_WeaponFlechetteShotgun )
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_flechette_shotgun, CWeaponFlechetteShotgun );
+PRECACHE_WEAPON_REGISTER( weapon_flechette_shotgun );
+
+void CWeaponFlechetteShotgun::Precache( void )
+{
+	BaseClass::Precache();
+	UTIL_PrecacheOther( "hunter_flechette" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pOperator - 
+//-----------------------------------------------------------------------------
+void CWeaponFlechetteShotgun::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles )
+{
+	Vector vecShootOrigin, vecShootDir;
+	CAI_BaseNPC *npc = pOperator->MyNPCPointer();
+	ASSERT( npc != NULL );
+	WeaponSound( SINGLE_NPC );
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = m_iClip1 - 1;
+
+	if ( bUseWeaponAngles )
+	{
+		QAngle	angShootDir;
+		GetAttachment( LookupAttachment( "muzzle" ), vecShootOrigin, angShootDir );
+		AngleVectors( angShootDir, &vecShootDir );
+	}
+	else 
+	{
+		vecShootOrigin = pOperator->Weapon_ShootPosition();
+		vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
+	}
+
+	CShotManipulator Manipulator( vecShootDir );
+	Vector vecDir;
+	static const Vector vecCone = VECTOR_CONE_10DEGREES;
+
+	for (int i = 0; i < sk_npc_flechette_shotgun_num_pellets.GetInt(); i++)
+	{
+		vecDir = Manipulator.ApplySpread( vecCone );
+
+		FlechetteShotgun_CreateFlechette( vecShootOrigin, vecDir * RandomFloat( sk_npc_flechette_shotgun_speed_min.GetFloat(), sk_npc_flechette_shotgun_speed_max.GetFloat() ), npc);
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponFlechetteShotgun::PrimaryAttack( void )
+{
+	// Only the player fires this way so we can cast
+	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
+
+	if (!pPlayer)
+	{
+		return;
+	}
+
+	// MUST call sound before removing a round from the clip of a CMachineGun
+	WeaponSound(SINGLE);
+
+	pPlayer->DoMuzzleFlash();
+
+	SendWeaponAnim( ACT_VM_PRIMARYATTACK );
+
+	// player "shoot" animation
+	pPlayer->SetAnimation( PLAYER_ATTACK1 );
+
+	// Don't fire again until fire animation has completed
+	m_flNextPrimaryAttack = gpGlobals->curtime + GetViewModelSequenceDuration();
+	m_iClip1 -= 1;
+
+	Vector	vecSrc		= pPlayer->Weapon_ShootPosition( );
+	Vector	vecAiming	= pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
+
+	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
+
+	// Fire the flechettes
+	CShotManipulator Manipulator( vecAiming );
+	Vector vecDir;
+
+	for (int i = 0; i < sk_plr_flechette_shotgun_num_pellets.GetInt(); i++)
+	{
+		if ( i == 0 )
+		{
+			// Force the first shot to be perfectly accurate and at max speed
+			vecDir = Manipulator.GetShotDirection();
+
+			FlechetteShotgun_CreateFlechette( vecSrc, vecDir * sk_plr_flechette_shotgun_speed_max.GetFloat(), pPlayer );
+		}
+		else
+		{
+			vecDir = Manipulator.ApplySpread( GetBulletSpread() );
+
+			FlechetteShotgun_CreateFlechette( vecSrc, vecDir * RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() ), pPlayer );
+		}
+	}
+	
+#ifdef EZ
+	pPlayer->ViewPunch(QAngle(random->RandomFloat(-4, -2), random->RandomFloat(-4, 4), 0)); // Breadman - values doubled
+#else
+	pPlayer->ViewPunch( QAngle( random->RandomFloat( -2, -1 ), random->RandomFloat( -2, 2 ), 0 ) );
+#endif
+
+	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_SHOTGUN, 0.2, GetOwner() );
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
+	{
+		// HEV suit - indicate out of ammo condition
+		pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0); 
+	}
+
+	if( m_iClip1 )
+	{
+		// pump so long as some rounds are left.
+		m_bNeedPump = true;
+	}
+
+	m_iPrimaryAttacks++;
+	gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponFlechetteShotgun::SecondaryAttack( void )
+{
+	// Only the player fires this way so we can cast
+	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
+
+	if (!pPlayer)
+	{
+		return;
+	}
+
+	pPlayer->m_nButtons &= ~IN_ATTACK2;
+	// MUST call sound before removing a round from the clip of a CMachineGun
+	WeaponSound(WPN_DOUBLE);
+
+	pPlayer->DoMuzzleFlash();
+
+	SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+
+	// player "shoot" animation
+#ifdef MAPBASE
+	pPlayer->SetAnimation( PLAYER_ATTACK2 );
+#else
+	pPlayer->SetAnimation( PLAYER_ATTACK1 );
+#endif
+
+	// Don't fire again until fire animation has completed
+#ifdef MAPBASE
+	m_flNextPrimaryAttack = gpGlobals->curtime + GetViewModelSequenceDuration();
+#else
+	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
+#endif
+	m_iClip1 -= 2;	// Shotgun uses same clip for primary and secondary attacks
+
+	Vector vecSrc	 = pPlayer->Weapon_ShootPosition();
+	Vector vecAiming = pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
+
+	// Fire the flechettes
+	CShotManipulator Manipulator( vecAiming );
+	Vector vecDir;
+
+	for (int i = 0; i < sk_plr_flechette_shotgun_num_pellets_double.GetInt(); i++)
+	{
+		vecDir = Manipulator.ApplySpread( GetBulletSpread() );
+
+		FlechetteShotgun_CreateFlechette( vecSrc, vecDir * RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() ), pPlayer);
+	}
+
+#ifdef EZ
+	pPlayer->ViewPunch(QAngle(random->RandomFloat(-7, -7), random->RandomFloat(-6, 6), 0)); // Breadman - was 5 5 and second bit wasn't present
+#else
+	pPlayer->ViewPunch( QAngle(random->RandomFloat( -5, 5 ),0,0) );
+#endif
+
+	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
+
+	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_SHOTGUN, 0.2 );
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
+	{
+		// HEV suit - indicate out of ammo condition
+		pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0); 
+	}
+
+	if( m_iClip1 )
+	{
+		// pump so long as some rounds are left.
+		m_bNeedPump = true;
+	}
+
+	m_iSecondaryAttacks++;
+	gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );
+}
+#endif

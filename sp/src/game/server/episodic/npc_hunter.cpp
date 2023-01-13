@@ -392,6 +392,10 @@ protected:
 
 	void FlechetteTouch( CBaseEntity *pOther );
 
+#ifdef EZ2
+	virtual bool IsShotgunFlechette() { return false; }
+#endif
+
 	Vector m_vecShootPosition;
 	EHANDLE m_hSeekTarget;
 	bool m_bThrownBack;
@@ -624,6 +628,26 @@ void CHunterFlechette::StickTo( CBaseEntity *pOther, trace_t &tr )
 	
 	if ( !pOther->IsWorld() )
 	{
+#ifdef EZ2
+		if (pOther->IsNPC())
+		{
+			// Pick the nearest attachment
+			//pOther->GetBaseAnimating()->GetPhysicsBone();
+			//tr.physicsbone
+
+			if (GetEntityName() == NULL_STRING)
+			{
+				// Make sure the flechettes are cleaned up if the NPC is killed
+				char szNewName[128];
+				Q_snprintf(szNewName, sizeof(szNewName), "%i_flechette", pOther->entindex());
+				SetName( AllocPooledString( szNewName ) );
+
+				//pOther->KeyValue( "OnServerRagdoll", UTIL_VarArgs( "%s,SetParent,,0,-1", szNewName ) );
+				pOther->KeyValue( "OnDeath", UTIL_VarArgs( "%s,Kill,,0,-1", szNewName ) );
+			}
+		}
+#endif
+
 		SetParent( pOther );
 		SetSolid( SOLID_NONE );
 		SetSolidFlags( FSOLID_NOT_SOLID );
@@ -768,6 +792,13 @@ void CHunterFlechette::FlechetteTouch( CBaseEntity *pOther )
 			// We hit a physics object that survived the impact. Stick to it.
 			StickTo( pOther, tr );
 		}
+#ifdef EZ2
+		else if ( IsShotgunFlechette() && pOther->IsNPC() && ( ( pOther->GetHealth() > 0 ) || ( pOther->m_takedamage == DAMAGE_EVENTS_ONLY ) ) )
+		{
+			// Shotgun flechettes stick to NPCs
+			StickTo( pOther, tr );
+		}
+#endif
 		else
 		{
 			SetTouch( NULL );
@@ -944,7 +975,12 @@ void CHunterFlechette::Explode()
 		nDamageType |= DMG_PREVENT_PHYSICS_FORCE;
 	}
 
+#ifdef EZ2
+	// Shotgun flechettes ignore their owners
+	RadiusDamage( CTakeDamageInfo( this, GetOwnerEntity(), sk_hunter_flechette_explode_dmg.GetFloat(), nDamageType ), GetAbsOrigin(), sk_hunter_flechette_explode_radius.GetFloat(), CLASS_NONE, IsShotgunFlechette() ? GetOwnerEntity() : NULL );
+#else
 	RadiusDamage( CTakeDamageInfo( this, GetOwnerEntity(), sk_hunter_flechette_explode_dmg.GetFloat(), nDamageType ), GetAbsOrigin(), sk_hunter_flechette_explode_radius.GetFloat(), CLASS_NONE, NULL );
+#endif
 		
     AddEffects( EF_NODRAW );
 
@@ -7533,6 +7569,60 @@ void Hunter_StriderBusterDetached( CBaseEntity *pHunter, CBaseEntity *pAttached 
 
 	static_cast<CNPC_Hunter *>(pHunter)->StriderBusterDetached(pAttached);
 }
+
+
+#ifdef EZ2
+class CShotgunFlechette : public CHunterFlechette
+{
+	DECLARE_CLASS( CShotgunFlechette, CHunterFlechette );
+
+public:
+
+	//CShotgunFlechette();
+	//~CShotgunFlechette();
+
+	bool IsShotgunFlechette() { return true; }
+
+	static CShotgunFlechette *ShotgunFlechetteCreate( const Vector &vecOrigin, const QAngle &angAngles, CBaseEntity *pentOwner = NULL );
+};
+
+LINK_ENTITY_TO_CLASS( shotgun_flechette, CShotgunFlechette );
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+CShotgunFlechette *CShotgunFlechette::ShotgunFlechetteCreate( const Vector &vecOrigin, const QAngle &angAngles, CBaseEntity *pentOwner )
+{
+	// Create a new entity with CHunterFlechette private data
+	CShotgunFlechette *pFlechette = (CShotgunFlechette *)CreateEntityByName( "shotgun_flechette" );
+	UTIL_SetOrigin( pFlechette, vecOrigin );
+	pFlechette->SetAbsAngles( angAngles );
+	pFlechette->Spawn();
+	pFlechette->Activate();
+	pFlechette->SetOwnerEntity( pentOwner );
+
+	return pFlechette;
+}
+
+CBaseEntity *FlechetteShotgun_CreateFlechette( const Vector &vecOrigin, Vector &vecDir, CBaseEntity *pOwner )
+{
+	Vector vecDirNorm = vecDir;
+	VectorNormalize( vecDirNorm );
+	QAngle angDir;
+	VectorAngles( vecDirNorm, angDir );
+
+	CShotgunFlechette *entity = CShotgunFlechette::ShotgunFlechetteCreate( vecOrigin, angDir, pOwner );
+	if ( entity )
+	{
+		entity->Precache();
+		DispatchSpawn( entity );
+
+		// Shoot the flechette.
+		entity->Shoot( vecDir, false );
+	}
+
+	return entity;
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 //
