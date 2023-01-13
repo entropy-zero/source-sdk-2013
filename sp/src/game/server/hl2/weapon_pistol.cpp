@@ -667,6 +667,12 @@ public:
 
 	void	CreateBeamBlast( const Vector &vecOrigin );
 
+	// Allow specific unique activities for pulse pistol
+	virtual acttable_t *GetBackupActivityList() { return BaseClass::ActivityList(); }
+	virtual int				GetBackupActivityListCount() { return BaseClass::ActivityListCount(); }
+
+	DECLARE_ACTTABLE();
+
 protected:
 	CHandle<CSprite>	m_hChargeSprite;
 
@@ -679,6 +685,30 @@ private:
 	float			m_flLastChargeTime;
 	float			m_flLastChargeSoundTime;
 };
+
+acttable_t	CWeaponPulsePistol::m_acttable[] =
+{
+	{ ACT_IDLE,						ACT_IDLE_PISTOL,				true },
+	{ ACT_IDLE_ANGRY,				ACT_IDLE_ANGRY_PISTOL,			true },
+	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_PISTOL,		true },
+	{ ACT_WALK_AIM,					ACT_WALK_AIM_PISTOL,			true },
+	{ ACT_RUN_AIM,					ACT_RUN_AIM_PISTOL,				true },
+	{ ACT_GESTURE_RANGE_ATTACK1,	ACT_GESTURE_RANGE_ATTACK_PISTOL,true },
+	{ ACT_RANGE_ATTACK1_LOW,		ACT_RANGE_ATTACK_PISTOL_LOW,	false },
+	{ ACT_COVER_LOW,				ACT_COVER_PISTOL_LOW,			false },
+	{ ACT_RANGE_AIM_LOW,			ACT_RANGE_AIM_PISTOL_LOW,		false },
+	{ ACT_WALK,						ACT_WALK_PISTOL,				false },
+	{ ACT_RUN,						ACT_RUN_PISTOL,					false },
+
+	// New activities
+	{ ACT_RELOAD,						ACT_RELOAD_PULSE_PISTOL,			true },
+	{ ACT_RELOAD_LOW,					ACT_RELOAD_PULSE_PISTOL_LOW,		false },
+	{ ACT_GESTURE_RELOAD,				ACT_GESTURE_RELOAD_PULSE_PISTOL,	false },
+	{ ACT_COMBINE_AR2_ALTFIRE,			ACT_CHARGE_PULSE_PISTOL,			false },
+	{ ACT_GESTURE_COMBINE_AR2_ALTFIRE,	ACT_GESTURE_CHARGE_PULSE_PISTOL,	false },
+};
+
+IMPLEMENT_ACTTABLE( CWeaponPulsePistol );
 
 CWeaponPulsePistol::CWeaponPulsePistol()
 {
@@ -825,6 +855,20 @@ void CWeaponPulsePistol::Operator_HandleAnimEvent( animevent_t * pEvent, CBaseCo
 	case AE_SLIDERETURN:
 		m_iClip1 = MAX( m_iClip1, sv_pulse_pistol_slide_return_charge.GetInt() );
 		WeaponSound( RELOAD, m_flNextPrimaryAttack );
+		break;
+
+	case EVENT_WEAPON_AR2_ALTFIRE:
+		{
+			Vector vecShootOrigin, vecShootDir;
+			vecShootOrigin = pOperator->Weapon_ShootPosition();
+
+			CAI_BaseNPC *npc = pOperator->MyNPCPointer();
+			ASSERT( npc != NULL );
+
+			vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
+
+			FireNPCSecondaryAttack( pOperator, vecShootOrigin, vecShootDir );
+		}
 		break;
 	}
 
