@@ -108,7 +108,7 @@ IMPLEMENT_SERVERCLASS_ST(CWeaponShotgun, DT_WeaponShotgun)
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( weapon_shotgun, CWeaponShotgun );
-//PRECACHE_WEAPON_REGISTER(weapon_shotgun);
+PRECACHE_WEAPON_REGISTER(weapon_shotgun);
 
 BEGIN_DATADESC( CWeaponShotgun )
 
@@ -1029,7 +1029,7 @@ IMPLEMENT_SERVERCLASS_ST( CWeaponFlechetteShotgun, DT_WeaponFlechetteShotgun )
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( weapon_flechette_shotgun, CWeaponFlechetteShotgun );
-PRECACHE_WEAPON_REGISTER( weapon_flechette_shotgun );
+//PRECACHE_WEAPON_REGISTER( weapon_flechette_shotgun );
 
 void CWeaponFlechetteShotgun::Precache( void )
 {
