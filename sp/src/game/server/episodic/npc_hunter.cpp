@@ -631,14 +631,12 @@ void CHunterFlechette::StickTo( CBaseEntity *pOther, trace_t &tr )
 #ifdef EZ2
 		if (pOther->IsNPC())
 		{
-			// Pick the nearest attachment
-			//pOther->GetBaseAnimating()->GetPhysicsBone();
-			//tr.physicsbone
+			// TODO: Pick the nearest attachment?
 
 			if (GetEntityName() == NULL_STRING)
 			{
 				// Make sure the flechettes are cleaned up if the NPC is killed
-				char szNewName[128];
+				char szNewName[16];
 				Q_snprintf(szNewName, sizeof(szNewName), "%i_flechette", pOther->entindex());
 				SetName( AllocPooledString( szNewName ) );
 
