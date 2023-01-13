@@ -654,7 +654,7 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 		DevMsg( "%s found ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
 	}
 
-	if(iRangedWeaponIndex != -1 && GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance(GetEnemy()) > 256.0f )
+	if(iRangedWeaponIndex != -1 && GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance(GetEnemy()) > 96.0f )
 	{
 		DevMsg( "%s is using melee weapon and enemy is beyond 256 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
 		inputdata_t inputdata;
@@ -664,11 +664,20 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 	else if (iMeleeWeaponIndex != -1 && !GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) < 72.0f)
 	{
 		DevMsg( "%s is using ranged weapon and enemy is closer than 72 units, so switching to melee weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
-		inputdata_t inputdata;
-		inputdata.value.SetString( m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
-		InputChangeWeapon( inputdata );
-
+		Weapon_Equip( m_hMyWeapons[iMeleeWeaponIndex] );
+		UnholsterWeapon();
 	}
+	else
+	{
+		return;
+	}
+
+	ClearCondition( COND_CAN_RANGE_ATTACK1 );
+	ClearCondition( COND_CAN_RANGE_ATTACK2 );
+	ClearCondition( COND_ENEMY_TOO_FAR );
+	ClearCondition( COND_TOO_CLOSE_TO_ATTACK );
+	SetNextAttack( gpGlobals->curtime + 0.5f );
+	TaskInterrupt();
 #endif
 }
 
@@ -4688,8 +4697,21 @@ int CNPC_MetroPolice::CMetroPoliceStandoffBehavior::SelectScheduleAttack()
 		result = BaseClass::SelectScheduleAttack();
 	return result;
 }
-#endif
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Standoff schedule selection 
+//-----------------------------------------------------------------------------
+bool CNPC_MetroPolice::CMetroPoliceStandoffBehavior::CanSelectSchedule()
+{
+	if (GetOuter()->GetActiveWeapon() && GetOuter()->GetActiveWeapon()->IsMeleeWeapon())
+		return false;
+
+	return BaseClass::CanSelectSchedule();
+}
+
+#endif
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 

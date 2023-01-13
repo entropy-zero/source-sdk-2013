@@ -267,6 +267,11 @@ private:
 		typedef CAI_ComponentWithOuter<CNPC_MetroPolice, CAI_StandoffBehavior> BaseClass;
 
 		virtual int SelectScheduleAttack();
+
+#ifdef EZ2
+		virtual bool CanSelectSchedule();
+#endif
+
 	};
 #endif
 

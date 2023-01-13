@@ -106,6 +106,9 @@ public:
 	bool		IsActive( void ) { return m_fActive; }
 	void 		OnChangeTacticalConstraints();
 
+#ifdef EZ2
+	virtual
+#endif
 	bool 		CanSelectSchedule();
 	bool		IsBehindBattleLines( const Vector &point );
 
