@@ -656,7 +656,7 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 
 	if(iRangedWeaponIndex != -1 && GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance(GetEnemy()) > 96.0f )
 	{
-		DevMsg( "%s is using melee weapon and enemy is beyond 256 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+		DevMsg( "%s is using melee weapon and enemy is beyond 96 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
 		inputdata_t inputdata;
 		inputdata.value.SetString( m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
 		InputChangeWeapon( inputdata );
