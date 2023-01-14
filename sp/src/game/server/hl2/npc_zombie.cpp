@@ -1205,6 +1205,15 @@ bool CZombie::IsHeavyDamage( const CTakeDamageInfo &info )
 			return true;
 	}
 
+#ifdef EZ2
+	// Heavy damage when hit directly by shotgun flechettes
+	if ( info.GetDamageType() & (DMG_DISSOLVE | DMG_NEVERGIB) && info.GetInflictor() && FClassnameIs( info.GetInflictor(), "shotgun_flechette" ) )
+	{
+		if ( !m_fIsTorso )
+			return true;
+	}
+#endif
+
 	// Randomly treat all damage as heavy
 	if ( info.GetDamageType() & (DMG_BULLET | DMG_BUCKSHOT) )
 	{

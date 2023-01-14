@@ -4772,6 +4772,12 @@ bool CNPC_MetroPolice::IsHeavyDamage( const CTakeDamageInfo &info )
 	if ( info.GetDamageType() & DMG_BULLET )
 		return true;
 
+#ifdef EZ2
+	// Heavy damage when hit directly by shotgun flechettes
+	if ( info.GetDamageType() & (DMG_DISSOLVE | DMG_NEVERGIB) && info.GetInflictor() && FClassnameIs( info.GetInflictor(), "shotgun_flechette" ) )
+		return true;
+#endif
+
 	return BaseClass::IsHeavyDamage( info );
 }
 
