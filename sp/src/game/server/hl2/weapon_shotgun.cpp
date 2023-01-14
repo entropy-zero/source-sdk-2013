@@ -986,12 +986,26 @@ void CWeaponShotgun::WeaponIdle( void )
 //-----------------------------------------------------------------------------
 
 ConVar	sk_plr_flechette_shotgun_num_pellets( "sk_plr_flechette_shotgun_num_pellets","6", FCVAR_REPLICATED);
-ConVar	sk_plr_flechette_shotgun_num_pellets_double( "sk_plr_flechette_shotgun_num_pellets_double","11", FCVAR_REPLICATED);
+ConVar	sk_plr_flechette_shotgun_num_pellets_double( "sk_plr_flechette_shotgun_num_pellets_double","9", FCVAR_REPLICATED);
 ConVar	sk_npc_flechette_shotgun_num_pellets( "sk_npc_flechette_shotgun_num_pellets","6", FCVAR_REPLICATED);
-ConVar	sk_plr_flechette_shotgun_speed_min( "sk_plr_flechette_shotgun_speed_min","900", FCVAR_REPLICATED);
-ConVar	sk_plr_flechette_shotgun_speed_max( "sk_plr_flechette_shotgun_speed_max","1000", FCVAR_REPLICATED);
-ConVar	sk_npc_flechette_shotgun_speed_min( "sk_npc_flechette_shotgun_speed_min","1250", FCVAR_REPLICATED);
+
+ConVar	sk_plr_flechette_shotgun_speed_min( "sk_plr_flechette_shotgun_speed_min","1750", FCVAR_REPLICATED);
+ConVar	sk_plr_flechette_shotgun_speed_max( "sk_plr_flechette_shotgun_speed_max","2100", FCVAR_REPLICATED);
+ConVar	sk_npc_flechette_shotgun_speed_min( "sk_npc_flechette_shotgun_speed_min","1000", FCVAR_REPLICATED);
 ConVar	sk_npc_flechette_shotgun_speed_max( "sk_npc_flechette_shotgun_speed_max","1250", FCVAR_REPLICATED);
+
+ConVar	sk_plr_dmg_flechette( "sk_plr_dmg_flechette", "4.0" );
+ConVar	sk_plr_flechette_shotgun_explode_dmg( "sk_plr_flechette_shotgun_explode_dmg", "13.0" );
+ConVar	sk_plr_flechette_shotgun_explode_radius( "sk_plr_flechette_shotgun_explode_radius", "128.0" );
+ConVar	sk_npc_dmg_flechette( "sk_npc_dmg_flechette", "6.0" );
+ConVar	sk_npc_flechette_shotgun_explode_dmg( "sk_npc_flechette_shotgun_explode_dmg", "11.0" );
+ConVar	sk_npc_flechette_shotgun_explode_radius( "sk_npc_flechette_shotgun_explode_radius", "128.0" );
+
+ConVar	sk_plr_flechette_shotgun_explode_delay( "sk_plr_flechette_shotgun_explode_delay", "0" );
+ConVar	sk_npc_flechette_shotgun_explode_delay( "sk_npc_flechette_shotgun_explode_delay", "0" );
+
+ConVar	sk_plr_flechette_shotgun_explode_warn_duration( "sk_plr_flechette_shotgun_explode_warn_duration", "0.25" );
+ConVar	sk_npc_flechette_shotgun_explode_warn_duration( "sk_npc_flechette_shotgun_explode_warn_duration", "0.5" );
 
 class CWeaponFlechetteShotgun : public CWeaponShotgun
 {
@@ -1006,12 +1020,11 @@ public:
 
 	virtual const Vector& GetBulletSpread( void )
 	{
-		// NPCs need to return 100% accurate here because they calculate spread differently
-		static Vector npcCone = VECTOR_CONE_1DEGREES;
+		static Vector npcCone = VECTOR_CONE_7DEGREES;
 		if ( GetOwner() && GetOwner()->IsNPC() )
 			return npcCone;
 
-		static Vector cone = VECTOR_CONE_10DEGREES;
+		static Vector cone = VECTOR_CONE_6DEGREES;
 		return cone;
 	}
 
@@ -1034,7 +1047,7 @@ LINK_ENTITY_TO_CLASS( weapon_flechette_shotgun, CWeaponFlechetteShotgun );
 void CWeaponFlechetteShotgun::Precache( void )
 {
 	BaseClass::Precache();
-	UTIL_PrecacheOther( "hunter_flechette" );
+	UTIL_PrecacheOther( "shotgun_flechette" );
 }
 
 //-----------------------------------------------------------------------------
@@ -1184,7 +1197,8 @@ void CWeaponFlechetteShotgun::SecondaryAttack( void )
 
 	for (int i = 0; i < sk_plr_flechette_shotgun_num_pellets_double.GetInt(); i++)
 	{
-		vecDir = Manipulator.ApplySpread( GetBulletSpread() );
+		// Use a wider spread for the secondary
+		vecDir = Manipulator.ApplySpread( VECTOR_CONE_10DEGREES );
 
 		FlechetteShotgun_CreateFlechette( vecSrc, vecDir * RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() ), pPlayer);
 	}
