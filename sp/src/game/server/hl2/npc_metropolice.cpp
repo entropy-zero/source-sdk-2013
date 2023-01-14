@@ -675,6 +675,14 @@ void CNPC_MetroPolice::TryWeaponSwap(  )
 		UnholsterWeapon();
 		// Switching to a melee weapon has a very short delay so that the cop can swing+shoot
 		m_flNextWeaponSwapTime = gpGlobals->curtime + sk_metropolice_swap_melee_cooldown.GetFloat();
+
+		// Switch our baton on, if it's not already
+		if (HasBaton() && BatonActive() == false)
+		{
+			SetTarget( GetEnemy() );
+			SetBatonState( true );
+			m_flBatonDebounceTime = gpGlobals->curtime + random->RandomFloat( 2.5f, 4.0f );
+		}
 	}
 	else
 	{
@@ -692,25 +700,33 @@ void CNPC_MetroPolice::TryWeaponSwap(  )
 
 int CNPC_MetroPolice::FindWeaponToSwap( bool bMeleeWeapon )
 {
+	int iWeaponIndex = -1;
+
+	// For now, the weapon at the lowest index of each type is chosen.
+	// Can add more nuance later
 	for (int i=0; i<MAX_WEAPONS; i++)
 	{
 		if (m_hMyWeapons[i].Get() == NULL)
 			continue;
-
-		// For now, the weapon at the highest index of each type is chosen.
-		// Can add more nuance later
+		
+		// If we are looking for a melee weapon, only return index if that weapon is marked as a melee weapon
 		if (bMeleeWeapon && m_hMyWeapons[i].Get()->IsMeleeWeapon())
 			return i;
 		else if (bMeleeWeapon)
 			continue;
 
-		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 == 0)
+		// If we are looking for a ranged weapon and this is a melee weapon, keep looking
+		if (m_hMyWeapons[i].Get()->IsMeleeWeapon())
 			continue;
 
-		return i;
+		// If we are looking for a ranged weapon and we find a weapon that uses ammo and has ammo, return that one
+		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 != 0)
+			return i;
+			
+		iWeaponIndex = i;
 	}
 
-	return -1;
+	return iWeaponIndex;
 }
 
 //-----------------------------------------------------------------------------
