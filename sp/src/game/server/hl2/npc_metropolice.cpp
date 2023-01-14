@@ -127,6 +127,14 @@ ConVar  metropolice_charge("metropolice_charge", "1" );
 ConVar	metropolice_new_component_behavior("metropolice_new_component_behavior", "1");
 #endif
 
+#ifdef EZ2
+ConVar	sk_metropolice_swap_enabled( "sk_metropolice_swap_enabled", "0" );
+ConVar	sk_metropolice_swap_melee_cooldown( "sk_metropolice_swap_melee_cooldown", "0.5" );
+ConVar	sk_metropolice_swap_ranged_cooldown( "sk_metropolice_swap_ranged_cooldown", "2" );
+ConVar	sk_metropolice_swap_melee_distance( "sk_metropolice_swap_melee_distance", "72.0" );
+ConVar	sk_metropolice_swap_ranged_distance( "sk_metropolice_swap_ranged_distance", "96.0" );
+#endif
+
 // How many clips of pistol ammo a metropolice carries.
 #define METROPOLICE_NUM_CLIPS			5
 #define METROPOLICE_BURST_RELOAD_COUNT	20
@@ -224,6 +232,10 @@ BEGIN_DATADESC( CNPC_MetroPolice )
 	DEFINE_FIELD( m_flPreChaseYaw,		FIELD_FLOAT ),
 	DEFINE_FIELD( m_nNumWarnings,		FIELD_INTEGER ),
 	DEFINE_FIELD( m_iNumPlayerHits,		FIELD_INTEGER ),
+
+#ifdef EZ2
+	DEFINE_FIELD( m_flNextWeaponSwapTime, FIELD_FLOAT ),
+#endif
 
 	//								m_ActBusyBehavior (auto saved by AI)
 	//								m_StandoffBehavior (auto saved by AI)
@@ -617,55 +629,52 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 		m_flRecentDamageTime = 0;
 	}
 
-#ifdef EZ
-	// Inspired by npc_clonecop weapon switching
-	// Metropolice should change to and from melee weapons
+#ifdef EZ2
+	TryWeaponSwap();
+#endif
+}
+
+// Inspired by npc_clonecop weapon switching
+// Metropolice should change to and from melee weapons
+void CNPC_MetroPolice::TryWeaponSwap(  )
+{
+	if (sk_metropolice_swap_enabled.GetBool() == false)
+		return;
+
+	if (m_flNextWeaponSwapTime > gpGlobals->curtime)
+		return;
+
 	if (GetActiveWeapon() == NULL)
 		return;
 
 	if (GetEnemy() == NULL)
 		return;
-	
 
-	int iNumWeapons = 0;
-	int iMeleeWeaponIndex = -1;
-	int iRangedWeaponIndex = -1;
-	for (int i=0; i<MAX_WEAPONS; i++)
+	int iWeaponIndex = -1;
+	if (GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) > sk_metropolice_swap_ranged_distance.GetFloat())
 	{
-		if (m_hMyWeapons[i].Get() == NULL)
-			continue;
+		iWeaponIndex = FindWeaponToSwap( false );
+		if (iWeaponIndex == -1)
+			return;
 
-		iNumWeapons++;
-
-		// For now, the weapon at the highest index of each type is chosen.
-		// Can add more nuance later
-		if (m_hMyWeapons[i].Get()->IsMeleeWeapon())
-		{
-			iMeleeWeaponIndex = i;
-			DevMsg( "%s found melee weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
-			continue;
-		}
-
-
-		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 == 0)
-			continue;
-
-		iRangedWeaponIndex = i;
-		DevMsg( "%s found ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
-	}
-
-	if(iRangedWeaponIndex != -1 && GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance(GetEnemy()) > 96.0f )
-	{
-		DevMsg( "%s is using melee weapon and enemy is beyond 96 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
+		DevMsg( "%s is using melee weapon and enemy is beyond 96 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
 		inputdata_t inputdata;
-		inputdata.value.SetString( m_hMyWeapons[iRangedWeaponIndex]->m_iClassname );
+		inputdata.value.SetString( m_hMyWeapons[iWeaponIndex]->m_iClassname );
 		InputChangeWeapon( inputdata );
+		// Switching back to a ranged weapon has a longer delay than initially switching to a melee weapon
+		m_flNextWeaponSwapTime = gpGlobals->curtime + sk_metropolice_swap_ranged_cooldown.GetFloat();
 	}
-	else if (iMeleeWeaponIndex != -1 && !GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) < 72.0f)
+	else if (!GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) < sk_metropolice_swap_melee_distance.GetFloat())
 	{
-		DevMsg( "%s is using ranged weapon and enemy is closer than 72 units, so switching to melee weapon %s\n", GetDebugName(), m_hMyWeapons[iMeleeWeaponIndex]->m_iClassname );
-		Weapon_Equip( m_hMyWeapons[iMeleeWeaponIndex] );
+		iWeaponIndex = FindWeaponToSwap( true );
+		if (iWeaponIndex == -1)
+			return;
+
+		DevMsg( "%s is using ranged weapon and enemy is closer than 72 units, so switching to melee weapon %s\n", GetDebugName(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		Weapon_Equip( m_hMyWeapons[iWeaponIndex] );
 		UnholsterWeapon();
+		// Switching to a melee weapon has a very short delay so that the cop can swing+shoot
+		m_flNextWeaponSwapTime = gpGlobals->curtime + sk_metropolice_swap_melee_cooldown.GetFloat();
 	}
 	else
 	{
@@ -678,7 +687,30 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 	ClearCondition( COND_TOO_CLOSE_TO_ATTACK );
 	SetNextAttack( gpGlobals->curtime + 0.5f );
 	TaskInterrupt();
-#endif
+}
+
+
+int CNPC_MetroPolice::FindWeaponToSwap( bool bMeleeWeapon )
+{
+	for (int i=0; i<MAX_WEAPONS; i++)
+	{
+		if (m_hMyWeapons[i].Get() == NULL)
+			continue;
+
+		// For now, the weapon at the highest index of each type is chosen.
+		// Can add more nuance later
+		if (bMeleeWeapon && m_hMyWeapons[i].Get()->IsMeleeWeapon())
+			return i;
+		else if (bMeleeWeapon)
+			continue;
+
+		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 == 0)
+			continue;
+
+		return i;
+	}
+
+	return -1;
 }
 
 //-----------------------------------------------------------------------------

@@ -192,7 +192,12 @@ private:
 	bool		ShouldHitPlayer( const Vector &targetDir, float targetDist );
 
 	void		PrescheduleThink( void );
-	
+
+#ifdef EZ2
+	void		TryWeaponSwap();
+	int			FindWeaponToSwap(bool bMeleeWeapon);
+#endif
+
 	void		SetPlayerCriminalDuration( float time );
 
 	void		IncrementPlayerCriminalStatus( void );
@@ -527,6 +532,10 @@ private:
 	float			m_flPreChaseYaw;
 	int				m_nNumWarnings;
 	int				m_iNumPlayerHits;
+
+#ifdef EZ2
+	float			m_flNextWeaponSwapTime;
+#endif
 
 	// Outputs
 	COutputEvent	m_OnStunnedPlayer;
