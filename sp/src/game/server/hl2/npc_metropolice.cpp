@@ -657,7 +657,7 @@ void CNPC_MetroPolice::TryWeaponSwap(  )
 		if (iWeaponIndex == -1)
 			return;
 
-		DevMsg( "%s is using melee weapon and enemy is beyond 96 units, so switching to ranged weapon %s\n", GetDebugName(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		DevMsg( "%s is using melee weapon and enemy is beyond %f units, so switching to ranged weapon %s\n", GetDebugName(), sk_metropolice_swap_ranged_distance.GetFloat(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
 		inputdata_t inputdata;
 		inputdata.value.SetString( m_hMyWeapons[iWeaponIndex]->m_iClassname );
 		InputChangeWeapon( inputdata );
@@ -670,7 +670,7 @@ void CNPC_MetroPolice::TryWeaponSwap(  )
 		if (iWeaponIndex == -1)
 			return;
 
-		DevMsg( "%s is using ranged weapon and enemy is closer than 72 units, so switching to melee weapon %s\n", GetDebugName(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		DevMsg( "%s is using ranged weapon and enemy is closer than %f units, so switching to melee weapon %s\n", GetDebugName(), sk_metropolice_swap_melee_distance.GetFloat(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
 		Weapon_Equip( m_hMyWeapons[iWeaponIndex] );
 		UnholsterWeapon();
 		// Switching to a melee weapon has a very short delay so that the cop can swing+shoot
