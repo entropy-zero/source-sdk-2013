@@ -41,6 +41,8 @@ $Project "Client (Entropy Zero 2)"
 			$File	"ez2\c_weapon_pulse_pistol.cpp"
 			$File	"ez2\zombiegooproxy.cpp"
 			$File	"ez2\hud_slamstatus.cpp"
+
+			$File	"workshop_publish.cpp" [!$NO_STEAM]
 		}
 		$Folder	"HL2 DLL"
 		{
