@@ -143,6 +143,8 @@ ConVar sv_flashlight_cc_maxweight( "sv_flashlight_cc_maxweight", "100", FCVAR_RE
 ConVar sv_flashlight_cc_filename( "sv_flashlight_cc_filename", "ez2_nvg.raw", FCVAR_REPLICATED );
 ConVar sv_player_hands_modelname( "sv_player_hands_modelname", "models/weapons/ez2/v_hands.mdl", FCVAR_REPLICATED, "Filename of model to use for suit inspect animation" );
 ConVar sv_player_kick_default_modelname( "sv_player_kick_default_modelname", "models/weapons/ez2/v_kick.mdl", FCVAR_REPLICATED, "Default filename of model to use for kick animation - can be overridden in map" );
+ConVar sv_pulsepistol_battery_pickup( "sv_pulsepistol_battery_pickup", "1", FCVAR_REPLICATED, "Picks up extra pulse pistols as armor batteries" );
+ConVar sv_pulsepistol_battery_pickup_amount( "sv_pulsepistol_battery_pickup_amount", "0.4", FCVAR_REPLICATED, "What percentage of sk_battery should be provided by extra pulse pistols" );
 #else
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "0", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "1", FCVAR_REPLICATED);
@@ -3575,6 +3577,18 @@ bool CHL2_Player::Weapon_CanUse( CBaseCombatWeapon *pWeapon )
 		return false;
 	}
 #endif
+#endif
+
+#ifdef EZ2
+	if ( pWeapon->ClassMatches( "weapon_pulsepistol" ) && sv_pulsepistol_battery_pickup.GetBool() )
+	{
+		if (Weapon_OwnsThisType( "weapon_pulsepistol" ))
+		{
+			if (ApplyBattery( sv_pulsepistol_battery_pickup_amount.GetFloat() ))
+				UTIL_Remove( pWeapon );
+			return false;
+		}
+	}
 #endif
 
 	return BaseClass::Weapon_CanUse( pWeapon );
