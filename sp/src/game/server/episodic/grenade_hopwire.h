@@ -152,6 +152,49 @@ public:
 #endif
 };
 
+#ifdef EZ2
+class CStasisVortexController : public CGravityVortexController
+{
+	DECLARE_CLASS( CStasisVortexController, CGravityVortexController );
+	DECLARE_DATADESC();
+
+public:
+
+	CStasisVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ) {}
+
+	static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+
+	void	SetThrower( CBaseCombatCharacter *pBCC ) { m_hThrower.Set( pBCC ); }
+	CBaseCombatCharacter *GetThrower() { return m_hThrower.Get(); }
+
+	bool	CanConsumeEntity( CBaseEntity *pEnt );
+
+	void	InputDetonate( inputdata_t &inputdata ) { StartPull( GetAbsOrigin(), m_flRadius, m_flStrength, m_flEndTime ); }
+
+private:
+	void	PullPlayersInRange( void );
+	bool	KillNPCInRange( CBaseEntity *pVictim, IPhysicsObject **pPhysObj );
+
+	void	PullThink( void );
+	void	StartPull( const Vector &origin, float radius, float strength, float duration );
+
+	float	m_flEndTime;	// Time when the vortex will stop functioning
+	float	m_flRadius;		// Area of effect for the vortex
+	float	m_flStrength;	// Pulling strength of the vortex
+
+	float	m_flStartTime;		// When the vortex opened
+	float	m_flPullFadeTime;	// How long the pull fade should last
+
+	CHandle<CBaseCombatCharacter>	m_hThrower;
+
+	// PVS for PullThink()
+	byte		m_PVS[MAX_MAP_CLUSTERS/8];
+	bool		m_bPVSCreated;
+
+	COutputEvent		m_OnPullFinished;
+};
+#endif
+
 class CGrenadeHopwire : public CBaseGrenade
 {
 	DECLARE_CLASS( CGrenadeHopwire, CBaseGrenade );
@@ -174,10 +217,14 @@ public:
 	void	CreateEffects( void );
 
 	void	InputSetTimer( inputdata_t &inputdata );
-#endif
-	
+
+	virtual void	EndThink( void );		// Last think before going away
+	virtual void	CombatThink( void );	// Makes the main explosion go off
+
+#else	
 	void	EndThink( void );		// Last think before going away
 	void	CombatThink( void );	// Makes the main explosion go off
+#endif
 
 	void SetWorldModelClosed(const char * modelName) { Q_strncpy(szWorldModelClosed, modelName, MAX_WEAPON_STRING); }
 	void SetWorldModelOpen(const char * modelName) { Q_strncpy(szWorldModelOpen, modelName, MAX_WEAPON_STRING); }
@@ -202,6 +249,22 @@ CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, cons
 
 #ifdef EZ2
 void VerifyXenRecipeManager( const char *pszActivator );
+
+
+
+
+class CGrenadeStasis : public CGrenadeHopwire
+{
+	DECLARE_CLASS( CGrenadeStasis, CGrenadeHopwire );
+	DECLARE_DATADESC();
+
+public:
+	virtual void	EndThink( void );		// Last think before going away
+	virtual void	CombatThink( void );	// Makes the main explosion go off
+
+};
+
+
 #endif
 
 #endif // GRENADE_HOPWIRE_H
