@@ -685,8 +685,17 @@ void CAI_GrenadeUser<BASE_NPC>::DropGrenadeItemsOnDeath( const CTakeDamageInfo &
 	if( IsAltFireCapable() && ShouldDropAltFire() )
 	{
 		CBaseEntity *pItem;
-		if (this->GetActiveWeapon() && FClassnameIs( this->GetActiveWeapon(), "weapon_smg1" ))
-			pItem = this->DropItem( "item_ammo_smg1_grenade", this->WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
+		if (this->GetActiveWeapon())
+		{
+			if (FClassnameIs( this->GetActiveWeapon(), "weapon_smg1" ))
+				pItem = this->DropItem( "item_ammo_smg1_grenade", this->WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
+#ifdef EZ2
+			else if (FClassnameIs( this->GetActiveWeapon(), "weapon_pulsepistol" ))
+				pItem = NULL; // Give nothing for now
+#endif
+			else
+				pItem = this->DropItem( "item_ammo_ar2_altfire", this->WorldSpaceCenter() + RandomVector( -4, 4 ), RandomAngle( 0, 360 ) );
+		}
 		else
 			pItem = this->DropItem( "item_ammo_ar2_altfire", this->WorldSpaceCenter() + RandomVector( -4, 4 ), RandomAngle( 0, 360 ) );
 
