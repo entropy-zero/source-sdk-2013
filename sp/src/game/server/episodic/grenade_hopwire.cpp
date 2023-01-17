@@ -2848,7 +2848,7 @@ void CStasisVortexController::PullThink( void )
 			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze" );
 
 			// Don't cancel the think function until the NPC picks up SCHED_NPC_FREEZE
-			if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE)))
+			if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false)))
 				continue;
 
 			pEnts[i]->SetNextThink( TICK_NEVER_THINK );
