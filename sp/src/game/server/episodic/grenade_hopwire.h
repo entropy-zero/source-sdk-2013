@@ -162,21 +162,23 @@ public:
 
 	CStasisVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ) {}
 
-	static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+	// static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
 
 	void	SetThrower( CBaseCombatCharacter *pBCC ) { m_hThrower.Set( pBCC ); }
 	CBaseCombatCharacter *GetThrower() { return m_hThrower.Get(); }
 
-	bool	CanConsumeEntity( CBaseEntity *pEnt );
+	//bool	CanConsumeEntity( CBaseEntity *pEnt );
 
 	void	InputDetonate( inputdata_t &inputdata ) { StartPull( GetAbsOrigin(), m_flRadius, m_flStrength, m_flEndTime ); }
 
-private:
-	void	PullPlayersInRange( void );
-	bool	KillNPCInRange( CBaseEntity *pVictim, IPhysicsObject **pPhysObj );
-
 	void	PullThink( void );
 	void	StartPull( const Vector &origin, float radius, float strength, float duration );
+
+private:
+	void	FreezePlayersInRange( void );
+	//bool	KillNPCInRange( CBaseEntity *pVictim, IPhysicsObject **pPhysObj );
+	void    UnfreezeNPCThink( void );
+	void	UnfreezePhysicsObjectThink( void );
 
 	float	m_flEndTime;	// Time when the vortex will stop functioning
 	float	m_flRadius;		// Area of effect for the vortex

@@ -468,7 +468,7 @@ void CWeaponHopwire::ThrowGrenade( CBasePlayer *pPlayer )
 	Vector vecThrow;
 	pPlayer->GetVelocity( &vecThrow, NULL );
 	vecThrow += vForward * 1200;
-	m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse(600,random->RandomInt(-1200,1200),0), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel()));
+	m_hActiveHopWire = static_cast<CGrenadeStasis *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse(600,random->RandomInt(-1200,1200),0), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel()));
 
 	m_bRedraw = true;
 

@@ -97,6 +97,8 @@ int	g_interactionXenGrenadeRelease		= 0;
 int g_interactionXenGrenadeCreate		= 0;
 int g_interactionXenGrenadeHop			= 0;
 int g_interactionXenGrenadeRagdoll      = 0;
+
+int	g_interactionStasisGrenadeFreeze	= 0;
 #endif
 
 #ifdef EZ2
@@ -2124,7 +2126,7 @@ CGravityVortexController *CGravityVortexController::Create( const Vector &origin
 #endif
 {
 	// Create an instance of the vortex
-	CGravityVortexController *pVortex = (CGravityVortexController *) CreateEntityByName( "vortex_controller" );
+	CStasisVortexController *pVortex = (CStasisVortexController *) CreateEntityByName( "stasis_controller" );
 	if ( pVortex == NULL )
 		return NULL;
 
@@ -2194,9 +2196,6 @@ END_DATADESC()
 LINK_ENTITY_TO_CLASS( vortex_controller, CGravityVortexController );
 
 #ifdef EZ2
-
-LINK_ENTITY_TO_CLASS( stasis_controller, CStasisVortexController );
-
 #define GRENADE_MODEL_CLOSED	"models/weapons/w_XenGrenade.mdl" // was roller.mdl
 #define GRENADE_MODEL_OPEN		"models/weapons/w_XenGrenade.mdl" // was roller_spikes.mdl
 
@@ -2232,12 +2231,27 @@ END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( npc_grenade_hopwire, CGrenadeHopwire );
 
-#ifdef EZ2
-LINK_ENTITY_TO_CLASS( npc_grenade_stasis, CGrenadeStasis );
-#endif
-
 IMPLEMENT_SERVERCLASS_ST( CGrenadeHopwire, DT_GrenadeHopwire )
 END_SEND_TABLE()
+
+#ifdef EZ2
+BEGIN_DATADESC( CStasisVortexController )
+
+DEFINE_THINKFUNC( PullThink ),
+DEFINE_THINKFUNC( UnfreezePhysicsObjectThink ),
+DEFINE_THINKFUNC( UnfreezeNPCThink )
+
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( stasis_controller, CStasisVortexController );
+
+BEGIN_DATADESC( CGrenadeStasis )
+DEFINE_THINKFUNC( EndThink ),
+DEFINE_THINKFUNC( CombatThink ),
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( npc_grenade_stasis, CGrenadeStasis );
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -2314,6 +2328,8 @@ void CGrenadeHopwire::Precache( void )
 		g_interactionXenGrenadeCreate = CBaseCombatCharacter::GetInteractionID();
 		g_interactionXenGrenadeHop = CBaseCombatCharacter::GetInteractionID();
 		g_interactionXenGrenadeRagdoll = CBaseCombatCharacter::GetInteractionID();
+
+		g_interactionStasisGrenadeFreeze = CBaseCombatCharacter::GetInteractionID();
 	}
 
 	VerifyXenRecipeManager( GetClassname() );
@@ -2718,7 +2734,7 @@ void CGrenadeHopwire::Detonate( void )
 #endif
 
 	// Explode at the apex
-	SetThink( &CGrenadeHopwire::CombatThink );
+	SetThink( &CGrenadeStasis::CombatThink );
 	SetNextThink( gpGlobals->curtime + apexTime);
 }
 
@@ -2734,7 +2750,7 @@ CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, cons
 	if (modelOpen == NULL)
 		modelOpen = szHopwireModel;
 
-	CGrenadeHopwire *pGrenade = (CGrenadeHopwire *) CBaseEntity::CreateNoSpawn( "npc_grenade_stasis", position, angles, pOwner ); // Don't spawn the hopwire until models are set!
+	CGrenadeStasis *pGrenade = (CGrenadeStasis *) CBaseEntity::CreateNoSpawn( "npc_grenade_stasis", position, angles, pOwner ); // Don't spawn the hopwire until models are set!
 	pGrenade->SetWorldModelClosed(modelClosed);
 	pGrenade->SetWorldModelOpen(modelOpen);
 
@@ -2761,7 +2777,7 @@ void CStasisVortexController::PullThink( void )
 	float flStrength = m_flStrength;
 
 	// Pull any players close enough to us
-	PullPlayersInRange();
+	FreezePlayersInRange();
 
 	// Draw debug information
 	if (g_debug_hopwire.GetInt() >= 2)
@@ -2808,86 +2824,56 @@ void CStasisVortexController::PullThink( void )
 		if (!engine->CheckOriginInPVS( vecEntCenter, m_PVS, sizeof( m_PVS ) ))
 			continue;
 
-		Vector	vecForce = GetAbsOrigin() - vecEntCenter;
-		Vector	vecForce2D = vecForce;
-		vecForce2D[2] = 0.0f;
-		float	dist2D = VectorNormalize( vecForce2D );
-		float	dist = VectorNormalize( vecForce );
-
-		// First, pull npcs outside of the ragdoll radius towards the vortex
-		if (abs( dist ) > hopwire_ragdoll_radius.GetFloat())
+		// Dispatch interaction. Skip freezing if it returns true
+		if (pEnts[i]->DispatchInteraction( g_interactionStasisGrenadeFreeze, NULL, GetThrower() ))
 		{
-			CAI_BaseNPC * pNPC = pEnts[i]->MyNPCPointer();
-			if (pEnts[i]->IsNPC() && pNPC != NULL && pNPC->CanBecomeRagdoll())
-			{
-				// Find the pull force
-				// Minimum pull force is 10% of strength here
-				vecForce *= MAX( 1.0f - (abs( dist2D ) / m_flRadius), 0.1f ) * flStrength;
-
-				// Physics damage info
-				CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), flStrength, DMG_BLAST );
-
-				// Dispatch interaction. Skip pulling if it returns true
-				if (pEnts[i]->DispatchInteraction( g_interactionXenGrenadePull, &info, GetThrower() ))
-				{
-					continue;
-				}
-
-				// Pull
-				pNPC->ApplyAbsVelocityImpulse( vecForce );
-
-				// We already handled this NPC, move on
-				continue;
-			}
+			continue;
 		}
-		if (KillNPCInRange( pEnts[i], &pPhysObject ))
+
+		// Freeze NPCs by stopping their think function
+		if (pEnts[i]->MyCombatCharacterPointer())
 		{
-			DevMsg( "Xen grenade turned NPC '%s' into a ragdoll! \n", pEnts[i]->GetDebugName() );
-		}
-		else
-		{
-			// If we didn't have a valid victim, see if we can just get the vphysics object
-			pPhysObject = pEnts[i]->VPhysicsGetObject();
-			if (pPhysObject == NULL)
+			// If this NPC has already been frozen, don't refreeze
+			if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
 			{
 				continue;
 			}
-		}
 
-		float mass = 0.0f;
-
-		CRagdollProp * pRagdoll = dynamic_cast< CRagdollProp* >(pEnts[i]);
-		ragdoll_t * pRagdollPhys = NULL;
-		if (pRagdoll != NULL)
-		{
-			pRagdollPhys = pRagdoll->GetRagdoll();
-		}
-
-		if (pRagdollPhys != NULL)
-		{
-			// Find the aggregate mass of the whole ragdoll
-			for (int j = 0; j < pRagdollPhys->listCount; ++j)
-			{
-				mass += pRagdollPhys->list[j].pObject->GetMass();
+			if (pEnts[i]->MyNPCPointer())
+			{			
+				pEnts[i]->MyNPCPointer()->SetCondition( COND_NPC_FREEZE );
+				pEnts[i]->MyNPCPointer()->TaskInterrupt();
 			}
+
+			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze" );
+
+			// Don't cancel the think function until the NPC picks up SCHED_NPC_FREEZE
+			if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE)))
+				continue;
+
+			pEnts[i]->SetNextThink( TICK_NEVER_THINK );
+			DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
+
+			continue;
 		}
-		else if (pPhysObject != NULL)
+
+		// If this is not an NPC, get the physics object
+		pPhysObject = pEnts[i]->VPhysicsGetObject();
+		if (pPhysObject == NULL)
 		{
-			mass = pPhysObject->GetMass();
+			continue;
 		}
 
+		if (!pPhysObject->IsMotionEnabled())
+			continue;
 
-		// Find the pull force
-		// Minimum pull force is 10% of strength here
-		vecForce *= MAX( 1.0f - (abs( dist2D ) / m_flRadius), 0.1f ) * flStrength * mass;
+		// TODO - we should consider separating contexts for gravity and motion so that they can be toggled independently
+		if (!pPhysObject->IsGravityEnabled())
+			continue;
 
-
-		CTakeDamageInfo info( this, this, vecForce, GetAbsOrigin(), flStrength, DMG_BLAST );
-		if (!pEnts[i]->DispatchInteraction( g_interactionXenGrenadePull, &info, GetThrower() ) && pPhysObject != NULL)
-		{
-			// Pull the object in if there was no special handling
-			pEnts[i]->VPhysicsTakeDamage( info );
-		}
+		pPhysObject->EnableMotion(false);
+		pPhysObject->EnableGravity( false );
+		pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
 	}
 
 	// Keep going if need-be
@@ -2924,6 +2910,38 @@ void CStasisVortexController::PullThink( void )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Think function to unfreeze an efntity
+//-----------------------------------------------------------------------------
+void CStasisVortexController::UnfreezeNPCThink( void )
+{
+	if (MyNPCPointer() == NULL)
+		return;
+
+	MyNPCPointer()->TaskInterrupt();
+	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
+	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
+	MyNPCPointer()->Think();
+	SetNextThink( gpGlobals->curtime );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Think function to unfreeze an efntity
+//-----------------------------------------------------------------------------
+void CStasisVortexController::UnfreezePhysicsObjectThink( void )
+{
+	IPhysicsObject *pPhysObject = VPhysicsGetObject();
+	if (pPhysObject == NULL)
+	{
+		return;
+	}
+
+	pPhysObject->EnableMotion( true );
+	pPhysObject->EnableGravity( true );
+	pPhysObject->Wake();
+	SetContextThink( NULL, TICK_NEVER_THINK, "StasisGrenadeUnfreeze" );
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Starts the vortex working
 //-----------------------------------------------------------------------------
 void CStasisVortexController::StartPull( const Vector &origin, float radius, float strength, float duration )
@@ -2943,6 +2961,69 @@ void CStasisVortexController::StartPull( const Vector &origin, float radius, flo
 
 	SetThink( &CStasisVortexController::PullThink );
 	SetNextThink( gpGlobals->curtime + 0.1f );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Causes players within the radius to be frozen
+//-----------------------------------------------------------------------------
+void CStasisVortexController::FreezePlayersInRange( void )
+{
+	CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+	if (!pPlayer || !pPlayer->VPhysicsGetObject())
+		return;
+
+	Vector	vecForce = GetAbsOrigin() - pPlayer->WorldSpaceCenter();
+	float	dist = VectorNormalize( vecForce );
+
+	// FIXME: Need a more deterministic method here
+	if (dist < 128.0f)
+	{
+		// Kill the player (with falling death sound and effects)
+		CTakeDamageInfo deathInfo( this, this, GetAbsOrigin(), GetAbsOrigin(), 5, DMG_FALL );
+
+		pPlayer->TakeDamage( deathInfo );
+
+		if (pPlayer->IsAlive() == false)
+		{
+			color32 blue ={ 0, 150, 252, 255 };
+			UTIL_ScreenFade( pPlayer, blue, 0.1f, 0.0f, (FFADE_OUT|FFADE_STAYOUT) );
+			return;
+		}
+	}
+
+	// Must be within the radius
+	if (dist > m_flRadius)
+		return;
+
+	// Don't pull unless convar set
+	if (!hopwire_pull_player.GetBool())
+		return;
+
+	// Don't pull noclipping players
+	if (pPlayer->GetMoveType() == MOVETYPE_NOCLIP)
+		return;
+
+	float mass = pPlayer->VPhysicsGetObject()->GetMass();
+	float playerForce = m_flStrength * 0.05f;
+
+	if (m_flPullFadeTime > 0.0f)
+	{
+		playerForce *= ((gpGlobals->curtime - m_flStartTime) / m_flPullFadeTime);
+	}
+
+	// Find the pull force
+	// NOTE: We might want to make this non-linear to give more of a "grace distance"
+	vecForce *= (1.0f - (dist / m_flRadius)) * playerForce * mass;
+	vecForce[2] *= 0.025f;
+
+	pPlayer->SetBaseVelocity( vecForce );
+	pPlayer->AddFlag( FL_BASEVELOCITY );
+
+	// Make sure the player moves
+	if (vecForce.z > 0 && (pPlayer->GetFlags() & FL_ONGROUND))
+	{
+		pPlayer->SetGroundEntity( NULL );
+	}
 }
 
 
