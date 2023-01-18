@@ -2775,6 +2775,7 @@ CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, cons
 void CStasisVortexController::PullThink( void )
 {
 	float flStrength = m_flStrength;
+	CRagdollProp *pRagdoll = NULL;
 
 	// Pull any players close enough to us
 	FreezePlayersInRange();
@@ -2830,6 +2831,9 @@ void CStasisVortexController::PullThink( void )
 			continue;
 		}
 
+		// Reset ragdoll
+		pRagdoll = NULL;
+
 		// Freeze NPCs by stopping their think function
 		if (pEnts[i]->MyCombatCharacterPointer())
 		{
@@ -2854,6 +2858,18 @@ void CStasisVortexController::PullThink( void )
 			pEnts[i]->SetNextThink( TICK_NEVER_THINK );
 			DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
 
+			continue;
+		}
+
+		if (FClassnameIs( pEnts[i], "prop_ragdoll" ))
+		{
+			pRagdoll = dynamic_cast< CRagdollProp* >(this);
+		}
+
+		if (pRagdoll)
+		{
+			pRagdoll->DisableMotion();
+			pRagdoll->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
 			continue;
 		}
 
@@ -2929,6 +2945,21 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 //-----------------------------------------------------------------------------
 void CStasisVortexController::UnfreezePhysicsObjectThink( void )
 {
+	CRagdollProp *pRagdoll = NULL;
+
+	SetContextThink( NULL, TICK_NEVER_THINK, "StasisGrenadeUnfreeze" );
+
+	if (FClassnameIs( this, "prop_ragdoll" ))
+	{
+		pRagdoll = dynamic_cast< CRagdollProp* >(this);
+	}
+
+	if (pRagdoll)
+	{
+		pRagdoll->InputEnableMotion( inputdata_t() );
+		return;
+	}
+
 	IPhysicsObject *pPhysObject = VPhysicsGetObject();
 	if (pPhysObject == NULL)
 	{
@@ -2938,7 +2969,6 @@ void CStasisVortexController::UnfreezePhysicsObjectThink( void )
 	pPhysObject->EnableMotion( true );
 	pPhysObject->EnableGravity( true );
 	pPhysObject->Wake();
-	SetContextThink( NULL, TICK_NEVER_THINK, "StasisGrenadeUnfreeze" );
 }
 
 //-----------------------------------------------------------------------------
