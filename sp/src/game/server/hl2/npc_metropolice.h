@@ -146,6 +146,11 @@ public:
 
 	void	PlayFlinchGesture( void );
 
+#ifdef EZ2
+	virtual bool	ShouldGib( const CTakeDamageInfo &info );
+	virtual bool	CorpseGib( const CTakeDamageInfo &info );
+#endif
+
 protected:
 	// Determines the best type of flinch anim to play.
 	virtual Activity GetFlinchActivity( bool bHeavyDamage, bool bGesture );

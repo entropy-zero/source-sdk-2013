@@ -4846,6 +4846,46 @@ void CNPC_MetroPolice::PlayFlinchGesture( void )
 	GetShotRegulator()->FireNoEarlierThan( gpGlobals->curtime + 0.5 );
 }
 
+#ifdef EZ2
+ConVar npc_metropolice_gib( "npc_metropolice_gib", "0" );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CNPC_MetroPolice::ShouldGib( const CTakeDamageInfo &info )
+{
+	if ( !npc_metropolice_gib.GetBool() )
+		return false;
+	
+	// Don't gib if we're temporal
+	if (m_tEzVariant == EZ_VARIANT_TEMPORAL)
+		return false;
+
+	// If the damage type is "always gib", we better gib!
+	if ( info.GetDamageType() & DMG_ALWAYSGIB )
+		return true;
+
+	if ( info.GetDamageType() & ( DMG_NEVERGIB | DMG_DISSOLVE ) )
+		return false;
+
+	if ( ( info.GetDamageType() & ( DMG_BLAST | DMG_ACID | DMG_POISON | DMG_CRUSH ) ) && ( GetAbsOrigin() - info.GetDamagePosition() ).LengthSqr() <= 32.0f )
+		return true;
+
+	return false;
+}
+
+//------------------------------------------------------------------------------
+// Purpose: Override to do rebel specific gibs
+// Output :
+//------------------------------------------------------------------------------
+bool CNPC_MetroPolice::CorpseGib( const CTakeDamageInfo &info )
+{
+	return BaseClass::CorpseGib( info );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // We're taking cover from danger
 //-----------------------------------------------------------------------------
