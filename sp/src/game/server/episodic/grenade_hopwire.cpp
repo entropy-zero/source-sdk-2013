@@ -2126,7 +2126,7 @@ CGravityVortexController *CGravityVortexController::Create( const Vector &origin
 #endif
 {
 	// Create an instance of the vortex
-	CStasisVortexController *pVortex = (CStasisVortexController *) CreateEntityByName( "stasis_controller" );
+	CGravityVortexController *pVortex = (CGravityVortexController *)CreateEntityByName( "vortex_controller" );
 	if ( pVortex == NULL )
 		return NULL;
 
@@ -2711,6 +2711,14 @@ void CGrenadeHopwire::Detonate( void )
 
 	// Get the time until the apex of the hop
 	float apexTime = sqrt( hopHeight / GetCurrentGravity() );
+
+	// If this is a stasis grenade, use the stasis grenade think function to detonate
+	if (FClassnameIs(this, "npc_grenade_stasis"))
+	{
+		SetThink( &CGrenadeStasis::CombatThink );
+		SetNextThink( gpGlobals->curtime + apexTime );
+		return;
+	}
 #else
 	EmitSound("NPC_Strider.Shoot"); // Sound to emit before detonating
 	SetModel( szWorldModelOpen );
@@ -2734,7 +2742,7 @@ void CGrenadeHopwire::Detonate( void )
 #endif
 
 	// Explode at the apex
-	SetThink( &CGrenadeStasis::CombatThink );
+	SetThink( &CGrenadeHopwire::CombatThink );
 	SetNextThink( gpGlobals->curtime + apexTime);
 }
 
@@ -2750,7 +2758,7 @@ CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, cons
 	if (modelOpen == NULL)
 		modelOpen = szHopwireModel;
 
-	CGrenadeStasis *pGrenade = (CGrenadeStasis *) CBaseEntity::CreateNoSpawn( "npc_grenade_stasis", position, angles, pOwner ); // Don't spawn the hopwire until models are set!
+	CGrenadeHopwire *pGrenade = (CGrenadeHopwire *)CBaseEntity::CreateNoSpawn( "npc_grenade_hopwire", position, angles, pOwner ); // Don't spawn the hopwire until models are set!
 	pGrenade->SetWorldModelClosed(modelClosed);
 	pGrenade->SetWorldModelOpen(modelOpen);
 
@@ -2769,6 +2777,61 @@ CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, cons
 }
 
 #ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CBaseGrenade *StasisGrenade_Create( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, const char * modelClosed, const char * modelOpen )
+{
+	// Fall back to a default model if none specified
+	static const char *szHopwireModel = "models/weapons/w_xengrenade.mdl";
+	if (modelClosed == NULL)
+		modelClosed = szHopwireModel;
+	if (modelOpen == NULL)
+		modelOpen = szHopwireModel;
+
+	CGrenadeStasis *pGrenade = (CGrenadeStasis *)CBaseEntity::CreateNoSpawn( "npc_grenade_stasis", position, angles, pOwner ); // Don't spawn the hopwire until models are set!
+	pGrenade->SetWorldModelClosed( modelClosed );
+	pGrenade->SetWorldModelOpen( modelOpen );
+
+	DispatchSpawn( pGrenade );
+
+	// Only set ourselves to detonate on a timer if we're not a trap hopwire
+	if (hopwire_trap.GetBool() == false)
+	{
+		pGrenade->SetTimer( timer );
+	}
+
+	pGrenade->SetVelocity( velocity, angVelocity );
+	pGrenade->SetThrower( ToBaseCombatCharacter( pOwner ) );
+
+	return pGrenade;
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Creation utility
+//-----------------------------------------------------------------------------
+CStasisVortexController *CStasisVortexController::Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade )
+{
+	// Create an instance of the vortex
+	CStasisVortexController *pVortex = (CStasisVortexController *)CreateEntityByName( "stasis_controller" );
+	if (pVortex == NULL)
+		return NULL;
+
+	pVortex->SetOwnerEntity( pGrenade );
+	if (pGrenade)
+		pVortex->SetThrower( static_cast<CGrenadeHopwire*>(pGrenade)->GetThrower() );
+
+	pVortex->SetNodeRadius( hopwire_spawn_node_radius.GetFloat() );
+	pVortex->SetConsumeRadius( hopwire_conusme_radius.GetFloat() );
+
+	// Start the vortex working
+	pVortex->StartPull( origin, radius, strength, duration );
+
+	return pVortex;
+}
+
+
 //-----------------------------------------------------------------------------
 // Purpose: Holds everything in a stasis field
 //-----------------------------------------------------------------------------

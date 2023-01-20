@@ -159,10 +159,9 @@ class CStasisVortexController : public CGravityVortexController
 	DECLARE_DATADESC();
 
 public:
-
 	CStasisVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ) {}
 
-	// static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+	static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
 
 	void	SetThrower( CBaseCombatCharacter *pBCC ) { m_hThrower.Set( pBCC ); }
 	CBaseCombatCharacter *GetThrower() { return m_hThrower.Get(); }
@@ -250,6 +249,8 @@ protected:
 CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, const char * modelClosed = NULL, const char * modelOpen = NULL );
 
 #ifdef EZ2
+CBaseGrenade *StasisGrenade_Create( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, const char * modelClosed = NULL, const char * modelOpen = NULL );
+
 void VerifyXenRecipeManager( const char *pszActivator );
 
 
