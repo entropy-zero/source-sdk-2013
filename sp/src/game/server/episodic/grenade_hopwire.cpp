@@ -2713,7 +2713,7 @@ void CGrenadeHopwire::Detonate( void )
 	float apexTime = sqrt( hopHeight / GetCurrentGravity() );
 
 	// If this is a stasis grenade, use the stasis grenade think function to detonate
-	if (FClassnameIs(this, "npc_grenade_stasis"))
+	if (GetHopwireStyle() == HOPWIRE_STASIS)
 	{
 		SetThink( &CGrenadeStasis::CombatThink );
 		SetNextThink( gpGlobals->curtime + apexTime );

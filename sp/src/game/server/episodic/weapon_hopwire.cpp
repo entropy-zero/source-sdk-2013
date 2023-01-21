@@ -31,12 +31,6 @@
 
 #define GRENADE_RADIUS	4.0f	// inches
 
-
-enum HopwireStyle {
-	HOPWIRE_XEN = 0,
-	HOPWIRE_STASIS
-};
-
 //-----------------------------------------------------------------------------
 // Fragmentation grenades
 //-----------------------------------------------------------------------------

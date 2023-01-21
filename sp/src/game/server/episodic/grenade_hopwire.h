@@ -16,6 +16,11 @@
 extern ConVar hopwire_trap;
 
 #ifdef EZ2
+enum HopwireStyle {
+	HOPWIRE_XEN = 0,
+	HOPWIRE_STASIS
+};
+
 // Base class for both the Xen grenade and displacer pistol
 class CDisplacerSink
 {
@@ -61,6 +66,8 @@ public:
 
 #ifdef EZ2
 	static CGravityVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
 
 	int AddNodesToHullMap( const Vector vecSearchOrigin );
 
@@ -110,6 +117,10 @@ private:
 	void	PullThink( void );
 	void	StartPull( const Vector &origin, float radius, float strength, float duration );
 
+#ifdef EZ2
+protected:
+#endif
+
 	float	m_flMass;		// Mass consumed by the vortex
 	float	m_flEndTime;	// Time when the vortex will stop functioning
 	float	m_flRadius;		// Area of effect for the vortex
@@ -127,6 +138,9 @@ private:
 
 							// If this points to an entity, the Xen grenade will always call g_interactionXenGrenadeRelease on it instead of spawning Xen life.
 							// This is so Will-E pops back out of Xen grenades.
+
+private:
+
 	EHANDLE	m_hReleaseEntity;
 
 	CHandle<CBaseCombatCharacter>	m_hThrower;
@@ -136,6 +150,7 @@ private:
 	CUtlMap<string_t, float, short> m_ClassMass;
 	CUtlMap<Vector, int, short> m_HullMap;
 
+protected:
 	// PVS for PullThink()
 	byte		m_PVS[ MAX_MAP_CLUSTERS/8 ];
 	bool		m_bPVSCreated;
@@ -159,40 +174,17 @@ class CStasisVortexController : public CGravityVortexController
 	DECLARE_DATADESC();
 
 public:
-	CStasisVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ) {}
-
 	static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
 
-	void	SetThrower( CBaseCombatCharacter *pBCC ) { m_hThrower.Set( pBCC ); }
-	CBaseCombatCharacter *GetThrower() { return m_hThrower.Get(); }
-
-	//bool	CanConsumeEntity( CBaseEntity *pEnt );
-
-	void	InputDetonate( inputdata_t &inputdata ) { StartPull( GetAbsOrigin(), m_flRadius, m_flStrength, m_flEndTime ); }
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
 
 	void	PullThink( void );
 	void	StartPull( const Vector &origin, float radius, float strength, float duration );
 
 private:
 	void	FreezePlayersInRange( void );
-	//bool	KillNPCInRange( CBaseEntity *pVictim, IPhysicsObject **pPhysObj );
 	void    UnfreezeNPCThink( void );
 	void	UnfreezePhysicsObjectThink( void );
-
-	float	m_flEndTime;	// Time when the vortex will stop functioning
-	float	m_flRadius;		// Area of effect for the vortex
-	float	m_flStrength;	// Pulling strength of the vortex
-
-	float	m_flStartTime;		// When the vortex opened
-	float	m_flPullFadeTime;	// How long the pull fade should last
-
-	CHandle<CBaseCombatCharacter>	m_hThrower;
-
-	// PVS for PullThink()
-	byte		m_PVS[MAX_MAP_CLUSTERS/8];
-	bool		m_bPVSCreated;
-
-	COutputEvent		m_OnPullFinished;
 };
 #endif
 
@@ -211,6 +203,8 @@ public:
 	void	Detonate( void );
 
 #ifdef EZ2
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
+
 	void	DelayThink();
 	void	SpriteOff();
 	void	BlipSound() { EmitSound( "WeaponXenGrenade.Blip" ); }
@@ -262,6 +256,8 @@ class CGrenadeStasis : public CGrenadeHopwire
 	DECLARE_DATADESC();
 
 public:
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
+
 	virtual void	EndThink( void );		// Last think before going away
 	virtual void	CombatThink( void );	// Makes the main explosion go off
 
