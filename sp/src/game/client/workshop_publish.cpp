@@ -539,7 +539,7 @@ class CDeleteMessageBox : public MessageBox
 	typedef MessageBox BaseClass;
 
 public:
-	CDeleteMessageBox( Panel *pParent, const char *title, const char *msg );
+	CDeleteMessageBox( Panel *pParent, const wchar_t *title, const wchar_t *msg );
 	void ApplySchemeSettings( IScheme *pScheme );
 	void OnTick();
 };
@@ -876,7 +876,7 @@ CWorkshopPublishDialog::CWorkshopPublishDialog() :
 
 	SetParent( enginevgui->GetPanel(PANEL_TOOLS) );
 	SetVisible( true );
-	SetTitle( "Browse Published Files", false );
+	SetTitle( "#WorkshopMgr_BrowsePublishedFiles", false );
 	SetDeleteSelfOnClose( true );
 	SetMoveable( true );
 	SetSizeable( false );
@@ -886,21 +886,21 @@ CWorkshopPublishDialog::CWorkshopPublishDialog() :
 
 	m_pList = new ListPanel( this, "PublishedFileList" );
 	m_pList->SetMultiselectEnabled( false );
-	m_pList->SetEmptyListText( "No published files" );
-	m_pList->AddColumnHeader( 0, "title", "Title", 30, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
-	m_pList->AddColumnHeader( 1, "timeupdated", "Last Updated", 44, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
-	m_pList->AddColumnHeader( 2, "timecreated", "Date Created", 44, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
-	m_pList->AddColumnHeader( 3, "visibility", "Visibility", 20, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
+	m_pList->SetEmptyListText( "#WorkshopMgr_Empty" );
+	m_pList->AddColumnHeader( 0, "title", "#WorkshopMgr_Title", 30, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
+	m_pList->AddColumnHeader( 1, "timeupdated", "#WorkshopMgr_LastUpdated", 44, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
+	m_pList->AddColumnHeader( 2, "timecreated", "#WorkshopMgr_DateCreated", 44, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
+	m_pList->AddColumnHeader( 3, "visibility", "#WorkshopMgr_Visibility", 20, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
 	m_pList->AddColumnHeader( 4, "id", "ID", 24, ListPanel::ColumnFlags_e::COLUMN_RESIZEWITHWINDOW );
 
 	m_pList->SetSortFunc( 1, &SortTimeUpdated );
 	m_pList->SetSortFunc( 2, &SortTimeCreated );
 	m_pList->SetSortColumn( 1 );
 
-	m_pAdd = new Button( this, "Add", "Add", this, "Add" );
-	m_pDelete = new Button( this, "Delete", "Delete", this, "Delete" );
-	m_pEdit = new Button( this, "Edit", "Edit", this, "Edit" );
-	m_pRefresh = new Button( this, "Refresh", "Refresh", this, "Refresh" );
+	m_pAdd = new Button( this, "Add", "#GameUI_Add", this, "Add" );
+	m_pDelete = new Button( this, "Delete", "#GameUI_Delete", this, "Delete" );
+	m_pEdit = new Button( this, "Edit", "#WorkshopMgr_ButtonEdit", this, "Edit" );
+	m_pRefresh = new Button( this, "Refresh", "#GameUI_Refresh", this, "Refresh" );
 
 	m_pAdd->SetContentAlignment( Label::Alignment::a_center );
 	m_pDelete->SetContentAlignment( Label::Alignment::a_center );
@@ -1008,12 +1008,14 @@ void CWorkshopPublishDialog::OnCommand( const char *command )
 		}
 
 		m_nItemToDelete = m_pList->GetItemData(item)->kv->GetUint64("id");
-		const char *title = m_pList->GetItemData(item)->kv->GetString("title");
 
-		m_pDeleteMessageBox = new CDeleteMessageBox( this,
-			CFmtStr( "Delete Item (%llu) %s", m_nItemToDelete, title ),
-			"Are you sure you want to delete this item? This cannot be undone!" );
+		wchar_t wtitle[128];
+		g_pVGuiLocalize->ConvertANSIToUnicode( m_pList->GetItemData(item)->kv->GetString("title"), wtitle, sizeof(wtitle) );
 
+		wchar_t wszFrameTitle[256];
+		V_snwprintf( wszFrameTitle, sizeof(wszFrameTitle), L"%ls (%llu) %ls", g_pVGuiLocalize->Find("#WorkshopMgr_DeleteTitle"), m_nItemToDelete, wtitle );
+
+		m_pDeleteMessageBox = new CDeleteMessageBox( this, wszFrameTitle, g_pVGuiLocalize->Find("#WorkshopMgr_DeleteMsg") );
 		m_pDeleteMessageBox->AddActionSignalTarget( this );
 		m_pDeleteMessageBox->SetCommand( "DeleteConfirm" );
 
@@ -1218,16 +1220,16 @@ void CWorkshopPublishDialog::OnSteamUGCQueryCompleted( SteamUGCQueryCompleted_t 
 		switch ( (int)details.m_eVisibility )
 		{
 		case k_ERemoteStoragePublishedFileVisibilityPublic:
-			data->SetString( "visibility", "Public" );
+			data->SetString( "visibility", "#Workshop_Public" );
 			break;
 		case k_ERemoteStoragePublishedFileVisibilityFriendsOnly:
-			data->SetString( "visibility", "Friends Only" );
+			data->SetString( "visibility", "#Workshop_FriendsOnly" );
 			break;
 		case k_ERemoteStoragePublishedFileVisibilityPrivate:
-			data->SetString( "visibility", "Private" );
+			data->SetString( "visibility", "#Workshop_Private" );
 			break;
 		case k_ERemoteStoragePublishedFileVisibilityUnlisted_149:
-			data->SetString( "visibility", "Unlisted" );
+			data->SetString( "visibility", "#Workshop_Unlisted" );
 			break;
 		}
 
@@ -1478,7 +1480,7 @@ CItemPublishDialog::CItemPublishDialog( Panel *pParent ) :
 	m_item( 0 )
 {
 	SetVisible( true );
-	SetTitle( "Item Publish", false );
+	SetTitle( "#WorkshopMgr_ItemPublish", false );
 	SetDeleteSelfOnClose( true );
 	SetMoveable( true );
 	SetSizeable( false );
@@ -1489,13 +1491,13 @@ CItemPublishDialog::CItemPublishDialog( Panel *pParent ) :
 
 	// NOTE: Max char count in TextEntry is not memory size, a char and wchar_t are treated equally as a 'character'.
 
-	m_pTitleLabel = new Label( this, NULL, "Title:" );
+	m_pTitleLabel = new Label( this, NULL, "#WorkshopMgr_Label_Title" );
 	m_pTitleInput = new TextEntry( this, "title" );
 	m_pTitleInput->SetMaximumCharCount( k_cchPublishedDocumentTitleMax - sizeof(wchar_t) );
 	m_pTitleInput->SetMultiline( false );
 	m_pTitleInput->SetAllowNonAsciiCharacters( true );
 
-	m_pDescLabel = new Label( this, NULL, "Description:" );
+	m_pDescLabel = new Label( this, NULL, "#WorkshopMgr_Label_Description" );
 	m_pDescInput = new TextEntry( this, "desc" );
 	m_pDescInput->SetMaximumCharCount( k_cchPublishedDocumentDescriptionMax - sizeof(wchar_t) );
 	m_pDescInput->SetMultiline( true );
@@ -1503,7 +1505,7 @@ CItemPublishDialog::CItemPublishDialog( Panel *pParent ) :
 	m_pDescInput->SetCatchEnterKey( true );
 	m_pDescInput->SetAllowNonAsciiCharacters( true );
 
-	m_pChangesLabel = new Label( this, NULL, "Changes this update:" );
+	m_pChangesLabel = new Label( this, NULL, "#WorkshopMgr_Label_UpdateDesc" );
 	m_pChangesInput = new TextEntry( this, "changes" );
 	m_pChangesInput->SetMaximumCharCount( k_cchPublishedDocumentChangeDescriptionMax - sizeof(wchar_t) );
 	m_pChangesInput->SetMultiline( true );
@@ -1511,41 +1513,41 @@ CItemPublishDialog::CItemPublishDialog( Panel *pParent ) :
 	m_pChangesInput->SetCatchEnterKey( true );
 	m_pChangesInput->SetAllowNonAsciiCharacters( true );
 
-	m_pPreviewLabel = new Label( this, NULL, "Preview Image:" );
+	m_pPreviewLabel = new Label( this, NULL, "#WorkshopMgr_Label_PreviewImage" );
 	m_pPreviewInput = new TextEntry( this, "previewinput" );
 	m_pPreviewInput->SetMaximumCharCount( MAX_PATH - 1 );
 	m_pPreviewInput->SetMultiline( false );
 
-	m_pContentLabel = new Label( this, NULL, "Addon Content:" );
+	m_pContentLabel = new Label( this, NULL, "#WorkshopMgr_Label_AddonContent" );
 	m_pContentInput = new TextEntry( this, "content" );
 	m_pContentInput->SetMaximumCharCount( MAX_PATH - 1 );
 	m_pContentInput->SetMultiline( false );
 #if 0
 	m_pContentSize = new Label( this, NULL, "" );
 #endif
-	m_pVisibilityLabel = new Label( this, NULL, "Visibility:" );
+	m_pVisibilityLabel = new Label( this, NULL, "#WorkshopMgr_Label_Visibility" );
 	m_pVisibility = new ComboBox( this, "visibility", 4, false );
 	// NOTE: Add in the order of the raw values. This is read as int in UpdateFields
-	m_pVisibility->AddItem( "Public", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityPublic ) );
-	m_pVisibility->AddItem( "Friends Only", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityFriendsOnly ) );
-	m_pVisibility->AddItem( "Private", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityPrivate ) );
-	m_pVisibility->AddItem( "Unlisted", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityUnlisted_149 ) );
+	m_pVisibility->AddItem( "#Workshop_Public", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityPublic ) );
+	m_pVisibility->AddItem( "#Workshop_FriendsOnly", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityFriendsOnly ) );
+	m_pVisibility->AddItem( "#Workshop_Private", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityPrivate ) );
+	m_pVisibility->AddItem( "#Workshop_Unlisted", new KeyValues( "", NULL, k_ERemoteStoragePublishedFileVisibilityUnlisted_149 ) );
 	m_pVisibility->SilentActivateItem( k_ERemoteStoragePublishedFileVisibilityPrivate );
 
 	m_pPreview = new CPreviewImage( this, "PreviewImage" );
 
-	m_pPreviewBrowse = new Button( this, "PreviewBrowse", "Browse...", this, "PreviewBrowse" );
-	m_pContentBrowse = new Button( this, "ContentBrowse", "Browse...", this, "ContentBrowse" );
+	m_pPreviewBrowse = new Button( this, "PreviewBrowse", "#WorkshopMgr_ButtonSearch", this, "PreviewBrowse" );
+	m_pContentBrowse = new Button( this, "ContentBrowse", "#WorkshopMgr_ButtonSearch", this, "ContentBrowse" );
 
-	m_pClose = new Button( this, "Cancel", "Cancel", this, "Close" );
-	m_pPublish = new Button( this, "Publish", "Publish", this, "Publish" );
+	m_pClose = new Button( this, "Cancel", "#vgui_Cancel", this, "Close" );
+	m_pPublish = new Button( this, "Publish", "#WorkshopMgr_ButtonPublish", this, "Publish" );
 
 	m_pPreviewBrowse->SetContentAlignment( Label::Alignment::a_center );
 	m_pContentBrowse->SetContentAlignment( Label::Alignment::a_center );
 	m_pClose->SetContentAlignment( Label::Alignment::a_center );
 	m_pPublish->SetContentAlignment( Label::Alignment::a_center );
 
-	m_pTagsLabel = new Label( this, NULL, "Tags:" );
+	m_pTagsLabel = new Label( this, NULL, "#WorkshopMgr_Label_Tags" );
 
 	// Using a grid lets the user define all tags in a single place and have the checkboxes auto-position.
 	m_pTagsGrid = new CSimpleGrid( this, NULL );
@@ -1970,8 +1972,11 @@ void CItemPublishDialog::OnDirectorySelected( const char *dir )
 void CItemPublishDialog::UpdateFields( KeyValues *data )
 {
 	m_item = data->GetUint64("id");
-	SetTitle( CFmtStr("Item Publish (%llu)", m_item), false );
-	m_pPublish->SetText( "Update" );
+
+	wchar_t wtitle[128];
+	V_snwprintf( wtitle, sizeof(wtitle), L"%ls (%llu)", g_pVGuiLocalize->Find("#WorkshopMgr_ItemPublish"), m_item );
+	SetTitle( wtitle, false );
+	m_pPublish->SetText( "#WorkshopMgr_ButtonUpdate" );
 
 	m_pTitleInput->SetText( data->GetString("title") );
 	m_pDescInput->SetText( data->GetString("description") );
@@ -2050,7 +2055,7 @@ CUploadProgressBox::CUploadProgressBox( Panel *pParent ) :
 	m_status( (EItemUpdateStatus)~0 )
 {
 	SetVisible( true );
-	SetTitle( "Publishing...", false );
+	SetTitle( "#WorkshopMgr_Status_Publishing", false );
 	SetDeleteSelfOnClose( true );
 	SetCloseButtonVisible( false );
 	SetMoveable( false );
@@ -2064,7 +2069,7 @@ CUploadProgressBox::CUploadProgressBox( Panel *pParent ) :
 
 	SetKeyBoardInputEnabled( false );
 
-	m_pLabel = new Label( this, NULL, "Creating item..." );
+	m_pLabel = new Label( this, NULL, "#WorkshopMgr_Status_Creating" );
 	m_pProgressBar = new ProgressBar( this, NULL );
 }
 
@@ -2122,19 +2127,19 @@ void CUploadProgressBox::OnTick()
 		switch ( status )
 		{
 		case k_EItemUpdateStatusPreparingConfig:
-			m_pLabel->SetText( "Processing configuration data..." );
+			m_pLabel->SetText( "#WorkshopMgr_Status_PreparingConfig" );
 			break;
 		case k_EItemUpdateStatusPreparingContent:
-			m_pLabel->SetText( "Reading and processing content files..." );
+			m_pLabel->SetText( "#WorkshopMgr_Status_PreparingContent" );
 			break;
 		case k_EItemUpdateStatusUploadingContent:
-			m_pLabel->SetText( "Uploading content changes to Steam..." );
+			m_pLabel->SetText( "#WorkshopMgr_Status_UploadingContent" );
 			break;
 		case k_EItemUpdateStatusUploadingPreviewFile:
-			m_pLabel->SetText( "Uploading new preview file image..." );
+			m_pLabel->SetText( "#WorkshopMgr_Status_UploadingPreviewFile" );
 			break;
 		case k_EItemUpdateStatusCommittingChanges:
-			m_pLabel->SetText( "Committing all changes..." );
+			m_pLabel->SetText( "#WorkshopMgr_Status_CommittingChanges" );
 			break;
 		case k_EItemUpdateStatusInvalid:
 			Close();
@@ -2144,7 +2149,8 @@ void CUploadProgressBox::OnTick()
 }
 
 
-CDeleteMessageBox::CDeleteMessageBox( Panel *pParent, const char *title, const char *msg ) : BaseClass( title, msg, pParent )
+CDeleteMessageBox::CDeleteMessageBox( Panel *pParent, const wchar_t *title, const wchar_t *msg ) :
+	BaseClass( title, msg, pParent )
 {
 	SetCloseButtonVisible( true );
 	SetDeleteSelfOnClose( true );
@@ -2155,9 +2161,8 @@ CDeleteMessageBox::CDeleteMessageBox( Panel *pParent, const char *title, const c
 	DoModal();
 	MoveToFront();
 
-	// "#MessageBox_Cancel" wasn't translated, set labels manually
-	m_pCancelButton->SetText( "Cancel" );
-	m_pOkButton->SetText( "OK" );
+	m_pCancelButton->SetText( "#vgui_Cancel" );
+	m_pOkButton->SetText( "#vgui_ok" );
 
 	m_pCancelButton->SetVisible( true );
 	m_pOkButton->SetContentAlignment( Label::Alignment::a_center );
