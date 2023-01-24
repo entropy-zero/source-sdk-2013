@@ -4278,7 +4278,7 @@ void CVortigauntChargeToken::SeekTouch( CBaseEntity	*pOther )
 		if ( pNPC != NULL )
 		{
 			// Is this NPC friendly or hostile?
-			Disposition_t disposition = GetOwnerEntity()->MyNPCPointer()->IRelationType( pNPC );
+			Disposition_t disposition = GetOwnerEntity()->MyCombatCharacterPointer()->IRelationType( pNPC );
 
 			// Charge the suit's armor
 			if (disposition > D_FR )
