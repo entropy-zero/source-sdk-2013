@@ -150,19 +150,15 @@ acttable_t	CWeaponSMG2::m_acttable[] =
 IMPLEMENT_ACTTABLE(CWeaponSMG2);
 
 
-class CWeaponPlamsa : public CHLSelectFireMachineGun
-{
-public:
-	virtual void	FireBullets( const FireBulletsInfo_t &info );
-	virtual void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
-};
-
 class CWeaponSMG2Plasma : public CWeaponSMG2
 {
 public:
 	DECLARE_CLASS( CWeaponSMG2Plasma, CWeaponSMG2 );
 
 	DECLARE_SERVERCLASS();
+
+	virtual void	FireBullets( const FireBulletsInfo_t &info );
+	virtual void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
 };
 
 IMPLEMENT_SERVERCLASS_ST( CWeaponSMG2Plasma, DT_WeaponSMG2Plasma )
@@ -576,14 +572,14 @@ const WeaponProficiencyInfo_t *CWeaponSMG2::GetProficiencyValues()
 	return proficiencyTable;
 }
 
-void CWeaponPlamsa::FireBullets( const FireBulletsInfo_t & info )
+void CWeaponSMG2Plasma::FireBullets( const FireBulletsInfo_t & info )
 {
 	CVortigauntChargeToken * pToken = CVortigauntChargeToken::CreateChargeToken( info.m_vecSrc, GetOwner(), GetOwner()->GetEnemy() );
 	pToken->SetAbsVelocity( info.m_vecDirShooting * 512.0f );
 	pToken->SetNextThink( gpGlobals->curtime + 1.0f );
 }
 
-void CWeaponPlamsa::FireNPCPrimaryAttack( CBaseCombatCharacter * pOperator, Vector & vecShootOrigin, Vector & vecShootDir )
+void CWeaponSMG2Plasma::FireNPCPrimaryAttack( CBaseCombatCharacter * pOperator, Vector & vecShootOrigin, Vector & vecShootDir )
 {
 	// FIXME: use the returned number of bullets to account for >10hz firerate
 	WeaponSoundRealtime( SINGLE_NPC );
