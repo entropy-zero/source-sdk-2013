@@ -71,9 +71,9 @@ public:
 
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
 
-	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
-	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
-	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
+	virtual void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+	virtual void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
+	virtual void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
 	DECLARE_ACTTABLE();
 
@@ -588,7 +588,7 @@ void CWeaponSMG2Plasma::FireNPCPrimaryAttack( CBaseCombatCharacter * pOperator, 
 	
 	FireBulletsInfo_t info( 1, vecShootOrigin, vecShootDir, pOperator->GetAttackSpread( this ), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, true );
 	
-	FireBullets( info );
+	CWeaponSMG2Plasma::FireBullets( info );
 	pOperator->DoMuzzleFlash(); // Changing the shots doesn't help - just blows us up !
 
 	m_iClip1 = m_iClip1 - 1;
