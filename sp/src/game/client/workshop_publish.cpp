@@ -342,10 +342,9 @@ public:
 				text = g_pVGuiLocalize->Find( "#WorkshopMgr_NoImage" );
 			}
 
-			if (text == NULL)
+			if (!text)
 			{
-				Msg( "ERROR: Could not localize text string for preview image!\n" );
-				return;
+				text = L"no image";
 			}
 
 			surface()->GetTextSize( font, text, textWide, textTall );
