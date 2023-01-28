@@ -1266,7 +1266,8 @@ $Project
 		$ImpLib	"$LIBCOMMON\curl"	  [$OSXALL]
 
 		$Lib	"$LIBCOMMON\libcurl" [$WIN32]
-		$Lib   "libz" [$WIN32]
+		$Lib	"$LIBCOMMON\jpeglib" [$WIN32]
+		$Lib    "libz" [$WIN32]
 
 		$Libexternal	libz [$LINUXALL]
 		$Libexternal "$LIBCOMMON/libcurl" [$LINUXALL]

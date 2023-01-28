@@ -36,9 +36,10 @@
 #include "steam/steam_api.h"
 #include "clientsteamcontext.h"
 
-//#include "jpeglib/jpeglib.h"
+#ifdef _WIN32
+#include "jpeglib/jpeglib.h"
 //#include "libpng/png.h"
-
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -339,6 +340,12 @@ public:
 			else
 			{
 				text = g_pVGuiLocalize->Find( "#WorkshopMgr_NoImage" );
+			}
+
+			if (text == NULL)
+			{
+				Msg( "ERROR: Could not localize text string for preview image!\n" );
+				return;
 			}
 
 			surface()->GetTextSize( font, text, textWide, textTall );
