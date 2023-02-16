@@ -3033,7 +3033,8 @@ void CStasisVortexController::UnfreezePhysicsObjectThink( void )
 
 	if (pRagdoll)
 	{
-		pRagdoll->InputEnableMotion( inputdata_t() );
+		inputdata_t dummy;
+		pRagdoll->InputEnableMotion( dummy );
 		return;
 	}
 
