@@ -1082,8 +1082,8 @@ void CWeaponFlechetteShotgun::FireNPCPrimaryAttack( CBaseCombatCharacter *pOpera
 	for (int i = 0; i < sk_npc_flechette_shotgun_num_pellets.GetInt(); i++)
 	{
 		vecDir = Manipulator.ApplySpread( vecCone );
-
-		FlechetteShotgun_CreateFlechette( vecShootOrigin, vecDir * RandomFloat( sk_npc_flechette_shotgun_speed_min.GetFloat(), sk_npc_flechette_shotgun_speed_max.GetFloat() ), npc);
+		vecDir *= RandomFloat( sk_npc_flechette_shotgun_speed_min.GetFloat(), sk_npc_flechette_shotgun_speed_max.GetFloat() );
+		FlechetteShotgun_CreateFlechette( vecShootOrigin, vecDir, npc );
 	}
 }
 
@@ -1129,14 +1129,14 @@ void CWeaponFlechetteShotgun::PrimaryAttack( void )
 		{
 			// Force the first shot to be perfectly accurate and at max speed
 			vecDir = Manipulator.GetShotDirection();
-
-			FlechetteShotgun_CreateFlechette( vecSrc, vecDir * sk_plr_flechette_shotgun_speed_max.GetFloat(), pPlayer );
+			vecDir *= sk_plr_flechette_shotgun_speed_max.GetFloat();
+			FlechetteShotgun_CreateFlechette( vecSrc, vecDir, pPlayer );
 		}
 		else
 		{
 			vecDir = Manipulator.ApplySpread( GetBulletSpread() );
-
-			FlechetteShotgun_CreateFlechette( vecSrc, vecDir * RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() ), pPlayer );
+			vecDir *= RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() );
+			FlechetteShotgun_CreateFlechette( vecSrc, vecDir, pPlayer );
 		}
 	}
 	
@@ -1199,8 +1199,8 @@ void CWeaponFlechetteShotgun::SecondaryAttack( void )
 	{
 		// Use a wider spread for the secondary
 		vecDir = Manipulator.ApplySpread( VECTOR_CONE_10DEGREES );
-
-		FlechetteShotgun_CreateFlechette( vecSrc, vecDir * RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() ), pPlayer);
+		vecDir *= RandomFloat( sk_plr_flechette_shotgun_speed_min.GetFloat(), sk_plr_flechette_shotgun_speed_max.GetFloat() );
+		FlechetteShotgun_CreateFlechette( vecSrc, vecDir, pPlayer );
 	}
 
 	pPlayer->ViewPunch(QAngle(random->RandomFloat(-7, -7), random->RandomFloat(-6, 6), 0)); // Breadman - was 5 5 and second bit wasn't present
