@@ -39,6 +39,19 @@
 #ifdef _WIN32
 #include "jpeglib/jpeglib.h"
 //#include "libpng/png.h"
+
+// jpeg.lib currently requires __iob_func, which was changed in newer toolsets and needs to be stubbed.
+#if _MSC_VER >= 1900
+
+#include <stdio.h>
+
+extern "C" FILE * __cdecl __iob_func(void)
+{
+	static FILE _iob[] = { *stdin, *stdout, *stderr };
+	return _iob;
+}
+
+#endif
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1186,7 +1199,7 @@ void CWorkshopPublishDialog::OnSteamUGCQueryCompleted( SteamUGCQueryCompleted_t 
 
 		if ( details.m_eResult != k_EResultOK )
 		{
-			Warning( "GetQueryUGCResult() failed [%i]\n", i, details.m_eResult );
+			Warning( "GetQueryUGCResult() failed [%i]\n", details.m_eResult );
 			continue;
 		}
 
