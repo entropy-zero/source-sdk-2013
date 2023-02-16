@@ -135,7 +135,7 @@ jobs:
         msbuild -m -p:Configuration=${{inputs.configuration}} materialsystem\stdshaders\game_shader_dx9_episodic.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} materialsystem\stdshaders\game_shader_dx9_hl2.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} game\client\client_ez2.vcxproj
-        msbuild -m -p:Configuration=${{inputs.configuration}} game\client\server_ez2.vcxproj
+        msbuild -m -p:Configuration=${{inputs.configuration}} game\server\server_ez2.vcxproj
 
       # --------------------------------------------------------------------
 
