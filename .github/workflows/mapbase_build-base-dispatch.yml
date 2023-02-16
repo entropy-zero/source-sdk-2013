@@ -34,8 +34,6 @@ on:
         options:
         - ez2
         - ez1
-        - episodic
-        - hl2
       project-group:
         description: 'Which group of projects to compile'
         required: true
