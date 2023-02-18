@@ -148,8 +148,6 @@ CON_COMMAND( pause_menu, "Shortcut to toggle pause menu" )
 
 static ConVar si_current_cfg( "si_current_cfg", "0", FCVAR_ARCHIVE, "Steam Input's current controller." );
 
-static ConVar si_verify_controller_every_frame( "si_verify_controller_every_frame", "1", FCVAR_NONE, "Verifies that the controller is active every frame. This is a workaround for broken callbacks." );
-
 static ConVar si_force_glyph_controller( "si_force_glyph_controller", "-1", FCVAR_NONE, "Forces glyphs to translate to the specified ESteamInputType." );
 static ConVar si_default_glyph_controller( "si_default_glyph_controller", "0", FCVAR_NONE, "The default ESteamInputType to use when a controller's glyphs aren't available." );
 
@@ -171,9 +169,7 @@ class CSource2013SteamInput : public ISource2013SteamInput
 {
 public:
 
-	CSource2013SteamInput() :
-		m_InputDeviceConnected( this, &CSource2013SteamInput::InputDeviceConnected ),
-		m_InputDeviceDisconnected( this, &CSource2013SteamInput::InputDeviceDisconnected )
+	CSource2013SteamInput()
 	{
 
 	}
@@ -193,37 +189,42 @@ public:
 
 	//-------------------------------------------
 	
-	const char *GetControllerName() override;
-	int GetControllerType() override;
+	InputHandle_t GetActiveController() override;
+	int GetConnectedControllers( InputHandle_t *nOutHandles ) override;
+	
+	const char *GetControllerName( InputHandle_t nController ) override;
+	int GetControllerType( InputHandle_t nController ) override;
 
-	void CheckControllerConnected();
+	void SwitchActiveController( InputHandle_t nNewController );
 
 	//-------------------------------------------
 
-	void TestDigitalActionBind( InputDigitalActionBind_t *DigitalAction );
+	bool TestActions( int iActionSet, InputHandle_t nController );
+
+	void TestDigitalActionBind( InputHandle_t nController, InputDigitalActionBind_t *DigitalAction, bool &bActiveInput );
 #if MENU_ACTIONS_ARE_BINDS
-	void PressKeyFromDigitalActionHandle( InputDigitalActionBind_t &nHandle, ButtonCode_t nKey );
+	void PressKeyFromDigitalActionHandle( InputHandle_t nController, InputDigitalActionBind_t &nHandle, ButtonCode_t nKey, bool &bActiveInput );
 #else
-	void PressKeyFromDigitalActionHandle( InputDigitalActionHandle_t nHandle, ButtonCode_t nKey );
+	void PressKeyFromDigitalActionHandle( InputHandle_t nController, InputDigitalActionHandle_t nHandle, ButtonCode_t nKey, bool &bActiveInput );
 #endif
 
 	bool UsingJoysticks() override;
 	void GetJoystickValues( float &flForward, float &flSide, float &flPitch, float &flYaw,
 		bool &bRelativeForward, bool &bRelativeSide, bool &bRelativePitch, bool &bRelativeYaw ) override;
 
-	void SetRumble( float fLeftMotor, float fRightMotor, int userId = INVALID_USER_ID ) override;
-	void StopRumble( void ) override;
+	void SetRumble( InputHandle_t nController, float fLeftMotor, float fRightMotor, int userId = INVALID_USER_ID ) override;
+	void StopRumble() override;
 
 	//-------------------------------------------
 	
-	void SetLEDColor( byte r, byte g, byte b ) override;
-	void ResetLEDColor() override;
+	void SetLEDColor( InputHandle_t nController, byte r, byte g, byte b ) override;
+	void ResetLEDColor( InputHandle_t nController ) override;
 
 	//-------------------------------------------
 
 	int FindDigitalActionsForCommand( const char *pszCommand, InputDigitalActionHandle_t *pHandles );
 	int FindAnalogActionsForCommand( const char *pszCommand, InputAnalogActionHandle_t *pHandles );
-	void GetInputActionOriginsForCommand( const char *pszCommand, CUtlVector<EInputActionOrigin> &actionOrigins );
+	void GetInputActionOriginsForCommand( const char *pszCommand, CUtlVector<EInputActionOrigin> &actionOrigins, int iActionSetOverride = -1 );
 
 	const char *GetGlyphForCommand( const char *pszCommand, bool bSVG );
 	const char *GetGlyphPNGForCommand( const char *pszCommand ) override { return GetGlyphForCommand( pszCommand, false ); }
@@ -232,7 +233,7 @@ public:
 	virtual bool UseGlyphs() override { return si_use_glyphs.GetBool(); };
 	virtual bool TintGlyphs() override { return si_tint_glyphs.GetBool(); };
 	void GetGlyphFontForCommand( const char *pszCommand, char *szChars, int szCharsSize, vgui::HFont &hFont, vgui::IScheme *pScheme ) override;
-	void GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList ) override;
+	void GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList, int iActionSet = -1 ) override;
 
 	//-------------------------------------------
 
@@ -242,8 +243,9 @@ public:
 private:
 	const char *IdentifyControllerParam( ESteamInputType inputType );
 
-	STEAM_CALLBACK( CSource2013SteamInput, InputDeviceConnected, SteamInputDeviceConnected_t, m_InputDeviceConnected );
-	STEAM_CALLBACK( CSource2013SteamInput, InputDeviceDisconnected, SteamInputDeviceDisconnected_t, m_InputDeviceDisconnected );
+	void InputDeviceConnected( InputHandle_t nDeviceHandle );
+	void InputDeviceDisconnected( InputHandle_t nDeviceHandle );
+	void InputDeviceChanged( InputHandle_t nOldHandle, InputHandle_t nNewHandle );
 	void DeckConnected( InputHandle_t nDeviceHandle );
 
 	//-------------------------------------------
@@ -258,6 +260,7 @@ private:
 
 	bool m_bEnabled;
 
+	// Handle to the active controller (may change depending on last input)
 	InputHandle_t m_nControllerHandle;
 
 	InputAnalogActionData_t m_analogMoveData, m_analogCameraData;
@@ -299,19 +302,23 @@ ISource2013SteamInput *g_pSteamInput = &g_SteamInput;
 CON_COMMAND( si_print_state, "" )
 {
 	bool bEnabled = g_pSteamInput->IsEnabled();
-	const char *pszControllerParam = g_pSteamInput->GetControllerName();
 
-	char szState[256];
-	Q_snprintf( szState, sizeof( szState ), "STEAM INPUT: %s", bEnabled ? "Enabled" : "Disabled" );
+	char szState[512];
+	Q_snprintf( szState, sizeof( szState ), "STEAM INPUT: %s\n", bEnabled ? "Enabled" : "Disabled" );
 
 	if (bEnabled)
 	{
-		Q_snprintf( szState, sizeof( szState ),
-			"%s"
-			"\n\n"
-			"Current Controller: %s\n"
-			, szState,
-			pszControllerParam );
+		Q_strncat( szState, "\nLIST OF CONTROLLERS:\n", sizeof( szState ) );
+
+		InputHandle_t inputHandles[STEAM_INPUT_MAX_COUNT];
+		int iNumHandles = SteamInput()->GetConnectedControllers( inputHandles );
+		for (int i = 0; i < iNumHandles; i++)
+		{
+			Q_strncat( szState, VarArgs("\t%s/%i %s\n",
+				g_pSteamInput->GetControllerName( inputHandles[i] ),
+				g_pSteamInput->GetControllerType( inputHandles[i] ),
+				g_pSteamInput->GetActiveController() == inputHandles[i] ? "[ACTIVE]" : ""), sizeof(szState));
+		}
 	}
 
 	Msg( "%s\n", szState );
@@ -414,7 +421,7 @@ void CSource2013SteamInput::Init()
 	{
 		if (SteamUtils()->IsSteamRunningOnSteamDeck())
 		{
-			InputHandle_t *inputHandles = new InputHandle_t[ STEAM_INPUT_MAX_COUNT ];
+			InputHandle_t inputHandles[ STEAM_INPUT_MAX_COUNT ];
 			int iNumHandles = SteamInput()->GetConnectedControllers( inputHandles );
 			Msg( "On Steam Deck and number of controllers is %i\n", iNumHandles );
 
@@ -544,16 +551,9 @@ const char *CSource2013SteamInput::IdentifyControllerParam( ESteamInputType inpu
 	return NULL;
 }
 
-void CSource2013SteamInput::InputDeviceConnected( SteamInputDeviceConnected_t *pParam )
+void CSource2013SteamInput::InputDeviceConnected( InputHandle_t nDeviceHandle )
 {
-	// Don't need another controller
-	if (m_bEnabled)
-	{
-		Msg( "Steam Input rejected additional controller\n" );
-		return;
-	}
-
-	m_nControllerHandle = pParam->m_ulConnectedDeviceHandle;
+	m_nControllerHandle = nDeviceHandle;
 	m_bEnabled = true;
 
 	engine->ClientCmd_Unrestricted( "exec steam_input.cfg" );
@@ -576,7 +576,7 @@ void CSource2013SteamInput::InputDeviceConnected( SteamInputDeviceConnected_t *p
 	}
 }
 
-void CSource2013SteamInput::InputDeviceDisconnected( SteamInputDeviceDisconnected_t *pParam )
+void CSource2013SteamInput::InputDeviceDisconnected( InputHandle_t nDeviceHandle )
 {
 	Msg( "Steam Input controller disconnected\n" );
 
@@ -586,7 +586,7 @@ void CSource2013SteamInput::InputDeviceDisconnected( SteamInputDeviceDisconnecte
 	engine->ClientCmd_Unrestricted( "exec steam_uninput.cfg" );
 
 	const char *pszInputPrintType = NULL;
-	ESteamInputType inputType = SteamInput()->GetInputTypeForHandle( pParam->m_ulDisconnectedDeviceHandle );
+	ESteamInputType inputType = SteamInput()->GetInputTypeForHandle( nDeviceHandle );
 	pszInputPrintType = IdentifyControllerParam( inputType );
 
 	if (pszInputPrintType)
@@ -603,15 +603,35 @@ void CSource2013SteamInput::InputDeviceDisconnected( SteamInputDeviceDisconnecte
 	}
 }
 
-void CSource2013SteamInput::DeckConnected( InputHandle_t nDeviceHandle )
+void CSource2013SteamInput::InputDeviceChanged( InputHandle_t nOldHandle, InputHandle_t nNewHandle )
 {
-	// Don't need another controller
-	if (m_bEnabled)
+	// Disconnect previous controller
+	const char *pszInputPrintType = NULL;
+	ESteamInputType inputType = SteamInput()->GetInputTypeForHandle( nOldHandle );
+	pszInputPrintType = IdentifyControllerParam( inputType );
+
+	if (pszInputPrintType)
 	{
-		Msg( "Steam Input rejected additional controller\n" );
-		return;
+		engine->ClientCmd_Unrestricted( VarArgs( "exec steam_uninput_%s.cfg", pszInputPrintType ) );
 	}
 
+	// Connect new controller
+	m_nControllerHandle = nNewHandle;
+
+	ESteamInputType newInputType = SteamInput()->GetInputTypeForHandle( m_nControllerHandle );
+	const char *pszNewInputPrintType = IdentifyControllerParam( newInputType );
+
+	Msg( "Steam Input changing controller from %i/%s to %i/%s\n", inputType, pszInputPrintType, newInputType, pszNewInputPrintType );
+
+	if (pszNewInputPrintType)
+	{
+		engine->ClientCmd_Unrestricted( VarArgs( "exec steam_input_%s.cfg", pszNewInputPrintType ) );
+		si_current_cfg.SetValue( pszNewInputPrintType );
+	}
+}
+
+void CSource2013SteamInput::DeckConnected( InputHandle_t nDeviceHandle )
+{
 	Msg( "Steam Input running with a Steam Deck\n" );
 
 	m_nControllerHandle = nDeviceHandle;
@@ -628,14 +648,18 @@ void CSource2013SteamInput::RunFrame()
 {
 	SteamInput()->RunFrame();
 
-	// This is a workaround for broken callbacks
-	if (si_verify_controller_every_frame.GetBool())
-	{
-		CheckControllerConnected();
-	}
+	static InputHandle_t inputHandles[STEAM_INPUT_MAX_COUNT];
+	int iNumHandles = SteamInput()->GetConnectedControllers( inputHandles );
 
-	if (!IsEnabled())
+	if (iNumHandles <= 0)
+	{
+		if (IsEnabled())
+		{
+			// No controllers available, disable Steam Input
+			InputDeviceDisconnected( m_nControllerHandle );
+		}
 		return;
+	}
 
 	//if (!SteamInput()->BNewDataAvailable())
 	//	return;
@@ -658,110 +682,30 @@ void CSource2013SteamInput::RunFrame()
 		}
 	}
 
-	switch (iActionSet)
+	// Reset the analog data
+	m_analogMoveData = m_analogCameraData = InputAnalogActionData_t();
+
+	InputHandle_t iFirstActive = m_nControllerHandle;
+	for (int i = 0; i < iNumHandles; i++)
 	{
-		case AS_GameControls:
+		if (TestActions( iActionSet, inputHandles[i] ))
 		{
-			SteamInput()->ActivateActionSet( m_nControllerHandle, g_AS_GameControls );
-			
-			// Run commands for all digital actions
-			for (int i = 0; i < ARRAYSIZE( g_DigitalActionBinds ); i++)
-			{
-				TestDigitalActionBind( &g_DigitalActionBinds[i] );
-			}
-
-			m_analogMoveData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Move );
-
-		} break;
-
-		case AS_VehicleControls:
-		{
-			SteamInput()->ActivateActionSet( m_nControllerHandle, g_AS_VehicleControls );
-			
-			// Run commands for all digital actions
-			for (int i = 0; i < ARRAYSIZE( g_DigitalActionBinds ); i++)
-			{
-				TestDigitalActionBind( &g_DigitalActionBinds[i] );
-			}
-
-			m_analogMoveData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Move );
-
-			// Add steer data to the X value
-			InputAnalogActionData_t steerData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Steer );
-			m_analogMoveData.x += steerData.x;
-
-			// Add acceleration to the Y value
-			steerData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Accelerate );
-			m_analogMoveData.y += steerData.x;
-
-			if (g_DAB_Brake->bDown == false)
-			{
-				// For now, braking is equal to the digital action
-				steerData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Brake );
-				if (steerData.x >= 0.25f)
-				{
-					engine->ClientCmd_Unrestricted( "+jump" );
-				}
-				else
-				{
-					engine->ClientCmd_Unrestricted( "-jump" );
-				}
-			}
-
-		} break;
-
-		case AS_MenuControls:
-		{
-			SteamInput()->ActivateActionSet( m_nControllerHandle, g_AS_MenuControls );
-
-#if MENU_ACTIONS_ARE_BINDS
-			PressKeyFromDigitalActionHandle( g_DAB_MenuUp, KEY_UP ); // KEY_XBUTTON_UP
-			PressKeyFromDigitalActionHandle( g_DAB_MenuDown, KEY_DOWN ); // KEY_XBUTTON_DOWN
-			PressKeyFromDigitalActionHandle( g_DAB_MenuLeft, KEY_LEFT ); // KEY_XBUTTON_LEFT
-			PressKeyFromDigitalActionHandle( g_DAB_MenuRight, KEY_RIGHT ); // KEY_XBUTTON_RIGHT
-			PressKeyFromDigitalActionHandle( g_DAB_MenuSelect, KEY_XBUTTON_A );
-			PressKeyFromDigitalActionHandle( g_DAB_MenuCancel, KEY_XBUTTON_B );
-			PressKeyFromDigitalActionHandle( g_DAB_MenuLB, KEY_XBUTTON_LEFT ); // KEY_XBUTTON_LEFT_SHOULDER
-			PressKeyFromDigitalActionHandle( g_DAB_MenuRB, KEY_XBUTTON_RIGHT ); // KEY_XBUTTON_RIGHT_SHOULDER
-#else
-			PressKeyFromDigitalActionHandle( g_DA_MenuUp, KEY_UP ); // KEY_XBUTTON_UP
-			PressKeyFromDigitalActionHandle( g_DA_MenuDown, KEY_DOWN ); // KEY_XBUTTON_DOWN
-			PressKeyFromDigitalActionHandle( g_DA_MenuLeft, KEY_LEFT ); // KEY_XBUTTON_LEFT
-			PressKeyFromDigitalActionHandle( g_DA_MenuRight, KEY_RIGHT ); // KEY_XBUTTON_RIGHT
-			PressKeyFromDigitalActionHandle( g_DA_MenuSelect, KEY_XBUTTON_A );
-			PressKeyFromDigitalActionHandle( g_DA_MenuCancel, KEY_XBUTTON_B );
-			//PressKeyFromDigitalActionHandle( g_DA_MenuX, KEY_X );
-			//PressKeyFromDigitalActionHandle( g_DA_MenuY, KEY_Y );
-			PressKeyFromDigitalActionHandle( g_DA_MenuLB, KEY_XBUTTON_LEFT ); // KEY_XBUTTON_LEFT_SHOULDER
-			PressKeyFromDigitalActionHandle( g_DA_MenuRB, KEY_XBUTTON_RIGHT ); // KEY_XBUTTON_RIGHT_SHOULDER
-#endif
-
-			TestDigitalActionBind( g_DAB_MenuPause );
-
-			//InputDigitalActionData_t xData = SteamInput()->GetDigitalActionData( m_nControllerHandle, g_DA_MenuX );
-			InputDigitalActionData_t yData = SteamInput()->GetDigitalActionData( m_nControllerHandle, g_DA_MenuY );
-
-			//if (xData.bState)
-			//	engine->ClientCmd_Unrestricted( "gamemenucommand OpenOptionsDialog\n" );
-
-			if (yData.bState)
-				engine->ClientCmd_Unrestricted( "gamemenucommand OpenOptionsDialog\n" );
-
-		} break;
+			if (iFirstActive == m_nControllerHandle)
+				iFirstActive = inputHandles[i];
+		}
 	}
 
-	if (iActionSet != AS_MenuControls)
+	if (iFirstActive != m_nControllerHandle)
 	{
-		InputAnalogActionData_t cameraData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_Camera );
-		InputAnalogActionData_t cameraJoystickData = SteamInput()->GetAnalogActionData( m_nControllerHandle, g_AA_JoystickCamera );
-
-		if (cameraJoystickData.bActive)
+		// Disconnect previous controller if its inputs are not active
+		if (m_nControllerHandle != 0)
 		{
-			m_analogCameraData = cameraJoystickData;
+			InputDeviceChanged( m_nControllerHandle, iFirstActive );
 		}
 		else
 		{
-			m_analogCameraData = cameraData;
+			// Register the new controller
+			InputDeviceConnected( iFirstActive );
 		}
 	}
 
@@ -791,57 +735,213 @@ bool CSource2013SteamInput::IsEnabled()
 	return m_bEnabled;
 }
 
-const char *CSource2013SteamInput::GetControllerName()
+InputHandle_t CSource2013SteamInput::GetActiveController()
 {
-	ESteamInputType inputType = SteamInput()->GetInputTypeForHandle( m_nControllerHandle );
+	return m_nControllerHandle;
+}
+
+int CSource2013SteamInput::GetConnectedControllers( InputHandle_t *nOutHandles )
+{
+	if (_ARRAYSIZE( nOutHandles ) < STEAM_INPUT_MAX_COUNT)
+	{
+		Warning( "ISource2013SteamInput::GetConnectedControllers requires an array greater than or equal to STEAM_INPUT_MAX_COUNT (%i) in size\n", STEAM_INPUT_MAX_COUNT );
+		return 0;
+	}
+
+	return SteamInput()->GetConnectedControllers( nOutHandles );
+}
+
+const char *CSource2013SteamInput::GetControllerName( InputHandle_t nController )
+{
+	ESteamInputType inputType = SteamInput()->GetInputTypeForHandle( nController );
 	return IdentifyControllerParam( inputType );
 }
 
-int CSource2013SteamInput::GetControllerType()
+int CSource2013SteamInput::GetControllerType( InputHandle_t nController )
 {
-	return SteamInput()->GetInputTypeForHandle( m_nControllerHandle );
+	return SteamInput()->GetInputTypeForHandle( nController );
 }
 
-void CSource2013SteamInput::CheckControllerConnected()
+bool CSource2013SteamInput::TestActions( int iActionSet, InputHandle_t nController )
 {
-	InputHandle_t *inputHandles = new InputHandle_t[ STEAM_INPUT_MAX_COUNT ];
-	int iNumHandles = SteamInput()->GetConnectedControllers( inputHandles );
+	bool bActiveInput = false;
 
-	if (inputHandles[0] != m_nControllerHandle)
+	switch (iActionSet)
 	{
-		if (IsEnabled())
+		case AS_GameControls:
 		{
-			SteamInputDeviceDisconnected_t deviceDisconnected;
-			deviceDisconnected.m_ulDisconnectedDeviceHandle = m_nControllerHandle;
-			InputDeviceDisconnected( &deviceDisconnected );
+			SteamInput()->ActivateActionSet( nController, g_AS_GameControls );
+			
+			// Run commands for all digital actions
+			for (int i = 0; i < ARRAYSIZE( g_DigitalActionBinds ); i++)
+			{
+				TestDigitalActionBind( nController, &g_DigitalActionBinds[i], bActiveInput );
+			}
+
+			InputAnalogActionData_t moveData = SteamInput()->GetAnalogActionData( nController, g_AA_Move );
+			if (!m_analogMoveData.bActive)
+			{
+				m_analogMoveData = moveData;
+			}
+			else if (m_analogMoveData.eMode == moveData.eMode)
+			{
+				// Just add on to existing input
+				m_analogMoveData.x += moveData.x;
+				m_analogMoveData.y += moveData.y;
+			}
+
+			if (moveData.x != 0.0f || moveData.y != 0.0f)
+			{
+				bActiveInput = true;
+			}
+
+		} break;
+
+		case AS_VehicleControls:
+		{
+			SteamInput()->ActivateActionSet( nController, g_AS_VehicleControls );
+			
+			// Run commands for all digital actions
+			for (int i = 0; i < ARRAYSIZE( g_DigitalActionBinds ); i++)
+			{
+				TestDigitalActionBind( nController, &g_DigitalActionBinds[i], bActiveInput );
+			}
+
+			InputAnalogActionData_t moveData = SteamInput()->GetAnalogActionData( nController, g_AA_Move );
+			if (!m_analogMoveData.bActive)
+			{
+				m_analogMoveData = moveData;
+			}
+			else if (m_analogMoveData.eMode == moveData.eMode)
+			{
+				// Just add on to existing input
+				m_analogMoveData.x += moveData.x;
+				m_analogMoveData.y += moveData.y;
+			}
+
+			// Add steer data to the X value
+			InputAnalogActionData_t steerData = SteamInput()->GetAnalogActionData( nController, g_AA_Steer );
+			m_analogMoveData.x += steerData.x;
+
+			// Add acceleration to the Y value
+			steerData = SteamInput()->GetAnalogActionData( nController, g_AA_Accelerate );
+			m_analogMoveData.y += steerData.x;
+
+			if (g_DAB_Brake->bDown == false)
+			{
+				// For now, braking is equal to the digital action
+				steerData = SteamInput()->GetAnalogActionData( nController, g_AA_Brake );
+				if (steerData.x >= 0.25f)
+				{
+					engine->ClientCmd_Unrestricted( "+jump" );
+				}
+				else
+				{
+					engine->ClientCmd_Unrestricted( "-jump" );
+				}
+			}
+
+			if (moveData.x != 0.0f || moveData.y != 0.0f ||
+				steerData.x != 0.0f || steerData.y != 0.0f)
+			{
+				bActiveInput = true;
+			}
+
+		} break;
+
+		case AS_MenuControls:
+		{
+			SteamInput()->ActivateActionSet( nController, g_AS_MenuControls );
+
+#if MENU_ACTIONS_ARE_BINDS
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuUp, KEY_UP, bActiveInput ); // KEY_XBUTTON_UP
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuDown, KEY_DOWN, bActiveInput ); // KEY_XBUTTON_DOWN
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuLeft, KEY_LEFT, bActiveInput ); // KEY_XBUTTON_LEFT
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuRight, KEY_RIGHT, bActiveInput ); // KEY_XBUTTON_RIGHT
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuSelect, KEY_XBUTTON_A, bActiveInput );
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuCancel, KEY_XBUTTON_B, bActiveInput );
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuLB, KEY_XBUTTON_LEFT, bActiveInput ); // KEY_XBUTTON_LEFT_SHOULDER
+			PressKeyFromDigitalActionHandle( nController, g_DAB_MenuRB, KEY_XBUTTON_RIGHT, bActiveInput ); // KEY_XBUTTON_RIGHT_SHOULDER
+#else
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuUp, KEY_UP, bActiveInput ); // KEY_XBUTTON_UP
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuDown, KEY_DOWN, bActiveInput ); // KEY_XBUTTON_DOWN
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuLeft, KEY_LEFT, bActiveInput ); // KEY_XBUTTON_LEFT
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuRight, KEY_RIGHT, bActiveInput ); // KEY_XBUTTON_RIGHT
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuSelect, KEY_XBUTTON_A, bActiveInput );
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuCancel, KEY_XBUTTON_B, bActiveInput );
+			//PressKeyFromDigitalActionHandle( nController, g_DA_MenuX, KEY_X, bActiveInput );
+			//PressKeyFromDigitalActionHandle( nController, g_DA_MenuY, KEY_Y, bActiveInput );
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuLB, KEY_XBUTTON_LEFT, bActiveInput ); // KEY_XBUTTON_LEFT_SHOULDER
+			PressKeyFromDigitalActionHandle( nController, g_DA_MenuRB, KEY_XBUTTON_RIGHT, bActiveInput ); // KEY_XBUTTON_RIGHT_SHOULDER
+#endif
+
+			TestDigitalActionBind( nController, g_DAB_MenuPause, bActiveInput );
+
+			//InputDigitalActionData_t xData = SteamInput()->GetDigitalActionData( nController, g_DA_MenuX );
+			InputDigitalActionData_t yData = SteamInput()->GetDigitalActionData( nController, g_DA_MenuY );
+
+			//if (xData.bState)
+			//	engine->ClientCmd_Unrestricted( "gamemenucommand OpenOptionsDialog\n" );
+
+			if (yData.bState)
+			{
+				engine->ClientCmd_Unrestricted( "gamemenucommand OpenOptionsDialog\n" );
+				bActiveInput = true;
+			}
+
+		} break;
+	}
+
+	if (iActionSet != AS_MenuControls)
+	{
+		InputAnalogActionData_t cameraData = SteamInput()->GetAnalogActionData( nController, g_AA_Camera );
+		InputAnalogActionData_t cameraJoystickData = SteamInput()->GetAnalogActionData( nController, g_AA_JoystickCamera );
+
+		if (cameraJoystickData.bActive)
+		{
+			cameraData = cameraJoystickData;
 		}
 
-		if (iNumHandles > 0)
+		if (!m_analogCameraData.bActive)
 		{
-			// Register the new controller
-			SteamInputDeviceConnected_t deviceConnected;
-			deviceConnected.m_ulConnectedDeviceHandle = inputHandles[0];
-			InputDeviceConnected( &deviceConnected );
+			m_analogCameraData = cameraData;
+		}
+		else if (m_analogCameraData.eMode == cameraData.eMode)
+		{
+			// Just add on to existing input
+			m_analogCameraData.x += cameraData.x;
+			m_analogCameraData.y += cameraData.y;
+		}
+
+		if (cameraData.x != 0.0f || cameraData.y != 0.0f)
+		{
+			bActiveInput = true;
 		}
 	}
+
+	return bActiveInput;
 }
 
-void CSource2013SteamInput::TestDigitalActionBind( InputDigitalActionBind_t *DigitalAction )
+void CSource2013SteamInput::TestDigitalActionBind( InputHandle_t nController, InputDigitalActionBind_t *DigitalAction, bool &bActiveInput )
 {
-	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( m_nControllerHandle, DigitalAction->handle );
+	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( nController, DigitalAction->handle );
 
 	if (data.bState)
 	{
 		// Key is not down
 		if (!DigitalAction->bDown)
 		{
+			DigitalAction->controller = nController;
 			DigitalAction->bDown = true;
 			DigitalAction->OnDown();
 		}
+
+		if (DigitalAction->controller == nController)
+			bActiveInput = true;
 	}
-	else
+	else if (DigitalAction->controller == nController)
 	{
-		// Key is already down
+		// Key was already down on this controller
 		if (DigitalAction->bDown)
 		{
 			DigitalAction->bDown = false;
@@ -851,9 +951,9 @@ void CSource2013SteamInput::TestDigitalActionBind( InputDigitalActionBind_t *Dig
 }
 
 #if MENU_ACTIONS_ARE_BINDS
-void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputDigitalActionBind_t &nHandle, ButtonCode_t nKey )
+void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputHandle_t nController, InputDigitalActionBind_t &nHandle, ButtonCode_t nKey, bool &bActiveInput )
 {
-	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( m_nControllerHandle, nHandle.handle );
+	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( nController, nHandle.handle );
 
 	bool bSendKey = false;
 	if (data.bState)
@@ -861,11 +961,15 @@ void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputDigitalActionB
 		// Key is not down
 		if (!nHandle.bDown)
 		{
+			nHandle.controller = nController;
 			nHandle.bDown = true;
 			bSendKey = true;
 		}
+
+		if (nHandle.controller == nController)
+			bActiveInput = true;
 	}
-	else
+	else if (nHandle.controller == nController)
 	{
 		// Key is already down
 		if (nHandle.bDown)
@@ -882,9 +986,9 @@ void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputDigitalActionB
 	}
 }
 #else
-void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputDigitalActionHandle_t nHandle, ButtonCode_t nKey )
+void CSource2013SteamInput::PressKeyFromDigitalActionHandle( InputHandle_t nController, InputDigitalActionHandle_t nHandle, ButtonCode_t nKey, bool &bActiveInput )
 {
-	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( m_nControllerHandle, nHandle );
+	InputDigitalActionData_t data = SteamInput()->GetDigitalActionData( nController, nHandle );
 
 	/*if (data.bActive)
 	{
@@ -963,7 +1067,7 @@ void CSource2013SteamInput::GetJoystickValues( float &flForward, float &flSide, 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 
-void CSource2013SteamInput::SetRumble( float fLeftMotor, float fRightMotor, int userId )
+void CSource2013SteamInput::SetRumble( InputHandle_t nController, float fLeftMotor, float fRightMotor, int userId )
 {
 	if (!IsEnabled() || !si_enable_rumble.GetBool())
 	{
@@ -971,7 +1075,10 @@ void CSource2013SteamInput::SetRumble( float fLeftMotor, float fRightMotor, int 
 		return;
 	}
 
-	SteamInput()->TriggerVibrationExtended( m_nControllerHandle, fLeftMotor, fRightMotor, fLeftMotor, fRightMotor );
+	if (nController == 0)
+		nController = m_nControllerHandle;
+
+	SteamInput()->TriggerVibrationExtended( nController, fLeftMotor, fRightMotor, fLeftMotor, fRightMotor );
 
 	if (si_print_rumble.GetBool())
 	{
@@ -993,14 +1100,14 @@ void CSource2013SteamInput::StopRumble()
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 
-void CSource2013SteamInput::SetLEDColor( byte r, byte g, byte b )
+void CSource2013SteamInput::SetLEDColor( InputHandle_t nController, byte r, byte g, byte b )
 {
-	SteamInput()->SetLEDColor( m_nControllerHandle, r, g, b, k_ESteamControllerLEDFlag_SetColor );
+	SteamInput()->SetLEDColor( nController, r, g, b, k_ESteamControllerLEDFlag_SetColor );
 }
 
-void CSource2013SteamInput::ResetLEDColor()
+void CSource2013SteamInput::ResetLEDColor( InputHandle_t nController )
 {
-	SteamInput()->SetLEDColor( m_nControllerHandle, 0, 0, 0, k_ESteamControllerLEDFlag_RestoreUserDefault );
+	SteamInput()->SetLEDColor( nController, 0, 0, 0, k_ESteamControllerLEDFlag_RestoreUserDefault );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1090,22 +1197,35 @@ int CSource2013SteamInput::FindAnalogActionsForCommand( const char *pszCommand, 
 	return iNumHandles;
 }
 
-void CSource2013SteamInput::GetInputActionOriginsForCommand( const char *pszCommand, CUtlVector<EInputActionOrigin> &actionOrigins )
+void CSource2013SteamInput::GetInputActionOriginsForCommand( const char *pszCommand, CUtlVector<EInputActionOrigin> &actionOrigins, int iActionSetOverride )
 {
 	InputActionSetHandle_t actionSet = g_AS_MenuControls;
 
-	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
-	if( pPlayer )
+	if (iActionSetOverride != -1)
 	{
-		if ( !engine->IsPaused() && !engine->IsLevelMainMenuBackground() )
+		switch (iActionSetOverride)
 		{
-			if (pPlayer->GetVehicle())
+			default:
+			case AS_GameControls:		actionSet = g_AS_GameControls; break;
+			case AS_VehicleControls:	actionSet = g_AS_VehicleControls; break;
+			//case AS_MenuControls:		actionSet = g_AS_MenuControls; break;
+		}
+	}
+	else
+	{
+		C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+		if( pPlayer )
+		{
+			if ( !engine->IsPaused() && !engine->IsLevelMainMenuBackground() )
 			{
-				actionSet = g_AS_VehicleControls;
-			}
-			else
-			{
-				actionSet = g_AS_GameControls;
+				if (pPlayer->GetVehicle())
+				{
+					actionSet = g_AS_VehicleControls;
+				}
+				else
+				{
+					actionSet = g_AS_GameControls;
+				}
 			}
 		}
 	}
@@ -1203,13 +1323,13 @@ void CSource2013SteamInput::GetGlyphFontForCommand( const char *pszCommand, char
 	}
 }
 
-void CSource2013SteamInput::GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList )
+void CSource2013SteamInput::GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList, int iActionSet )
 {
 	if (pszCommand[0] == '+')
 		pszCommand++;
 
 	CUtlVector<EInputActionOrigin> actionOrigins;
-	GetInputActionOriginsForCommand( pszCommand, actionOrigins );
+	GetInputActionOriginsForCommand( pszCommand, actionOrigins, iActionSet );
 
 	for (int i = 0; i < actionOrigins.Count(); i++)
 	{

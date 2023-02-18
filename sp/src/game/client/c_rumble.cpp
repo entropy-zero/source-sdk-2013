@@ -781,7 +781,7 @@ void CRumbleEffects::UpdateEffects( float curtime )
 	}
 
 #ifdef STEAM_INPUT
-	g_pSteamInput->SetRumble( fLeftMotor, fRightMotor );
+	g_pSteamInput->SetRumble( 0, fLeftMotor, fRightMotor );
 #else
 	inputsystem->SetRumble( fLeftMotor, fRightMotor );
 #endif

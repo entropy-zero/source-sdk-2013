@@ -23,13 +23,21 @@ void UTIL_ReplaceKeyBindingsWithGlyphs( const wchar_t *inbuf, int inbufsizebytes
 
 //-----------------------------------------------------------------------------
 
+#ifndef ISTEAMINPUT_H // Stubs for when isteaminput.h isn't included
+#define STEAM_INPUT_MAX_COUNT 16
+
+typedef uint64 InputHandle_t;
 typedef uint64 InputActionSetHandle_t;
 typedef uint64 InputDigitalActionHandle_t;
 typedef uint64 InputAnalogActionHandle_t;
+#endif
+
+//-----------------------------------------------------------------------------
 
 struct InputDigitalActionBind_t
 {
 	InputDigitalActionHandle_t handle;
+	InputHandle_t controller; // The last controller pressing if it is down
 	bool bDown;
 
 	virtual void OnDown() { ; }
@@ -77,8 +85,11 @@ public:
 
 	//-----------------------------------------------------------------------------
 	
-	virtual const char *GetControllerName() = 0;
-	virtual int GetControllerType() = 0;
+	virtual InputHandle_t GetActiveController() = 0;
+	virtual int GetConnectedControllers( InputHandle_t *nOutHandles ) = 0;
+
+	virtual const char *GetControllerName( InputHandle_t nController ) = 0;
+	virtual int GetControllerType( InputHandle_t nController ) = 0;
 
 	//-----------------------------------------------------------------------------
 
@@ -86,20 +97,20 @@ public:
 	virtual void GetJoystickValues( float &flForward, float &flSide, float &flPitch, float &flYaw,
 		bool &bRelativeForward, bool &bRelativeSide, bool &bRelativePitch, bool &bRelativeYaw ) = 0;
 
-	virtual void SetRumble( float fLeftMotor, float fRightMotor, int userId = INVALID_USER_ID ) = 0;
-	virtual void StopRumble( void ) = 0;
+	virtual void SetRumble( InputHandle_t nController, float fLeftMotor, float fRightMotor, int userId = INVALID_USER_ID ) = 0;
+	virtual void StopRumble() = 0;
 
 	//-------------------------------------------
 
-	virtual void SetLEDColor( byte r, byte g, byte b ) = 0;
-	virtual void ResetLEDColor() = 0;
+	virtual void SetLEDColor( InputHandle_t nController, byte r, byte g, byte b ) = 0;
+	virtual void ResetLEDColor( InputHandle_t nController ) = 0;
 
 	//-----------------------------------------------------------------------------
 
 	virtual bool UseGlyphs() = 0;
 	virtual bool TintGlyphs() = 0;
 	virtual void GetGlyphFontForCommand( const char *pszCommand, char *szChars, int szCharsSize, vgui::HFont &hFont, vgui::IScheme *pScheme ) = 0;
-	virtual void GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList ) = 0;
+	virtual void GetButtonStringsForCommand( const char *pszCommand, CUtlVector<const char*> &szStringList, int iActionSet = -1 ) = 0;
 
 	virtual const char *GetGlyphPNGForCommand( const char *pszCommand ) = 0;
 	virtual const char *GetGlyphSVGForCommand( const char *pszCommand ) = 0;

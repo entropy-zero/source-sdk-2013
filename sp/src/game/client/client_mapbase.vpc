@@ -63,6 +63,8 @@ $Project
 			$File   "mapbase\vscript_vgui.cpp" [$MAPBASE_VSCRIPT]
 			$File   "mapbase\vscript_vgui.h" [$MAPBASE_VSCRIPT]
 			$File   "mapbase\vscript_vgui.nut" [$MAPBASE_VSCRIPT]
+			
+			$File   "mapbase\vscript_consts_steaminput.cpp" [($MAPBASE_VSCRIPT&&$STEAM_INPUT)]
 
 			$File	"mapbase\c_func_clientclip.cpp"
 			$File	"mapbase\c_func_fake_worldportal.cpp"
