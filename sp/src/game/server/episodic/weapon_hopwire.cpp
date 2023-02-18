@@ -59,6 +59,9 @@ public:
 
 	bool	ShouldDisplayHUDHint() { return true; }
 
+
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
+
 protected:
 	virtual void	ThrowGrenade( CBasePlayer *pPlayer );
 	virtual void	RollGrenade( CBasePlayer *pPlayer );
@@ -99,6 +102,23 @@ IMPLEMENT_SERVERCLASS_ST(CWeaponHopwire, DT_WeaponHopwire)
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( weapon_hopwire, CWeaponHopwire );
+
+#ifdef EZ2
+class CWeaponStasisGrenade : public CWeaponHopwire
+{
+	DECLARE_CLASS( CWeaponHopwire, CWeaponHopwire );
+public:
+
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
+
+	DECLARE_SERVERCLASS();
+};
+
+IMPLEMENT_SERVERCLASS_ST( CWeaponStasisGrenade, DT_WeaponStasisGrenade )
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_stasis_grenade, CWeaponStasisGrenade );
+#endif
 
 // In E:Z2, the hopwire's Xen spawning feature precaches a massive number of assets which shouldn't be used on levels which don't have Xen grenades.
 // As a result, the hopwire is precached in the same way as any other entity. (i.e. not precached at all times like other weapons are)
@@ -468,7 +488,21 @@ void CWeaponHopwire::ThrowGrenade( CBasePlayer *pPlayer )
 	Vector vecThrow;
 	pPlayer->GetVelocity( &vecThrow, NULL );
 	vecThrow += vForward * 1200;
+
+#ifndef EZ2
 	m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse(600,random->RandomInt(-1200,1200),0), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel()));
+#else
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+	default:
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+
+	}
+#endif
 
 	m_bRedraw = true;
 
@@ -501,7 +535,21 @@ void CWeaponHopwire::LobGrenade( CBasePlayer *pPlayer )
 	Vector vecThrow;
 	pPlayer->GetVelocity( &vecThrow, NULL );
 	vecThrow += vForward * 350 + Vector( 0, 0, 50 );
-	m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse(200,random->RandomInt(-600,600),0), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel()));
+#ifndef EZ2
+	m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+#else
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+	default:
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+
+	}
+#endif
+
 
 	WeaponSound( WPN_DOUBLE );
 

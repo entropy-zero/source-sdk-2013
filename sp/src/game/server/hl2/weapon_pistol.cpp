@@ -63,7 +63,7 @@ public:
 	void	DryFire( void );
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 #ifdef MAPBASE
-	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+	virtual void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
 	void	Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 #endif
 
@@ -586,6 +586,7 @@ ConVar sv_pulse_pistol_charge_per_extra_shot( "sv_pulse_pistol_charge_per_extra_
 ConVar sv_pulse_pistol_slide_return_charge( "sv_pulse_pistol_slide_return_charge", "10", FCVAR_NONE, "How much charge to restore when racking the slide on the pulse pistol" );
 ConVar sv_pulse_pistol_no_charge_hold( "sv_pulse_pistol_no_charge_hold", "0", FCVAR_NONE, "If 1, fully charged shots will fire automatically" );
 ConVar sv_pulse_pistol_max_charge( "sv_pulse_pistol_max_charge", "40", FCVAR_NONE, "Maximum ammo to charge in one shot. For a 50 charge pulse pistol, it should be 40" );
+ConVar sv_pulse_pistol_npc_charge_per_extra_shot( "sv_pulse_pistol_npc_charge_per_extra_shot", "5", FCVAR_NONE, "How many ammo charges equals one bullet on NPCs" );
 
 //-----------------------------------------------------------------------------
 // CWeaponPulsePistol, the famous melee replacement taken to a separate class.
@@ -611,6 +612,9 @@ public:
 
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
+	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+	void	FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+
 	virtual bool Reload( void ) { return false; } // The pulse pistol does not reload
 
 	virtual int GetMaxClip2( void ) const { int iBase = BaseClass::GetMaxClip2(); return iBase > 0 ? iBase : sv_pulse_pistol_max_charge.GetInt(); }
@@ -619,8 +623,11 @@ public:
 	{
 		// Handle NPCs first
 		static Vector npcCone = VECTOR_CONE_5DEGREES;
+		static Vector npcChargeCone = VECTOR_CONE_2DEGREES; // Note that this only determines the center of the charge. The bullets themselves are spread out on a larger spread specified in FireBullets().
 		if (GetOwner() && GetOwner()->IsNPC())
-			return npcCone;
+		{
+			return (GetActivity() == ACT_CHARGE_PULSE_PISTOL || GetActivity() == ACT_CHARGE_PULSE_PISTOL_LOW) ? npcChargeCone : npcCone;
+		}
 
 		static Vector cone;
 
@@ -638,7 +645,12 @@ public:
 
 	virtual float GetFireRate( void )
 	{
-		return 3.0f;
+		if ( GetOwner() && GetOwner()->IsPlayer() )
+		{
+			return 3.0f;
+		}
+
+		return 1.0f;
 	}
 
 	virtual void	UpdateOnRemove( void );
@@ -655,6 +667,12 @@ public:
 
 	void	CreateBeamBlast( const Vector &vecOrigin );
 
+	// Allow specific unique activities for pulse pistol
+	virtual acttable_t *GetBackupActivityList() { return BaseClass::ActivityList(); }
+	virtual int				GetBackupActivityListCount() { return BaseClass::ActivityListCount(); }
+
+	DECLARE_ACTTABLE();
+
 protected:
 	CHandle<CSprite>	m_hChargeSprite;
 
@@ -667,6 +685,30 @@ private:
 	float			m_flLastChargeTime;
 	float			m_flLastChargeSoundTime;
 };
+
+acttable_t	CWeaponPulsePistol::m_acttable[] =
+{
+	{ ACT_IDLE,						ACT_IDLE_PISTOL,				true },
+	{ ACT_IDLE_ANGRY,				ACT_IDLE_ANGRY_PISTOL,			true },
+	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_PISTOL,		true },
+	{ ACT_WALK_AIM,					ACT_WALK_AIM_PISTOL,			true },
+	{ ACT_RUN_AIM,					ACT_RUN_AIM_PISTOL,				true },
+	{ ACT_GESTURE_RANGE_ATTACK1,	ACT_GESTURE_RANGE_ATTACK_PISTOL,true },
+	{ ACT_RANGE_ATTACK1_LOW,		ACT_RANGE_ATTACK_PISTOL_LOW,	false },
+	{ ACT_COVER_LOW,				ACT_COVER_PISTOL_LOW,			false },
+	{ ACT_RANGE_AIM_LOW,			ACT_RANGE_AIM_PISTOL_LOW,		false },
+	{ ACT_WALK,						ACT_WALK_PISTOL,				false },
+	{ ACT_RUN,						ACT_RUN_PISTOL,					false },
+
+	// New activities
+	{ ACT_RELOAD,						ACT_RELOAD_PULSE_PISTOL,			true },
+	{ ACT_RELOAD_LOW,					ACT_RELOAD_PULSE_PISTOL_LOW,		false },
+	{ ACT_GESTURE_RELOAD,				ACT_GESTURE_RELOAD_PULSE_PISTOL,	false },
+	{ ACT_COMBINE_AR2_ALTFIRE,			ACT_CHARGE_PULSE_PISTOL,			false },
+	{ ACT_GESTURE_COMBINE_AR2_ALTFIRE,	ACT_GESTURE_CHARGE_PULSE_PISTOL,	false },
+};
+
+IMPLEMENT_ACTTABLE( CWeaponPulsePistol );
 
 CWeaponPulsePistol::CWeaponPulsePistol()
 {
@@ -814,9 +856,91 @@ void CWeaponPulsePistol::Operator_HandleAnimEvent( animevent_t * pEvent, CBaseCo
 		m_iClip1 = MAX( m_iClip1, sv_pulse_pistol_slide_return_charge.GetInt() );
 		WeaponSound( RELOAD, m_flNextPrimaryAttack );
 		break;
+
+	case EVENT_WEAPON_AR2_ALTFIRE:
+		{
+			Vector vecShootOrigin, vecShootDir;
+			vecShootOrigin = pOperator->Weapon_ShootPosition();
+
+			CAI_BaseNPC *npc = pOperator->MyNPCPointer();
+			ASSERT( npc != NULL );
+
+			vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
+
+			FireNPCSecondaryAttack( pOperator, vecShootOrigin, vecShootDir );
+		}
+		break;
 	}
 
 	BaseClass::Operator_HandleAnimEvent( pEvent, pOperator );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Overridden by CWeaponPulsePistol to handle unique clip sizes
+//-----------------------------------------------------------------------------
+void CWeaponPulsePistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
+{
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
+
+	WeaponSound( SINGLE_NPC );
+
+	FireBulletsInfo_t info;
+	info.m_iShots = 2;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_4DEGREES; // This is in addition to the spread handled in GetActualShootTrajectory()
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 1; // Pulse pistol ALWAYS uses tracer
+
+	pOperator->FireBullets( info );
+	pOperator->DoMuzzleFlash();
+
+	if (m_iClip1 < 10)
+	{
+		// Reload immediately
+		m_iClip1 = 0;
+	}
+	else
+	{
+		m_iClip1 -= 10;
+
+		// NPCs handle recharging after every shot
+		RechargeAmmo();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponPulsePistol::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
+{
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
+
+	WeaponSound( DOUBLE_NPC );
+
+	// Pretend we stopped recharging at the beginning of the animation
+	m_flLastChargeTime += SequenceDuration( GetModelPtr(), GetSequence() ) * GetCycle();
+	RechargeAmmo();
+
+	int iBulletsToFire = 0;
+	int iExtraChargeBullets = m_iClip1 / sv_pulse_pistol_npc_charge_per_extra_shot.GetInt();
+
+	// The pulse pistol fires one extra round per ten ammo charged
+	iBulletsToFire += iExtraChargeBullets;
+
+	FireBulletsInfo_t info;
+	info.m_iShots = iBulletsToFire;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_15DEGREES; // This is in addition to the spread handled in GetActualShootTrajectory()
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 1; // Pulse pistol ALWAYS uses tracer
+
+	pOperator->FireBullets( info );
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = 0;
 }
 
 

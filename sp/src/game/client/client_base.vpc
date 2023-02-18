@@ -1269,14 +1269,15 @@ $Project
 		$ImpLib		steam_ap2		[$STEAM_API_MOD_HACK&&$LINUX]
 		
 		// Discord integration
-		$Lib	"$LIBPUBLIC\discord-rpc" [$MAPBASE_RPC]
+		$Lib	"$LIBPUBLIC\discord-rpc" [$MAPBASE_RPC&&!$LINUXALL]
 		
 		$Lib $LIBCOMMON/libcrypto [$POSIX]
 
 		$ImpLib	"$LIBCOMMON\curl"	  [$OSXALL]
 
 		$Lib	"$LIBCOMMON\libcurl" [$WIN32]
-		$Lib   "libz" [$WIN32]
+		$Lib	"$LIBCOMMON\jpeglib" [$WIN32]
+		$Lib    "libz" [$WIN32]
 
 		$Libexternal	libz [$LINUXALL]
 		$Libexternal "$LIBCOMMON/libcurl" [$LINUXALL]

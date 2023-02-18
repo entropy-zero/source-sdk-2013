@@ -44,6 +44,7 @@ ConVar	g_debug_antlion( "g_debug_antlion", "0" );
 
 // base antlion stuff
 ConVar	sk_antlion_health( "sk_antlion_health", "0" );
+ConVar	sk_plr_kicks_to_kill_antlion("sk_plr_kicks_to_kill_antlion", "0");
 ConVar	sk_antlion_swipe_damage( "sk_antlion_swipe_damage", "0" );
 ConVar	sk_antlion_jump_damage( "sk_antlion_jump_damage", "0" );
 ConVar  sk_antlion_air_attack_dmg( "sk_antlion_air_attack_dmg", "0" );
@@ -3205,10 +3206,16 @@ bool CNPC_Antlion::HandleInteraction( int interactionType, void *data, CBaseComb
 		ApplyAbsVelocityImpulse( vecDir );
 		Flip();
 
-		// If the Combine soldier is a player, don't deal damage on top of flipping
-		if ( sender->IsPlayer() )
+		// If the player kicks the antlion, it receives concussion damage without bleeding - HEVcrab
+		if (sender->IsPlayer())
 		{
-			return true; 
+			if (sk_plr_kicks_to_kill_antlion.GetFloat() > 0)
+			{
+				float dmg = sk_antlion_health.GetFloat() / sk_plr_kicks_to_kill_antlion.GetFloat(); // Receive damage of 1/kicks_to_kill... fraction of Antlion's max health to kill in kicks_to_kill kick hits
+				CTakeDamageInfo	dmgInfo(sender, sender, dmg, DMG_CLUB);
+				TakeDamage(dmgInfo); // re-enable kick damage to antlions, melee attack should be able to kill the first encountered enemy - HEVcrab
+			}
+			return true;
 		}
 
 		// Return false so the original melee damage code still runs.

@@ -185,7 +185,7 @@ Activity ACT_TURRET_CARRY_WALK;
 Activity ACT_TURRET_CARRY_RUN;
 #endif
 #ifdef EZ
-extern Activity ACT_METROPOLICE_DEPLOY_MANHACK;
+extern int ACT_METROPOLICE_DEPLOY_MANHACK;
 #endif
 
 // -----------------------------------------------

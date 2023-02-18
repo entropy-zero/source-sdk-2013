@@ -397,6 +397,8 @@ ConVar	sk_npc_dmg_gunship_to_plr	( "sk_npc_dmg_gunship_to_plr", "0", FCVAR_REPLI
 
 #ifdef EZ2
 ConVar	sv_player_death_time( "sv_player_death_time", "1.0", FCVAR_REPLICATED );
+
+ConVar	sk_max_stasis_grenade		( "sk_max_stasis_grenade", "5", FCVAR_REPLICATED );
 #endif
 
 #ifdef CSS_WEAPONS_IN_HL2
@@ -2824,6 +2826,7 @@ CAmmoDef *GetAmmoDef()
 #ifdef EZ2
 		// Entropy Zero 2
 		def.AddAmmoType("XenGrenade", DMG_BLAST, TRACER_NONE, "sk_plr_dmg_grenade", "sk_npc_dmg_grenade", "sk_max_hopwire", 0, 0); // this is the xen grenade
+		def.AddAmmoType("StasisGrenade", DMG_BLAST, TRACER_NONE, "sk_plr_dmg_grenade", "sk_npc_dmg_grenade", "sk_max_stasis_grenade", 0, 0);
 
 		// Entropy Zero 2
 		def.AddAmmoType("GaussPistol", DMG_BULLET, TRACER_LINE_AND_WHIZ, "sk_plr_dmg_gauss_pistol", "sk_npc_dmg_gauss_pistol", "sk_max_gauss_pistol", BULLET_IMPULSE(200, 1225), 0);
@@ -2901,6 +2904,7 @@ CAmmoDef *GetAmmoDef()
 		def.AddAmmoType("556mm",			DMG_BULLET,					TRACER_LINE_AND_WHIZ,	"sk_plr_dmg_556mm",		"sk_npc_dmg_556mm",		"sk_max_556mm",		BULLET_IMPULSE(200, 1225), 0 );
 		def.AddAmmoType("762mm",			DMG_BULLET,					TRACER_LINE_AND_WHIZ,	"sk_plr_dmg_762mm",		"sk_npc_dmg_762mm",		"sk_max_762mm",		BULLET_IMPULSE(200, 1225), 0 );
 #endif
+
 	}
 
 	return &def;

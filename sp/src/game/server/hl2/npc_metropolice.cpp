@@ -127,6 +127,14 @@ ConVar  metropolice_charge("metropolice_charge", "1" );
 ConVar	metropolice_new_component_behavior("metropolice_new_component_behavior", "1");
 #endif
 
+#ifdef EZ2
+ConVar	sk_metropolice_swap_enabled( "sk_metropolice_swap_enabled", "0" );
+ConVar	sk_metropolice_swap_melee_cooldown( "sk_metropolice_swap_melee_cooldown", "0.5" );
+ConVar	sk_metropolice_swap_ranged_cooldown( "sk_metropolice_swap_ranged_cooldown", "2" );
+ConVar	sk_metropolice_swap_melee_distance( "sk_metropolice_swap_melee_distance", "72.0" );
+ConVar	sk_metropolice_swap_ranged_distance( "sk_metropolice_swap_ranged_distance", "96.0" );
+#endif
+
 // How many clips of pistol ammo a metropolice carries.
 #define METROPOLICE_NUM_CLIPS			5
 #define METROPOLICE_BURST_RELOAD_COUNT	20
@@ -224,6 +232,10 @@ BEGIN_DATADESC( CNPC_MetroPolice )
 	DEFINE_FIELD( m_flPreChaseYaw,		FIELD_FLOAT ),
 	DEFINE_FIELD( m_nNumWarnings,		FIELD_INTEGER ),
 	DEFINE_FIELD( m_iNumPlayerHits,		FIELD_INTEGER ),
+
+#ifdef EZ2
+	DEFINE_FIELD( m_flNextWeaponSwapTime, FIELD_FLOAT ),
+#endif
 
 	//								m_ActBusyBehavior (auto saved by AI)
 	//								m_StandoffBehavior (auto saved by AI)
@@ -616,6 +628,105 @@ void CNPC_MetroPolice::PrescheduleThink( void )
 		m_nRecentDamage = 0;
 		m_flRecentDamageTime = 0;
 	}
+
+#ifdef EZ2
+	TryWeaponSwap();
+#endif
+}
+
+// Inspired by npc_clonecop weapon switching
+// Metropolice should change to and from melee weapons
+void CNPC_MetroPolice::TryWeaponSwap(  )
+{
+	if (sk_metropolice_swap_enabled.GetBool() == false)
+		return;
+
+	if (m_flNextWeaponSwapTime > gpGlobals->curtime)
+		return;
+
+	if (GetActiveWeapon() == NULL)
+		return;
+
+	if (GetEnemy() == NULL)
+		return;
+
+	int iWeaponIndex = -1;
+	if (GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) > sk_metropolice_swap_ranged_distance.GetFloat())
+	{
+		iWeaponIndex = FindWeaponToSwap( false );
+		if (iWeaponIndex == -1)
+			return;
+
+		DevMsg( "%s is using melee weapon and enemy is beyond %f units, so switching to ranged weapon %s\n", GetDebugName(), sk_metropolice_swap_ranged_distance.GetFloat(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		inputdata_t inputdata;
+		inputdata.value.SetString( m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		InputChangeWeapon( inputdata );
+		// Switching back to a ranged weapon has a longer delay than initially switching to a melee weapon
+		m_flNextWeaponSwapTime = gpGlobals->curtime + sk_metropolice_swap_ranged_cooldown.GetFloat();
+	}
+	else if (!GetActiveWeapon()->IsMeleeWeapon() && EnemyDistance( GetEnemy() ) < sk_metropolice_swap_melee_distance.GetFloat())
+	{
+		iWeaponIndex = FindWeaponToSwap( true );
+		if (iWeaponIndex == -1)
+			return;
+
+		DevMsg( "%s is using ranged weapon and enemy is closer than %f units, so switching to melee weapon %s\n", GetDebugName(), sk_metropolice_swap_melee_distance.GetFloat(), m_hMyWeapons[iWeaponIndex]->m_iClassname );
+		Weapon_Equip( m_hMyWeapons[iWeaponIndex] );
+		UnholsterWeapon();
+		// Switching to a melee weapon has a very short delay so that the cop can swing+shoot
+		m_flNextWeaponSwapTime = gpGlobals->curtime + sk_metropolice_swap_melee_cooldown.GetFloat();
+
+		// Switch our baton on, if it's not already
+		if (HasBaton() && BatonActive() == false)
+		{
+			SetTarget( GetEnemy() );
+			SetBatonState( true );
+			m_flBatonDebounceTime = gpGlobals->curtime + random->RandomFloat( 2.5f, 4.0f );
+		}
+	}
+	else
+	{
+		return;
+	}
+
+	ClearCondition( COND_CAN_RANGE_ATTACK1 );
+	ClearCondition( COND_CAN_RANGE_ATTACK2 );
+	ClearCondition( COND_ENEMY_TOO_FAR );
+	ClearCondition( COND_TOO_CLOSE_TO_ATTACK );
+	SetNextAttack( gpGlobals->curtime + 0.5f );
+	TaskInterrupt();
+}
+
+
+int CNPC_MetroPolice::FindWeaponToSwap( bool bMeleeWeapon )
+{
+	int iWeaponIndex = -1;
+
+	// For now, the weapon at the lowest index of each type is chosen.
+	// Can add more nuance later
+	for (int i=0; i<MAX_WEAPONS; i++)
+	{
+		if (m_hMyWeapons[i].Get() == NULL)
+			continue;
+		
+		// If we are looking for a melee weapon, only return index if that weapon is marked as a melee weapon
+		if (bMeleeWeapon && m_hMyWeapons[i].Get()->IsMeleeWeapon())
+			return i;
+		else if (bMeleeWeapon)
+			continue;
+
+		// If we are looking for a ranged weapon and this is a melee weapon, keep looking
+		if (m_hMyWeapons[i].Get()->IsMeleeWeapon())
+			continue;
+
+		// If we are looking for a ranged weapon and we find a weapon that uses ammo and has ammo, return that one
+		if (m_hMyWeapons[i].Get()->UsesClipsForAmmo1() && m_hMyWeapons[i].Get()->m_iClip1 != 0)
+			return i;
+			
+		iWeaponIndex = i;
+	}
+
+	return iWeaponIndex;
 }
 
 //-----------------------------------------------------------------------------
@@ -3620,7 +3731,11 @@ Activity CNPC_MetroPolice::NPC_TranslateActivity( Activity newActivity )
 	// If we're shoving, see if we should be more forceful in doing so
 	if ( newActivity == ACT_PUSH_PLAYER )
 	{
+#ifdef MAPBASE
+		if ( m_nNumWarnings >= METROPOLICE_MAX_WARNINGS && Weapon_TranslateActivity( ACT_MELEE_ATTACK1, NULL ) == ACT_MELEE_ATTACK_SWING )
+#else
 		if ( m_nNumWarnings >= METROPOLICE_MAX_WARNINGS )
+#endif
 			return ACT_MELEE_ATTACK1;
 	}
 
@@ -4543,6 +4658,19 @@ int CNPC_MetroPolice::SelectBehaviorOverrideSchedule()
 		nResult = SelectRangeAttackSchedule();
 		if ( !GetShotRegulator()->IsInRestInterval() && nResult != SCHED_METROPOLICE_ADVANCE && nResult != SCHED_RANGE_ATTACK1 )
 			return nResult;
+
+#ifdef EZ2 // TODO: Can be added to Mapbase in the future?
+		if ( nResult == SCHED_RANGE_ATTACK1 )
+		{
+			if (CanAltFireEnemy( true ) && OccupyStrategySlot( SQUAD_SLOT_SPECIAL_ATTACK ))
+			{
+				// Since I'm holding this squadslot, no one else can try right now. If I die before the shot 
+				// goes off, I won't have affected anyone else's ability to use this attack at their nearest
+				// convenience.
+				return SCHED_METROPOLICE_AR2_ALTFIRE;
+			}
+		}
+#endif
 	}
 
 	if ( HasCondition( COND_TOO_CLOSE_TO_ATTACK ) )
@@ -4621,8 +4749,21 @@ int CNPC_MetroPolice::CMetroPoliceStandoffBehavior::SelectScheduleAttack()
 		result = BaseClass::SelectScheduleAttack();
 	return result;
 }
-#endif
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Standoff schedule selection 
+//-----------------------------------------------------------------------------
+bool CNPC_MetroPolice::CMetroPoliceStandoffBehavior::CanSelectSchedule()
+{
+	if (GetOuter()->GetActiveWeapon() && GetOuter()->GetActiveWeapon()->IsMeleeWeapon())
+		return false;
+
+	return BaseClass::CanSelectSchedule();
+}
+
+#endif
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -4634,6 +4775,12 @@ bool CNPC_MetroPolice::IsHeavyDamage( const CTakeDamageInfo &info )
 	// Metropolice considers bullet fire heavy damage
 	if ( info.GetDamageType() & DMG_BULLET )
 		return true;
+
+#ifdef EZ2
+	// Heavy damage when hit directly by shotgun flechettes
+	if ( info.GetDamageType() & (DMG_DISSOLVE | DMG_NEVERGIB) && info.GetInflictor() && FClassnameIs( info.GetInflictor(), "shotgun_flechette" ) )
+		return true;
+#endif
 
 	return BaseClass::IsHeavyDamage( info );
 }
@@ -4702,6 +4849,46 @@ void CNPC_MetroPolice::PlayFlinchGesture( void )
 	// To ensure old playtested difficulty stays the same, stop cops shooting for a bit after gesture flinches
 	GetShotRegulator()->FireNoEarlierThan( gpGlobals->curtime + 0.5 );
 }
+
+#ifdef EZ2
+ConVar npc_metropolice_gib( "npc_metropolice_gib", "0" );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CNPC_MetroPolice::ShouldGib( const CTakeDamageInfo &info )
+{
+	if ( !npc_metropolice_gib.GetBool() )
+		return false;
+	
+	// Don't gib if we're temporal
+	if (m_tEzVariant == EZ_VARIANT_TEMPORAL)
+		return false;
+
+	// If the damage type is "always gib", we better gib!
+	if ( info.GetDamageType() & DMG_ALWAYSGIB )
+		return true;
+
+	if ( info.GetDamageType() & ( DMG_NEVERGIB | DMG_DISSOLVE ) )
+		return false;
+
+	if ( ( info.GetDamageType() & ( DMG_BLAST | DMG_ACID | DMG_POISON | DMG_CRUSH ) ) && ( GetAbsOrigin() - info.GetDamagePosition() ).LengthSqr() <= 32.0f )
+		return true;
+
+	return false;
+}
+
+//------------------------------------------------------------------------------
+// Purpose: Override to do rebel specific gibs
+// Output :
+//------------------------------------------------------------------------------
+bool CNPC_MetroPolice::CorpseGib( const CTakeDamageInfo &info )
+{
+	return BaseClass::CorpseGib( info );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // We're taking cover from danger

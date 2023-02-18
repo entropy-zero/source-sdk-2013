@@ -11,7 +11,7 @@ name: Build Shader Projects #(SP Release)
 on:
   pull_request:
     branches:
-      - develop
+      - 'ez2/mapbase'
     paths:
       - '.github/workflows/mapbase_build-sp-rel-shaders.yml'
       - 'sp/src/vpc_scripts/**'

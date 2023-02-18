@@ -16,6 +16,11 @@
 extern ConVar hopwire_trap;
 
 #ifdef EZ2
+enum HopwireStyle {
+	HOPWIRE_XEN = 0,
+	HOPWIRE_STASIS
+};
+
 // Base class for both the Xen grenade and displacer pistol
 class CDisplacerSink
 {
@@ -61,6 +66,8 @@ public:
 
 #ifdef EZ2
 	static CGravityVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
 
 	int AddNodesToHullMap( const Vector vecSearchOrigin );
 
@@ -110,6 +117,10 @@ private:
 	void	PullThink( void );
 	void	StartPull( const Vector &origin, float radius, float strength, float duration );
 
+#ifdef EZ2
+protected:
+#endif
+
 	float	m_flMass;		// Mass consumed by the vortex
 	float	m_flEndTime;	// Time when the vortex will stop functioning
 	float	m_flRadius;		// Area of effect for the vortex
@@ -127,6 +138,9 @@ private:
 
 							// If this points to an entity, the Xen grenade will always call g_interactionXenGrenadeRelease on it instead of spawning Xen life.
 							// This is so Will-E pops back out of Xen grenades.
+
+private:
+
 	EHANDLE	m_hReleaseEntity;
 
 	CHandle<CBaseCombatCharacter>	m_hThrower;
@@ -136,6 +150,7 @@ private:
 	CUtlMap<string_t, float, short> m_ClassMass;
 	CUtlMap<Vector, int, short> m_HullMap;
 
+protected:
 	// PVS for PullThink()
 	byte		m_PVS[ MAX_MAP_CLUSTERS/8 ];
 	bool		m_bPVSCreated;
@@ -152,6 +167,27 @@ public:
 #endif
 };
 
+#ifdef EZ2
+class CStasisVortexController : public CGravityVortexController
+{
+	DECLARE_CLASS( CStasisVortexController, CGravityVortexController );
+	DECLARE_DATADESC();
+
+public:
+	static CStasisVortexController *Create( const Vector &origin, float radius, float strength, float duration, CBaseEntity *pGrenade = NULL );
+
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
+
+	void	PullThink( void );
+	void	StartPull( const Vector &origin, float radius, float strength, float duration );
+
+private:
+	void	FreezePlayersInRange( void );
+	void    UnfreezeNPCThink( void );
+	void	UnfreezePhysicsObjectThink( void );
+};
+#endif
+
 class CGrenadeHopwire : public CBaseGrenade
 {
 	DECLARE_CLASS( CGrenadeHopwire, CBaseGrenade );
@@ -167,6 +203,8 @@ public:
 	void	Detonate( void );
 
 #ifdef EZ2
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
+
 	void	DelayThink();
 	void	SpriteOff();
 	void	BlipSound() { EmitSound( "WeaponXenGrenade.Blip" ); }
@@ -174,10 +212,14 @@ public:
 	void	CreateEffects( void );
 
 	void	InputSetTimer( inputdata_t &inputdata );
-#endif
-	
+
+	virtual void	EndThink( void );		// Last think before going away
+	virtual void	CombatThink( void );	// Makes the main explosion go off
+
+#else	
 	void	EndThink( void );		// Last think before going away
 	void	CombatThink( void );	// Makes the main explosion go off
+#endif
 
 	void SetWorldModelClosed(const char * modelName) { Q_strncpy(szWorldModelClosed, modelName, MAX_WEAPON_STRING); }
 	void SetWorldModelOpen(const char * modelName) { Q_strncpy(szWorldModelOpen, modelName, MAX_WEAPON_STRING); }
@@ -201,7 +243,27 @@ protected:
 CBaseGrenade *HopWire_Create( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, const char * modelClosed = NULL, const char * modelOpen = NULL );
 
 #ifdef EZ2
+CBaseGrenade *StasisGrenade_Create( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, const char * modelClosed = NULL, const char * modelOpen = NULL );
+
 void VerifyXenRecipeManager( const char *pszActivator );
+
+
+
+
+class CGrenadeStasis : public CGrenadeHopwire
+{
+	DECLARE_CLASS( CGrenadeStasis, CGrenadeHopwire );
+	DECLARE_DATADESC();
+
+public:
+	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
+
+	virtual void	EndThink( void );		// Last think before going away
+	virtual void	CombatThink( void );	// Makes the main explosion go off
+
+};
+
+
 #endif
 
 #endif // GRENADE_HOPWIRE_H

@@ -18,9 +18,11 @@
 
 ConVar sk_voltigore_health( "sk_voltigore_health", "400" );
 ConVar sk_voltigore_dmg_spit( "sk_voltigore_dmg_spit", "15" );
-ConVar sk_voltigore_dmg_slash( "sk_voltigore_dmg_slash", "15" );
+ConVar sk_voltigore_dmg_slash( "sk_voltigore_dmg_slash", "30" );
+ConVar sk_voltigore_dmg_double_slash( "sk_voltigore_dmg_slash", "60" );
 ConVar sk_voltigore_spit_gravity( "sk_voltigore_spit_gravity", "600" );
 ConVar sk_voltigore_spit_arc_size( "sk_voltigore_spit_arc_size", "3");
+ConVar sk_voltigore_always_gib( "sk_voltigore_always_gib", "0" );
 
 LINK_ENTITY_TO_CLASS( npc_voltigore, CNPC_Voltigore );
 
@@ -50,6 +52,10 @@ public:
 
 	void ThinkRemove();
 
+	void DetachSprite();
+
+	void StopMovement();
+
 private:
 	int m_nSpriteIndex;
 	EHANDLE m_hSprite;
@@ -71,6 +77,8 @@ void CVoltigoreProjectile::Spawn( void )
 	SetClassname( "npc_voltigore_projectile" );
 
 	SetSolid( SOLID_BBOX );
+	AddSolidFlags( FSOLID_TRIGGER );
+	AddSolidFlags( FSOLID_NOT_SOLID );
 
 	m_nRenderMode = kRenderTransAlpha;
 	SetRenderColorA( 255 );
@@ -78,7 +86,8 @@ void CVoltigoreProjectile::Spawn( void )
 
 	SetRenderColor( 150, 0, 0, 255 );
 
-	UTIL_SetSize( this, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
+	// This is a dummy model that is never used!
+	UTIL_SetSize( this, Vector( -16, -16, -16 ), Vector( 16, 16, 16 ) );
 
 	SetCollisionGroup( HL2COLLISION_GROUP_SPIT );
 }
@@ -91,9 +100,9 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 	UTIL_SetOrigin( pSpit, vecStart );
 	pSpit->SetAbsVelocity( vecVelocity );
 	pSpit->SetOwnerEntity( pOwner );
+	pSpit->SetRenderColor( 231, 62, 255 );
 
-
-	CSprite * pSprite = CSprite::SpriteCreate( "sprites/glownomespit.vmt", pOwner->GetAbsOrigin(), true );
+	CSprite * pSprite = CSprite::SpriteCreate( "sprites/glow01.spr", pOwner->GetAbsOrigin(), true );
 	pSpit->SetSprite( pSprite );
 
 	if ( pSprite )
@@ -101,12 +110,14 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 		pSprite->SetAttachment( pSpit, 0 );
 		pSprite->SetOwnerEntity( pSpit );
 
-		pSprite->SetScale( 0.75 );
-		pSprite->SetTransparency( pSpit->m_nRenderMode, pSpit->m_clrRender->r, pSpit->m_clrRender->g, pSpit->m_clrRender->b, pSpit->m_clrRender->a, pSpit->m_nRenderFX );
+		pSprite->SetColor( 231, 62, 255 );
+		pSprite->SetRenderMode( kRenderWorldGlow );
+
+		pSprite->SetScale( 2 );
 	}
 
 	pSpit->SetThink( &CVoltigoreProjectile::ThinkRemove );
-	pSpit->SetNextThink( gpGlobals->curtime + 4.5f );
+	pSpit->SetNextThink( gpGlobals->curtime + 6.0f );
 
 	CPVSFilter filter( vecStart );
 
@@ -115,27 +126,74 @@ void CVoltigoreProjectile::Shoot( CBaseEntity *pOwner, Vector vecStart, Vector v
 
 
 	// Make a tesla to follow the projectile
-	CBaseEntity *pTesla = CreateEntityByName( "point_tesla" );
-	DispatchSpawn( pTesla );
-	pTesla->SetParent( pSpit );
-	int output = 0;
-	pTesla->AcceptInput( "TurnOn", pSpit, pSpit, variant_t(), output );
+	CBaseEntity * pTesla;
+	pTesla = CreateNoSpawn( "point_tesla", vecStart, pSpit->GetAbsAngles(), pSpit );
 
-	CBaseEntity *pGravityController = CGravityVortexController::Create( pSpit->GetAbsOrigin(), 128.0f, 128.0f, 5.0f );
+	pTesla->KeyValue( "beamcount_max", "8" );
+	pTesla->KeyValue( "beamcount_min", "6" );
+	pTesla->KeyValue( "interval_max", "0.75" );
+	pTesla->KeyValue( "interval_min", "0.1" );
+	pTesla->KeyValue( "lifetime_max", "0.3" );
+	pTesla->KeyValue( "lifetime_min", "0.3" );
+	pTesla->KeyValue( "thick_max", "5" );
+	pTesla->KeyValue( "thick_min", "4" );
+	pTesla->KeyValue( "m_Color", "231 62 255" );
+	pTesla->KeyValue( "texture", "sprites/hydragutbeam.vmt" );
+	pTesla->KeyValue( "m_flRadius", "434" );
+	pTesla->KeyValue( "m_SoundName", "DoSpark" );
+	pTesla->KeyValue( "m_bOn", "1" );
+
+	DispatchSpawn( pTesla );
+	pTesla->Activate();
+	pTesla->SetAbsOrigin( pSpit->GetAbsOrigin() );
+	pTesla->SetParent( pSpit );
+
+	pTesla->AcceptInput( "TurnOn", pSpit, pSpit, variant_t(), 0 );
+
+	CBaseEntity *pGravityController = CGravityVortexController::Create( pSpit->GetAbsOrigin(), 128.0f, 128.0f, 4.5f, pSpit );
+	pGravityController->AddContext( "owner_classname:npc_pitdrone" );
 	pGravityController->SetParent( pSpit );
 }
 
 void CVoltigoreProjectile::ThinkRemove()
 {
-	SetAbsVelocity( vec3_origin );
+	StopMovement();
+
+	DetachSprite();
+
+	SUB_Remove();
+}
+
+void CVoltigoreProjectile::DetachSprite()
+{
 	if (GetSprite() != NULL)
 	{
 		((CSprite *)GetSprite())->FadeAndDie( 2.0f );
+		GetSprite()->SetParent( NULL );
+		GetSprite()->SetOwnerEntity( NULL );
+		GetSprite()->SetAbsOrigin( GetAbsOrigin() );
+		SetSprite( NULL );
+	}
+}
+
+void CVoltigoreProjectile::StopMovement()
+{
+	SetAbsVelocity( vec3_origin );
+
+	if (GetMoveType() != MOVETYPE_NONE)
+	{
+		SetMoveType ( MOVETYPE_NONE );
 	}
 }
 
 void CVoltigoreProjectile::Touch ( CBaseEntity *pOther )
 {
+	// Don't collide with the projectile's owner
+	if (pOther == GetOwnerEntity())
+	{
+		return;
+	}
+
 	if (pOther->GetSolidFlags() & FSOLID_TRIGGER)
 		return;
 
@@ -144,8 +202,7 @@ void CVoltigoreProjectile::Touch ( CBaseEntity *pOther )
 		return;
 	}
 
-	SetThink( &CVoltigoreProjectile::ThinkRemove );
-	SetNextThink( 0.0f );
+	StopMovement();
 }
 
 //---------------------------------------------------------
@@ -166,7 +223,7 @@ void CNPC_Voltigore::Spawn()
 
 	SetModel( STRING( GetModelName() ) );
 
-	SetHullType( HULL_MEDIUM );
+	SetHullType( HULL_LARGE );
 	SetHullSizeNormal();
 
 	SetSolid( SOLID_BBOX );
@@ -192,7 +249,7 @@ void CNPC_Voltigore::Spawn()
 	CapabilitiesClear();
 	// For the purposes of melee attack conditions triggering attacks, we are treating the flying predator as though it has two melee attacks like the bullsquid.
 	// In reality, the melee attack schedules will be translated to SCHED_RANGE_ATTACK_1.
-	CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_INNATE_RANGE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK2 | bits_CAP_SQUAD );
+	CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_INNATE_RANGE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK2 | bits_CAP_SQUAD | bits_CAP_NO_HIT_SQUADMATES );
 
 	m_fCanThreatDisplay	= TRUE;
 	m_flNextSpitTime = gpGlobals->curtime;
@@ -236,7 +293,7 @@ void CNPC_Voltigore::Precache()
 	PrecacheScriptSound( "NPC_Voltigore.Eat" );
 	PrecacheScriptSound( "NPC_Voltigore.Explode" );
 
-	PrecacheModel( "sprites/glownomespit.vmt" );// spit projectile.
+	PrecacheModel( "sprites/glow01.spr" );// spit projectile.
 
 	BaseClass::Precache();
 }
@@ -330,6 +387,24 @@ void CNPC_Voltigore::EatSound( void )
 	EmitSound( "NPC_Voltigore.Eat" );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Allows for modification of the interrupt mask for the current schedule.
+//			In the most cases the base implementation should be called first.
+//-----------------------------------------------------------------------------
+void CNPC_Voltigore::BuildScheduleTestBits()
+{
+	BaseClass::BuildScheduleTestBits();
+
+	// Allow these schedules to stop for melee attacks
+	// just like player companions
+	if (IsCurSchedule( SCHED_RANGE_ATTACK1 ) )
+	{
+		ClearCustomInterruptCondition( COND_CAN_MELEE_ATTACK1 );
+		ClearCustomInterruptCondition( COND_LIGHT_DAMAGE );
+		ClearCustomInterruptCondition( COND_HEAVY_DAMAGE );
+	}
+}
+
 //=========================================================
 // SetYawSpeed - allows each sequence to have a different
 // turn rate associated with it.
@@ -368,6 +443,37 @@ int CNPC_Voltigore::RangeAttack1Conditions( float flDot, float flDist )
 }
 
 //=========================================================
+// Translate missing activities to custom ones
+//=========================================================
+// Shared activities from base predator
+extern int ACT_EAT;
+extern int ACT_EXCITED;
+extern int ACT_DETECT_SCENT;
+extern int ACT_INSPECT_FLOOR;
+
+Activity CNPC_Voltigore::NPC_TranslateActivity( Activity eNewActivity )
+{
+	if (eNewActivity == ACT_EAT)
+	{
+		return (Activity)ACT_VICTORY_DANCE;
+	}
+	else if (eNewActivity == ACT_EXCITED)
+	{
+		return (Activity) ACT_IDLE;
+	}
+	else if ( eNewActivity == ACT_HOP )
+	{
+		return (Activity) ACT_BIG_FLINCH;
+	}
+	else if (eNewActivity == ACT_DETECT_SCENT)
+	{
+		return (Activity) ACT_INSPECT_FLOOR;
+	}
+
+	return BaseClass::NPC_TranslateActivity( eNewActivity );
+}
+
+//=========================================================
 // HandleAnimEvent - catches the monster-specific messages
 // that occur when tagged animation frames are played.
 //=========================================================
@@ -398,7 +504,7 @@ void CNPC_Voltigore::HandleAnimEvent( animevent_t *pEvent )
 				vecSpitDir.z += random->RandomFloat( -0.05, 0 );
 
 				AttackSound();
-				CVoltigoreProjectile::Shoot( this, vecSpitOffset, vecSpitDir * 128.0f );
+				CVoltigoreProjectile::Shoot( this, vecSpitOffset, vecSpitDir * 256.0f );
 			}
 		}
 		break;
@@ -496,8 +602,31 @@ float CNPC_Voltigore::GetBiteDamage( void )
 //=========================================================
 float CNPC_Voltigore::GetWhipDamage( void )
 {
-	return sk_voltigore_dmg_slash.GetFloat();
+	return sk_voltigore_dmg_double_slash.GetFloat();
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+//bool CNPC_Voltigore::ShouldGib( const CTakeDamageInfo &info )
+//{
+//	if (sk_voltigore_always_gib.GetBool())
+//		return true;
+//
+//	// If the damage type is "always gib", we better gib!
+//	if (info.GetDamageType() & DMG_ALWAYSGIB)
+//		return true;
+//
+//	// Babysquids gib if crushed, exploded, or overkilled
+//	if (m_bIsBaby && (info.GetDamage() > GetMaxHealth() || info.GetDamageType() & DMG_CRUSH || info.GetDamageType() & DMG_BLAST))
+//	{
+//		return true;
+//	}
+//
+//	return IsBoss() || BaseClass::ShouldGib( info );
+//}
 
 //------------------------------------------------------------------------------
 //

@@ -146,6 +146,11 @@ public:
 
 	void	PlayFlinchGesture( void );
 
+#ifdef EZ2
+	virtual bool	ShouldGib( const CTakeDamageInfo &info );
+	virtual bool	CorpseGib( const CTakeDamageInfo &info );
+#endif
+
 protected:
 	// Determines the best type of flinch anim to play.
 	virtual Activity GetFlinchActivity( bool bHeavyDamage, bool bGesture );
@@ -192,7 +197,12 @@ private:
 	bool		ShouldHitPlayer( const Vector &targetDir, float targetDist );
 
 	void		PrescheduleThink( void );
-	
+
+#ifdef EZ2
+	void		TryWeaponSwap();
+	int			FindWeaponToSwap(bool bMeleeWeapon);
+#endif
+
 	void		SetPlayerCriminalDuration( float time );
 
 	void		IncrementPlayerCriminalStatus( void );
@@ -267,6 +277,11 @@ private:
 		typedef CAI_ComponentWithOuter<CNPC_MetroPolice, CAI_StandoffBehavior> BaseClass;
 
 		virtual int SelectScheduleAttack();
+
+#ifdef EZ2
+		virtual bool CanSelectSchedule();
+#endif
+
 	};
 #endif
 
@@ -522,6 +537,10 @@ private:
 	float			m_flPreChaseYaw;
 	int				m_nNumWarnings;
 	int				m_iNumPlayerHits;
+
+#ifdef EZ2
+	float			m_flNextWeaponSwapTime;
+#endif
 
 	// Outputs
 	COutputEvent	m_OnStunnedPlayer;

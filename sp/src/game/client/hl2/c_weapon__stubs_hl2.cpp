@@ -56,6 +56,9 @@ STUB_WEAPON_CLASS( weapon_displacer_pistol, DisplacerPistol, C_BaseHLCombatWeapo
 STUB_WEAPON_CLASS( weapon_ar2_proto, WeaponAR2Proto, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_endgame, WeaponEndGame, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_arbeit_clipboard, WeaponArbeitClipboard, C_WeaponCitizenPackage );
+
+STUB_WEAPON_CLASS( weapon_flechette_shotgun, WeaponFlechetteShotgun, C_BaseHLCombatWeapon );
+STUB_WEAPON_CLASS( weapon_stasis_grenade, WeaponStasisGrenade, C_BaseHLCombatWeapon );
 #endif
 
 

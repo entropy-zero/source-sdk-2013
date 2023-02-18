@@ -34,10 +34,13 @@ public:
 	void BiteSound( void );
 	void EatSound( void );
 
+	virtual void BuildScheduleTestBits();
+
 	float MaxYawSpeed ( void );
 
 	int RangeAttack1Conditions( float flDot, float flDist );
 
+	virtual Activity NPC_TranslateActivity( Activity eNewActivity );
 	void HandleAnimEvent( animevent_t *pEvent );
 
 	// Projectile methods
@@ -45,8 +48,10 @@ public:
 	virtual float GetBiteDamage( void );
 	virtual float GetWhipDamage( void );
 
-	// Pit drones in opposing force hated headcrabs - this was an oversight, but let's keep it
-	bool IsPrey( CBaseEntity* pTarget ) { return pTarget->Classify() == CLASS_HEADCRAB; }
+	// bool ShouldGib( const CTakeDamageInfo &info );
+
+
+	bool IsPrey( CBaseEntity* pTarget ) { return pTarget->Classify() == CLASS_PLAYER_ALLY; }
 
 	virtual float GetMaxSpitWaitTime( void ) { return 2.0f; };
 	virtual float GetMinSpitWaitTime( void ) { return 3.0f; };

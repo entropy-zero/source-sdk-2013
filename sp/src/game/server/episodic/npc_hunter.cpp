@@ -392,6 +392,25 @@ protected:
 
 	void FlechetteTouch( CBaseEntity *pOther );
 
+	virtual const char *GetFlechetteModel() { return HUNTER_FLECHETTE_MODEL; }
+	virtual float GetFlechetteDamage() { return sk_hunter_dmg_flechette.GetFloat(); }
+	virtual float GetFlechetteExplodeDamage() { return sk_hunter_flechette_explode_dmg.GetFloat(); }
+	virtual float GetFlechetteExplodeRadius() { return sk_hunter_flechette_explode_radius.GetFloat(); }
+
+	virtual const char *GetFlechetteSound_NearMiss() { return "NPC_Hunter.FlechetteNearmiss"; }
+	virtual const char *GetFlechetteSound_HitBody() { return "NPC_Hunter.FlechetteHitBody"; }
+	virtual const char *GetFlechetteSound_HitWorld() { return "NPC_Hunter.FlechetteHitWorld"; }
+	virtual const char *GetFlechetteSound_PreExplode() { return "NPC_Hunter.FlechettePreExplode"; }
+	virtual const char *GetFlechetteSound_Explode() { return "NPC_Hunter.FlechetteExplode"; }
+
+	virtual const char *GetFlechetteParticle_Trail_Bright() { return "hunter_flechette_trail_striderbuster"; }
+	virtual const char *GetFlechetteParticle_Trail() { return "hunter_flechette_trail"; }
+	virtual const char *GetFlechetteParticle_Explode() { return "hunter_projectile_explosion_1"; }
+
+#ifdef EZ2
+	virtual bool IsShotgunFlechette() { return false; }
+#endif
+
 	Vector m_vecShootPosition;
 	EHANDLE m_hSeekTarget;
 	bool m_bThrownBack;
@@ -540,11 +559,11 @@ bool CHunterFlechette::CreateSprites( bool bBright )
 {
 	if ( bBright )
 	{
-		DispatchParticleEffect( "hunter_flechette_trail_striderbuster", PATTACH_ABSORIGIN_FOLLOW, this );
+		DispatchParticleEffect( GetFlechetteParticle_Trail_Bright(), PATTACH_ABSORIGIN_FOLLOW, this);
 	}
 	else
 	{
-		DispatchParticleEffect( "hunter_flechette_trail", PATTACH_ABSORIGIN_FOLLOW, this );
+		DispatchParticleEffect( GetFlechetteParticle_Trail(), PATTACH_ABSORIGIN_FOLLOW, this);
 	}
 	
 	return true;
@@ -557,7 +576,7 @@ void CHunterFlechette::Spawn()
 {
 	Precache( );
 
-	SetModel( HUNTER_FLECHETTE_MODEL );
+	SetModel( GetFlechetteModel() );
 	SetMoveType( MOVETYPE_FLYGRAVITY, MOVECOLLIDE_FLY_CUSTOM );
 	UTIL_SetSize( this, -Vector(1,1,1), Vector(1,1,1) );
 	SetSolid( SOLID_BBOX );
@@ -599,18 +618,18 @@ void CHunterFlechette::SetupGlobalModelData()
 //-----------------------------------------------------------------------------
 void CHunterFlechette::Precache()
 {
-	PrecacheModel( HUNTER_FLECHETTE_MODEL );
+	PrecacheModel( GetFlechetteModel() );
 	PrecacheModel( "sprites/light_glow02_noz.vmt" );
 
-	PrecacheScriptSound( "NPC_Hunter.FlechetteNearmiss" );
-	PrecacheScriptSound( "NPC_Hunter.FlechetteHitBody" );
-	PrecacheScriptSound( "NPC_Hunter.FlechetteHitWorld" );
-	PrecacheScriptSound( "NPC_Hunter.FlechettePreExplode" );
-	PrecacheScriptSound( "NPC_Hunter.FlechetteExplode" );
+	PrecacheScriptSound( GetFlechetteSound_NearMiss() );
+	PrecacheScriptSound( GetFlechetteSound_HitBody() );
+	PrecacheScriptSound( GetFlechetteSound_HitWorld() );
+	PrecacheScriptSound( GetFlechetteSound_PreExplode() );
+	PrecacheScriptSound( GetFlechetteSound_Explode() );
 
-	PrecacheParticleSystem( "hunter_flechette_trail_striderbuster" );
-	PrecacheParticleSystem( "hunter_flechette_trail" );
-	PrecacheParticleSystem( "hunter_projectile_explosion_1" );
+	PrecacheParticleSystem( GetFlechetteParticle_Trail_Bright() );
+	PrecacheParticleSystem( GetFlechetteParticle_Trail() );
+	PrecacheParticleSystem( GetFlechetteParticle_Explode() );
 }
 
 
@@ -618,12 +637,30 @@ void CHunterFlechette::Precache()
 //-----------------------------------------------------------------------------
 void CHunterFlechette::StickTo( CBaseEntity *pOther, trace_t &tr )
 {
-	EmitSound( "NPC_Hunter.FlechetteHitWorld" );
+	EmitSound( GetFlechetteSound_HitWorld() );
 
 	SetMoveType( MOVETYPE_NONE );
 	
 	if ( !pOther->IsWorld() )
 	{
+#ifdef EZ2
+		if (pOther->IsNPC())
+		{
+			// TODO: Pick the nearest attachment?
+
+			if (GetEntityName() == NULL_STRING)
+			{
+				// Make sure the flechettes are cleaned up if the NPC is killed
+				char szNewName[16];
+				Q_snprintf(szNewName, sizeof(szNewName), "%i_flechette", pOther->entindex());
+				SetName( AllocPooledString( szNewName ) );
+
+				//pOther->KeyValue( "OnServerRagdoll", UTIL_VarArgs( "%s,SetParent,,0,-1", szNewName ) );
+				pOther->KeyValue( "OnDeath", UTIL_VarArgs( "%s,Kill,,0,-1", szNewName ) );
+			}
+		}
+#endif
+
 		SetParent( pOther );
 		SetSolid( SOLID_NONE );
 		SetSolidFlags( FSOLID_NOT_SOLID );
@@ -656,6 +693,21 @@ void CHunterFlechette::StickTo( CBaseEntity *pOther, trace_t &tr )
 	SetContextThink( NULL, 0, s_szHunterFlechetteSeekThink );
 
 	// Get ready to explode.
+#ifdef EZ2
+	if ( IsShotgunFlechette() )
+	{
+		extern ConVar sk_plr_flechette_shotgun_explode_delay;
+		extern ConVar sk_npc_flechette_shotgun_explode_delay;
+
+		float flExplodeDelay = sk_plr_flechette_shotgun_explode_delay.GetFloat();
+		if (GetOwnerEntity() && GetOwnerEntity()->IsNPC())
+			flExplodeDelay = sk_npc_flechette_shotgun_explode_delay.GetFloat();
+
+		SetThink( &CHunterFlechette::DangerSoundThink );
+		SetNextThink( gpGlobals->curtime + (flExplodeDelay - HUNTER_FLECHETTE_WARN_TIME) );
+	}
+	else
+#endif
 	if ( !bAttachedToBuster )
 	{
 		SetThink( &CHunterFlechette::DangerSoundThink );
@@ -695,7 +747,7 @@ void CHunterFlechette::FlechetteTouch( CBaseEntity *pOther )
 			return;
 	}
 
-	if ( FClassnameIs( pOther, "hunter_flechette" ) )
+	if ( FClassnameIs( pOther, GetClassname() ) )
 		return;
 
 	trace_t	tr;
@@ -708,7 +760,7 @@ void CHunterFlechette::FlechetteTouch( CBaseEntity *pOther )
 		ClearMultiDamage();
 		VectorNormalize( vecNormalizedVel );
 
-		float flDamage = sk_hunter_dmg_flechette.GetFloat();
+		float flDamage = GetFlechetteDamage();
 		CBreakable *pBreak = dynamic_cast <CBreakable *>(pOther);
 		if ( pBreak && ( pBreak->GetMaterialType() == matGlass ) )
 		{
@@ -729,7 +781,7 @@ void CHunterFlechette::FlechetteTouch( CBaseEntity *pOther )
 		SetAbsVelocity( Vector( 0, 0, 0 ) );
 
 		// play body "thwack" sound
-		EmitSound( "NPC_Hunter.FlechetteHitBody" );
+		EmitSound( GetFlechetteSound_HitBody() );
 
 		StopParticleEffects( this );
 
@@ -768,6 +820,13 @@ void CHunterFlechette::FlechetteTouch( CBaseEntity *pOther )
 			// We hit a physics object that survived the impact. Stick to it.
 			StickTo( pOther, tr );
 		}
+#ifdef EZ2
+		else if ( IsShotgunFlechette() && pOther->IsNPC() && ( ( pOther->GetHealth() > 0 ) || ( pOther->m_takedamage == DAMAGE_EVENTS_ONLY ) ) )
+		{
+			// Shotgun flechettes stick to NPCs
+			StickTo( pOther, tr );
+		}
+#endif
 		else
 		{
 			SetTouch( NULL );
@@ -854,7 +913,7 @@ void CHunterFlechette::DopplerThink()
 
 	if ( flPlayerDot <= flMyDot )
 	{
-		EmitSound( "NPC_Hunter.FlechetteNearMiss" );
+		EmitSound( GetFlechetteSound_NearMiss() );
 		
 		// We've played the near miss sound and we're not seeking. Stop thinking.
 		SetThink( NULL );
@@ -901,11 +960,28 @@ void CHunterFlechette::Shoot( Vector &vecVelocity, bool bBrightFX )
 //-----------------------------------------------------------------------------
 void CHunterFlechette::DangerSoundThink()
 {
-	EmitSound( "NPC_Hunter.FlechettePreExplode" );
+	EmitSound( GetFlechetteSound_PreExplode() );
 
 	CSoundEnt::InsertSound( SOUND_DANGER|SOUND_CONTEXT_EXCLUDE_COMBINE, GetAbsOrigin(), 150.0f, 0.5, this );
 	SetThink( &CHunterFlechette::ExplodeThink );
-	SetNextThink( gpGlobals->curtime + HUNTER_FLECHETTE_WARN_TIME );
+
+#ifdef EZ2
+	if (IsShotgunFlechette())
+	{
+		extern ConVar sk_plr_flechette_shotgun_explode_warn_duration;
+		extern ConVar sk_npc_flechette_shotgun_explode_warn_duration;
+
+		float flWarnTime = sk_plr_flechette_shotgun_explode_warn_duration.GetFloat();
+		if (GetOwnerEntity() && GetOwnerEntity()->IsNPC())
+			flWarnTime = sk_npc_flechette_shotgun_explode_warn_duration.GetFloat();
+
+		SetNextThink( gpGlobals->curtime + flWarnTime );
+	}
+	else
+#endif
+	{
+		SetNextThink( gpGlobals->curtime + HUNTER_FLECHETTE_WARN_TIME );
+	}
 }
 
 
@@ -926,12 +1002,12 @@ void CHunterFlechette::Explode()
 	// Don't catch self in own explosion!
 	m_takedamage = DAMAGE_NO;
 
-	EmitSound( "NPC_Hunter.FlechetteExplode" );
+	EmitSound( GetFlechetteSound_Explode() );
 	
 	// Move the explosion effect to the tip to reduce intersection with the world.
 	Vector vecFuse;
 	GetAttachment( s_nFlechetteFuseAttach, vecFuse );
-	DispatchParticleEffect( "hunter_projectile_explosion_1", vecFuse, GetAbsAngles(), NULL );
+	DispatchParticleEffect( GetFlechetteParticle_Explode(), vecFuse, GetAbsAngles(), NULL);
 
 	int nDamageType = DMG_DISSOLVE;
 
@@ -944,7 +1020,12 @@ void CHunterFlechette::Explode()
 		nDamageType |= DMG_PREVENT_PHYSICS_FORCE;
 	}
 
+#ifdef EZ2
+	// Shotgun flechettes ignore their owners
+	RadiusDamage( CTakeDamageInfo( this, GetOwnerEntity(), GetFlechetteExplodeDamage(), nDamageType), GetAbsOrigin(), GetFlechetteExplodeRadius(), CLASS_NONE, IsShotgunFlechette() ? GetOwnerEntity() : NULL);
+#else
 	RadiusDamage( CTakeDamageInfo( this, GetOwnerEntity(), sk_hunter_flechette_explode_dmg.GetFloat(), nDamageType ), GetAbsOrigin(), sk_hunter_flechette_explode_radius.GetFloat(), CLASS_NONE, NULL );
+#endif
 		
     AddEffects( EF_NODRAW );
 
@@ -7533,6 +7614,88 @@ void Hunter_StriderBusterDetached( CBaseEntity *pHunter, CBaseEntity *pAttached 
 
 	static_cast<CNPC_Hunter *>(pHunter)->StriderBusterDetached(pAttached);
 }
+
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+extern ConVar	sk_plr_dmg_flechette;
+extern ConVar	sk_plr_flechette_shotgun_explode_dmg;
+extern ConVar	sk_plr_flechette_shotgun_explode_radius;
+extern ConVar	sk_npc_dmg_flechette;
+extern ConVar	sk_npc_flechette_shotgun_explode_dmg;
+extern ConVar	sk_npc_flechette_shotgun_explode_radius;
+
+class CShotgunFlechette : public CHunterFlechette
+{
+	DECLARE_CLASS( CShotgunFlechette, CHunterFlechette );
+
+public:
+
+	//CShotgunFlechette();
+	//~CShotgunFlechette();
+
+	inline bool IsOwnerNPC() { return GetOwnerEntity() && GetOwnerEntity()->IsNPC(); }
+
+	float GetFlechetteDamage() { return IsOwnerNPC() ? sk_npc_dmg_flechette.GetFloat() : sk_plr_dmg_flechette.GetFloat(); }
+	float GetFlechetteExplodeDamage() { return IsOwnerNPC() ? sk_npc_flechette_shotgun_explode_dmg.GetFloat() : sk_plr_flechette_shotgun_explode_dmg.GetFloat(); }
+	float GetFlechetteExplodeRadius() { return IsOwnerNPC() ? sk_npc_flechette_shotgun_explode_radius.GetFloat() : sk_plr_flechette_shotgun_explode_radius.GetFloat(); }
+
+	const char *GetFlechetteSound_NearMiss() { return "Weapon_Flechette_Shotgun.FlechetteNearmiss"; }
+	const char *GetFlechetteSound_HitBody() { return "Weapon_Flechette_Shotgun.FlechetteHitBody"; }
+	const char *GetFlechetteSound_HitWorld() { return "Weapon_Flechette_Shotgun.FlechetteHitWorld"; }
+	const char *GetFlechetteSound_PreExplode() { return "Weapon_Flechette_Shotgun.FlechettePreExplode"; }
+	const char *GetFlechetteSound_Explode() { return "Weapon_Flechette_Shotgun.FlechetteExplode"; }
+
+	const char *GetFlechetteParticle_Trail_Bright() { return "shotgun_flechette_trail_striderbuster"; }
+	const char *GetFlechetteParticle_Trail() { return "shotgun_flechette_trail"; }
+	const char *GetFlechetteParticle_Explode() { return "shotgun_flechette_projectile_explosion_1"; }
+
+	const char *GetFlechetteModel() { return "models/weapons/shotgun_flechette.mdl"; }
+
+	bool IsShotgunFlechette() { return true; }
+
+	static CShotgunFlechette *ShotgunFlechetteCreate( const Vector &vecOrigin, const QAngle &angAngles, CBaseEntity *pentOwner = NULL );
+};
+
+LINK_ENTITY_TO_CLASS( shotgun_flechette, CShotgunFlechette );
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+CShotgunFlechette *CShotgunFlechette::ShotgunFlechetteCreate( const Vector &vecOrigin, const QAngle &angAngles, CBaseEntity *pentOwner )
+{
+	// Create a new entity with CHunterFlechette private data
+	CShotgunFlechette *pFlechette = (CShotgunFlechette *)CreateEntityByName( "shotgun_flechette" );
+	UTIL_SetOrigin( pFlechette, vecOrigin );
+	pFlechette->SetAbsAngles( angAngles );
+	pFlechette->Spawn();
+	pFlechette->Activate();
+	pFlechette->SetOwnerEntity( pentOwner );
+
+	return pFlechette;
+}
+
+CBaseEntity *FlechetteShotgun_CreateFlechette( const Vector &vecOrigin, Vector &vecDir, CBaseEntity *pOwner )
+{
+	Vector vecDirNorm = vecDir;
+	VectorNormalize( vecDirNorm );
+	QAngle angDir;
+	VectorAngles( vecDirNorm, angDir );
+
+	CShotgunFlechette *entity = CShotgunFlechette::ShotgunFlechetteCreate( vecOrigin, angDir, pOwner );
+	if ( entity )
+	{
+		entity->Precache();
+		DispatchSpawn( entity );
+
+		// Shoot the flechette.
+		entity->Shoot( vecDir, false );
+	}
+
+	return entity;
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 //
