@@ -68,6 +68,7 @@ $Group "everything"
 	"vvis_dll"
 	"vvis_launcher"
 	"expanded_steam"
+	"gamepadui"
 }
 
 $Group "dedicated"

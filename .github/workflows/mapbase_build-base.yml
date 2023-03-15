@@ -61,6 +61,33 @@ jobs:
       shell: bash
       run: sed -i 's/^\($Conditional[ 	]\+VS2022[ 	]\+\).*/\1"1"/' newer_vs_toolsets.vpc
 
+      # --------------------------------------------------------------------
+      # Integrate Gamepad UI
+      # --------------------------------------------------------------------
+
+    - name: Checkout Gamepad UI
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      uses: actions/checkout@v3
+      with:
+        repository: entropy-zero/HL2-GamepadUI
+        path: ${{inputs.branch}}/gamepadui
+        submodules: recursive
+
+    - name: Move Gamepad UI to src
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      working-directory: ${{inputs.branch}}
+      run: |
+        rm src/game/gamepadui/*
+        mv gamepadui/src/game/gamepadui/* src/game/gamepadui/
+
+    - name: Enable Build Gamepad UI
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      working-directory: '${{inputs.branch}}/src/vpc_scripts'
+      shell: bash
+      run: sed -i 's/^\($Conditional[ 	]\+BUILD_GAMEPADUI[ 	]\+\).*/\1"1"/' default.vgc
+
+      # --------------------------------------------------------------------
+
     - name: Pick game
       if: inputs.project-group == 'game' || inputs.project-group == 'shaders'
       working-directory: '${{inputs.branch}}/src'
@@ -124,6 +151,7 @@ jobs:
         msbuild -m -p:Configuration=${{inputs.configuration}} responserules\runtime\responserules.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} game\client\client_${{inputs.game}}.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} game\server\server_${{inputs.game}}.vcxproj
+        msbuild -m -p:Configuration=${{inputs.configuration}} game\gamepadui\gamepadui_${{inputs.game}}.vcxproj
 
     # TODO: Hook to game naming?
     - name: Build everything
@@ -136,6 +164,7 @@ jobs:
         msbuild -m -p:Configuration=${{inputs.configuration}} materialsystem\stdshaders\game_shader_dx9_hl2.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} game\client\client_ez2.vcxproj
         msbuild -m -p:Configuration=${{inputs.configuration}} game\server\server_ez2.vcxproj
+        msbuild -m -p:Configuration=${{inputs.configuration}} game\gamepadui\gamepadui_ez2.vcxproj
 
       # --------------------------------------------------------------------
 
@@ -147,6 +176,7 @@ jobs:
         path: |
           ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/client.dll
           ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/server.dll
+          ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/gamepadui.dll
         if-no-files-found: error
 
     - name: Publish Windows shader DLL
@@ -192,7 +222,43 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Install GCC/G++ multilib
-      run: sudo apt-get install gcc-multilib g++-multilib
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install gcc-multilib g++-multilib libsdl2-dev:i386
+
+      # --------------------------------------------------------------------
+      # Integrate Gamepad UI
+      # --------------------------------------------------------------------
+
+    - name: Checkout Gamepad UI
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      uses: actions/checkout@v3
+      with:
+        repository: entropy-zero/HL2-GamepadUI
+        path: ${{inputs.branch}}/gamepadui
+        submodules: recursive
+
+    - name: Move Gamepad UI to src
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      working-directory: ${{inputs.branch}}
+      run: |
+        rm src/game/gamepadui/*
+        mv gamepadui/src/game/gamepadui/* src/game/gamepadui/
+
+    - name: Change SDL header
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      working-directory: ${{inputs.branch}}/src/game/gamepadui
+      shell: bash
+      run: sed -i 's/\"SDL.h\"/<SDL2\/SDL.h>/' gamepadui_options.cpp
+
+    - name: Enable Build Gamepad UI
+      if: inputs.project-group == 'game' || inputs.project-group == 'all'
+      working-directory: '${{inputs.branch}}/src/vpc_scripts'
+      shell: bash
+      run: sed -i 's/^\($Conditional[ 	]\+BUILD_GAMEPADUI[ 	]\+\).*/\1"1"/' default.vgc
+
+      # --------------------------------------------------------------------
 
     - name: Pick game
       if: inputs.project-group == 'game' || inputs.project-group == 'shaders'
@@ -228,6 +294,7 @@ jobs:
         path: |
           ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/client.so
           ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/server.so
+          ${{inputs.branch}}/game/mod_${{inputs.game}}/bin/gamepadui.so
         if-no-files-found: error
 
     - name: Publish Linux shader SO
