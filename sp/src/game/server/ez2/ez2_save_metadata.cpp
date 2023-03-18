@@ -58,7 +58,10 @@ public:
 		if (pCustomSaveMetadata)
 		{
 			// E:Z2 Version
-			pCustomSaveMetadata->SetString( "ez2_version", g_pVGuiLocalize->FindAsUTF8( "#EZ2_Version_Stamp" ) );
+			{
+				ConVarRef ez2Version( "ez2_version" );
+				pCustomSaveMetadata->SetString( "ez2_version", ez2Version.GetString() );
+			}
 
 			// Map Version
 			pCustomSaveMetadata->SetInt( "mapversion", gpGlobals->mapversion );

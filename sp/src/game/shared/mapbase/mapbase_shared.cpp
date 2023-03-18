@@ -34,6 +34,11 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+#ifdef EZ2
+// This is here for easy access to gameinfo.txt
+ConVar ez2_version( "ez2_version", "", FCVAR_REPLICATED );
+#endif
+
 #define GENERIC_MANIFEST_FILE "scripts/mapbase_default_manifest.txt"
 
 #ifdef CLIENT_DLL
@@ -199,6 +204,10 @@ public:
 					CommandLine()->AppendParm( pKey->GetName(), pKey->GetString() );
 				}
 			}
+
+#ifdef EZ2
+			ez2_version.SetValue( gameinfo->GetString( "ez2_version" ) );
+#endif
 		}
 		gameinfo->deleteThis();
 
@@ -251,6 +260,17 @@ public:
 			Q_strncpy( g_szDefaultHandsModel, gameinfo->GetString( "player_default_hands", "models/weapons/v_hands.mdl" ), sizeof( g_szDefaultHandsModel ) );
 			g_iDefaultHandsSkin = gameinfo->GetInt( "player_default_hands_skin", 0 );
 			g_iDefaultHandsBody = gameinfo->GetInt( "player_default_hands_body", 0 );
+#endif
+
+#ifdef EZ2
+			if (ez2_version.GetString()[0] == '\0')
+			{
+				// There probably wasn't a version number in gameinfo, fall back to the old localized stamp
+				ez2_version.SetValue( g_pVGuiLocalize->FindAsUTF8( "#EZ2_Version_Stamp" ) );
+#ifdef GAME_DLL
+				Msg( "ez2_version falling back to #EZ2_Version_Stamp (%s)\n", ez2_version.GetString() );
+#endif
+			}
 #endif
 		}
 		gameinfo->deleteThis();
