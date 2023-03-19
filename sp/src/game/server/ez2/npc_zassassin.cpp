@@ -177,7 +177,14 @@ void CGonomeSpit:: Spawn( void )
 	SetRenderColorA( 255 );
 	SetModel( "" );
 
-	SetRenderColor( 150, 0, 0, 255 );
+	if ( m_bGoo )
+	{
+		SetRenderColor( 255, 255, 255, 255 );
+	}
+	else
+	{
+		SetRenderColor( 150, 0, 0, 255 );
+	}
 	
 	UTIL_SetSize( this, Vector( 0, 0, 0), Vector(0, 0, 0) );
 
@@ -188,13 +195,12 @@ void CGonomeSpit::Shoot( CBaseEntity *pOwner, int nGonomeSpitSprite, CSprite * p
 {
 	CGonomeSpit *pSpit = CREATE_ENTITY( CGonomeSpit, "squidspit" );
 	pSpit->m_nGonomeSpitSprite = nGonomeSpitSprite;
+	pSpit->SetOwnerEntity( pOwner );
+	pSpit->m_bGoo = (pSpit->GetOwnerEntity() && pSpit->GetOwnerEntity()->IsNPC()) ? pSpit->GetOwnerEntity()->MyNPCPointer()->m_tEzVariant == EZ_VARIANT_RAD : false;
 	pSpit->Spawn();
 	
 	UTIL_SetOrigin( pSpit, vecStart );
 	pSpit->SetAbsVelocity( vecVelocity );
-	pSpit->SetOwnerEntity( pOwner );
-
-	pSpit->m_bGoo = (pSpit->GetOwnerEntity() && pSpit->GetOwnerEntity()->IsNPC()) ? pSpit->GetOwnerEntity()->MyNPCPointer()->m_tEzVariant == EZ_VARIANT_RAD : false;
 
 	pSpit->SetSprite( pSprite );
 
