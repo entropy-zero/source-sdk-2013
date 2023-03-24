@@ -563,7 +563,7 @@ void CWeaponAR2::FireNPCPrimaryAttack(CBaseCombatCharacter* pOperator, Vector& v
 	WeaponSoundRealtime(SINGLE_NPC);
 
 	CSoundEnt::InsertSound(SOUND_COMBAT | SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_MACHINEGUN, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy());
-	pOperator->FireBullets(1, vecShootOrigin, vecShootDir, GetBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 2, entindex(), 0);
+	pOperator->FireBullets(1, vecShootOrigin, vecShootDir, GetNPCBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 2, entindex(), 0);
 	pOperator->DoMuzzleFlash(); // Changing the shots doesn't help - just blows us up !
 	m_flSpreadComponent += (MAX_NPC_SPREAD_COMPONENT - MIN_NPC_SPREAD_COMPONENT) * 0.33f; // 1/3 The difference between max and min E8: Changed to use special NPC variable
 

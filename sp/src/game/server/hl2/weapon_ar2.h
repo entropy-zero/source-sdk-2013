@@ -94,7 +94,26 @@ public:
 		static const Vector cone = Vector(m_flSpreadComponent, m_flSpreadComponent, m_flSpreadComponent);
 		return cone;
 	}
+	// Employee8: NPCs initially use the above function, which still used the player values. I'm rerouting them to this one, just to be sure.
+		virtual const Vector& GetNPCBulletSpread(void)
+	{
 
+		float l_flSpreadRegen = ((gpGlobals->curtime - m_flLastPrimaryAttack) / GetBurstCycleRate()) * (MAX_NPC_SPREAD_COMPONENT - MIN_NPC_SPREAD_COMPONENT) / 2;
+		m_flSpreadComponent -= l_flSpreadRegen;
+
+		// Minimum spread
+		if (m_flSpreadComponent < MIN_NPC_SPREAD_COMPONENT)
+			m_flSpreadComponent = MIN_NPC_SPREAD_COMPONENT;
+
+		// Maximum spread
+		if (m_flSpreadComponent > MAX_NPC_SPREAD_COMPONENT)
+			m_flSpreadComponent = MAX_NPC_SPREAD_COMPONENT;
+
+
+		static const Vector cone = Vector(m_flSpreadComponent, m_flSpreadComponent, m_flSpreadComponent);
+		return cone;
+	}
+	
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
 
 protected:
