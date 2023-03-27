@@ -265,11 +265,16 @@ public:
 #ifdef EZ2
 			if (ez2_version.GetString()[0] == '\0')
 			{
-				// There probably wasn't a version number in gameinfo, fall back to the old localized stamp
-				ez2_version.SetValue( g_pVGuiLocalize->FindAsUTF8( "#EZ2_Version_Stamp" ) );
+				// There wasn't a version number in gameinfo, fall back to the old localized stamp
+				static const char *pszToken = "#EZ2_Version_Stamp";
+				const char *pszVersion = g_pVGuiLocalize->FindAsUTF8( pszToken );
+				if (pszVersion != pszToken)
+				{
+					ez2_version.SetValue( pszVersion );
 #ifdef GAME_DLL
-				Msg( "ez2_version falling back to #EZ2_Version_Stamp (%s)\n", ez2_version.GetString() );
+					Msg( "ez2_version falling back to #EZ2_Version_Stamp (%s)\n", ez2_version.GetString() );
 #endif
+				}
 			}
 #endif
 		}
