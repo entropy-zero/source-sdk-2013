@@ -160,6 +160,7 @@ ConVar sv_player_hands_modelname( "sv_player_hands_modelname", "models/weapons/e
 ConVar sv_player_kick_default_modelname( "sv_player_kick_default_modelname", "models/weapons/ez2/v_kick.mdl", FCVAR_REPLICATED, "Default filename of model to use for kick animation - can be overridden in map" );
 ConVar sv_pulsepistol_battery_pickup( "sv_pulsepistol_battery_pickup", "1", FCVAR_REPLICATED, "Picks up extra pulse pistols as armor batteries" );
 ConVar sv_pulsepistol_battery_pickup_amount( "sv_pulsepistol_battery_pickup_amount", "0.4", FCVAR_REPLICATED, "What percentage of sk_battery should be provided by extra pulse pistols" );
+ConVar sv_zoom_always_toggles( "sv_zoom_always_toggles", "0", FCVAR_ARCHIVE, "Zoom key toggles zooming" );
 #else
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "0", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "1", FCVAR_REPLICATED);
@@ -822,6 +823,16 @@ void CHL2_Player::CheckSuitZoom( void )
 	//Adrian - No zooming without a suit!
 	if ( IsSuitEquipped() )
 	{
+#ifdef EZ2
+		if ( sv_zoom_always_toggles.GetBool() )
+		{
+			if ( m_afButtonPressed & IN_ZOOM )
+			{
+				ToggleZoom();
+			}
+		}
+		else
+#endif
 		if ( m_afButtonReleased & IN_ZOOM )
 		{
 			StopZooming();
