@@ -1061,7 +1061,7 @@ float CBounceBomb::FindNearestNPC()
 
 //---------------------------------------------------------
 //---------------------------------------------------------
-bool CBounceBomb::IsFriend( CBaseEntity *pEntity )
+bool CBounceBomb::IsFriend(CBaseEntity* pEntity)
 {
 #ifdef MAPBASE
 	if (m_hFriendFilter && m_hFriendFilter->PassesFilter(this, pEntity))
@@ -1075,15 +1075,26 @@ bool CBounceBomb::IsFriend( CBaseEntity *pEntity )
 	bool bIsCombine = false;
 
 	// Unconditional enemies to combine and Player.
-	if( classify == CLASS_ZOMBIE || classify == CLASS_HEADCRAB || classify == CLASS_ANTLION )
+	if (classify == CLASS_ZOMBIE || classify == CLASS_HEADCRAB || classify == CLASS_ANTLION)
 	{
 		return false;
 	}
 
-	if( classify == CLASS_METROPOLICE || 
-  		classify == CLASS_COMBINE ||
-  		classify == CLASS_MILITARY ||
-  		classify == CLASS_COMBINE_HUNTER ||
+	if (classify == CLASS_METROPOLICE)
+	{
+		if (m_iModification == MINE_MODIFICATION_CAVERN)
+		{
+			return false;
+		}
+		else
+		{
+			bIsCombine = true;
+		}
+	}
+
+	if (classify == CLASS_COMBINE ||
+		classify == CLASS_MILITARY ||
+		classify == CLASS_COMBINE_HUNTER ||
 #ifdef MAPBASE
 		classify == CLASS_MANHACK ||
 		classify == CLASS_STALKER ||
@@ -1097,7 +1108,14 @@ bool CBounceBomb::IsFriend( CBaseEntity *pEntity )
 
 	if( m_bPlacedByPlayer )
 	{
-		return !bIsCombine;
+		if (!m_iModification == MINE_MODIFICATION_CAVERN)
+		{
+			return !bIsCombine;
+		}
+		else
+		{
+			return bIsCombine;
+		}
 	}
 	else
 	{
