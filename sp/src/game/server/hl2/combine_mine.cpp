@@ -1080,6 +1080,8 @@ bool CBounceBomb::IsFriend(CBaseEntity* pEntity)
 		return false;
 	}
 
+	// Mine friendlyness fix.
+	// Player is not CLASS_PLAYER in EZ, so bIsCombine kinda applies to them
 	if (classify == CLASS_METROPOLICE)
 	{
 		if (m_iModification == MINE_MODIFICATION_CAVERN)
