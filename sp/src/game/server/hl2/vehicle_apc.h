@@ -122,6 +122,7 @@ private:
 
 
 private:
+
 	// Danger sounds made by the APC
 	float	m_flDangerSoundTime;
 
