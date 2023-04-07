@@ -6582,7 +6582,14 @@ EyeGlow_t * CNPC_MetroPolice::GetEyeGlowData(int i)
 	eyeGlow->spriteName = "sprites/light_glow02.vmt";
 	eyeGlow->attachment = "eyes";
 
-	eyeGlow->alpha = 100;
+	if (!m_nSkin == 1)
+	{
+		eyeGlow->alpha = 0;
+	}
+	else
+	{
+		eyeGlow->alpha = 100;
+	}
 	eyeGlow->red = 0;
 	eyeGlow->green = 255;
 	eyeGlow->blue = 255;

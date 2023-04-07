@@ -1535,7 +1535,14 @@ EyeGlow_t* CNPC_Combine::GetEyeGlowData(int i)
 		eyeGlow->red = 0;
 		eyeGlow->green = 50;
 		eyeGlow->blue = 150;
-		eyeGlow->alpha = 100;
+		if (!m_nSkin == 1)
+		{
+			eyeGlow->alpha = 0;
+		}
+		else
+		{
+			eyeGlow->alpha = 100;
+		}
 	}
 	else if (iszModelName == iszModel_RegularSoldier)
 	{
