@@ -377,7 +377,7 @@ void CPropAPC::ExplodeAndThrowChunk( const Vector &vecExplosionPos )
 
 	int nGib = random->RandomInt( 0, APC_MAX_CHUNKS - 1 );
 	pChunk->Spawn( s_pChunkModelName[nGib] );
-	if (m_nSkin == 1)
+	if (isRebelAPC)
 	{
 		pChunk->SetSkin(1);
 	}
