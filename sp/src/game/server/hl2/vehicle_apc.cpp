@@ -569,16 +569,16 @@ int CPropAPC::OnTakeDamage( const CTakeDamageInfo &info )
 	if ( m_iHealth == 0 )
 		return 0;
 
-	m_OnDamaged.FireOutput( info.GetAttacker(), this );
-
-	if ( info.GetAttacker() && info.GetAttacker()->IsPlayer() )
-	{
-		m_OnDamagedByPlayer.FireOutput( info.GetAttacker(), this );
-	}
-
 	CTakeDamageInfo dmgInfo = info;
 	if ( dmgInfo.GetDamageType() & (DMG_BLAST | DMG_AIRBOAT) )
 	{
+		m_OnDamaged.FireOutput(info.GetAttacker(), this);
+
+		if (info.GetAttacker() && info.GetAttacker()->IsPlayer())
+		{
+			m_OnDamagedByPlayer.FireOutput(info.GetAttacker(), this);
+		}
+
 		int nPrevHealth = GetHealth();
 
 		m_iHealth -= dmgInfo.GetDamage();
