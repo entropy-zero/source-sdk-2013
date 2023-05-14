@@ -225,7 +225,8 @@ jobs:
       run: |
         sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install gcc-multilib g++-multilib libsdl2-dev:i386
+        sudo apt-get install gcc-multilib g++-multilib aptitude
+        sudo aptitude install -y libsdl2-dev:i386
 
       # --------------------------------------------------------------------
       # Integrate Gamepad UI
