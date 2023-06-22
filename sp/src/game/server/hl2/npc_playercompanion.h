@@ -172,6 +172,7 @@ public:
 	
 	Activity		TranslateActivityReadiness( Activity activity );
 	Activity		NPC_TranslateActivity( Activity eNewActivity );
+	void			OnChangeActivity( Activity eNewActivity );
 	void 			HandleAnimEvent( animevent_t *pEvent );
 	bool			HandleInteraction(int interactionType, void *data, CBaseCombatCharacter* sourceEnt);
 

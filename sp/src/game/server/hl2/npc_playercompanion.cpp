@@ -66,6 +66,10 @@ int AE_COMPANION_RELEASE_FLARE;
 #define COMPANION_MELEE_DIST 64.0
 #endif
 
+#ifdef EZ2
+int g_interactionGenericMeleeWarning = 0;
+#endif
+
 #ifdef MAPBASE
 ConVar ai_allow_new_weapons( "ai_allow_new_weapons", "1", FCVAR_NONE, "Allows companion NPCs to automatically pick up and use weapons they were unable pick up before, i.e. 357s or crossbows." );
 #endif
@@ -1824,6 +1828,28 @@ Activity CNPC_PlayerCompanion::NPC_TranslateActivity( Activity activity )
 	return TranslateActivityReadiness( activity );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::OnChangeActivity( Activity eNewActivity )
+{
+	BaseClass::OnChangeActivity( eNewActivity );
+
+#ifdef EZ2
+	if (eNewActivity == ACT_MELEE_ATTACK1)
+	{
+		// Copied from zombie code
+		if( GetEnemy() && GetEnemy()->IsNPC() )
+		{
+			if( HasCondition(COND_CAN_MELEE_ATTACK1) )
+			{
+				GetEnemy()->MyNPCPointer()->DispatchInteraction( g_interactionGenericMeleeWarning, NULL, this );
+			}
+		}
+	}
+#endif
+}
+
 //------------------------------------------------------------------------------
 // Purpose: Handle animation events
 //------------------------------------------------------------------------------
@@ -1968,6 +1994,24 @@ bool CNPC_PlayerCompanion::HandleInteraction(int interactionType, void *data, CB
 		}
 		return true;
 	}
+#ifdef EZ2
+	if (interactionType == g_interactionHeadcrabJump)
+	{
+		if ( !IsMoving() && ( CapabilitiesGet() & bits_CAP_INNATE_MELEE_ATTACK1 ) && GetEnemy() == sourceEnt && FInViewCone(sourceEnt) )
+		{
+			// Chance of meleeing an inbound headcrab if there's enough room and can interrupt schedule
+			if( !IsInAScript() && IsInterruptable() && (ConditionInterruptsCurSchedule(COND_LIGHT_DAMAGE) || ConditionInterruptsCurSchedule( COND_HEAVY_DAMAGE)) )
+			{
+				trace_t tr;
+				UTIL_TraceHull( GetAbsOrigin(), sourceEnt->GetAbsOrigin(), GetHullMins(), GetHullMaxs(), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+
+				if (tr.fraction == 1.0f || tr.m_pEnt == sourceEnt)
+					SetSchedule( SCHED_MELEE_ATTACK1 );
+			}
+		}
+		return true;
+	}
+#endif
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }
@@ -4779,6 +4823,9 @@ AI_BEGIN_CUSTOM_NPC( player_companion_base, CNPC_PlayerCompanion )
 	// AI Interaction for being hit by a physics object
 	DECLARE_INTERACTION(g_interactionHitByPlayerThrownPhysObj)
 	DECLARE_INTERACTION(g_interactionPlayerPuntedHeavyObject)
+#ifdef EZ2
+	DECLARE_INTERACTION( g_interactionGenericMeleeWarning )
+#endif
 
 	DECLARE_CONDITION( COND_PC_HURTBYFIRE )
 	DECLARE_CONDITION( COND_PC_SAFE_FROM_MORTAR )

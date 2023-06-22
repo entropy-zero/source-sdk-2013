@@ -697,6 +697,7 @@ END_DATADESC()
 // Interactions
 //-----------------------------------------------------------------------------
 	int g_interactionBadCopKick = 0;
+	int g_interactionBadCopKickWarn = 0;
 	int g_interactionBadCopOrderSurrender = 0;
 #endif
 
@@ -803,6 +804,11 @@ void CHL2_Player::Precache( void )
 	if ( g_interactionBadCopKick == 0 )
 	{
 		g_interactionBadCopKick = CBaseCombatCharacter::GetInteractionID();
+	}
+	
+	if ( g_interactionBadCopKickWarn == 0 )
+	{
+		g_interactionBadCopKickWarn = CBaseCombatCharacter::GetInteractionID();
 	}
 
 	// Interactions
@@ -4672,6 +4678,17 @@ void CHL2_Player::HandleKickAttack()
 		EmitSound( "EZ2Player.KickSwing" );
 
 		StartKickAnimation();
+
+		// Tell any NPC in front of me that I'm kicking
+		Vector vecAim = BaseClass::GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );
+
+		trace_t tr;
+		TraceKick( tr, vecAim );
+
+		if (tr.m_pEnt)
+		{
+			tr.m_pEnt->DispatchInteraction( g_interactionBadCopKickWarn, NULL, this );
+		}
 	}
 	else if ( m_bKickWeaponLowered && gpGlobals->curtime <= m_flNextKickAttack)
 	{
@@ -4691,13 +4708,10 @@ void CHL2_Player::HandleKickAttack()
 static const Vector g_kickMins( -KICK_HULL_DIM, -KICK_HULL_DIM, -KICK_HULL_DIM );
 static const Vector g_kickMaxs( KICK_HULL_DIM, KICK_HULL_DIM, KICK_HULL_DIM );
 
-void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
+void CHL2_Player::TraceKick( trace_t &tr, const Vector &vecAim )
 {
 	Vector vecSrc = GetFlags() & FL_DUCKING ? EyePosition() : EyePosition() - Vector(0, 0, 32);
-	Vector vecAim = BaseClass::GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );
 	Vector vecEnd = EyePosition() + (vecAim * 80);
-
-	trace_t tr;
 
 	UTIL_TraceLine( vecSrc, vecEnd, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
 
@@ -4724,13 +4738,21 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 			}
 		}
 	}
+}
+
+void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
+{
+	Vector vecAim = BaseClass::GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );
+
+	trace_t tr;
+	TraceKick( tr, vecAim );
 
 	if ( pKickedEntity == NULL )
 	{
 		pKickedEntity = tr.m_pEnt;
 	}
 
-	if ( pKickedEntity != NULL )
+	if ( pKickedEntity != NULL && pKickedEntity->CanBeHitByMeleeAttack( this ) )
 	{
 		float dmg = sk_plr_dmg_kick.GetFloat();
 		int dmgType = DMG_CLUB;

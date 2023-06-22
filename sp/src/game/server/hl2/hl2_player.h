@@ -403,6 +403,7 @@ protected:
 
 #ifdef EZ2
 	virtual void		HandleKickAttack();
+	virtual void		TraceKick( trace_t &tr, const Vector &vecAim );
 	virtual void		TraceKickAttack( CBaseEntity* pKickedEntity = NULL );
 
 	void  HandleKickAnimation( void );

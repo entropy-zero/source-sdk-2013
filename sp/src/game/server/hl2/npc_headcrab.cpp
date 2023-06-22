@@ -204,6 +204,12 @@ int ACT_HEADCRAB_CEILING_DETACH;
 int ACT_HEADCRAB_CEILING_FALL;
 int ACT_HEADCRAB_CEILING_LAND;
 
+#ifdef EZ2
+//=========================================================
+// Interactions
+//=========================================================
+int g_interactionHeadcrabJump;
+#endif
 
 //-----------------------------------------------------------------------------
 // Skill settings.
@@ -714,6 +720,10 @@ void CBaseHeadcrab::HandleAnimEvent( animevent_t *pEvent )
 			// we jump at. Jump at our enemy's eyes.
 			m_vecCommittedJumpPos = pEnemy->EyePosition();
 			m_bCommittedToJump = true;
+
+#ifdef EZ2
+			pEnemy->DispatchInteraction( g_interactionHeadcrabJump, NULL, this );
+#endif
 		}
 
 		return;
@@ -4188,6 +4198,10 @@ void CBlackHeadcrab::HandleAnimEvent( animevent_t *pEvent )
 			// we jump at. Jump at our enemy's eyes.
 			m_vecCommittedJumpPos = pEnemy->EyePosition();
 			m_bCommittedToJump = true;
+
+#ifdef EZ2
+			pEnemy->DispatchInteraction( g_interactionHeadcrabJump, NULL, this );
+#endif
 		}
  
 		return;
@@ -4444,6 +4458,10 @@ AI_BEGIN_CUSTOM_NPC( npc_headcrab, CBaseHeadcrab )
 	DECLARE_ANIMEVENT( AE_HEADCRAB_BURROW_IN_FINISH )
 	DECLARE_ANIMEVENT( AE_HEADCRAB_BURROW_OUT )
 	DECLARE_ANIMEVENT( AE_HEADCRAB_CEILING_DETACH )
+
+#ifdef EZ2
+	DECLARE_INTERACTION( g_interactionHeadcrabJump )
+#endif
 	
 	//=========================================================
 	// > SCHED_HEADCRAB_RANGE_ATTACK1

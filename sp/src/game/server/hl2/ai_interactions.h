@@ -85,6 +85,9 @@ extern int  g_interactionZombinePullGrenade;
 #endif
 
 #ifdef EZ2
+// Headcrab
+extern int	g_interactionHeadcrabJump;
+
 // Xen Grenade
 extern int	g_interactionXenGrenadePull;
 extern int	g_interactionXenGrenadeConsume;
@@ -95,9 +98,13 @@ extern int  g_interactionXenGrenadeRagdoll;
 
 // Bad Cop kick
 extern int	g_interactionBadCopKick;
+extern int	g_interactionBadCopKickWarn;
 
 // Bad Cop order surrender
 extern int	g_interactionBadCopOrderSurrender;
+
+// Melee warning used by all companions via CNPC_PlayerCompanion::OnChangeActivity
+extern int g_interactionGenericMeleeWarning;
 #endif
 
 #endif	//AI_INTERACTIONS_H
