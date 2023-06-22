@@ -52,7 +52,15 @@ public:
 	virtual float	GetMinRestTime( void ) { return 1.0f; }
 	virtual float	GetMaxRestTime( void ) { return 2.5f; }
 
-	virtual float GetFireRate( void ) { return 1.0f; }
+	virtual float GetFireRate( void )
+	{
+#ifdef EZ2
+		if (m_hLeftHandGun != NULL)
+			return 0.5f;
+#endif
+
+		return 1.0f;
+	}
 
 	virtual const Vector& GetBulletSpread( void )
 	{
@@ -84,6 +92,19 @@ public:
 #ifdef MAPBASE
 	DECLARE_ACTTABLE();
 #endif
+
+#ifdef EZ2
+	WeaponClass_t			WeaponClassify() { return WEPCLASS_HANDGUN; }
+	virtual void			SetActivity( Activity act, float duration );
+
+	bool				CanDualWield() const { return true; }
+	CBaseAnimating		*GetLeftHandGun() const { return m_hLeftHandGun; }
+	void				SetLeftHandGun( CBaseAnimating *pGun ) { m_hLeftHandGun = pGun; }
+
+private:
+
+	CHandle<CBaseAnimating> m_hLeftHandGun;
+#endif
 };
 
 LINK_ENTITY_TO_CLASS( weapon_357, CWeapon357 );
@@ -94,6 +115,11 @@ IMPLEMENT_SERVERCLASS_ST( CWeapon357, DT_Weapon357 )
 END_SEND_TABLE()
 
 BEGIN_DATADESC( CWeapon357 )
+
+#ifdef EZ2
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+#endif
+
 END_DATADESC()
 
 #ifdef MAPBASE
@@ -238,6 +264,17 @@ int Get357ActtableCount()
 }
 #endif
 
+#ifdef EZ2
+void CWeapon357::SetActivity( Activity act, float duration )
+{
+	// HACKHACK: Can't recompile all of the models to have this right now
+	if (act == ACT_RANGE_ATTACK_DUAL_PISTOLS && SelectWeightedSequence( act ) == ACTIVITY_NOT_AVAILABLE)
+		act = ACT_RANGE_ATTACK_REVOLVER;
+
+	BaseClass::SetActivity( act, duration );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
@@ -282,6 +319,12 @@ void CWeapon357::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChara
 #ifdef MAPBASE
 		case EVENT_WEAPON_PISTOL_FIRE:
 			{
+#ifdef EZ2
+				// HACKHACK: Ignore the regular firing event while dual-wielding
+				if (GetLeftHandGun())
+					return;
+#endif
+
 				Vector vecShootOrigin, vecShootDir;
 				vecShootOrigin = pOperator->Weapon_ShootPosition();
 

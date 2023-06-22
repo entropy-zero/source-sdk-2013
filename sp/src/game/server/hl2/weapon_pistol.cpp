@@ -115,6 +115,11 @@ public:
 
 	virtual float GetFireRate( void ) 
 	{
+#ifdef EZ2
+		if (m_hLeftHandGun != NULL)
+			return 0.25f;
+#endif
+
 		return 0.5f; 
 	}
 
@@ -125,6 +130,19 @@ public:
 #endif
 
 	DECLARE_ACTTABLE();
+
+#ifdef EZ2
+	WeaponClass_t			WeaponClassify() { return WEPCLASS_HANDGUN; }
+	virtual void			SetActivity( Activity act, float duration );
+
+	bool				CanDualWield() const { return true; }
+	CBaseAnimating		*GetLeftHandGun() const { return m_hLeftHandGun; }
+	void				SetLeftHandGun( CBaseAnimating *pGun ) { m_hLeftHandGun = pGun; }
+
+private:
+
+	CHandle<CBaseAnimating> m_hLeftHandGun;
+#endif
 
 protected:
 	float	m_flSoonestPrimaryAttack;
@@ -146,6 +164,10 @@ BEGIN_DATADESC( CWeaponPistol )
 	DEFINE_FIELD( m_flLastAttackTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_flAccuracyPenalty,		FIELD_FLOAT ), //NOTENOTE: This is NOT tracking game time
 	DEFINE_FIELD( m_nNumShotsFired,			FIELD_INTEGER ),
+
+#ifdef EZ2
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+#endif
 
 END_DATADESC()
 
@@ -300,6 +322,17 @@ int GetPistolActtableCount()
 }
 #endif
 
+#ifdef EZ2
+void CWeaponPistol::SetActivity( Activity act, float duration )
+{
+	// HACKHACK: Can't recompile all of the models to have this right now
+	if (act == ACT_RANGE_ATTACK_DUAL_PISTOLS && SelectWeightedSequence( act ) == ACTIVITY_NOT_AVAILABLE)
+		act = ACT_RANGE_ATTACK_PISTOL;
+
+	BaseClass::SetActivity( act, duration );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
@@ -335,6 +368,12 @@ void CWeaponPistol::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCh
 	{
 		case EVENT_WEAPON_PISTOL_FIRE:
 		{
+#ifdef EZ2
+			// HACKHACK: Ignore the regular firing event while dual-wielding
+			if (GetLeftHandGun())
+				return;
+#endif
+
 			Vector vecShootOrigin, vecShootDir;
 			vecShootOrigin = pOperator->Weapon_ShootPosition();
 
@@ -649,6 +688,9 @@ public:
 		{
 			return 3.0f;
 		}
+
+		if (GetLeftHandGun() != NULL)
+			return 0.5f;
 
 		return 1.0f;
 	}

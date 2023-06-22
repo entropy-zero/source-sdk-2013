@@ -47,6 +47,8 @@ $Project "Server (Entropy Zero 2)"
 			$File	"ez2\ez2_player.h"
 			$File	"ez2\ez2_player.cpp"
 			$File	"ez2\ez2_save_metadata.cpp"
+			$File	"ez2\npc_assassin.h"
+			$File	"ez2\npc_assassin.cpp"
 			$File	"ez2\npc_clonecop.h" [!$EZ2_DEMO]
 			$File	"ez2\npc_clonecop.cpp" [!$EZ2_DEMO]
 			$File	"ez2\npc_baseflora.h"

@@ -1799,6 +1799,7 @@ hinttypedescs_t g_pszHintDescriptions[] =
 	{	HINT_BEAST_HOME, "EZ2: Beast Home"	},
 	{	HINT_BEAST_FRUSTRATION, "EZ2: Beast Frustration"	},
 	{	HINT_SURRENDER_IDLE_DEST, "EZ2: Surrender Idle Destination"	},
+	{	HINT_TACTICAL_VANTAGE_POINT, "Tactical: Vantage Point"	},
 #endif
 };
 
