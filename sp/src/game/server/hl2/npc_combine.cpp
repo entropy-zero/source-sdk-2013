@@ -63,6 +63,8 @@ ConVar npc_combine_new_cover_behavior( "npc_combine_new_cover_behavior", "1", FC
 #endif
 
 #ifdef EZ
+ConVar npc_combine_fear_near_zombies( "npc_combine_fear_near_zombies", "0", FCVAR_NONE, "Makes soldiers afraid of groups of zombies getting too close to them." );
+
 ConVar npc_combine_give_enabled( "npc_combine_give_enabled", "1", FCVAR_NONE, "Allows players to \"give\" weapons to Combine soldiers in their squad by holding one in front of them for a few seconds." );
 ConVar npc_combine_give_stare_dist( "npc_combine_give_stare_dist", "112", FCVAR_NONE, "The distance needed for soldiers to consider the possibility the player wants to give them a weapon." );
 ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NONE, "The amount of time the player needs to be staring at a soldier in order for them to pick up a weapon they're holding." );
@@ -1853,14 +1855,17 @@ Disposition_t CNPC_Combine::IRelationType( CBaseEntity *pTarget )
 	if ( pTarget == NULL )
 		return disposition;
 
-	// Zombie fearing behavior based partially on Alyx's code
-	// -Blixibon
-	if( pTarget->Classify() == CLASS_ZOMBIE && disposition == D_HT )
+	if (npc_combine_fear_near_zombies.GetBool())
 	{
-		if( GetEnemies()->NumEnemies() > 1 && GetAbsOrigin().DistToSqr(pTarget->GetAbsOrigin()) < Square(96) )
+		// Zombie fearing behavior based partially on Alyx's code
+		// -Blixibon
+		if( pTarget->Classify() == CLASS_ZOMBIE && disposition == D_HT )
 		{
-			// Be afraid of a zombie that's near if he's not alone. This will make soldiers back away.
-			return D_FR;
+			if( GetEnemies()->NumEnemies() > 1 && GetAbsOrigin().DistToSqr(pTarget->GetAbsOrigin()) < Square(96) )
+			{
+				// Be afraid of a zombie that's near if he's not alone. This will make soldiers back away.
+				return D_FR;
+			}
 		}
 	}
 
@@ -3442,7 +3447,11 @@ int CNPC_Combine::SelectCombatSchedule()
 	}
 
 	// If I'm scared of this enemy run away
+#ifdef EZ2
+	if ( IRelationType( GetEnemy() ) == D_FR && !HasCondition( COND_CAN_MELEE_ATTACK1 ) )
+#else
 	if ( IRelationType( GetEnemy() ) == D_FR )
+#endif
 	{
 		if (HasCondition( COND_SEE_ENEMY )	|| 
 			HasCondition( COND_SEE_FEAR )	|| 
