@@ -1128,6 +1128,17 @@ inline void HunterTraceHull_SkipPhysics( const Vector &vecAbsStart, const Vector
 	enginetrace->TraceRay( ray, mask, &traceFilter, ptr );
 }
 
+#ifdef EZ2
+// For use in npc_assassin.cpp
+void HunterTraceHull_SkipPhysics_Extern( const Vector &vecAbsStart, const Vector &vecAbsEnd, const Vector &hullMin, 
+					 const Vector &hullMax,	unsigned int mask, const CBaseEntity *ignore, 
+					 int collisionGroup, trace_t *ptr, float minMass )
+{
+	HunterTraceHull_SkipPhysics( vecAbsStart, vecAbsEnd, hullMin,
+		hullMax, mask, ignore, collisionGroup, ptr, minMass );
+}
+#endif
+
 
 //-----------------------------------------------------------------------------
 // Hunter follow behavior
