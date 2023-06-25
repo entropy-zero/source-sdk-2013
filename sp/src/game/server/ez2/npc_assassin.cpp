@@ -68,9 +68,9 @@ ConVar	sk_assassin_flip_min_dist( "sk_assassin_flip_min_dist", "50" );
 ConVar	sk_assassin_flip_max_dist( "sk_assassin_flip_max_dist", "150" );
 ConVar	sk_assassin_flip_dist_threshold( "sk_assassin_flip_dist_threshold", "16" );
 
-ConVar	sk_assassin_dodge_warning( "hunter_dodge_warning", "1.1" );
-ConVar	sk_assassin_dodge_warning_width( "hunter_dodge_warning_width", "180" );
-ConVar	sk_assassin_dodge_warning_cone( "hunter_dodge_warning_cone", ".5" );
+ConVar	sk_assassin_dodge_warning( "sk_assassin_dodge_warning", "1.1" );
+ConVar	sk_assassin_dodge_warning_width( "sk_assassin_dodge_warning_width", "180" );
+ConVar	sk_assassin_dodge_warning_cone( "sk_assassin_dodge_warning_cone", ".5" );
 
 ConVar	sk_assassin_cloak_speed( "sk_assassin_cloak_speed", "0.05" );
 ConVar	sk_assassin_cloak_time_min( "sk_assassin_cloak_time_min", "20" );
