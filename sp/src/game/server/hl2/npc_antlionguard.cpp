@@ -52,6 +52,12 @@ ConVar	sk_antlionguard_dmg_shove( "sk_antlionguard_dmg_shove", "0" );
 ConVar	g_antlionguard_hemorrhage( "g_antlionguard_hemorrhage", "1", FCVAR_NONE, "If 1, guard will emit a bleeding particle effect when wounded." );
 #endif
 
+#ifdef EZ2
+ConVar	g_antlionguard_dynamic_shove( "g_antlionguard_dynamic_shove", "1", FCVAR_NONE, "Allows guards to dynamically shove props." );
+ConVar	sk_antlionguard_shove_min_mass( "sk_antlionguard_shove_min_mass", "8", FCVAR_NONE, "Minimum mass for dynamic prop shoving." );
+ConVar	sk_antlionguard_shove_max_mass( "sk_antlionguard_shove_max_mass", "2000", FCVAR_NONE, "Maximum mass for dynamic prop shoving." );
+#endif
+
 // Spawnflags 
 #define	SF_ANTLIONGUARD_SERVERSIDE_RAGDOLL	( 1 << 16 )
 #define SF_ANTLIONGUARD_INSIDE_FOOTSTEPS	( 1 << 17 )
@@ -74,6 +80,13 @@ ConVar	g_antlionguard_hemorrhage( "g_antlionguard_hemorrhage", "1", FCVAR_NONE, 
 #define ANTLIONGUARD_MAX_OBJECTS				128
 #define	ANTLIONGUARD_MIN_OBJECT_MASS			8
 #define	ANTLIONGUARD_MAX_OBJECT_MASS			750
+#ifdef EZ2 // E:Z2 is more loose about what guards can punt
+#define	ANTLIONGUARD_MIN_OBJECT_PUNT_MASS		sk_antlionguard_shove_min_mass.GetFloat()
+#define	ANTLIONGUARD_MAX_OBJECT_PUNT_MASS		sk_antlionguard_shove_max_mass.GetFloat()
+#else
+#define	ANTLIONGUARD_MIN_OBJECT_PUNT_MASS		ANTLIONGUARD_MIN_OBJECT_MASS
+#define	ANTLIONGUARD_MAX_OBJECT_PUNT_MASS		ANTLIONGUARD_MAX_OBJECT_MASS
+#endif
 #define	ANTLIONGUARD_FARTHEST_PHYSICS_OBJECT	350
 #define ANTLIONGUARD_OBJECTFINDING_FOV			DOT_45DEGREE // 1/sqrt(2)
 
@@ -945,30 +958,36 @@ void CNPC_AntlionGuard::Activate( void )
 {
 	BaseClass::Activate();
 
-	// Find all nearby physics objects and add them to the list of objects we will sense
-	CBaseEntity *pObject = NULL;
-	while ( ( pObject = gEntList.FindEntityInSphere( pObject, WorldSpaceCenter(), 2500 ) ) != NULL )
+#ifdef EZ2
+	// This feature was broken prior to E:Z2 changes, so use a cvar to make sure restoring it now doesn't cause problems
+	if (g_antlionguard_dynamic_shove.GetBool())
+#endif
 	{
-		// Can't throw around debris
-		if ( pObject->GetCollisionGroup() == COLLISION_GROUP_DEBRIS )
-			continue;
-
-		// We can only throw a few types of things
-		if ( !FClassnameIs( pObject, "prop_physics" ) && !FClassnameIs( pObject, "func_physbox" ) )
-			continue;
-
-		// Ensure it's mass is within range
-		IPhysicsObject *pPhysObj = pObject->VPhysicsGetObject();
-		if( ( pPhysObj == NULL ) || ( pPhysObj->GetMass() > ANTLIONGUARD_MAX_OBJECT_MASS ) || ( pPhysObj->GetMass() < ANTLIONGUARD_MIN_OBJECT_MASS ) )
-			continue;
-
-		// Tell the AI sensing list that we want to consider this
-		g_AI_SensedObjectsManager.AddEntity( pObject );
-
-		if ( g_debug_antlionguard.GetInt() == 5 )
+		// Find all nearby physics objects and add them to the list of objects we will sense
+		CBaseEntity *pObject = NULL;
+		while ( ( pObject = gEntList.FindEntityInSphere( pObject, WorldSpaceCenter(), 2500 ) ) != NULL )
 		{
-			Msg("Antlion Guard: Added prop with model '%s' to sense list.\n", STRING(pObject->GetModelName()) );
-			pObject->m_debugOverlays |= OVERLAY_BBOX_BIT;
+			// Can't throw around debris
+			if ( pObject->GetCollisionGroup() == COLLISION_GROUP_DEBRIS )
+				continue;
+
+			// We can only throw a few types of things
+			if ( !FClassnameIs( pObject, "prop_physics" ) && !FClassnameIs( pObject, "func_physbox" ) )
+				continue;
+
+			// Ensure it's mass is within range
+			IPhysicsObject *pPhysObj = pObject->VPhysicsGetObject();
+			if( ( pPhysObj == NULL ) || ( pPhysObj->GetMass() > ANTLIONGUARD_MAX_OBJECT_PUNT_MASS ) || ( pPhysObj->GetMass() < ANTLIONGUARD_MIN_OBJECT_PUNT_MASS ) )
+				continue;
+
+			// Tell the AI sensing list that we want to consider this
+			g_AI_SensedObjectsManager.AddEntity( pObject );
+
+			if ( g_debug_antlionguard.GetInt() == 5 )
+			{
+				Msg("Antlion Guard: Added prop with model '%s' to sense list.\n", STRING(pObject->GetModelName()) );
+				pObject->m_debugOverlays |= OVERLAY_BBOX_BIT;
+			}
 		}
 	}
 }
