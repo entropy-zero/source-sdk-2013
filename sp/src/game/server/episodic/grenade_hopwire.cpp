@@ -79,6 +79,9 @@ ConVar hopwire_schlorp_large_mass( "hopwire_schlorp_large_mass", "350" );
 ConVar hopwire_schlorp_huge_mass( "hopwire_schlorp_huge_mass", "600" );
 
 ConVar stasis_freeze_player("stasis_freeze_player", "1");
+ConVar stasis_radius("stasis_radius", "128");
+ConVar stasis_strength("stasis_strength", "150");
+ConVar stasis_duration("stasis_duration", "3.0");
 
 // Move this elsewhere if this concept is expanded
 ConVar ez2_spoilers_enabled( "ez2_spoilers_enabled", "0", FCVAR_NONE, "Enables the you-know-whats and you-know-whos that shouldn't shown in streams, but might make accidental cameos. This is on by default as a precaution." );
@@ -3169,7 +3172,7 @@ void CGrenadeStasis::CombatThink( void )
 	SetAbsVelocity( vec3_origin );
 	SetMoveType( MOVETYPE_NONE );
 
-	m_hVortexController = CStasisVortexController::Create( GetAbsOrigin(), hopwire_radius.GetFloat(), hopwire_strength.GetFloat(), hopwire_duration.GetFloat(), this );
+	m_hVortexController = CStasisVortexController::Create( GetAbsOrigin(), stasis_radius.GetFloat(), stasis_strength.GetFloat(), stasis_duration.GetFloat(), this );
 
 	// Start our client-side effect
 	EntityMessageBegin( this, true );
