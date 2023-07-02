@@ -78,6 +78,8 @@ ConVar hopwire_schlorp_medium_mass( "hopwire_schlorp_medium_mass", "100" );
 ConVar hopwire_schlorp_large_mass( "hopwire_schlorp_large_mass", "350" );
 ConVar hopwire_schlorp_huge_mass( "hopwire_schlorp_huge_mass", "600" );
 
+ConVar stasis_freeze_player("stasis_freeze_player", "1");
+
 // Move this elsewhere if this concept is expanded
 ConVar ez2_spoilers_enabled( "ez2_spoilers_enabled", "0", FCVAR_NONE, "Enables the you-know-whats and you-know-whos that shouldn't shown in streams, but might make accidental cameos. This is on by default as a precaution." );
 #endif
@@ -2253,7 +2255,9 @@ BEGIN_DATADESC( CStasisVortexController )
 
 DEFINE_THINKFUNC( PullThink ),
 DEFINE_THINKFUNC( UnfreezePhysicsObjectThink ),
-DEFINE_THINKFUNC( UnfreezeNPCThink )
+DEFINE_THINKFUNC( UnfreezeNPCThink ),
+
+DEFINE_FIELD( m_bFreezingPlayer, FIELD_BOOLEAN )
 
 END_DATADESC()
 
@@ -3071,6 +3075,8 @@ void CStasisVortexController::StartPull( const Vector &origin, float radius, flo
 	SetNextThink( gpGlobals->curtime + 0.1f );
 }
 
+#define STASIS_MOVEMENT_SPEED 0.101123f // HACKHACK - the speed value is something no one would use in a speedmod
+
 //-----------------------------------------------------------------------------
 // Purpose: Causes players within the radius to be frozen
 //-----------------------------------------------------------------------------
@@ -3078,6 +3084,18 @@ void CStasisVortexController::FreezePlayersInRange( void )
 {
 	CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
 	if (!pPlayer || !pPlayer->VPhysicsGetObject())
+		return;
+
+	// If we are currently freezing the player, reset for this function
+	if (m_bFreezingPlayer && pPlayer->GetLaggedMovementValue() == STASIS_MOVEMENT_SPEED)
+	{
+		pPlayer->SetLaggedMovementValue(1.0f);
+	}
+
+	m_bFreezingPlayer = false;
+
+	// Don't try to freeze the player if the vortex is collapsing
+	if (m_flEndTime <= gpGlobals->curtime)
 		return;
 
 	Vector	vecForce = GetAbsOrigin() - pPlayer->WorldSpaceCenter();
@@ -3104,33 +3122,13 @@ void CStasisVortexController::FreezePlayersInRange( void )
 		return;
 
 	// Don't pull unless convar set
-	if (!hopwire_pull_player.GetBool())
+	if (!stasis_freeze_player.GetBool())
 		return;
 
-	// Don't pull noclipping players
-	if (pPlayer->GetMoveType() == MOVETYPE_NOCLIP)
-		return;
-
-	float mass = pPlayer->VPhysicsGetObject()->GetMass();
-	float playerForce = m_flStrength * 0.05f;
-
-	if (m_flPullFadeTime > 0.0f)
+	if (pPlayer->GetLaggedMovementValue() == 1.0f)
 	{
-		playerForce *= ((gpGlobals->curtime - m_flStartTime) / m_flPullFadeTime);
-	}
-
-	// Find the pull force
-	// NOTE: We might want to make this non-linear to give more of a "grace distance"
-	vecForce *= (1.0f - (dist / m_flRadius)) * playerForce * mass;
-	vecForce[2] *= 0.025f;
-
-	pPlayer->SetBaseVelocity( vecForce );
-	pPlayer->AddFlag( FL_BASEVELOCITY );
-
-	// Make sure the player moves
-	if (vecForce.z > 0 && (pPlayer->GetFlags() & FL_ONGROUND))
-	{
-		pPlayer->SetGroundEntity( NULL );
+		m_bFreezingPlayer = true;
+		pPlayer->SetLaggedMovementValue(STASIS_MOVEMENT_SPEED);
 	}
 }
 

@@ -185,6 +185,8 @@ private:
 	void	FreezePlayersInRange( void );
 	void    UnfreezeNPCThink( void );
 	void	UnfreezePhysicsObjectThink( void );
+
+	bool	m_bFreezingPlayer;
 };
 #endif
 
