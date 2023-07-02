@@ -3125,6 +3125,10 @@ void CStasisVortexController::FreezePlayersInRange( void )
 	if (!stasis_freeze_player.GetBool())
 		return;
 
+	// Don't pull noclipping players
+	if (pPlayer->GetMoveType() == MOVETYPE_NOCLIP)
+		return;
+
 	if (pPlayer->GetLaggedMovementValue() == 1.0f)
 	{
 		m_bFreezingPlayer = true;
