@@ -2402,6 +2402,22 @@ static AI_FollowSlot_t g_CommanderFollowFormationSlots[] =
 	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE, COMMANDER_TOLERANCE, -1, 48 },
 	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE, COMMANDER_TOLERANCE, -1, 48 },
 	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE, COMMANDER_TOLERANCE, -1, 48 },
+#ifdef EZ2
+	// 12 additional slots for a total of 16 squad members (maximum squad count)
+	// Every 4 slots are farther away than the previous set
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*2, COMMANDER_TOLERANCE*2, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*2, COMMANDER_TOLERANCE*2, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*2, COMMANDER_TOLERANCE*2, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*2, COMMANDER_TOLERANCE*2, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*3, COMMANDER_TOLERANCE*3, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*3, COMMANDER_TOLERANCE*3, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*3, COMMANDER_TOLERANCE*3, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*3, COMMANDER_TOLERANCE*3, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*4, COMMANDER_TOLERANCE*4, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*4, COMMANDER_TOLERANCE*4, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*4, COMMANDER_TOLERANCE*4, -1, 48 },
+	{ 1, { 0, 0, 0 }, 0, COMMANDER_TOLERANCE*4, COMMANDER_TOLERANCE*4, -1, 48 },
+#endif
 };
 
 static AI_FollowFormation_t g_CommanderFollowFormation = 
