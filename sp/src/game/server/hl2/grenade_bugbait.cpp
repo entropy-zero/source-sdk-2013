@@ -231,7 +231,12 @@ bool CGrenadeBugBait::ActivateBugbaitTargets( CBaseEntity *pOwner, Vector vecOri
 			if ( UTIL_DistApprox( pList[i]->WorldSpaceCenter(), vecOrigin ) < bugbait_grenade_radius.GetFloat() )
 			{
 				// Must be a soldier
+#ifdef EZ
+				// or metrocop
+				if ( FClassnameIs( pList[i], "npc_combine_s" ) || FClassnameIs( pList[i], "npc_metropolice" ) )
+#else
 				if ( FClassnameIs( pList[i], "npc_combine_s") )
+#endif
 				{
 					CAI_BaseNPC *pCombine = pList[i]->MyNPCPointer();
 

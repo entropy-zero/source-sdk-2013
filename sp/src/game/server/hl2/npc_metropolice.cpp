@@ -262,6 +262,7 @@ BEGIN_DATADESC( CNPC_MetroPolice )
 #endif
 #ifdef EZ
 	DEFINE_INPUTFUNC( FIELD_VOID, "TriggerIdleQuestion", InputTriggerIdleQuestion ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "HitByBugbait", InputHitByBugbait ),
 #endif
 	
 	DEFINE_USEFUNC( PrecriminalUse ),
@@ -3079,6 +3080,19 @@ void CNPC_MetroPolice::InputTriggerIdleQuestion( inputdata_t &inputdata )
 		}
 	}
 }
+
+//-----------------------------------------------------------------------------
+// We were hit by bugbait
+//-----------------------------------------------------------------------------
+void CNPC_MetroPolice::InputHitByBugbait( inputdata_t &inputdata )
+{
+	// Ignore if the activator likes us
+	if (inputdata.pActivator && inputdata.pActivator->IsCombatCharacter() &&
+		inputdata.pActivator->MyCombatCharacterPointer()->IRelationType( this ) == D_LI)
+		return;
+
+	SetCondition( COND_METROPOLICE_HIT_BY_BUGBAIT );
+}
 #endif
 
 
@@ -5036,6 +5050,21 @@ int CNPC_MetroPolice::SelectSchedule( void )
 		return SCHED_METROPOLICE_BURNING_STAND;
 	}
 
+#ifdef EZ
+	// If we're hit by bugbait, thrash around
+	if ( HasCondition( COND_METROPOLICE_HIT_BY_BUGBAIT ) )
+	{
+		// Don't do this if we're mounting a func_tank
+		if ( m_FuncTankBehavior.IsMounted() == true )
+		{
+			m_FuncTankBehavior.Dismount();
+		}
+
+		ClearCondition( COND_METROPOLICE_HIT_BY_BUGBAIT );
+		return SCHED_METROPOLICE_BUGBAIT_DISTRACTION;
+	}
+#endif
+
 	// React to being struck by a physics object
 	if ( HasCondition( COND_METROPOLICE_PHYSOBJECT_ASSAULT ) )
 	{
@@ -6134,6 +6163,10 @@ void CNPC_MetroPolice::BuildScheduleTestBits( void )
 		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK2 );
 	}
 #endif
+
+#ifdef EZ
+	SetCustomInterruptCondition( COND_METROPOLICE_HIT_BY_BUGBAIT );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -6452,6 +6485,9 @@ AI_BEGIN_CUSTOM_NPC( npc_metropolice, CNPC_MetroPolice )
 	DECLARE_CONDITION( COND_METROPOLICE_PLAYER_TOO_CLOSE );
 	DECLARE_CONDITION( COND_METROPOLICE_CHANGE_BATON_STATE );
 	DECLARE_CONDITION( COND_METROPOLICE_PHYSOBJECT_ASSAULT );
+#ifdef EZ
+	DECLARE_CONDITION( COND_METROPOLICE_HIT_BY_BUGBAIT );
+#endif
 
 
 	//=========================================================
@@ -7141,6 +7177,21 @@ DEFINE_SCHEDULE
  ""
  "	Interrupts"
  "		COND_TOO_CLOSE_TO_ATTACK"
+ )
+#endif
+
+#ifdef EZ
+ DEFINE_SCHEDULE
+ (
+ SCHED_METROPOLICE_BUGBAIT_DISTRACTION,
+
+ "	Tasks"
+ "		TASK_STOP_MOVING		0"
+ "		TASK_RESET_ACTIVITY		0"
+ "		TASK_PLAY_SEQUENCE		ACTIVITY:ACT_IDLE_ON_FIRE"
+ ""
+ "	Interrupts"
+ ""
  )
 #endif
 

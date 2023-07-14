@@ -228,6 +228,7 @@ private:
 #endif
 #ifdef EZ
 	void InputTriggerIdleQuestion( inputdata_t &inputdata );
+	void InputHitByBugbait( inputdata_t &inputdata );
 #endif
 
 	void NotifyDeadFriend ( CBaseEntity* pFriend );
@@ -411,6 +412,11 @@ private:
 		COND_METROPOLICE_PLAYER_TOO_CLOSE,
 		COND_METROPOLICE_CHANGE_BATON_STATE,
 		COND_METROPOLICE_PHYSOBJECT_ASSAULT,
+#ifdef EZ
+		COND_METROPOLICE_HIT_BY_BUGBAIT,
+
+		NEXT_CONDITION,
+#endif
 
 	};
 
@@ -454,6 +460,9 @@ private:
 		SCHED_METROPOLICE_MOVE_TO_FORCED_GREN_LOS,
 		SCHED_METROPOLICE_RANGE_ATTACK2,
 		SCHED_METROPOLICE_AR2_ALTFIRE,
+#endif
+#ifdef EZ
+		SCHED_METROPOLICE_BUGBAIT_DISTRACTION,
 #endif
 	};
 
