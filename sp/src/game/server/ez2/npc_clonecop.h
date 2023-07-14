@@ -43,6 +43,9 @@ public:
 
 	void		PickupItem( CBaseEntity *pItem );
 
+	// Clone Cop/Bad Cop can pull out a 357, because they're THAT cool.
+	const char	*GetBackupWeaponClass() { return "weapon_357"; }
+
 	int			OnTakeDamage( const CTakeDamageInfo &info );
 	float		GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamageInfo &info );
 	Vector		GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy = true );

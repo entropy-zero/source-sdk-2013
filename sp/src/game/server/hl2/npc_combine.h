@@ -140,6 +140,8 @@ public:
 	void InputDisablePlayerUse( inputdata_t &inputdata );
 	void InputEnableOrderSurrender( inputdata_t &inputdata );
 	void InputDisableOrderSurrender( inputdata_t &inputdata );
+	void InputEnablePlayerGive( inputdata_t &inputdata );
+	void InputDisablePlayerGive( inputdata_t &inputdata );
 	COutputEHANDLE	m_OutManhack;
 
 	//-----------------------------------------------------
@@ -180,6 +182,7 @@ public:
 	void			PickupItem( CBaseEntity *pItem );
 	virtual void	Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
 	virtual void	PickupWeapon( CBaseCombatWeapon *pWeapon );
+	virtual const char *GetBackupWeaponClass();
 
 	int 			SelectSchedulePriorityAction();
 	virtual int 	SelectScheduleRetrieveItem();
@@ -189,6 +192,12 @@ public:
 	virtual bool	IsMajorCharacter() { return IsCommandable(); }
 
 	virtual bool	CanOrderSurrender();
+
+	virtual bool	ShouldAllowPlayerGive() { return IsCommandable() && !m_bDisablePlayerGive; }
+	virtual bool	IsGiveableWeapon( CBaseCombatWeapon *pWeapon ) { return true; }
+	virtual bool	IsGiveableItem( CBaseEntity *pItem );
+	virtual void	StartPlayerGive( CBasePlayer *pPlayer ) {}
+	virtual void	OnCantBeGivenObject( CBaseEntity *pItem ) {}
 
 	virtual bool	ShouldGib( const CTakeDamageInfo &info );
 	virtual bool	CorpseGib( const CTakeDamageInfo &info );
@@ -276,6 +285,7 @@ public:
 
 #ifdef EZ
 	bool			PickTacticalLookTarget( AILookTargetArgs_t *pArgs );
+	void			OnStateChange( NPC_STATE OldState, NPC_STATE NewState );
 	void			AimGun();
 #endif
 
@@ -315,6 +325,8 @@ public:
 	void			AnnounceAssault( void );
 	void			AnnounceEnemyType( CBaseEntity *pEnemy );
 	void			AnnounceEnemyKill( CBaseEntity *pEnemy );
+
+	virtual void	BashSound() { EmitSound( "NPC_Combine.WeaponBash" ); }
 
 	void			NotifyDeadFriend( CBaseEntity* pFriend );
 
@@ -365,6 +377,8 @@ protected:
 	// TRS_TRUE = Can always order surrender
 	// TRS_FALSE = Can never order surrender
 	ThreeState_t m_iCanOrderSurrender;
+
+	bool m_bDisablePlayerGive;
 #endif
 
 #ifdef EZ2
