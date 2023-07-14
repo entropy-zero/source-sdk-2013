@@ -141,9 +141,18 @@ void CWeaponHopwire::Precache( void )
 	BaseClass::Precache();
 
 #ifdef EZ2
-	VerifyXenRecipeManager( GetClassname() );
-#endif
+	if (GetHopwireStyle() == HOPWIRE_XEN)
+	{
+		VerifyXenRecipeManager( GetClassname() );
+		UTIL_PrecacheOther( "npc_grenade_hopwire" );
+	}
+	else if (GetHopwireStyle() == HOPWIRE_STASIS)
+	{
+		UTIL_PrecacheOther( "npc_grenade_stasis" );
+	}
+#else
 	UTIL_PrecacheOther( "npc_grenade_hopwire" );
+#endif
 
 	PrecacheScriptSound( "WeaponFrag.Throw" );
 	PrecacheScriptSound( "WeaponFrag.Roll" );
@@ -593,7 +602,20 @@ void CWeaponHopwire::RollGrenade( CBasePlayer *pPlayer )
 	QAngle orientation(0,pPlayer->GetLocalAngles().y,-90);
 	// roll it
 	AngularImpulse rotSpeed(0,0,720);
+#ifndef EZ2
 	m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel()));
+#else
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+	default:
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		break;
+
+	}
+#endif
 
 	WeaponSound( SPECIAL1 );
 

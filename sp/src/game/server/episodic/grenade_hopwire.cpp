@@ -2353,7 +2353,8 @@ void CGrenadeHopwire::Precache( void )
 		g_interactionStasisGrenadeFreeze = CBaseCombatCharacter::GetInteractionID();
 	}
 
-	VerifyXenRecipeManager( GetClassname() );
+	if (GetHopwireStyle() == HOPWIRE_XEN)
+		VerifyXenRecipeManager( GetClassname() );
 #endif
 
 	BaseClass::Precache();
