@@ -97,6 +97,9 @@ ConVar sk_hunter_dmg_one_slash_forcescale( "sk_hunter_dmg_one_slash_forcescale",
 
 // Suppress sounds when the player can't see it
 ConVar hunter_suppress_sounds_while_unseen( "hunter_suppress_sounds_while_unseen", "1" );
+
+// Allow players to pet friendly hunters
+ConVar hunter_pet( "hunter_pet", "1" );
 #endif
 
 // Flechette volley attack
@@ -258,6 +261,9 @@ Activity ACT_HUNTER_FLINCH_N;
 Activity ACT_HUNTER_FLINCH_S;
 Activity ACT_HUNTER_FLINCH_E;
 Activity ACT_HUNTER_FLINCH_W;
+#ifdef EZ2
+Activity ACT_HUNTER_SHAKEOFF;
+#endif
 
 
 //-----------------------------------------------------------------------------
@@ -1440,6 +1446,8 @@ public:
 
 #ifdef EZ
 	bool			ShouldRegenerateHealth( void ) { return m_bCompanionHunter; }
+
+	void			HunterUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 #endif
 
 	CAI_BaseNPC *	GetEntity() { return this; }
@@ -1544,6 +1552,9 @@ private:
 		SCHED_HUNTER_FAIL_DODGE,
 		SCHED_HUNTER_SIEGE_STAND,
 		SCHED_HUNTER_CHANGE_POSITION_SIEGE,
+#ifdef EZ2
+		SCHED_HUNTER_PET,
+#endif
 
 		TASK_HUNTER_AIM = BaseClass::NEXT_TASK,
 		TASK_HUNTER_FIND_DODGE_POSITION,
@@ -1572,6 +1583,9 @@ private:
 		COND_HUNTER_NEW_HINTGROUP,
 		COND_HUNTER_CANT_PLANT,
 		COND_HUNTER_SQUADMATE_FOUND_ENEMY,
+#ifdef EZ2
+		COND_HUNTER_PET,
+#endif
 	};
 
 	enum HunterEyeStates_t
@@ -1632,6 +1646,7 @@ private:
 
 #ifdef EZ2
 	bool m_bCompanionHunter;
+	COutputEvent m_OnPlayerUse;
 #endif
 
 	static float	gm_flMinigunDistZ;
@@ -1800,6 +1815,11 @@ BEGIN_DATADESC( CNPC_Hunter )
 	DEFINE_THINKFUNC( TeslaThink ),
 	DEFINE_THINKFUNC( BleedThink ),
 	DEFINE_THINKFUNC( JostleVehicleThink ),
+
+#ifdef EZ2
+	DEFINE_USEFUNC( HunterUse ),
+	DEFINE_OUTPUT( m_OnPlayerUse, "OnPlayerUse" ),
+#endif
 
 END_DATADESC()
 
@@ -1998,6 +2018,10 @@ void CNPC_Hunter::Spawn()
 	//	m_pGunFiringSound = controller.SoundCreate( filter, entindex(), "NPC_Hunter.FlechetteShootLoop" );
 	//	controller.Play( m_pGunFiringSound, 0.0, 100 );
 	//}
+
+#ifdef EZ2
+	SetUse( &CNPC_Hunter::HunterUse );
+#endif
 }
 
 
@@ -2696,6 +2720,18 @@ bool CNPC_Hunter::CheckDodge( CBaseEntity *pVehicle )
 
 	return m_hDodgeTarget.Get() != NULL;
 }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_Hunter::HunterUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	if ( /*m_bCompanionHunter &&*/ IRelationType( pActivator ) == D_LI && (m_NPCState == NPC_STATE_IDLE || m_NPCState == NPC_STATE_ALERT) && !IsCurSchedule(SCHED_HUNTER_PET, false) && hunter_pet.GetBool() )
+	{
+		SetCondition( COND_HUNTER_PET );
+	}
+
+	m_OnPlayerUse.FireOutput( pActivator, pCaller );
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -2936,6 +2972,14 @@ void CNPC_Hunter::BuildScheduleTestBits()
 	
 	// Always interrupt if hit by a sticky bomb.
 	SetCustomInterruptCondition( COND_HUNTER_HIT_BY_STICKYBOMB );
+
+#ifdef EZ2
+	// If not doing anything important, allow to be pet
+	if ( !GetEnemy() )
+	{
+		SetCustomInterruptCondition( COND_HUNTER_PET );
+	}
+#endif
 }
 
 
@@ -3438,6 +3482,14 @@ int CNPC_Hunter::SelectSchedule()
 			return SCHED_ALERT_FACE_BESTSOUND;
 		}
 	}
+
+#ifdef EZ2
+	if ( HasCondition( COND_HUNTER_PET ) )
+	{
+		SetTarget( UTIL_GetLocalPlayer() );
+		return SCHED_HUNTER_PET;
+	}
+#endif
 
 	if ( HasCondition( COND_HUNTER_FORCED_FLANK_ENEMY ) )
 	{
@@ -7809,6 +7861,9 @@ AI_BEGIN_CUSTOM_NPC( npc_hunter, CNPC_Hunter )
 	DECLARE_ACTIVITY( ACT_HUNTER_FLINCH_S )
 	DECLARE_ACTIVITY( ACT_HUNTER_FLINCH_E )
 	DECLARE_ACTIVITY( ACT_HUNTER_FLINCH_W )
+#ifdef EZ2
+	DECLARE_ACTIVITY( ACT_HUNTER_SHAKEOFF )
+#endif
 
 	DECLARE_INTERACTION( g_interactionHunterFoundEnemy );
 
@@ -7828,6 +7883,9 @@ AI_BEGIN_CUSTOM_NPC( npc_hunter, CNPC_Hunter )
 	DECLARE_CONDITION( COND_HUNTER_NEW_HINTGROUP )
 	DECLARE_CONDITION( COND_HUNTER_CANT_PLANT )
 	DECLARE_CONDITION( COND_HUNTER_SQUADMATE_FOUND_ENEMY )
+#ifdef EZ2
+	DECLARE_CONDITION( COND_HUNTER_PET )
+#endif
 	
 	DECLARE_ANIMEVENT( AE_HUNTER_FOOTSTEP_LEFT )
 	DECLARE_ANIMEVENT( AE_HUNTER_FOOTSTEP_RIGHT )
@@ -8384,5 +8442,25 @@ AI_BEGIN_CUSTOM_NPC( npc_hunter, CNPC_Hunter )
 	)
 
 	// formula is MIN_DIST * 10000 + MAX_DIST
+
+#ifdef EZ2
+	//=========================================================
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_HUNTER_PET,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING				0"
+		"		TASK_FACE_TARGET				0"
+		"		TASK_PLAY_SEQUENCE_FACE_TARGET	ACTIVITY:ACT_HUNTER_SHAKEOFF"
+		""
+		"	Interrupts"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_NEW_ENEMY"
+		"		COND_HEAR_DANGER"
+	)
+#endif
 
 AI_END_CUSTOM_NPC()
