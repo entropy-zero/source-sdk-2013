@@ -2679,6 +2679,12 @@ void CHeadcrab::Precache( void )
 		case EZ_VARIANT_ARBEIT:
 			PrecacheModel( "models/arbeitcrabclassic.mdl" );
 			break;
+		case EZ_VARIANT_ATHENAEUM:
+			PrecacheModel( "models/athenaeumcrabclassic.mdl" );
+			break;
+		case EZ_VARIANT_ASH:
+			PrecacheModel( "models/ashcrabclassic.mdl" );
+			break;
 		default:
 			PrecacheModel( DefaultOrCustomModel( "models/headcrabclassic.mdl" ) );
 			break;
@@ -2717,6 +2723,12 @@ void CHeadcrab::Spawn( void )
 			break;
 		case EZ_VARIANT_ARBEIT:
 			SetModel( "models/arbeitcrabclassic.mdl" );
+			break;
+		case EZ_VARIANT_ATHENAEUM:
+			SetModel( "models/athenaeumcrabclassic.mdl" );
+			break;
+		case EZ_VARIANT_ASH:
+			SetModel( "models/ashcrabclassic.mdl" );
 			break;
 		default:
 			SetModel( DefaultOrCustomModel( "models/headcrabclassic.mdl" ) );
@@ -2850,6 +2862,12 @@ void CFastHeadcrab::Precache( void )
 	case EZ_VARIANT_ARBEIT:
 		PrecacheModel( "models/arbeitcrab.mdl" );
 		break;
+	case EZ_VARIANT_ATHENAEUM:
+		PrecacheModel( "models/athenaeumcrab.mdl" );
+		break;
+	case EZ_VARIANT_ASH:
+		PrecacheModel( "models/ashcrab.mdl" );
+		break;
 	default:
 		PrecacheModel( DefaultOrCustomModel( "models/headcrab.mdl" ) );
 		break;
@@ -2886,6 +2904,12 @@ void CFastHeadcrab::Spawn( void )
 			break;
 		case EZ_VARIANT_ARBEIT:
 			SetModel( "models/arbeitcrab.mdl" );
+			break;
+		case EZ_VARIANT_ATHENAEUM:
+			SetModel( "models/athenaeumcrab.mdl" );
+			break;
+		case EZ_VARIANT_ASH:
+			SetModel( "models/ashcrab.mdl" );
 			break;
 		default:
 			SetModel( DefaultOrCustomModel( "models/headcrab.mdl" ) );

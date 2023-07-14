@@ -672,6 +672,9 @@ const char *CItem_AR2AltFireRound::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/items/arbeit/combine_rifle_ammo01.mdl", // Skin 1
 	"models/items/temporal/combine_rifle_ammo01.mdl",
 	"models/items/arbeit/combine_rifle_ammo01.mdl",
+	"models/items/blood/combine_rifle_ammo01.mdl",
+	"models/items/athenaeum/combine_rifle_ammo01.mdl",
+	"models/items/ash/combine_rifle_ammo01.mdl",
 };
 #endif
 

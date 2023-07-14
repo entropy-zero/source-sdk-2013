@@ -431,6 +431,9 @@ const char *CFastZombie::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/zombie/fast_glowbie.mdl",
 	"models/zombie/fast_timebie.mdl",
 	"models/zombie/fast_arbie.mdl",
+	"models/zombie/fast_bloodbie.mdl",
+	"models/zombie/fast_athenaebie.mdl",
+	"models/zombie/fast_ashbie.mdl",
 };
 
 const char *CFastZombie::pTorsoModelNames[EZ_VARIANT_COUNT] = {
@@ -439,6 +442,9 @@ const char *CFastZombie::pTorsoModelNames[EZ_VARIANT_COUNT] = {
 	"models/gibs/fast_glowbie_zombie_torso.mdl",
 	"models/gibs/fast_timebie_zombie_torso.mdl",
 	"models/gibs/fast_arbie_zombie_torso.mdl",
+	"models/gibs/fast_bloodbie_zombie_torso.mdl",
+	"models/gibs/fast_athenaebie_zombie_torso.mdl",
+	"models/gibs/fast_ashbie_zombie_torso.mdl",
 };
 
 const char *CFastZombie::pLegsModelNames[EZ_VARIANT_COUNT] = {
@@ -447,6 +453,9 @@ const char *CFastZombie::pLegsModelNames[EZ_VARIANT_COUNT] = {
 	"models/gibs/fast_glowbie_zombie_legs.mdl",
 	"models/gibs/fast_timebie_zombie_legs.mdl",
 	"models/gibs/fast_arbie_zombie_legs.mdl",
+	"models/gibs/fast_bloodbie_zombie_legs.mdl",
+	"models/gibs/fast_athenaebie_zombie_legs.mdl",
+	"models/gibs/fast_ashbie_zombie_legs.mdl",
 };
 
 const char *CFastZombie::pLivingTorsoModelNames[EZ_VARIANT_COUNT] = {
@@ -455,6 +464,9 @@ const char *CFastZombie::pLivingTorsoModelNames[EZ_VARIANT_COUNT] = {
 	"models/zombie/fast_glowbie_torso.mdl",
 	"models/zombie/fast_timebie_torso.mdl",
 	"models/zombie/fast_arbie_torso.mdl",
+	"models/zombie/fast_bloodbie_torso.mdl",
+	"models/zombie/fast_athenaebie_torso.mdl",
+	"models/zombie/fast_ashbie_torso.mdl",
 };
 
 const char *CFastZombie::pHeadcrabModelNames[EZ_VARIANT_COUNT] = {
@@ -463,6 +475,9 @@ const char *CFastZombie::pHeadcrabModelNames[EZ_VARIANT_COUNT] = {
 	"models/glowcrab.mdl",
 	"models/timecrab.mdl",
 	"models/arbeitcrab.mdl",
+	"models/bloodcrab.mdl",
+	"models/athenaeumcrab.mdl",
+	"models/ashcrab.mdl",
 };
 
 const char *CFastZombie::pMoanSounds[EZ_VARIANT_COUNT] =
@@ -472,6 +487,9 @@ const char *CFastZombie::pMoanSounds[EZ_VARIANT_COUNT] =
 	"NPC_FastGlowbie.Moan1",
 	"NPC_FastTimebie.Moan1",
 	"NPC_FastArbie.Moan1",
+	"NPC_FastBloodbie.Moan1",
+	"NPC_FastAthenaebie.Moan1",
+	"NPC_FastAshbie.Moan1",
 };
 #endif
 

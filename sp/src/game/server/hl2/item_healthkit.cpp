@@ -65,6 +65,9 @@ const char *CHealthKit::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/items/arbeit/healthkit.mdl", // Skin 1
 	"models/items/temporal/healthkit.mdl",
 	"models/items/arbeit/healthkit.mdl",
+	"models/items/blood/healthkit.mdl",
+	"models/items/athenaeum/healthkit.mdl",
+	"models/items/ash/healthkit.mdl",
 };
 
 const char *CHealthKit::pTouchSounds[EZ_VARIANT_COUNT] = {
@@ -73,6 +76,9 @@ const char *CHealthKit::pTouchSounds[EZ_VARIANT_COUNT] = {
 	"HealthKit_Rad.Touch",
 	"HealthKit_Temporal.Touch",
 	"HealthKit_Arbeit.Touch",
+	"HealthKit_Blood.Touch",
+	"HealthKit_Athenaeum.Touch",
+	"HealthKit_Ash.Touch",
 };
 #endif
 
@@ -268,6 +274,9 @@ const char *CHealthVial::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/items/arbeit/healthvial.mdl", // Skin 1
 	"models/items/temporal/healthvial.mdl",
 	"models/items/arbeit/healthvial.mdl",
+	"models/items/blood/healthvial.mdl",
+	"models/items/athenaeum/healthvial.mdl",
+	"models/items/ash/healthvial.mdl",
 };
 
 const char *CHealthVial::pTouchSounds[EZ_VARIANT_COUNT] = {
@@ -276,6 +285,9 @@ const char *CHealthVial::pTouchSounds[EZ_VARIANT_COUNT] = {
 	"HealthVial_Rad.Touch",
 	"HealthVial_Temporal.Touch",
 	"HealthVial_Arbeit.Touch",
+	"HealthVial_Blood.Touch",
+	"HealthVial_Athenaeum.Touch",
+	"HealthVial_Ash.Touch",
 };
 #endif
 

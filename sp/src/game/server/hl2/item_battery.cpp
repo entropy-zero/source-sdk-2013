@@ -87,6 +87,9 @@ const char *CItemBattery::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/items/arbeit/battery.mdl", // Skin 1
 	"models/items/temporal/battery.mdl",
 	"models/items/arbeit/battery.mdl",
+	"models/items/blood/battery.mdl",
+	"models/items/athenaeum/battery.mdl",
+	"models/items/ash/battery.mdl",
 };
 #endif
 
