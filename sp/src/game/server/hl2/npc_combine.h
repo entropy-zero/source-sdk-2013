@@ -193,7 +193,7 @@ public:
 
 	virtual bool	CanOrderSurrender();
 
-	virtual bool	ShouldAllowPlayerGive() { return IsCommandable() && !m_bDisablePlayerGive; }
+	virtual bool	ShouldAllowPlayerGive() { return (m_iCanPlayerGive == TRS_NONE && IsCommandable()) || m_iCanPlayerGive == TRS_TRUE; }
 	virtual bool	IsGiveableWeapon( CBaseCombatWeapon *pWeapon ) { return true; }
 	virtual bool	IsGiveableItem( CBaseEntity *pItem );
 	virtual void	StartPlayerGive( CBasePlayer *pPlayer ) {}
@@ -378,7 +378,10 @@ protected:
 	// TRS_FALSE = Can never order surrender
 	ThreeState_t m_iCanOrderSurrender;
 
-	bool m_bDisablePlayerGive;
+	// TRS_NONE = Don't care, only allow give when commandable
+	// TRS_TRUE = Can always be given weapons/items
+	// TRS_FALSE = Can never be given weapons/items
+	ThreeState_t m_iCanPlayerGive;
 #endif
 
 #ifdef EZ2

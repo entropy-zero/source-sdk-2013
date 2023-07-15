@@ -355,7 +355,7 @@ DEFINE_KEYFIELD( m_iCanOrderSurrender, FIELD_INTEGER, "CanOrderSurrender" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnableOrderSurrender", InputEnableOrderSurrender ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisableOrderSurrender", InputDisableOrderSurrender ),
 
-DEFINE_KEYFIELD( m_bDisablePlayerGive, FIELD_BOOLEAN, "DisablePlayerGive" ),
+DEFINE_KEYFIELD( m_iCanPlayerGive, FIELD_INTEGER, "CanPlayerGive" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnablePlayerGive", InputEnablePlayerGive ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisablePlayerGive", InputDisablePlayerGive ),
 #endif
@@ -388,6 +388,7 @@ CNPC_Combine::CNPC_Combine()
 	m_bDontPickupWeapons = true;
 
 	m_iCanOrderSurrender = TRS_NONE;
+	m_iCanPlayerGive = TRS_NONE;
 #endif
 }
 
@@ -1502,12 +1503,12 @@ void CNPC_Combine::InputDisableOrderSurrender( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputEnablePlayerGive( inputdata_t &inputdata )
 {
-	m_bDisablePlayerGive = false;
+	m_iCanPlayerGive = TRS_TRUE;
 }
 
 void CNPC_Combine::InputDisablePlayerGive( inputdata_t &inputdata )
 {
-	m_bDisablePlayerGive = true;
+	m_iCanPlayerGive = TRS_FALSE;
 }
 #endif
 
