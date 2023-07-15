@@ -30,6 +30,7 @@
 #include "npc_combine.h"
 #include "point_bonusmaps_accessor.h"
 #include "achievementmgr.h"
+#include "npc_husk_base.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -723,6 +724,14 @@ void CEZ2_Player::OnOrderSurrender( CAI_BaseNPC *pNPC )
 Disposition_t CEZ2_Player::IRelationType( CBaseEntity *pTarget )
 {
 	Disposition_t base = BaseClass::IRelationType( pTarget );
+
+	if (pTarget && pTarget->Classify() == CLASS_COMBINE_HUSK)
+	{
+		// Bad Cop likes husks which are passive towards him
+		CAI_HuskSink *pHusk = dynamic_cast<CAI_HuskSink *>(pTarget);
+		if (pHusk && pHusk->IsPassiveTarget( this ))
+			return D_LI;
+	}
 
 	return base;
 }

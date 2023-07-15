@@ -105,6 +105,10 @@ extern int	g_interactionBadCopOrderSurrender;
 
 // Melee warning used by all companions via CNPC_PlayerCompanion::OnChangeActivity
 extern int g_interactionGenericMeleeWarning;
+
+// Husks
+extern int	g_interactionHuskSuspicious;
+extern int	g_interactionHuskAngry;
 #endif
 
 #endif	//AI_INTERACTIONS_H

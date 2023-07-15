@@ -142,6 +142,7 @@ enum Class_T
 	CLASS_RACE_X,
 	CLASS_COMBINE_NEMESIS,
 	CLASS_ARBEIT_TECH,
+	CLASS_COMBINE_HUSK,
 #endif
 	NUM_AI_CLASSES
 };
@@ -158,6 +159,9 @@ enum EZ_VARIANT
 	EZ_VARIANT_TEMPORAL,		// Affected by temporal anomalies. Used by temporal crabs.
 	EZ_VARIANT_ARBEIT,			// Property of Arbeit Communications. Used for Arbeit stuff that isn't covered in goo.
 	EZ_VARIANT_BLOODLION,		// Thirsty for blood. Used by the Nova Prospekt antlions from E:Z2 Chapter 1.
+
+	EZ_VARIANT_ATHENAEUM,		// Servants of the Athenaeum.
+	EZ_VARIANT_ASH,				// Residents of the Ashlands.
 
 	EZ_VARIANT_COUNT, // Keep this at the end
 };

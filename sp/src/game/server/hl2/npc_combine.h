@@ -478,9 +478,16 @@ private:
 	DEFINE_CUSTOM_AI;
 #endif
 
+#ifdef EZ2 // Virtual and protected for husks to override
+protected:
+	// Select the combat schedule
+	virtual int SelectCombatSchedule();
+private:
+#else
 private:
 	// Select the combat schedule
 	int SelectCombatSchedule();
+#endif
 
 	// Should we charge the player?
 	bool ShouldChargePlayer();

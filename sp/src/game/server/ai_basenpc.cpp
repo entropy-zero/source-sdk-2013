@@ -16575,6 +16575,13 @@ void CAI_BaseNPC::ModifyOrAppendCriteria( AI_CriteriaSet& set )
 		set.AppendCriteria( "insquad", "0" );
 	}
 #endif
+
+#ifdef EZ
+	if (m_tEzVariant != EZ_VARIANT_DEFAULT)
+	{
+		set.AppendCriteria( "ezvariant", UTIL_VarArgs( "%i", m_tEzVariant ) );
+	}
+#endif
 }
 
 #ifdef MAPBASE

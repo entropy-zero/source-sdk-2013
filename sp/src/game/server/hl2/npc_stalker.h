@@ -15,6 +15,9 @@
 #include "entityoutput.h"
 #include "ai_behavior.h"
 #include "ai_behavior_actbusy.h"
+#ifdef EZ2
+#include "ez2/npc_husk_base.h"
+#endif
 
 class CBeam;
 class CSprite;
@@ -22,7 +25,12 @@ class CScriptedTarget;
 
 typedef CAI_BehaviorHost<CAI_BaseNPC> CAI_BaseStalker;
 
+#ifdef EZ2
+// Stalkers use CAI_HuskSink to seamlessly integrate with husk squads
+class CNPC_Stalker : public CAI_BaseStalker, public CAI_HuskSink
+#else
 class CNPC_Stalker : public CAI_BaseStalker
+#endif
 {
 	DECLARE_CLASS( CNPC_Stalker, CAI_BaseStalker );
 
@@ -115,6 +123,25 @@ public:
 	void			AddZigZagToPath(void);
 	void			StartAttackBeam();
 	void			UpdateAttackBeam();
+
+#ifdef EZ2
+	// Stalkers use CAI_HuskSink to seamlessly integrate with husk squads
+	const char *GetBaseNPCClassname() override { return "npc_stalker"; }
+	
+	int GetHuskAggressionLevel() override { return m_iPlayerAggression >= 1 ? HUSK_AGGRESSION_LEVEL_ANGRY : HUSK_AGGRESSION_LEVEL_CALM; }
+	int GetHuskCognitionFlags() override { return 0; }
+	
+	void MakeCalm( CBaseEntity *pActivator ) override { m_iPlayerAggression = 0; }
+	void MakeSuspicious( CBaseEntity *pActivator ) override { }
+	void MakeAngry( CBaseEntity *pActivator ) override { m_iPlayerAggression++; }
+	
+	bool IsSuspicious() override { return false; }
+	bool IsSuspiciousOrHigher() override { return IsAngry(); }
+	bool IsAngry() override { return m_iPlayerAggression >= 1; }
+
+	bool IsPassiveTarget( CBaseEntity *pTarget ) override { return false; };
+	bool IsHostileOverrideTarget( CBaseEntity *pTarget ) override { return false; };
+#endif
 
 	CNPC_Stalker(void);
 

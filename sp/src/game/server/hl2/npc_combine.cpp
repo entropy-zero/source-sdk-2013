@@ -3585,6 +3585,14 @@ int CNPC_Combine::SelectCombatSchedule()
 	// --------------------------------------------------------------
 	if ( HasCondition( COND_SEE_ENEMY ) && !HasCondition( COND_CAN_RANGE_ATTACK1 ) )
 	{
+#ifdef EZ
+		// If I have a melee weapon and I'm the primary attacker, just chase head-on
+		if (GetActiveWeapon() && GetActiveWeapon()->IsMeleeWeapon() && OccupyStrategySlot( SQUAD_SLOT_ATTACK1 ))
+		{
+			return SCHED_CHASE_ENEMY;
+		}
+		else
+#endif
 		if ( (HasCondition( COND_TOO_FAR_TO_ATTACK ) || IsUsingTacticalVariant(TACTICAL_VARIANT_PRESSURE_ENEMY) ) && OccupyStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ))
 		{
 			return SCHED_COMBINE_PRESS_ATTACK;

@@ -186,17 +186,19 @@ private:
 	// Burst mode!
 	void		SetBurstMode( bool bEnable );
 
+public:
 	int			OnTakeDamage_Alive( const CTakeDamageInfo &info );
 
 	int			GetSoundInterests( void );
 
 	void		BuildScheduleTestBits( void );
 
+	void		PrescheduleThink( void );
+
+private:
 	bool		CanDeployManhack( void );
 
 	bool		ShouldHitPlayer( const Vector &targetDir, float targetDist );
-
-	void		PrescheduleThink( void );
 
 #ifdef EZ2
 	void		TryWeaponSwap();
@@ -252,7 +254,15 @@ private:
 	bool HasBaton( void );
 
 	// Normal schedule selection 
+#ifdef EZ2
+protected:
+	// Virtual and protected for husks to override
+	virtual int SelectCombatSchedule();
+	virtual int SelectAlertSchedule() { return SCHED_NONE; }
+private:
+#else
 	int SelectCombatSchedule();
+#endif
 	int SelectScheduleNewEnemy();
 	int SelectScheduleArrestEnemy();
 	int SelectRangeAttackSchedule();
@@ -385,7 +395,12 @@ private:
 	virtual void StartWaitingForRappel() { m_RappelBehavior.StartWaitingForRappel(); }
 #endif
 
+#ifdef EZ2
+	// So that husks can access
+protected:
+#else
 private:
+#endif
 	enum
 	{
 		BURST_NOT_ACTIVE = 0,

@@ -34,6 +34,7 @@
 #include "grenade_frag.h"
 #ifdef EZ2
 #include "grenade_hopwire.h"
+#include "ez2/npc_husk_soldier.h"
 #endif
 
 #include "ai_interactions.h"
@@ -262,6 +263,8 @@ class CNPC_MetroZombie : public CNPC_Zombine
 
 LINK_ENTITY_TO_CLASS( npc_metrozombie, CNPC_MetroZombie );
 
+//---------------------------------------------------------------------------------
+
 ConVar	sk_hevzombie_health( "sk_hevzombie_health", "0" );
 
 class CNPC_HEVZombie : public CNPC_Zombine
@@ -305,6 +308,70 @@ DEFINE_INPUT( m_ArmorValue, FIELD_INTEGER, "SetArmor" ), // From npc_clonecop
 END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( npc_hevzombie, CNPC_HEVZombie );
+
+//---------------------------------------------------------------------------------
+
+ConVar	sk_zombie_elite_health( "sk_zombie_elite_health", "140" );
+ConVar	sk_zombie_grunt_health( "sk_zombie_grunt_health", "75" );
+ConVar	sk_zombie_ordinal_health( "sk_zombie_ordinal_health", "90" );
+ConVar	sk_zombie_charger_health( "sk_zombie_charger_health", "125" );
+ConVar	sk_zombie_suppressor_health( "sk_zombie_suppressor_health", "140" );
+
+extern ConVar sk_husk_charger_armor_hitgroup_scale;
+
+static ConVar *g_HuskZombineValues_Health[] =
+{
+	NULL, // Default, should never be used
+
+	&sk_zombie_soldier_health,
+	&sk_zombie_elite_health,
+
+	&sk_zombie_grunt_health,
+	&sk_zombie_ordinal_health,
+	&sk_zombie_charger_health,
+	&sk_zombie_suppressor_health,
+};
+
+static const char *g_HuskZombineValues_DefaultModels[] =
+{
+	NULL, // Default, should never be used
+
+	"models/zombie/%s_soldier.mdl",
+	"models/zombie/%s_super_soldier.mdl",
+
+	"models/zombie/%s_grunt.mdl",
+	"models/zombie/%s_ordinal.mdl",
+	"models/zombie/%s_charger.mdl",
+	"models/zombie/%s_suppressor.mdl",
+};
+
+class CNPC_HuskZombine : public CNPC_Zombine
+{
+	DECLARE_DATADESC()
+	DECLARE_CLASS( CNPC_HuskZombine, CNPC_Zombine );
+
+	void Spawn( void );
+	void Precache( void );
+
+	void ChooseDefaultGrenadeType();
+
+	void FootstepSound( bool fRightFoot );
+	
+	bool ShouldBecomeTorso( const CTakeDamageInfo &info, float flDamageThreshold );
+	bool IsChopped( const CTakeDamageInfo &info );
+
+	float GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamageInfo &info );
+
+private:
+
+	HuskSoldierType_t	m_tHuskSoldierType;
+};
+
+BEGIN_DATADESC( CNPC_HuskZombine )
+	DEFINE_KEYFIELD( m_tHuskSoldierType, FIELD_INTEGER, "HuskSoldierType" ),
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( npc_husk_zombine, CNPC_HuskZombine );
 #endif
 
 //---------------------------------------------------------
@@ -2218,7 +2285,168 @@ void CNPC_HEVZombie::Event_Killed( const CTakeDamageInfo &info )
 	}
 }
 
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_HuskZombine::Spawn( void )
+{
+	BaseClass::Spawn();
 
+	SetHealth( g_HuskZombineValues_Health[m_tHuskSoldierType]->GetInt() );
+	SetMaxHealth( GetHealth() );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_HuskZombine::Precache( void )
+{
+	char * modelVariant;
+	switch (m_tEzVariant)
+	{
+		case EZ_VARIANT_RAD:
+			modelVariant = "glowbie";
+			break;
+		case EZ_VARIANT_XEN:
+			modelVariant = "xenbie";
+			break;
+		case EZ_VARIANT_ASH:
+			modelVariant = "ashbie";
+			break;
+		default:
+			modelVariant = "zombie";
+			break;
+	}
+
+	if (GetModelName() == NULL_STRING)
+	{
+		// Default models
+		if (m_tHuskSoldierType == HUSK_DEFAULT)
+		{
+			SetModelName( AllocPooledString( UTIL_VarArgs( g_HuskZombineValues_DefaultModels[HUSK_SOLDIER], modelVariant ) ) );
+		}
+		else
+		{
+			SetModelName( AllocPooledString( UTIL_VarArgs( g_HuskZombineValues_DefaultModels[m_tHuskSoldierType], modelVariant ) ) );
+		}
+	}
+
+	if (m_tHuskSoldierType == HUSK_DEFAULT)
+	{
+		// This is normally precached in the base class, but we need the index now
+		int nModel = PrecacheModel( STRING( GetModelName() ) );
+		HuskSoldier_AscertainModelType( this, modelinfo->GetModel( nModel ), m_tHuskSoldierType );
+	}
+
+	if (m_tHuskSoldierType == HUSK_CHARGER)
+	{
+		PrecacheScriptSound( "NPC_HuskCharger.FootstepRight" );
+		PrecacheScriptSound( "NPC_HuskCharger.FootstepLeft" );
+	}
+
+	BaseClass::Precache();
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_HuskZombine::ChooseDefaultGrenadeType()
+{
+	if (m_tHuskSoldierType == HUSK_ORDINAL)
+	{
+		int chance = random->RandomInt( 0, 1 );
+
+		// 50% chance of pulling out a manhack
+		switch (chance)
+		{
+			default:
+			case 0:
+				m_iszGrenadeType = gm_iszZombineGrenadeTypeFrag;
+				break;
+			case 1:
+				m_iszGrenadeType = gm_iszZombineGrenadeTypeManhack;
+				break;
+		}
+	}
+	else if (m_tHuskSoldierType == HUSK_CHARGER)
+	{
+		m_iszGrenadeType = gm_iszZombineGrenadeTypeStunstick;
+	}
+	else
+	{
+		BaseClass::ChooseDefaultGrenadeType();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sound of a footstep
+//-----------------------------------------------------------------------------
+void CNPC_HuskZombine::FootstepSound( bool fRightFoot )
+{
+	if (m_tHuskSoldierType == HUSK_CHARGER)
+	{
+		if (fRightFoot)
+		{
+			EmitSound( "NPC_HuskCharger.FootstepRight" );
+		}
+		else
+		{
+			EmitSound( "NPC_HuskCharger.FootstepLeft" );
+		}
+		return;
+	}
+
+	BaseClass::FootstepSound( fRightFoot );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_HuskZombine::ShouldBecomeTorso( const CTakeDamageInfo &info, float flDamageThreshold )
+{
+	if (!BaseClass::ShouldBecomeTorso( info, flDamageThreshold ))
+		return false;
+
+	// For now, only soldiers turn into torsos
+	if (m_tHuskSoldierType != HUSK_SOLDIER)
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_HuskZombine::IsChopped( const CTakeDamageInfo &info )
+{
+	if (!BaseClass::IsChopped( info ))
+		return false;
+
+	// For now, only soldiers can be chopped
+	if (m_tHuskSoldierType != HUSK_SOLDIER)
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+float CNPC_HuskZombine::GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamageInfo &info )
+{
+	float flBase = BaseClass::GetHitgroupDamageMultiplier( iHitGroup, info );
+
+	if (m_tHuskSoldierType == HUSK_CHARGER)
+	{
+		switch (iHitGroup)
+		{
+		case HITGROUP_HEAD:
+		case HITGROUP_CHEST:
+		case HITGROUP_STOMACH:
+		case HITGROUP_LEFTLEG:
+		case HITGROUP_RIGHTLEG:
+			{
+				flBase *= sk_husk_charger_armor_hitgroup_scale.GetFloat();
+			}
+		}
+	}
+
+	return flBase;
+}
 #endif
 
 //-----------------------------------------------------------------------------

@@ -23,6 +23,9 @@ enum
 	// For slumped zombies in Chapter 3, this is higher up to avoid
 	// conflicts with any future Mapbase actbusy types
 	ACTBUSY_TYPE_BEAST = 10,
+
+	// For husks
+	ACTBUSY_TYPE_HUSKS = 11,
 #endif
 };
 
@@ -161,6 +164,7 @@ public:
 
 #ifdef EZ2
 	bool	IsBeastActBusy();
+	bool	IsHuskActBusy();
 #endif
 
 #ifdef MAPBASE
