@@ -1523,16 +1523,9 @@ public:
 //-----------------------------------------------------------------------------
 void CWeaponAshlandsCarbine::AddViewKick(void)
 {
-	#define	EASY_DAMPEN			1.5f
-	#define	MAX_VERTICAL_KICK	20.0f
-	#define	SLIDE_LIMIT			4.0f
-
-	// Don't do machine gun style kick for controlled fire
-	if ( m_flAccuracyPenalty <= PISTOL_ACCURACY_SHOT_PENALTY_TIME * 2.0f)
-	{
-		BaseClass::AddViewKick();
-		return;
-	}
+	#define	EASY_DAMPEN			2.5f
+	#define	MAX_VERTICAL_KICK	11.0f
+	#define	SLIDE_LIMIT			2.0f
 
 	//Get the view kick
 	CBasePlayer* pPlayer = ToBasePlayer(GetOwner());
