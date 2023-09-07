@@ -20,6 +20,8 @@
 
 ConVar ez2_beast_return_time( "ez2_beast_return_time", "20.0", FCVAR_NONE, "How much time should pass after the beast becomes alert (e.g. due to investigating a sound with no enemy in sight or losing an existing enemy) before it should be slammed to idle, allowing it to return home." );
 
+extern ConVar developer;	// developer mode
+
 //---------------------------------------------------------
 // Save/Restore
 //---------------------------------------------------------
@@ -184,7 +186,14 @@ void CAI_BeastBehavior::StartTask( const Task_t *pTask )
 		{
 			CHintCriteria hintCriteria;
 			hintCriteria.SetHintType( HINT_BEAST_HOME );
-			hintCriteria.SetFlag( bits_HINT_NODE_NEAREST | bits_HINT_NODE_REPORT_FAILURES );
+
+			int iBits = bits_HINT_NODE_NEAREST;
+			if ( developer.GetInt() > 0 )
+			{
+				iBits |= bits_HINT_NODE_REPORT_FAILURES;
+			}
+
+			hintCriteria.SetFlag( iBits );
 			hintCriteria.AddIncludePosition( GetAbsOrigin(), pTask->flTaskData );
 			CAI_Hint *pHint = CAI_HintManager::FindHint( GetOuter(), hintCriteria );
 			if (pHint)
