@@ -51,6 +51,8 @@ $Project "Server (Entropy Zero 2)"
 			$File	"ez2\npc_assassin.cpp"
 			$File	"ez2\npc_clonecop.h" [!$EZ2_DEMO]
 			$File	"ez2\npc_clonecop.cpp" [!$EZ2_DEMO]
+			$File	"ez2\npc_crabsynth.h"
+			$File	"ez2\npc_crabsynth.cpp"
 			$File	"ez2\npc_baseflora.h"
 			$File	"ez2\npc_baseflora.cpp"
 			$File	"ez2\npc_basepredator.h"
