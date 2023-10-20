@@ -714,6 +714,18 @@ int CNPC_Assassin::SelectFailSchedule( int failedSchedule, int failedTask, AI_Ta
 			return SCHED_COMBINE_MOVE_TO_MELEE;
 	}
 
+	if ( failedSchedule == SCHED_ASSASSIN_GO_TO_VANTAGE_POINT )
+	{
+		if ( GetEnemy() )
+		{
+			return SCHED_ASSASSIN_FLANK_RANDOM;
+		}
+		else
+		{
+			return SCHED_COMBINE_PATROL;
+		}
+	}
+
 	return BaseClass::SelectFailSchedule( failedSchedule, failedTask, taskFailCode );
 }
 
@@ -1856,6 +1868,41 @@ bool CNPC_Assassin::IsHeavyDamage( const CTakeDamageInfo &info )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CNPC_Assassin::AddLeftHandGun( CBaseCombatWeapon *pWeapon )
+{
+	// Cancel out and show warning if we already have a dual weapon
+	if (m_hLeftHandGun)
+	{
+		Warning("%s cannot dual wield %s because it already has a left-handed weapon (%s)\n",
+			GetDebugName(), pWeapon->GetClassname(), m_hLeftHandGun->GetOwnerEntity() ? m_hLeftHandGun->GetOwnerEntity()->GetClassname() : "<null>");
+		return;
+	}
+
+	// Create a fake second pistol
+	CBaseEntity *pEnt = CBaseEntity::CreateNoSpawn( "prop_dynamic_override", this->GetLocalOrigin(), this->GetLocalAngles(), this );
+	if (pEnt)
+	{
+		// HACKHACK: Just add "_left" to the end of the model name
+		char szLeftModel[MAX_PATH];
+		V_StripExtension( pWeapon->GetWorldModel(), szLeftModel, sizeof( szLeftModel ) );
+		V_strncat( szLeftModel, "_left.mdl", sizeof( szLeftModel ) );
+
+		pEnt->SetModelName( MAKE_STRING( szLeftModel ) );
+		pEnt->SetRenderMode( kRenderTransColor );
+		DispatchSpawn( pEnt );
+		pEnt->FollowEntity( this, true );
+		pEnt->SetOwnerEntity( pWeapon );
+
+		m_hLeftHandGun = static_cast<CBaseAnimating *>(pEnt);
+
+		// Make it dual-wielded
+		assert_cast<CBaseHLCombatWeapon*>(pWeapon)->SetLeftHandGun( m_hLeftHandGun );
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Update weapon ranges
 //-----------------------------------------------------------------------------
 void CNPC_Assassin::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
@@ -1876,34 +1923,7 @@ void CNPC_Assassin::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 			CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
 			if (pHLWeapon && pHLWeapon->CanDualWield())
 			{
-				// Cancel out and show warning if we already have a dual weapon
-				if (m_hLeftHandGun)
-				{
-					Warning("%s cannot dual wield %s because it already has a left-handed weapon (%s)\n",
-						GetDebugName(), pWeapon->GetClassname(), m_hLeftHandGun->GetOwnerEntity() ? m_hLeftHandGun->GetOwnerEntity()->GetClassname() : "<null>");
-					return;
-				}
-
-				// Create a fake second pistol
-				CBaseEntity *pEnt = CBaseEntity::CreateNoSpawn( "prop_dynamic_override", this->GetLocalOrigin(), this->GetLocalAngles(), this );
-				if (pEnt)
-				{
-					// HACKHACK: Just add "_left" to the end of the model name
-					char szLeftModel[MAX_PATH];
-					V_StripExtension( pWeapon->GetWorldModel(), szLeftModel, sizeof( szLeftModel ) );
-					V_strncat( szLeftModel, "_left.mdl", sizeof( szLeftModel ) );
-
-					pEnt->SetModelName( MAKE_STRING( szLeftModel ) );
-					pEnt->SetRenderMode( kRenderTransColor );
-					DispatchSpawn( pEnt );
-					pEnt->FollowEntity( this, true );
-					pEnt->SetOwnerEntity( pWeapon );
-
-					m_hLeftHandGun = static_cast<CBaseAnimating *>(pEnt);
-
-					// Make it dual-wielded
-					pHLWeapon->SetLeftHandGun( m_hLeftHandGun );
-				}
+				AddLeftHandGun( pWeapon );
 			}
 			else
 			{
@@ -1936,6 +1956,14 @@ void CNPC_Assassin::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecT
 {
 	if ( !pWeapon )
 		return;
+
+	if ( GetTask() && GetTask()->iTask == TASK_WEAPON_PICKUP && GetTarget() && pWeapon->GetClassname() == GetTarget()->GetClassname() && IsAlive() )
+	{
+		// HACKHACK: If this is the same weapon we have, and it can be dual-wielded, don't drop our current one
+		CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+		if ( pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons )
+			return;
+	}
 
 	pWeapon->SetRenderColorA( 255 );
 	pWeapon->RemoveEffects( EF_NOSHADOW );
@@ -1987,6 +2015,27 @@ void CNPC_Assassin::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecT
 		pWeapon->VPhysicsGetObject()->GetVelocity( &vecVelocity, &vecAngVelocity );
 		m_hLeftHandGun->VPhysicsGetObject()->SetVelocity( &vecVelocity, &vecAngVelocity );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:	
+//-----------------------------------------------------------------------------
+void CNPC_Assassin::Weapon_Equip( CBaseCombatWeapon *pWeapon )
+{
+	if ( GetActiveWeapon() && GetActiveWeapon()->GetClassname() == pWeapon->GetClassname() )
+	{
+		CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+		if ( pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons )
+		{
+			// Add left hand gun for weapon that already exists
+			AddLeftHandGun( GetActiveWeapon() );
+			m_bDualWeapons = true;
+			UTIL_Remove( pWeapon );
+			return;
+		}
+	}
+
+	BaseClass::Weapon_Equip( pWeapon );
 }
 
 //-----------------------------------------------------------------------------
@@ -2231,7 +2280,6 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 		SCHED_ASSASSIN_GO_TO_VANTAGE_POINT,
 
 		"	Tasks"
-		"		TASK_SET_FAIL_SCHEDULE					SCHEDULE:SCHED_ASSASSIN_FLANK_RANDOM"
 		"		TASK_GET_PATH_TO_HINTNODE				0"
 		"		TASK_LOCK_HINTNODE						0"
 		"		TASK_REMEMBER							MEMORY:LOCKED_HINT"

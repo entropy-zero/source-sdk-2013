@@ -72,9 +72,11 @@ public:
 	void		Event_Killed( const CTakeDamageInfo &info );
 	bool		IsLightDamage( const CTakeDamageInfo &info );
 	bool		IsHeavyDamage( const CTakeDamageInfo &info );
+	void		AddLeftHandGun( CBaseCombatWeapon *pWeapon );
 	void		Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
 	void		Weapon_EquipHolstered( CBaseCombatWeapon *pWeapon );
 	void		Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
+	void		Weapon_Equip( CBaseCombatWeapon *pWeapon );
 	Vector		GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget = NULL );
 	float		GetSpreadBias( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget );
 
