@@ -739,4 +739,81 @@ void CTurretLightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir
 	
 	g_pClientShadowMgr->UpdateProjectedTexture( GetFlashlightHandle(), true );
 }
+
+//-----------------------------------------------------------------------------
+// Crab Synth light effect
+//-----------------------------------------------------------------------------
+static ConVar r_crabsynthlightbrightness( "r_crabsynthlightbrightness", "255.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlightfar( "r_crabsynthlightfar", "400", FCVAR_CHEAT );
+static ConVar r_crabsynthlightnear( "r_crabsynthlightnear", "2.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlightconstant( "r_crabsynthlightconstant", "0.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlightlinear( "r_crabsynthlightlinear", "0.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlightquadratic( "r_crabsynthlightquadratic", "100.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlightshadowatten( "r_crabsynthlightshadowatten", "1.0", FCVAR_CHEAT );
+static ConVar r_crabsynthlighttexture( "r_crabsynthlighttexture", "effects/crabsynthlight", FCVAR_CHEAT );
+
+CCrabSynthLightEffect::CCrabSynthLightEffect()
+{
+	m_FlashlightTexture.Init( r_crabsynthlighttexture.GetString(), TEXTURE_GROUP_OTHER, true );
+	m_flBrightnessScale = 1.0f;
+
+	m_Color[0] = 1.0f;
+	m_Color[1] = 1.0f;
+	m_Color[2] = 1.0f;
+}
+
+CCrabSynthLightEffect::~CCrabSynthLightEffect()
+{
+}
+
+void CCrabSynthLightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance )
+{
+	if ( IsOn() == false )
+		 return;
+
+	FlashlightState_t state;
+	Vector basisX, basisY, basisZ;
+	basisX = vecDir;
+	basisY = vecRight;
+	basisZ = vecUp;
+	VectorNormalize(basisX);
+	VectorNormalize(basisY);
+	VectorNormalize(basisZ);
+
+	BasisToQuaternion( basisX, basisY, basisZ, state.m_quatOrientation );
+		
+	state.m_vecLightOrigin = vecPos;
+
+	state.m_fHorizontalFOVDegrees = m_flHorzFOV;
+	state.m_fVerticalFOVDegrees = m_flFOV;
+	state.m_fQuadraticAtten = r_crabsynthlightquadratic.GetFloat();
+	state.m_fLinearAtten = r_crabsynthlightlinear.GetFloat();
+	state.m_fConstantAtten = r_crabsynthlightconstant.GetFloat();
+	state.m_Color[0] = m_Color[0] * (m_flBrightnessScale != 1.0f ? r_crabsynthlightbrightness.GetFloat() * m_flBrightnessScale : r_crabsynthlightbrightness.GetFloat());
+	state.m_Color[1] = m_Color[1] * (m_flBrightnessScale != 1.0f ? r_crabsynthlightbrightness.GetFloat() * m_flBrightnessScale : r_crabsynthlightbrightness.GetFloat());
+	state.m_Color[2] = m_Color[2] * (m_flBrightnessScale != 1.0f ? r_crabsynthlightbrightness.GetFloat() * m_flBrightnessScale : r_crabsynthlightbrightness.GetFloat());
+	state.m_Color[3] = r_flashlightambient.GetFloat();
+
+	state.m_NearZ = r_crabsynthlightnear.GetFloat();
+	state.m_FarZ = r_crabsynthlightfar.GetFloat();
+
+	state.m_bEnableShadows = m_bShadowsEnabled;
+	state.m_pSpotlightTexture = m_FlashlightTexture;
+	state.m_nSpotlightTextureFrame = 0;
+
+	state.m_flShadowAtten = r_crabsynthlightshadowatten.GetFloat();
+	state.m_flShadowSlopeScaleDepthBias = mat_slopescaledepthbias_shadowmap.GetFloat();
+	state.m_flShadowDepthBias = mat_depthbias_shadowmap.GetFloat();
+	
+	if( GetFlashlightHandle() == CLIENTSHADOW_INVALID_HANDLE )
+	{
+		SetFlashlightHandle( g_pClientShadowMgr->CreateFlashlight( state ) );
+	}
+	else
+	{
+		g_pClientShadowMgr->UpdateFlashlightState( GetFlashlightHandle(), state );
+	}
+	
+	g_pClientShadowMgr->UpdateProjectedTexture( GetFlashlightHandle(), true );
+}
 #endif

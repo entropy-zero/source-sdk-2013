@@ -162,6 +162,11 @@ enum SquadSlot_T
 CNPC_CrabSynth::CNPC_CrabSynth( void )
 {
 	m_iNumGrenades = 5;
+	m_bProjectedLightEnabled = true;
+	m_bProjectedLightShadowsEnabled = false;
+	m_flProjectedLightBrightnessScale = 1.0f;
+	m_flProjectedLightFOV = 90.0f;
+	m_flProjectedLightHorzFOV = 120.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -192,6 +197,12 @@ BEGIN_DATADESC( CNPC_CrabSynth )
 	DEFINE_FIELD( m_bIsBleeding, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bLastDamageBelow, FIELD_BOOLEAN ),
 
+	DEFINE_KEYFIELD( m_bProjectedLightEnabled, FIELD_BOOLEAN, "ProjectedLightEnabled" ),
+	DEFINE_KEYFIELD( m_bProjectedLightShadowsEnabled, FIELD_BOOLEAN, "ProjectedLightShadowsEnabled" ),
+	DEFINE_KEYFIELD( m_flProjectedLightBrightnessScale, FIELD_FLOAT, "ProjectedLightBrightnessScale" ),
+	DEFINE_KEYFIELD( m_flProjectedLightFOV, FIELD_FLOAT, "ProjectedLightFOV" ),
+	DEFINE_KEYFIELD( m_flProjectedLightHorzFOV, FIELD_FLOAT, "ProjectedLightHorzFOV" ),
+
 	DEFINE_KEYFIELD( m_bDisableBoneFollowers, FIELD_BOOLEAN, "disablephysics" ),
 	DEFINE_EMBEDDED( m_BoneFollowerManager ),
 
@@ -202,9 +213,27 @@ BEGIN_DATADESC( CNPC_CrabSynth )
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetChargeTarget", InputSetChargeTarget ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "ClearChargeTarget", InputClearChargeTarget ),
 
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnProjectedLights", InputTurnOnProjectedLights ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffProjectedLights", InputTurnOffProjectedLights ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetProjectedLightEnableShadows", InputSetProjectedLightEnableShadows ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetProjectedLightBrightnessScale", InputSetProjectedLightBrightnessScale ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetProjectedLightFOV", InputSetProjectedLightFOV ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetProjectedLightHorzFOV", InputSetProjectedLightHorzFOV ),
+
 	DEFINE_AIGRENADE_DATADESC()
 
 END_DATADESC()
+
+//---------------------------------------------------------
+// Custom Client entity
+//---------------------------------------------------------
+IMPLEMENT_SERVERCLASS_ST( CNPC_CrabSynth, DT_NPC_CrabSynth )
+	SendPropBool( SENDINFO( m_bProjectedLightEnabled ) ),
+	SendPropBool( SENDINFO( m_bProjectedLightShadowsEnabled ) ),
+	SendPropFloat( SENDINFO( m_flProjectedLightBrightnessScale ) ),
+	SendPropFloat( SENDINFO( m_flProjectedLightFOV ) ),
+	SendPropFloat( SENDINFO( m_flProjectedLightHorzFOV ) ),
+END_SEND_TABLE()
 
 //-----------------------------------------------------------------------------
 // Purpose: 

@@ -32,6 +32,7 @@ class CNPC_CrabSynth : public CAI_GrenadeUser< CAI_BaseActor >
 public:
 	DECLARE_CLASS( CNPC_CrabSynth, CAI_GrenadeUser< CAI_BaseActor > );
 	DECLARE_DATADESC();
+	DECLARE_SERVERCLASS();
 	DEFINE_CUSTOM_AI;
 
 	CNPC_CrabSynth();
@@ -134,6 +135,13 @@ public:
 	void			InputSetChargeTarget( inputdata_t &inputdata );
 	void			InputClearChargeTarget( inputdata_t &inputdata );
 
+	void			InputTurnOnProjectedLights( inputdata_t &inputdata ) { m_bProjectedLightEnabled = true; }
+	void			InputTurnOffProjectedLights( inputdata_t &inputdata ) { m_bProjectedLightEnabled = false; }
+	void			InputSetProjectedLightEnableShadows( inputdata_t &inputdata ) { m_bProjectedLightShadowsEnabled = inputdata.value.Bool(); }
+	void			InputSetProjectedLightBrightnessScale( inputdata_t &inputdata ) { m_flProjectedLightBrightnessScale = inputdata.value.Float(); }
+	void			InputSetProjectedLightFOV( inputdata_t &inputdata ) { m_flProjectedLightFOV = inputdata.value.Float(); }
+	void			InputSetProjectedLightHorzFOV( inputdata_t &inputdata ) { m_flProjectedLightHorzFOV = inputdata.value.Float(); }
+
 private:
 
 	int				m_nShots;
@@ -166,6 +174,13 @@ private:
 	CSprite			*m_pEyeGlow2;
 	CSprite			*m_pEyeGlow3;
 	CSprite			*m_pEyeGlow4;
+
+	// Controls projected texture spotlights on the client.
+	CNetworkVar( bool, m_bProjectedLightEnabled );
+	CNetworkVar( bool, m_bProjectedLightShadowsEnabled );
+	CNetworkVar( float, m_flProjectedLightBrightnessScale );
+	CNetworkVar( float, m_flProjectedLightFOV );
+	CNetworkVar( float, m_flProjectedLightHorzFOV );
 
 	//-----------------------------------------------------
 
