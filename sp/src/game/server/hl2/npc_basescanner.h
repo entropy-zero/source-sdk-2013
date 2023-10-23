@@ -155,6 +155,9 @@ protected:
 private:
 	bool	GetGoalDirection( Vector *vOut );
 
+#ifdef EZ2
+	virtual
+#endif
 	void	StartSmokeTrail( void );
 
 	// Take damage from being thrown by a physcannon 
