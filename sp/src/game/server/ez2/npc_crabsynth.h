@@ -116,6 +116,8 @@ public:
 
 	const char		*GetSquadSlotDebugName( int iSquadSlot );
 
+	bool			CanBeSneakAttacked( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr ) { return false; }
+
 	void			UpdateOnRemove( void );
 	
 	virtual CSprite		*GetGlowSpritePtr( int i );
