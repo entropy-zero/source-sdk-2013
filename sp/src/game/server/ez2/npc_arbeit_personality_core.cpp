@@ -4,8 +4,6 @@
 //				to fit into the world and mechanics of Half-Life 2. It has the same
 //				response and choreography abilities as other ally NPCs and is based
 //				largely on the Wilson NPC.
-// 
-//				This was originally created for Entropy : Zero 2.
 //
 // Author:		Blixibon
 //
