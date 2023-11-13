@@ -4,8 +4,6 @@
 //				of Combine armored unit, filling a role somewhere between a standard
 //				soldier and a strider.
 // 
-//				This was originally created for Entropy : Zero 2.
-// 
 //				--------------------------------------------------------------
 // 
 //				This Crab Synth NPC can move while shooting, aim its gun in any

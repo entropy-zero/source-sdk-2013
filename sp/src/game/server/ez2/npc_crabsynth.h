@@ -3,8 +3,6 @@
 // Purpose:		Crab Synth NPC created from scratch in Source 2013 as a new type
 //				of Combine armored unit, filling a role somewhere between a standard
 //				soldier and a strider.
-// 
-//				This was originally created for Entropy : Zero 2.
 //
 // Author:		Blixibon
 //
