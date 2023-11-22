@@ -32,6 +32,15 @@ BEGIN_DATADESC( CNPC_HuskPolice )
 END_DATADESC()
 
 //---------------------------------------------------------
+// VScript
+//---------------------------------------------------------
+BEGIN_ENT_SCRIPTDESC( CNPC_HuskPolice, CAI_BaseActor, "Husk metrocop." )
+
+	DEFINE_BASE_HUSK_SCRIPTDESC()
+
+END_SCRIPTDESC()
+
+//---------------------------------------------------------
 // Custom Client entity
 //---------------------------------------------------------
 IMPLEMENT_SERVERCLASS_ST( CNPC_HuskPolice, DT_NPC_HuskPolice )

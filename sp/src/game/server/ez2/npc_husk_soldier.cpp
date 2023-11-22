@@ -173,6 +173,15 @@ BEGIN_DATADESC( CNPC_HuskSoldier )
 END_DATADESC()
 
 //---------------------------------------------------------
+// VScript
+//---------------------------------------------------------
+BEGIN_ENT_SCRIPTDESC( CNPC_HuskSoldier, CAI_BaseActor, "Husk Combine soldier." )
+
+	DEFINE_BASE_HUSK_SCRIPTDESC()
+
+END_SCRIPTDESC()
+
+//---------------------------------------------------------
 // Custom Client entity
 //---------------------------------------------------------
 IMPLEMENT_SERVERCLASS_ST( CNPC_HuskSoldier, DT_NPC_HuskSoldier )

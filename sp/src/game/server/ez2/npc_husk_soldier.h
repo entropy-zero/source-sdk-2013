@@ -39,6 +39,7 @@ class CNPC_HuskSoldier : public CAI_BaseHusk<CNPC_Combine>
 {
 	DECLARE_CLASS( CNPC_HuskSoldier, CAI_BaseHusk<CNPC_Combine> );
 	DECLARE_DATADESC();
+	DECLARE_ENT_SCRIPTDESC();
 	DECLARE_SERVERCLASS();
 
 public:
@@ -91,6 +92,7 @@ public:
 	bool		IsHeavyDamage( const CTakeDamageInfo &info );
 
 	bool		AllowedToIgnite( void ) { return true; }
+	bool		HasHumanGibs( void ) { return true; }
 
 	bool		Crouch( void );
 

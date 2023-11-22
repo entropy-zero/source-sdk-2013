@@ -60,6 +60,10 @@ extern ConVar sk_husk_common_infight_time;
 	DEFINE_OUTPUT(m_OnAggressionSuspicious, "OnAggressionSuspicious"),	\
 	DEFINE_OUTPUT(m_OnAggressionAngry, "OnAggressionAngry"),	\
 
+#define	DEFINE_BASE_HUSK_SCRIPTDESC() \
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetHuskAggressionLevel, "GetHuskAggressionLevel", "Get the husk's aggression level." )	\
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetHuskCognitionFlags, "GetHuskCognitionFlags", "Get the husk's aggression flags." )	\
+
 #define DEFINE_BASE_HUSK_SENDPROPS() \
 	SendPropInt( SENDINFO( m_nHuskAggressionLevel ) ),	\
 	SendPropInt( SENDINFO( m_nHuskCognitionFlags ) ),	\
@@ -154,6 +158,7 @@ public:
 
 	// From CAI_HuskSink
 	int GetHuskAggressionLevel() override { return this->m_nHuskAggressionLevel; }
+	int ScriptGetHuskAggressionLevel() { return this->m_nHuskAggressionLevel; }
 
 	void MakeCalm( CBaseEntity *pActivator ) override;
 	void MakeSuspicious( CBaseEntity *pActivator ) override;
@@ -169,6 +174,7 @@ public:
 
 	// From CAI_HuskSink
 	int GetHuskCognitionFlags() override { return this->m_nHuskCognitionFlags; }
+	int ScriptGetHuskCognitionFlags() { return this->m_nHuskCognitionFlags; }
 
 	void RefreshCognitionFlags();
 
@@ -755,13 +761,23 @@ bool CAI_BaseHusk<BASE_NPC>::FCanCheckAttacks( void )
 template <class BASE_NPC>
 Vector CAI_BaseHusk<BASE_NPC>::GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy )
 {
-	if ( this->HasCognitionFlags( bits_HUSK_COGNITION_BLIND ) && this->GetActiveWeapon() )
+	if ( this->HasCognitionFlags( bits_HUSK_COGNITION_BLIND ) )
 	{
 		// Can't see our enemy, just shoot forwards
-		Vector vecShootOrigin, vecShootDir;
-		QAngle	angShootDir;
-		this->GetActiveWeapon()->GetAttachment( this->GetActiveWeapon()->LookupAttachment( "muzzle" ), vecShootOrigin, angShootDir );
-		AngleVectors( angShootDir, &vecShootDir );
+		matrix3x4_t attachmentToWorld;
+		if ( this->GetActiveWeapon() )
+		{
+			this->GetActiveWeapon()->GetAttachment( this->GetActiveWeapon()->LookupAttachment( "muzzle" ), attachmentToWorld );
+		}
+		else if ( this->CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
+		{
+			this->GetAttachment( this->LookupAttachment( "muzzle" ), attachmentToWorld );
+		}
+		else
+			return BaseClass::GetShootEnemyDir( shootOrigin, bNoisy );
+
+		Vector vecShootDir;
+		MatrixGetColumn( attachmentToWorld, 0, vecShootDir );
 		return vecShootDir;
 	}
 
@@ -773,11 +789,21 @@ Vector CAI_BaseHusk<BASE_NPC>::GetShootEnemyDir( const Vector &shootOrigin, bool
 template <class BASE_NPC>
 Vector CAI_BaseHusk<BASE_NPC>::GetActualShootPosition( const Vector &shootOrigin )
 {
-	if ( this->HasCognitionFlags( bits_HUSK_COGNITION_BLIND ) && this->GetActiveWeapon() )
+	if ( this->HasCognitionFlags( bits_HUSK_COGNITION_BLIND ) )
 	{
 		// Can't see our enemy, just shoot forwards
 		Vector vecShootOrigin, vecShootDir;
-		this->GetActiveWeapon()->GetAttachment( this->GetActiveWeapon()->LookupAttachment( "muzzle" ), vecShootOrigin, &vecShootDir );
+		if ( this->GetActiveWeapon() )
+		{
+			this->GetActiveWeapon()->GetAttachment( this->GetActiveWeapon()->LookupAttachment( "muzzle" ), vecShootOrigin, &vecShootDir );
+		}
+		else if ( this->CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
+		{
+			this->GetAttachment( this->LookupAttachment( "muzzle" ), vecShootOrigin, &vecShootDir );
+		}
+		else
+			return BaseClass::GetActualShootPosition( shootOrigin );
+
 		return vecShootOrigin + (vecShootDir * 128.0f);
 	}
 

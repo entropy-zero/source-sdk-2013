@@ -6,8 +6,8 @@
 //
 //=============================================================================//
 
-#ifndef NPC_HUSK_SOLDIER_H
-#define NPC_HUSK_SOLDIER_H
+#ifndef NPC_HUSK_POLICE_H
+#define NPC_HUSK_POLICE_H
 #ifdef _WIN32
 #pragma once
 #endif
@@ -22,6 +22,7 @@ class CNPC_HuskPolice : public CAI_BaseHusk<CNPC_MetroPolice>
 {
 	DECLARE_CLASS( CNPC_HuskPolice, CAI_BaseHusk<CNPC_MetroPolice> );
 	DECLARE_DATADESC();
+	DECLARE_ENT_SCRIPTDESC();
 	DECLARE_SERVERCLASS();
 
 public:
@@ -42,6 +43,8 @@ public:
 	NPC_STATE	SelectIdealState( void );
 	int			SelectAlertSchedule( void );
 	int			SelectCombatSchedule( void );
+
+	bool		HasHumanGibs( void ) { return true; }
 
 	WeaponProficiency_t		CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 
@@ -64,4 +67,4 @@ private:
 	};
 };
 
-#endif // NPC_HUSK_SOLDIER_H
+#endif // NPC_HUSK_POLICE_H
