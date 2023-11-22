@@ -42,6 +42,8 @@
 #define SF_COMBINE_COMMANDABLE ( 1 << 19 ) // Added by 1upD - soldier commandable spawnflag
 #define SF_COMBINE_REGENERATE ( 1 << 20 ) // Added by 1upD - soldier health regen spawnflag
 #define SF_COMBINE_NO_MANHACK_DEPLOY ( 1 << 21 ) // Blixibon -- Manhack toss spawnflag
+#define SF_COMBINE_MEDIC ( 1 << 22 ) // Citizen-like medic
+#define SF_COMBINE_AMMORESUPPLIER ( 1 << 23 ) // Citizen-like ammo resupplier
 #endif
 
 //=========================================================
@@ -142,7 +144,16 @@ public:
 	void InputDisableOrderSurrender( inputdata_t &inputdata );
 	void InputEnablePlayerGive( inputdata_t &inputdata );
 	void InputDisablePlayerGive( inputdata_t &inputdata );
+	void InputSetMedicOn( inputdata_t &inputdata );
+	void InputSetMedicOff( inputdata_t &inputdata );
+	void InputSetAmmoResupplierOn( inputdata_t &inputdata );
+	void InputSetAmmoResupplierOff( inputdata_t &inputdata );
 	COutputEHANDLE	m_OutManhack;
+
+	COutputEvent	m_OnHealedNPC;
+	COutputEvent	m_OnHealedPlayer;
+	COutputEHANDLE	m_OnThrowMedkit;
+	COutputEvent	m_OnGiveAmmo;
 
 	//-----------------------------------------------------
 	//	Outputs
@@ -185,6 +196,7 @@ public:
 	virtual const char *GetBackupWeaponClass();
 
 	int 			SelectSchedulePriorityAction();
+	int 			SelectScheduleHeal();
 	virtual int 	SelectScheduleRetrieveItem();
 
 	virtual bool	IgnorePlayerPushing( void );
@@ -198,6 +210,17 @@ public:
 	virtual bool	IsGiveableItem( CBaseEntity *pItem );
 	virtual void	StartPlayerGive( CBasePlayer *pPlayer ) {}
 	virtual void	OnCantBeGivenObject( CBaseEntity *pItem ) {}
+
+	bool 			IsMedic() 			{ return HasSpawnFlags( SF_COMBINE_MEDIC ); }
+	bool 			IsAmmoResupplier() 	{ return HasSpawnFlags( SF_COMBINE_AMMORESUPPLIER ); }
+	
+	bool 			CanHeal();
+	bool 			ShouldHealTarget( CBaseEntity *pTarget, bool bActiveUse = false );
+	bool 			ShouldHealTossTarget( CBaseEntity *pTarget, bool bActiveUse = false );
+	void 			Heal();
+
+	void			TossHealthKit( CBaseCombatCharacter *pThrowAt, const Vector &offset ); // create a healthkit and throw it at someone
+	void			InputForceHealthKitToss( inputdata_t &inputdata );
 
 	virtual bool	ShouldGib( const CTakeDamageInfo &info );
 	virtual bool	CorpseGib( const CTakeDamageInfo &info );
@@ -245,6 +268,8 @@ public:
 
 	void			StartTask( const Task_t *pTask );
 	void			RunTask( const Task_t *pTask );
+	void			TaskFail( AI_TaskFailureCode_t );
+	void			TaskFail( const char *pszGeneralFailText ) { BaseClass::TaskFail( pszGeneralFailText ); }
 	void			PostNPCInit();
 	void			GatherConditions();
 	virtual void	PrescheduleThink();
@@ -439,6 +464,10 @@ private:
 		SCHED_COMBINE_ORDER_SURRENDER,
 		SCHED_COMBINE_ATTACK_TARGET,
 #endif
+#ifdef EZ
+		SCHED_COMBINE_HEAL,
+		SCHED_COMBINE_HEAL_TOSS,
+#endif
 		NEXT_SCHEDULE,
 	};
 
@@ -456,6 +485,10 @@ private:
 		TASK_COMBINE_PLAY_SEQUENCE_FACE_ALTFIRE_TARGET,
 		TASK_COMBINE_GET_PATH_TO_FORCED_GREN_LOS,
 		TASK_COMBINE_SET_STANDING,
+#ifdef EZ
+		TASK_COMBINE_HEAL,
+		TASK_COMBINE_HEAL_TOSS,
+#endif
 		NEXT_TASK
 	};
 
@@ -474,6 +507,10 @@ private:
 #ifdef EZ2
 		COND_COMBINE_CAN_ORDER_SURRENDER,
 		COND_COMBINE_OBSTRUCTED,
+#endif
+#ifdef EZ
+		COND_COMBINE_PLAYERHEALREQUEST,
+		COND_COMBINE_COMMANDHEAL,
 #endif
 		NEXT_CONDITION
 	};
@@ -563,6 +600,14 @@ protected:
 private:
 	EHANDLE			m_hObstructor;
 	float			m_flTimeSinceObstructed;
+	
+	float			m_flPlayerHealTime;
+	float			m_flAllyHealTime;
+	float			m_flPlayerGiveAmmoTime;
+	string_t		m_iszAmmoSupply;
+	int				m_iAmmoAmount;
+
+	bool			m_bTossesMedkits;
 #endif
 
 	// Time Variables
