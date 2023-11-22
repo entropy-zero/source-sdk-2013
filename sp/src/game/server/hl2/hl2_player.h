@@ -198,8 +198,11 @@ public:
 
 	void		OnDropSatchel( CBaseEntity *pSatchel );
 	void		OnSetupTripmine( CBaseEntity *pTripmine );
+	void		OnSetupDetonatable( CBaseEntity *pDetonatable );
 	void		OnSatchelExploded( CBaseEntity *pSatchel, CBaseEntity *pAttacker );
 	void		OnTripmineExploded( CBaseEntity *pTripmine, CBaseEntity *pAttacker );
+	void		OnDetonatableExploded( CBaseEntity *pDetonatable, CBaseEntity *pAttacker );
+	void		OnDetonatableDisabled( CBaseEntity *pDetonatable );
 #endif
 
 	// Apply a battery
@@ -456,6 +459,7 @@ private:
 #ifdef EZ2
 	CUtlVector<CBaseEntity*>	m_hActiveSatchels;
 	CUtlVector<CBaseEntity*>	m_hActiveTripmines;
+	CUtlVector<CBaseEntity*>	m_hActiveDetonatables;
 #endif
 
 	Vector				m_vecMissPositions[16];

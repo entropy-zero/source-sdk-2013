@@ -798,6 +798,16 @@ void CEZ2_Player::DetonateExplosives()
 		}
 	}
 
+	while ((pEntity = gEntList.FindEntityByClassname( pEntity, "point_detonatable" )) != NULL)
+	{
+		CPointDetonatable *pDetonatable = static_cast<CPointDetonatable *>(pEntity);
+		if (!pDetonatable->m_bDisabled && pDetonatable->m_hThrower.Get() == this)
+		{
+			g_EventQueue.AddEvent( pDetonatable, "Detonate", 0.20, this, this );
+			bDidExplode = true;
+		}
+	}
+
 	if (bDidExplode)
 	{
 		// Play sound for pressing the detonator
@@ -3016,6 +3026,159 @@ AI_BEGIN_CUSTOM_NPC( player_npc_dummy, CAI_PlayerNPCDummy )
 	);
 
 AI_END_CUSTOM_NPC()
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+
+BEGIN_DATADESC( CPointDetonatable )
+
+	DEFINE_KEYFIELD( m_bDisabled, FIELD_BOOLEAN, "StartDisabled" ),
+	DEFINE_KEYFIELD( m_iszThrower, FIELD_STRING, "thrower" ),
+	DEFINE_FIELD( m_hThrower, FIELD_EHANDLE ),
+	DEFINE_KEYFIELD( m_iszGlowTarget, FIELD_STRING, "glowtarget" ),
+	DEFINE_FIELD( m_hGlowTarget, FIELD_EHANDLE ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "SetGlowTarget", InputSetGlowTarget ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Detonate", InputDetonate ),
+
+	DEFINE_OUTPUT( m_OnDetonate, "OnDetonate" ),
+
+END_DATADESC()
+
+IMPLEMENT_SERVERCLASS_ST( CPointDetonatable, DT_PointDetonatable )
+	SendPropBool( SENDINFO( m_bDisabled ) ),
+	SendPropEHandle( SENDINFO( m_hThrower ) ),
+	SendPropEHandle( SENDINFO( m_hGlowTarget ) ),
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( point_detonatable, CPointDetonatable );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CPointDetonatable::CPointDetonatable()
+{
+	m_bDisabled = false;
+}
+
+CPointDetonatable::~CPointDetonatable()
+{
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPointDetonatable::Spawn()
+{
+	BaseClass::Spawn();
+
+	// Default to local player
+	if (m_iszThrower == NULL_STRING)
+	{
+		m_iszThrower = AllocPooledString( "!player" );
+		m_hThrower = UTIL_GetLocalPlayer();
+	}
+	else
+		m_hThrower = dynamic_cast<CBaseCombatCharacter*>(gEntList.FindEntityByName( NULL, m_iszThrower, this ));
+	
+	if (!m_bDisabled)
+	{
+		VerifyGlowTarget( this, this );
+
+		if (m_hThrower && m_hThrower->IsPlayer())
+		{
+			static_cast<CHL2_Player*>(m_hThrower.Get())->OnSetupDetonatable( this );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Transmit data
+//-----------------------------------------------------------------------------
+int CPointDetonatable::UpdateTransmitState( void )
+{
+	if ( m_hThrower && m_hThrower->IsPlayer() )
+	{
+		// Player detonatables need to be transmitted for HUD glow
+		return SetTransmitState( FL_EDICT_ALWAYS );
+	}
+	else
+	{
+		return BaseClass::UpdateTransmitState();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPointDetonatable::VerifyGlowTarget( CBaseEntity *pActivator, CBaseEntity *pCaller )
+{
+	if (!m_hGlowTarget)
+		m_hGlowTarget = gEntList.FindEntityByName( NULL, m_iszGlowTarget, this, pActivator, pCaller );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPointDetonatable::InputEnable( inputdata_t &inputdata )
+{
+	if (!m_bDisabled)
+		return;
+
+	VerifyGlowTarget( inputdata.pActivator, inputdata.pCaller );
+	m_bDisabled = false;
+	
+	if (!m_hThrower)
+		m_hThrower = dynamic_cast<CBaseCombatCharacter*>(gEntList.FindEntityByName( NULL, m_iszThrower, this, inputdata.pActivator, inputdata.pCaller ));
+	
+	if (m_hThrower && m_hThrower->IsPlayer())
+	{
+		static_cast<CHL2_Player*>(m_hThrower.Get())->OnSetupDetonatable( this );
+	}
+}
+
+void CPointDetonatable::InputDisable( inputdata_t &inputdata )
+{
+	m_bDisabled = true;
+	
+	if (m_hThrower && m_hThrower->IsPlayer())
+	{
+		static_cast<CHL2_Player*>(m_hThrower.Get())->OnDetonatableDisabled( this );
+	}
+}
+
+void CPointDetonatable::InputSetGlowTarget( inputdata_t &inputdata )
+{
+	m_hGlowTarget = inputdata.value.Entity();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPointDetonatable::InputDetonate( inputdata_t &inputdata )
+{
+	if (m_bDisabled)
+		return;
+
+	if (!m_hThrower)
+		m_hThrower = dynamic_cast<CBaseCombatCharacter*>(gEntList.FindEntityByName( NULL, m_iszThrower, this, inputdata.pActivator, inputdata.pCaller ));
+
+	if (m_hThrower && m_hThrower->IsPlayer())
+	{
+		CHL2_Player *pHL2Player = static_cast<CHL2_Player*>(m_hThrower.Get());
+		if (pHL2Player)
+		{
+			pHL2Player->OnDetonatableExploded( this, inputdata.pActivator );
+		}
+	}
+
+	m_OnDetonate.FireOutput( inputdata.pActivator, this );
+
+	UTIL_Remove( this );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Debugging commands

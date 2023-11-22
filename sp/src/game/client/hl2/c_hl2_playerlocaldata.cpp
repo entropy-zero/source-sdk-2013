@@ -32,6 +32,7 @@ BEGIN_RECV_TABLE_NOBASE( C_HL2PlayerLocalData, DT_HL2Local )
 #ifdef EZ2
 	RecvPropInt( RECVINFO( m_iSatchelCount ) ),
 	RecvPropInt( RECVINFO( m_iTripmineCount ) ),
+	RecvPropInt( RECVINFO( m_iDetonatableCount ) ),
 #endif
 END_RECV_TABLE()
 

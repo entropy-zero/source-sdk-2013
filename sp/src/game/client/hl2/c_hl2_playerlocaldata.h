@@ -48,6 +48,7 @@ public:
 #ifdef EZ2
 	int		m_iSatchelCount;
 	int		m_iTripmineCount;
+	int		m_iDetonatableCount;	// Misc. explosives that aren't satchels or tripmines, but can be tracked and detonated
 #endif
 
 	// Ladder related data

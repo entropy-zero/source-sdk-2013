@@ -51,12 +51,14 @@ private:
 	
 	int m_iNumSatchels;
 	int m_iNumTripmines;
+	int m_iNumDetonatables;
 	bool m_bSLAMAdded;
 	bool m_bSLAMExploded;
 	bool m_bSLAMExplodedFromNonPlayer;
 
 	int m_iNumSatchelsDiff;
 	int m_iNumTripminesDiff;
+	int m_iNumDetonatablesDiff;
 
 	//int m_textureID_Satchel;
 	//int m_textureID_Tripmine;
@@ -110,6 +112,7 @@ void CHudSLAMStatus::Init( void )
 	HOOK_HUD_MESSAGE( CHudSLAMStatus, SLAMExploded );
 	m_iNumSatchels = 0;
 	m_iNumTripmines = 0;
+	m_iNumDetonatables = 0;
 	m_bSLAMExploded = false;
 	m_bSLAMExplodedFromNonPlayer = false;
 	SetAlpha( 0 );
@@ -136,9 +139,9 @@ bool CHudSLAMStatus::ShouldDraw( void )
 	if ( !pPlayer )
 		return false;
 
-	bNeedsDraw = ( (pPlayer->m_HL2Local.m_iSatchelCount > 0 || pPlayer->m_HL2Local.m_iTripmineCount > 0) ||
-					( pPlayer->m_HL2Local.m_iSatchelCount != m_iNumSatchels || pPlayer->m_HL2Local.m_iSatchelCount != m_iNumTripmines ) || 
-					( m_iNumSatchels > 0 || m_iNumTripmines > 0 ) ||
+	bNeedsDraw = ( (pPlayer->m_HL2Local.m_iSatchelCount > 0 || pPlayer->m_HL2Local.m_iTripmineCount > 0 || pPlayer->m_HL2Local.m_iDetonatableCount > 0) ||
+					( pPlayer->m_HL2Local.m_iSatchelCount != m_iNumSatchels || pPlayer->m_HL2Local.m_iSatchelCount != m_iNumTripmines || pPlayer->m_HL2Local.m_iDetonatableCount != m_iNumDetonatables ) ||
+					( m_iNumSatchels > 0 || m_iNumTripmines > 0 || m_iNumDetonatables > 0 ) ||
 					( m_LastSLAMColor[3] > 0 ) );
 		
 	return ( bNeedsDraw && CHudElement::ShouldDraw() );
@@ -155,13 +158,14 @@ void CHudSLAMStatus::OnThink( void )
 
 	int satchels = pPlayer->m_HL2Local.m_iSatchelCount;
 	int tripmines = pPlayer->m_HL2Local.m_iTripmineCount;
+	int detonatables = pPlayer->m_HL2Local.m_iDetonatableCount;
 
 	// Only update if we've changed vars
-	if ( satchels == m_iNumSatchels && tripmines == m_iNumTripmines )
+	if ( satchels == m_iNumSatchels && tripmines == m_iNumTripmines && detonatables == m_iNumDetonatables )
 		return;
 
 	// update status display
-	if ( satchels > 0 || tripmines > 0 )
+	if ( satchels > 0 || tripmines > 0 || detonatables > 0 )
 	{
 		// we have SLAMs, show the display
 		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "SLAMStatusShow" );
@@ -172,7 +176,7 @@ void CHudSLAMStatus::OnThink( void )
 		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "SLAMStatusHide" );
 	}
 
-	if ( satchels > m_iNumSatchels || tripmines > m_iNumTripmines )
+	if ( satchels > m_iNumSatchels || tripmines > m_iNumTripmines || detonatables > m_iNumDetonatables )
 	{
 		//Msg( "SLAM status thinking (Player's: %i/%i) (Ours: %i/%i)\n",
 		//	satchels, tripmines,
@@ -185,10 +189,11 @@ void CHudSLAMStatus::OnThink( void )
 		m_bSLAMAdded = true;
 		m_iNumSatchelsDiff = (m_iNumSatchels - satchels);
 		m_iNumTripminesDiff = (m_iNumTripmines - tripmines);
+		m_iNumDetonatablesDiff = (m_iNumDetonatables - detonatables);
 		Msg( "Sequence: SLAMAdded\n" );
 		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "SLAMAdded" ); 
 	}
-	else if (satchels < m_iNumSatchels || tripmines < m_iNumTripmines)
+	else if (satchels < m_iNumSatchels || tripmines < m_iNumTripmines || detonatables > m_iNumDetonatables)
 	{
 		//Msg( "SLAM status thinking (Player's: %i/%i) (Ours: %i/%i)\n",
 		//	satchels, tripmines,
@@ -200,6 +205,7 @@ void CHudSLAMStatus::OnThink( void )
 		m_bSLAMAdded = false;
 		m_iNumSatchelsDiff = (m_iNumSatchels - satchels);
 		m_iNumTripminesDiff = (m_iNumTripmines - tripmines);
+		m_iNumDetonatablesDiff = (m_iNumDetonatables - detonatables);
 		if (m_bSLAMExploded)
 		{
 			if (m_bSLAMExplodedFromNonPlayer)
@@ -226,15 +232,17 @@ void CHudSLAMStatus::OnThink( void )
 	{
 		m_iNumSatchelsDiff = 0;
 		m_iNumTripminesDiff = 0;
+		m_iNumDetonatablesDiff = 0;
 	}
 
 	m_iNumSatchels = satchels;
 	m_iNumTripmines = tripmines;
+	m_iNumDetonatables = detonatables;
 
 	if (m_bSLAMAdded || m_LastSLAMColor[3] <= 0)
 	{
 		// Expand the menu
-		int total = m_iNumSatchels + m_iNumTripmines;
+		int total = m_iNumSatchels + m_iNumTripmines + m_iNumDetonatables;
 		switch (total)
 		{
 			case 0:
@@ -322,7 +330,7 @@ void CHudSLAMStatus::OnThink( void )
 
 	// Method 2: Dynamic expansion (not currently used)
 	/*
-	int totalChange = -(m_iNumSatchelsDiff + m_iNumTripminesDiff);
+	int totalChange = -(m_iNumSatchelsDiff + m_iNumTripminesDiff + m_iNumDetonatablesDiff);
 	//if (totalChange != 0)
 	{
 		int expand = (48 * totalChange) + m_flIconInsetX;
@@ -380,8 +388,10 @@ void CHudSLAMStatus::Paint()
 	//surface()->DrawSetTextColor( m_SLAMIconColor );
 	surface()->DrawSetTextFont( m_hIconFont );
 
-	int total = (m_iNumSatchels + m_iNumTripmines);
+	int total = (m_iNumSatchels + m_iNumTripmines + m_iNumDetonatables);
 	int numTripmines = m_iNumTripmines;
+	int numSatchels = m_iNumSatchels;
+	int numDetonatables = m_iNumDetonatables;
 
 	if (m_bSLAMAdded)
 	{
@@ -389,17 +399,22 @@ void CHudSLAMStatus::Paint()
 			m_iNumSatchelsDiff = -m_iNumSatchelsDiff;
 		if (m_iNumTripminesDiff < 0)
 			m_iNumTripminesDiff = -m_iNumTripminesDiff;
+		if (m_iNumDetonatablesDiff < 0)
+			m_iNumDetonatablesDiff = -m_iNumDetonatablesDiff;
 	}
 	else if (m_LastSLAMColor[3])
 	{
 		// Add to the total to represent our lost SLAMs
-		total += (m_iNumSatchelsDiff + m_iNumTripminesDiff);
+		total += (m_iNumSatchelsDiff + m_iNumTripminesDiff + m_iNumDetonatablesDiff);
 		numTripmines += m_iNumTripminesDiff;
+		numSatchels += m_iNumSatchelsDiff;
+		numDetonatables += m_iNumDetonatablesDiff;
 	}
 
 	bool bShowHighlight = (m_bSLAMAdded || m_LastSLAMColor[3]);
 	int iTripmineHighlight = (numTripmines - m_iNumTripminesDiff);
-	int iSatchelHighlight = (total - m_iNumSatchelsDiff);
+	int iSatchelHighlight = (numSatchels - m_iNumSatchelsDiff);
+	int iDetonatableHighlight = (numDetonatables - m_iNumDetonatablesDiff);
 
 	//Msg( "SLAM Paint: %s - (%i/%i), (%i/%i)\n", bShowHighlight ? "Showing highlight" : "Not showing highlight",
 	//	m_iNumSatchels, m_iNumSatchelsDiff,
@@ -434,7 +449,7 @@ void CHudSLAMStatus::Paint()
 			//surface()->DrawSetTexture( m_textureID_Tripmine );
 			//surface()->DrawTexturedRect( xpos, ypos, xpos + iconSize, ypos + iconSize );
 		}
-		else
+		else if (i < numTripmines + numSatchels)
 		{
 			if (bShowHighlight)
 			{
@@ -446,6 +461,21 @@ void CHudSLAMStatus::Paint()
 			}
 
 			surface()->DrawUnicodeChar('S');
+			//surface()->DrawSetTexture( m_textureID_Satchel );
+			//surface()->DrawTexturedRect( xpos, ypos, xpos + iconSize, ypos + iconSize );
+		}
+		else
+		{
+			if (bShowHighlight)
+			{
+				if (m_iNumDetonatablesDiff != 0 && i >= iDetonatableHighlight)
+				{
+					//surface()->DrawSetColor( m_LastSLAMColor );
+					surface()->DrawSetTextColor( m_LastSLAMColor );
+				}
+			}
+
+			surface()->DrawUnicodeChar('U');
 			//surface()->DrawSetTexture( m_textureID_Satchel );
 			//surface()->DrawTexturedRect( xpos, ypos, xpos + iconSize, ypos + iconSize );
 		}

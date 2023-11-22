@@ -38,11 +38,12 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 		if (cl_slam_glow.GetBool())
 		{
-			if ( m_HL2Local.m_iSatchelCount != m_hActiveSatchels.Count() || m_HL2Local.m_iTripmineCount != m_hActiveTripmines.Count() )
+			if ( m_HL2Local.m_iSatchelCount != m_hActiveSatchels.Count() || m_HL2Local.m_iTripmineCount != m_hActiveTripmines.Count() || m_HL2Local.m_iDetonatableCount != m_hActiveDetonatables.Count() )
 			{
 				// Recollect active satchels/tripmines
 				m_hActiveSatchels.RemoveAll();
 				m_hActiveTripmines.RemoveAll();
+				m_hActiveDetonatables.RemoveAll();
 
 				C_BaseEntity *pEntity = NULL;
 				C_BaseGrenade *pGrenade = NULL;
@@ -64,6 +65,12 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 						pGrenade = static_cast<C_BaseGrenade*>(pEntity);
 						if (pGrenade->GetThrower() == this && !pGrenade->IsMarkedForDeletion())
 							m_hActiveTripmines.AddToTail( pEntity );
+					}
+					else if ( FStrEq( pEntity->GetClassname(), "point_detonatable" ) )
+					{
+						C_PointDetonatable *pDetonatable = static_cast<C_PointDetonatable*>(pEntity);
+						if (pDetonatable->m_hThrower.Get() == this && !pDetonatable->m_bDisabled && !pDetonatable->IsMarkedForDeletion())
+							m_hActiveDetonatables.AddToTail( pDetonatable );
 					}
 				}
 			}
@@ -148,6 +155,7 @@ void C_EZ2_Player::UpdateSLAMGlowEffect( void )
 
 	static Vector vecSatchelColor( 1.0f, 0.2f, 0.2f );
 	static Vector vecTripmineColor( 0.5f, 0.75f, 1.0f );
+	static Vector vecDetonatableColor( 1.0f, 0.75f, 0.125f );
 
 	for (int i = 0; i < m_hActiveSatchels.Count(); i++)
 	{
@@ -160,6 +168,15 @@ void C_EZ2_Player::UpdateSLAMGlowEffect( void )
 		int iNewGlow = m_pSLAMGlowEffects.AddToTail();
 		m_pSLAMGlowEffects[iNewGlow] = new CGlowObject( m_hActiveTripmines[i], vecTripmineColor, 1.0f, true );
 	}
+
+	for (int i = 0; i < m_hActiveDetonatables.Count(); i++)
+	{
+		if (m_hActiveDetonatables[i] && m_hActiveDetonatables[i]->m_hGlowTarget)
+		{
+			int iNewGlow = m_pSLAMGlowEffects.AddToTail();
+			m_pSLAMGlowEffects[iNewGlow] = new CGlowObject( m_hActiveDetonatables[i]->m_hGlowTarget, vecDetonatableColor, 1.0f, true );
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -168,4 +185,26 @@ void C_EZ2_Player::UpdateSLAMGlowEffect( void )
 void C_EZ2_Player::DestroySLAMGlowEffect( void )
 {
 	m_pSLAMGlowEffects.PurgeAndDeleteElements();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+IMPLEMENT_CLIENTCLASS_DT( C_PointDetonatable, DT_PointDetonatable, CPointDetonatable )
+	RecvPropBool( RECVINFO( m_bDisabled ) ),
+	RecvPropEHandle( RECVINFO( m_hThrower ) ),
+	RecvPropEHandle( RECVINFO( m_hGlowTarget ) ),
+END_RECV_TABLE()
+
+BEGIN_PREDICTION_DATA( C_PointDetonatable )
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( point_detonatable, C_PointDetonatable );
+
+C_PointDetonatable::C_PointDetonatable()
+{
+}
+
+C_PointDetonatable::~C_PointDetonatable()
+{
 }

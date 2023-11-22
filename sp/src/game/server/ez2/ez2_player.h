@@ -416,6 +416,39 @@ protected:
 };
 
 //-----------------------------------------------------------------------------
+// Purpose: Mapper-controlled detonatable object
+//-----------------------------------------------------------------------------
+class CPointDetonatable : public CBaseEntity
+{
+public:
+	DECLARE_CLASS( CPointDetonatable, CBaseEntity );
+	DECLARE_DATADESC();
+	DECLARE_SERVERCLASS();
+
+	CPointDetonatable();
+	~CPointDetonatable();
+
+	void			Spawn();
+	int				UpdateTransmitState();
+	void			VerifyGlowTarget( CBaseEntity *pActivator, CBaseEntity *pCaller );
+
+	void			InputEnable( inputdata_t &inputdata );
+	void			InputDisable( inputdata_t &inputdata );
+	void			InputSetGlowTarget( inputdata_t &inputdata );
+	void			InputDetonate( inputdata_t &inputdata );
+
+	CNetworkVar( bool, m_bDisabled );
+
+	string_t		m_iszThrower;
+	CNetworkHandle( CBaseCombatCharacter, m_hThrower );
+
+	string_t		m_iszGlowTarget;
+	CNetworkHandle( CBaseEntity, m_hGlowTarget );
+
+	COutputEvent	m_OnDetonate;
+};
+
+//-----------------------------------------------------------------------------
 // Purpose: Kick data for interaction.
 // (Blixibon)
 //-----------------------------------------------------------------------------

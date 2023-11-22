@@ -4299,6 +4299,17 @@ void CHL2_Player::UpdateClientData( void )
 		}
 	}
 	m_HL2Local.m_iTripmineCount = m_hActiveTripmines.Count();
+
+	if (m_hActiveDetonatables.Count() > 0)
+	{
+		// Clean up nonexistent detonatables
+		for (int i = m_hActiveDetonatables.Count()-1; i >= 0; i--)
+		{
+			if (m_hActiveDetonatables[i] == NULL || m_hActiveDetonatables[i]->IsMarkedForDeletion())
+				m_hActiveDetonatables.Remove( i );
+		}
+	}
+	m_HL2Local.m_iDetonatableCount = m_hActiveDetonatables.Count();
 #endif
 
 	BaseClass::UpdateClientData();
@@ -4327,6 +4338,13 @@ void CHL2_Player::OnRestore()
 		pGrenade = static_cast<CBaseGrenade*>(pEntity);
 		if (pGrenade->GetThrower() == this)
 			m_hActiveTripmines.AddToTail( pEntity );
+	}
+
+	while ((pEntity = gEntList.FindEntityByClassname( pEntity, "point_detonatable" )) != NULL)
+	{
+		CPointDetonatable *pDetonatable = static_cast<CPointDetonatable*>(pEntity);
+		if (!pDetonatable->m_bDisabled && pDetonatable->m_hThrower.Get() == this)
+			m_hActiveDetonatables.AddToTail( pEntity );
 	}
 #endif
 }
@@ -4902,6 +4920,12 @@ void CHL2_Player::OnSetupTripmine( CBaseEntity *pTripmine )
 	m_hActiveTripmines.AddToTail( pTripmine );
 }
 
+void CHL2_Player::OnSetupDetonatable( CBaseEntity *pDetonatable )
+{
+	//Msg( "OnSetupDetonatable\n" );
+	m_hActiveDetonatables.AddToTail( pDetonatable );
+}
+
 void CHL2_Player::OnSatchelExploded( CBaseEntity *pSatchel, CBaseEntity *pAttacker )
 {
 	// send a message to the client, to notify the hud of the loss
@@ -4924,6 +4948,23 @@ void CHL2_Player::OnTripmineExploded( CBaseEntity *pTripmine, CBaseEntity *pAtta
 	MessageEnd();
 
 	m_hActiveTripmines.FindAndRemove( pTripmine );
+}
+
+void CHL2_Player::OnDetonatableExploded( CBaseEntity *pDetonatable, CBaseEntity *pAttacker )
+{
+	// send a message to the client, to notify the hud of the loss
+	CSingleUserRecipientFilter user( this );
+	user.MakeReliable();
+	UserMessageBegin( user, "SLAMExploded" );
+		WRITE_BOOL( pAttacker != this );
+	MessageEnd();
+
+	m_hActiveDetonatables.FindAndRemove( pDetonatable );
+}
+
+void CHL2_Player::OnDetonatableDisabled( CBaseEntity *pDetonatable )
+{
+	m_hActiveDetonatables.FindAndRemove( pDetonatable );
 }
 #endif
 

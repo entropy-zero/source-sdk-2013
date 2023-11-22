@@ -47,6 +47,7 @@ public:
 #ifdef EZ2
 	CNetworkVar( int,	m_iSatchelCount );
 	CNetworkVar( int,	m_iTripmineCount );
+	CNetworkVar( int,	m_iDetonatableCount );	// Misc. explosives that aren't satchels or tripmines, but can be tracked and detonated
 #endif
 
 	// Ladder related data
