@@ -208,6 +208,10 @@ BEGIN_DATADESC( CNPC_Manhack )
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableSprites", InputDisableSprites ),
 #endif
 
+#ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetNemesis", InputSetNemesis ),
+#endif
+
 	DEFINE_ENTITYFUNC( CrashTouch ),
 
 	DEFINE_BASENPCINTERACTABLE_DATADESC(),
@@ -2614,9 +2618,20 @@ EyeGlow_t * CNPC_Manhack::GetEyeGlowData(int index)
 		}
 		else
 		{
-			eyeGlow->red = 255;
-			eyeGlow->green = 0;
-			eyeGlow->blue = 0;
+#ifdef EZ2
+			if (m_bNemesis)
+			{
+				eyeGlow->red = 0;
+				eyeGlow->green = 255;
+				eyeGlow->blue = 255;
+			}
+			else
+#endif
+			{
+				eyeGlow->red = 255;
+				eyeGlow->green = 0;
+				eyeGlow->blue = 0;
+			}
 		}
 		eyeGlow->renderMode = kRenderTransAdd;
 		eyeGlow->scale = 0.25f;
@@ -2639,9 +2654,20 @@ EyeGlow_t * CNPC_Manhack::GetEyeGlowData(int index)
 		}
 		else
 		{
-			eyeGlow->red = 255;
-			eyeGlow->green = 0;
-			eyeGlow->blue = 0;
+#ifdef EZ2
+			if (m_bNemesis)
+			{
+				eyeGlow->red = 0;
+				eyeGlow->green = 255;
+				eyeGlow->blue = 255;
+			}
+			else
+#endif
+			{
+				eyeGlow->red = 255;
+				eyeGlow->green = 0;
+				eyeGlow->blue = 0;
+			}
 		}
 		eyeGlow->renderMode = kRenderTransAdd;
 		eyeGlow->scale = 0.25f;
