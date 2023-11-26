@@ -144,3 +144,17 @@ protected:
 		filesystem->RenameFile(pszFilenameToRotate, pszNewMetadataFilename, "MOD");
 	}
 } g_CustomSaveMetadata;
+
+
+//=============================================================================
+// Archived ConVar to set save_history_count
+//=============================================================================
+void CV_SaveHistoryCountUpdate(IConVar* var, const char* pOldValue, float flOldValue);
+ConVar	sv_save_history_count_archived("sv_save_history_count_archived", "10", FCVAR_ARCHIVE, "Archived variable which sets the engine var save_history_count.", CV_SaveHistoryCountUpdate);
+
+void CV_SaveHistoryCountUpdate(IConVar* var, const char* pOldValue, float flOldValue)
+{
+	int iNewValue = sv_save_history_count_archived.GetInt();
+	ConVarRef save_history_count("save_history_count");
+	save_history_count.SetValue(iNewValue);
+}
