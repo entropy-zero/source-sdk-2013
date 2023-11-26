@@ -8,7 +8,7 @@ The manhack weapon was originally created by the Half-Life 2: Short Stories Team
 Entropy : Zero 2 makes use of the Improved Advisor created by Alex 'Maestra Fénix' Bravo.
 https://github.com/MaestroFenix/ImprovedAdvisor
 
-To set up a mod for Entropy : Zero, run the batch script sp/src/createentropyzeroproject.bat. This will use VPC to generate your solution file, entropyzero.sln. (Visual Studio 2013 must be installed to use this project) 
+To set up a mod for Entropy : Zero or Entropy : Zero 2, run the batch script sp/src/createentropyzeroproject.bat. This will use VPC to generate two solution files, entropyzero.sln and entropyzero2.sln. Currently, Visual Studio 2022 (NOT Visual Studio 2013) must be installed to use these projects.
 
 Compiled mod binaries will be placed in game/mod_ez1/bin. To install your E:Z mod, copy mod_ez1 to your Steam/SteamApps/sourcemods directory.
 
