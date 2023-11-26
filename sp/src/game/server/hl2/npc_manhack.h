@@ -206,7 +206,7 @@ public:
 #ifdef EZ2
 	void		TurnIntoNemesis() { m_bNemesis = true; }
 
-	void		InputSetNemesis( inputdata_t &inputdata )
+	void		InputSetNemesisManhack( inputdata_t &inputdata )
 	{
 		// Turn the sprites off and on again so their colors will change.
 		KillSprites(0.0f);

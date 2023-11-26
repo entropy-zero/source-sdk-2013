@@ -209,7 +209,7 @@ BEGIN_DATADESC( CNPC_Manhack )
 #endif
 
 #ifdef EZ2
-	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetNemesis", InputSetNemesis ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetNemesisManhack", InputSetNemesisManhack ),
 #endif
 
 	DEFINE_ENTITYFUNC( CrashTouch ),
