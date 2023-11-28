@@ -14,6 +14,15 @@
 class CCustomSaveMetadata : public CAutoGameSystem
 {
 public:
+	bool Init()
+	{
+		ConVarRef save_history_count("save_history_count");
+		ConVarRef sv_save_history_count_archived("sv_save_history_count_archived");
+		Msg("Setting save_history_count to %d....\n", sv_save_history_count_archived.GetInt());
+		save_history_count.SetValue(sv_save_history_count_archived.GetInt());
+		return true;
+	}
+
 
 	void OnSave()
 	{
