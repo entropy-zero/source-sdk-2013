@@ -405,6 +405,7 @@ protected:
 	virtual void		HandleKickAttack();
 	virtual void		TraceKick( trace_t &tr, const Vector &vecAim );
 	virtual void		TraceKickAttack( CBaseEntity* pKickedEntity = NULL );
+	virtual bool		TryRagdollKickedEnemy(CBaseEntity* pKickedEntity, trace_t* tr, CTakeDamageInfo* dmgInfo, CBaseEntity* pKickingEntity);
 
 	void  HandleKickAnimation( void );
 	void  StartKickAnimation( void );

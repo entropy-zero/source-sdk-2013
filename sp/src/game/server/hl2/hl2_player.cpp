@@ -62,6 +62,7 @@
 
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "CRagdollMagnet.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -150,6 +151,7 @@ ConVar sv_infinite_sprint_power( "sv_infinite_sprint_power", "1", FCVAR_CHEAT );
 ConVar sv_infinite_flashlight_power( "sv_infinite_flashlight_power", "0", FCVAR_CHEAT );
 ConVar sv_player_death_smell( "sv_player_death_smell", "1", FCVAR_REPLICATED );
 ConVar sv_player_kick_attack_enabled( "sv_player_kick_attack_enabled", "1", FCVAR_REPLICATED );
+ConVar sv_player_kick_attack_ragdolls("sv_player_kick_attack_ragdolls", "0", FCVAR_REPLICATED);
 ConVar sv_player_stomp_tiny_hull( "sv_player_stomp_tiny_hull", "0", FCVAR_REPLICATED, "Should a kick attack be dispatched to NPCs with tiny hulls when the player stands on top of them?" );
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "1", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "0", FCVAR_REPLICATED);
@@ -4765,7 +4767,7 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 
 		// Try to dispatch an interaction
 		KickInfo_t kickInfo( &tr, &dmgInfo );
-		if ( !pKickedEntity->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
+		if ( !TryRagdollKickedEnemy(pKickedEntity, &tr, &dmgInfo, this) && !pKickedEntity->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) )
 		{
 			if (pKickedEntity->m_takedamage == DAMAGE_NO && pKickedEntity->GetParent())
 			{
@@ -4835,6 +4837,50 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 	{
 		EmitSound( "EZ2Player.KickMiss" );
 	}
+}
+
+bool CHL2_Player::TryRagdollKickedEnemy(CBaseEntity* pKickedEntity, trace_t* tr, CTakeDamageInfo* dmgInfo, CBaseEntity* pKickingEntity)
+{
+	if (!sv_player_kick_attack_ragdolls.GetBool())
+	{
+		return false;
+	}
+
+	if (pKickedEntity->MyNPCPointer() == NULL)
+	{
+		return false;
+	}
+
+	// If the victim does not have a humanoid or small hull, short circuit
+	if (pKickedEntity->MyNPCPointer()->GetHullType() >= HULL_WIDE_SHORT)
+	{
+		return false;
+	}
+
+	if (!pKickedEntity->MyNPCPointer()->CanBecomeRagdoll() || !pKickedEntity->MyNPCPointer()->CanBecomeServerRagdoll())
+	{
+		return false;
+	}
+
+	// If the victim has more than 100 HP, short circuit
+	if (GetHealth() > 100)
+	{
+		return false;
+	}
+
+	CRagdollMagnet* pMagnet = CRagdollMagnet::FindBestMagnet(pKickedEntity);
+	if (pMagnet)
+	{
+		DevMsg("Found ragdoll magnet for kicked NPC!\n");
+		// Send the damage to the recipient
+		Vector vecAim = BaseClass::GetAutoaimVector(AUTOAIM_SCALE_DEFAULT);
+		dmgInfo->SetDamage(pKickedEntity->GetHealth());
+		pKickedEntity->DispatchTraceAttack(*dmgInfo, vecAim, tr);
+		VectorNormalize(vecAim);
+		ApplyMultiDamage();
+	}
+
+	return false;
 }
 
 void CHL2_Player::StartKickAnimation( void )
