@@ -4874,10 +4874,26 @@ bool CHL2_Player::TryRagdollKickedEnemy(CBaseEntity* pKickedEntity, trace_t* tr,
 		DevMsg("Found ragdoll magnet for kicked NPC!\n");
 		// Send the damage to the recipient
 		Vector vecAim = BaseClass::GetAutoaimVector(AUTOAIM_SCALE_DEFAULT);
-		dmgInfo->SetDamage(pKickedEntity->GetHealth());
-		pKickedEntity->DispatchTraceAttack(*dmgInfo, vecAim, tr);
 		VectorNormalize(vecAim);
-		ApplyMultiDamage();
+
+		Vector magnetVector = pMagnet->GetForceVector(pKickedEntity);
+		VectorNormalize(magnetVector);
+
+		float aimMagnetDotProduct = DotProduct(vecAim, magnetVector);
+		float angleDifference = AngleNormalize(RAD2DEG(acos(aimMagnetDotProduct / (vecAim.Length() * magnetVector.Length()))));
+
+		DevMsg("Ragdoll magnet vector and aiming vector dot product: %f\n", aimMagnetDotProduct);
+		DevMsg("Ragdoll magnet vector is %f degrees off from kick angle\n" , angleDifference);
+
+		if (angleDifference < 90)
+		{
+			DevMsg("Kicked NPC will be ragdolled\n");
+			dmgInfo->SetDamage(pKickedEntity->GetHealth());
+			pKickedEntity->DispatchTraceAttack(*dmgInfo, pMagnet->GetForceVector(pKickedEntity), tr);
+
+			ApplyMultiDamage();
+			return true;
+		}
 	}
 
 	return false;
