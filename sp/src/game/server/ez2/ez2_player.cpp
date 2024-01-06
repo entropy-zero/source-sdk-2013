@@ -1533,7 +1533,7 @@ void CEZ2_Player::PostSpeakDispatchResponse( AIConcept_t concept, AI_Response *r
 		{
 			CAI_BaseActor *pActor = dynamic_cast<CAI_BaseActor*>(pTarget);
 			if (pActor)
-				pActor->AddLookTarget( this, 0.75, GetExpresser()->GetTimeSpeechComplete() + 3.0f );
+				pActor->AddLookTarget( this, 0.75, (GetExpresser()->GetTimeSpeechComplete() - gpGlobals->curtime) + 3.0f );
 		}
 
 		// Notify the speech target for a response
