@@ -58,6 +58,11 @@ public:
 	COutputEvent m_OnExplode;
 #endif
 
+#ifdef EZ2
+	virtual bool	TargetShouldDetonate(CBaseCombatCharacter* pTarget);
+#endif
+
+
 public:
 	EHANDLE		m_hOwner;
 

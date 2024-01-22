@@ -24,9 +24,10 @@
 
 extern const char* g_pModelNameLaser;
 
-ConVar    sk_plr_dmg_tripmine		( "sk_plr_dmg_tripmine","0");
-ConVar    sk_npc_dmg_tripmine		( "sk_npc_dmg_tripmine","0");
-ConVar    sk_tripmine_radius		( "sk_tripmine_radius","0");
+ConVar    sk_plr_dmg_tripmine					( "sk_plr_dmg_tripmine","0" );
+ConVar    sk_npc_dmg_tripmine					( "sk_npc_dmg_tripmine","0" );
+ConVar    sk_tripmine_radius					( "sk_tripmine_radius","0" );
+ConVar    sk_tripmine_use_owner_relations		( "sk_tripmine_use_owner_relations", "0" );
 
 LINK_ENTITY_TO_CLASS( npc_tripmine, CTripmineGrenade );
 
@@ -357,8 +358,7 @@ void CTripmineGrenade::BeamBreakThink( void  )
 	CBaseCombatCharacter *pBCC  = ToBaseCombatCharacter( pEntity );
 
 #ifdef EZ2
-	// Tripmines do not detonate when tripped by entities that treat their class as friendly or by the owner
-	if ( ( pBCC && pBCC->GetDefaultRelationshipDisposition( m_nTripmineClass ) == D_LI ) || ( GetOwnerEntity() && GetOwnerEntity() == pBCC ) )
+	if ( pBCC && !TargetShouldDetonate(pBCC) )
 	{
 		SetNextThink( gpGlobals->curtime + 0.05f );
 		return;
@@ -495,3 +495,21 @@ void CTripmineGrenade::InputDeactivate( inputdata_t &inputdata )
 }
 #endif
 
+#ifdef EZ2
+bool CTripmineGrenade::TargetShouldDetonate(CBaseCombatCharacter* pTarget)
+{
+	if ( pTarget && sk_tripmine_use_owner_relations.GetBool() && GetOwnerEntity() && GetOwnerEntity()->IsCombatCharacter() )
+	{
+		return GetOwnerEntity()->MyCombatCharacterPointer()->IRelationType(pTarget) < D_LI;
+	}
+
+	// Tripmines do not detonate when tripped by entities that treat their class as friendly or by the owner
+	if ((pTarget && pTarget->GetDefaultRelationshipDisposition(m_nTripmineClass) == D_LI) || (GetOwnerEntity() && GetOwnerEntity() == pTarget))
+	{
+		return false;
+	}
+
+
+	return true;
+}
+#endif
