@@ -152,6 +152,7 @@ ConVar sv_infinite_flashlight_power( "sv_infinite_flashlight_power", "0", FCVAR_
 ConVar sv_player_death_smell( "sv_player_death_smell", "1", FCVAR_REPLICATED );
 ConVar sv_player_kick_attack_enabled( "sv_player_kick_attack_enabled", "1", FCVAR_REPLICATED );
 ConVar sv_player_kick_attack_ragdolls("sv_player_kick_attack_ragdolls", "0", FCVAR_REPLICATED);
+ConVar sv_player_kick_attack_ragdoll_magnet_angle("sv_player_kick_attack_ragdoll_magnet_angle", "65", FCVAR_REPLICATED);
 ConVar sv_player_stomp_tiny_hull( "sv_player_stomp_tiny_hull", "0", FCVAR_REPLICATED, "Should a kick attack be dispatched to NPCs with tiny hulls when the player stands on top of them?" );
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "1", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "0", FCVAR_REPLICATED);
@@ -4839,6 +4840,7 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 	}
 }
 
+// TODO - Consider replacing this with a base class function to handle "fall damage". Maybe a unique interaction? That way grenades, dispel attacks, etc could ragdolls enemies near magnets
 bool CHL2_Player::TryRagdollKickedEnemy(CBaseEntity* pKickedEntity, trace_t* tr, CTakeDamageInfo* dmgInfo, CBaseEntity* pKickingEntity)
 {
 	if (!sv_player_kick_attack_ragdolls.GetBool())
@@ -4885,11 +4887,15 @@ bool CHL2_Player::TryRagdollKickedEnemy(CBaseEntity* pKickedEntity, trace_t* tr,
 		DevMsg("Ragdoll magnet vector and aiming vector dot product: %f\n", aimMagnetDotProduct);
 		DevMsg("Ragdoll magnet vector is %f degrees off from kick angle\n" , angleDifference);
 
-		if (angleDifference < 90)
+		// Retrace the kick vector so the kick goes towards the ragdoll magnet
+		trace_t magnetTrace;
+		UTIL_TraceLine(tr->startpos, pMagnet->GetAbsOrigin(), MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &magnetTrace);
+
+		if (angleDifference < sv_player_kick_attack_ragdoll_magnet_angle.GetInt())
 		{
 			DevMsg("Kicked NPC will be ragdolled\n");
 			dmgInfo->SetDamage(pKickedEntity->GetHealth());
-			pKickedEntity->DispatchTraceAttack(*dmgInfo, pMagnet->GetForceVector(pKickedEntity), tr);
+			pKickedEntity->DispatchTraceAttack(*dmgInfo, pMagnet->GetForceVector(pKickedEntity), &magnetTrace);
 
 			ApplyMultiDamage();
 			return true;
