@@ -2239,6 +2239,7 @@ BEGIN_DATADESC( CGrenadeHopwire )
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetTimer", InputSetTimer ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DetonateImmediately", InputDetonateImmediately),
 
 	DEFINE_THINKFUNC( DelayThink ),
 	DEFINE_THINKFUNC( SpriteOff ),
@@ -2383,11 +2384,35 @@ void CGrenadeHopwire::InputSetTimer( inputdata_t &inputdata )
 
 void CGrenadeHopwire::DelayThink()
 {
+#ifdef EZ2
+	int i_ColorRed = 255;
+	int i_ColorGreen = 255;
+	int i_ColorBlue = 255;
+	int i_ColorAlpha = 255;
+
+	switch (GetHopwireStyle())
+	{
+		case HOPWIRE_STASIS:
+			i_ColorRed = 0;
+			i_ColorGreen = 200;
+			break;
+		default:
+			i_ColorRed = 0;
+			i_ColorBlue = 0;
+			break;
+	}
+
+#endif
+
 	if( gpGlobals->curtime > m_flDetonateTime )
 	{
 		if (m_pMainGlow)
 		{
+#ifndef EZ2
 			m_pMainGlow->SetTransparency( kRenderTransAdd, 0, 255, 0, 255, kRenderFxNoDissipation );
+#else
+			m_pMainGlow->SetTransparency( kRenderTransAdd, i_ColorRed, i_ColorGreen, i_ColorBlue, i_ColorAlpha, kRenderFxNoDissipation );
+#endif
 			m_pMainGlow->SetBrightness( 255 );
 			m_pMainGlow->TurnOn();
 			SetContextThink( NULL, TICK_NEVER_THINK, g_SpriteOffContext );
@@ -2449,6 +2474,25 @@ void CGrenadeHopwire::OnRestore( void )
 //-----------------------------------------------------------------------------
 void CGrenadeHopwire::CreateEffects( void )
 {
+#ifdef EZ2
+	int i_ColorRed = 255;
+	int i_ColorGreen = 255;
+	int i_ColorBlue = 255;
+	int i_ColorAlpha = 255;
+
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		i_ColorRed = 0;
+		i_ColorGreen = 200;
+		break;
+	default:
+		i_ColorRed = 0;
+		break;
+	}
+
+#endif
+
 	// Start up the eye glow
 	m_pMainGlow = CSprite::SpriteCreate( "sprites/redglow2.vmt", GetLocalOrigin(), false );
 
@@ -2458,7 +2502,13 @@ void CGrenadeHopwire::CreateEffects( void )
 	{
 		m_pMainGlow->FollowEntity( this );
 		m_pMainGlow->SetAttachment( this, nAttachment );
+
+#ifndef EZ2
 		m_pMainGlow->SetTransparency( kRenderGlow, 0, 255, 255, 255, kRenderFxNoDissipation );
+#else
+		m_pMainGlow->SetTransparency( kRenderGlow, i_ColorRed, i_ColorGreen, i_ColorBlue, i_ColorAlpha, kRenderFxNoDissipation );
+#endif
+
 		m_pMainGlow->SetBrightness( 192 );
 		m_pMainGlow->SetScale( 0.5f );
 		m_pMainGlow->SetGlowProxySize( 4.0f );
@@ -2850,6 +2900,11 @@ CStasisVortexController *CStasisVortexController::Create( const Vector &origin, 
 	// Start the vortex working
 	pVortex->StartPull( origin, radius, strength, duration );
 
+	trace_t	tr;
+	AI_TraceLine(origin + Vector(0, 0, 1), origin - Vector(0, 0, 128), MASK_SOLID_BRUSHONLY, pVortex, COLLISION_GROUP_NONE, &tr);
+
+	UTIL_DecalTrace(&tr, "Glowbie.Puddle");
+
 	return pVortex;
 }
 
@@ -3177,7 +3232,7 @@ void CGrenadeStasis::CombatThink( void )
 
 	// Start our client-side effect
 	EntityMessageBegin( this, true );
-	WRITE_BYTE( 0 );
+	WRITE_BYTE( 3 );
 	MessageEnd();
 
 	// Begin to stop in two seconds

@@ -61,6 +61,7 @@ public:
 
 
 	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_XEN; }
+	virtual float GetGrenadeTime(void) { return 2.0f; }
 
 protected:
 	virtual void	ThrowGrenade( CBasePlayer *pPlayer );
@@ -110,6 +111,7 @@ class CWeaponStasisGrenade : public CWeaponHopwire
 public:
 
 	virtual HopwireStyle GetHopwireStyle() { return HOPWIRE_STASIS; }
+	virtual float GetGrenadeTime(void) { return 0.5f; }
 
 	DECLARE_SERVERCLASS();
 };
@@ -504,10 +506,10 @@ void CWeaponHopwire::ThrowGrenade( CBasePlayer *pPlayer )
 	switch (GetHopwireStyle())
 	{
 	case HOPWIRE_STASIS:
-		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel()));
 		break;
 	default:
-		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 600, random->RandomInt( -1200, 1200 ), 0 ), pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel() ));
 		break;
 
 	}
@@ -550,10 +552,10 @@ void CWeaponHopwire::LobGrenade( CBasePlayer *pPlayer )
 	switch (GetHopwireStyle())
 	{
 	case HOPWIRE_STASIS:
-		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel() ));
 		break;
 	default:
-		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse( 200, random->RandomInt( -600, 600 ), 0 ), pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel() ));
 		break;
 
 	}
@@ -608,10 +610,10 @@ void CWeaponHopwire::RollGrenade( CBasePlayer *pPlayer )
 	switch (GetHopwireStyle())
 	{
 	case HOPWIRE_STASIS:
-		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeStasis *> (StasisGrenade_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel() ));
 		break;
 	default:
-		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GRENADE_TIMER, GetWorldModel(), GetSecondaryWorldModel() ));
+		m_hActiveHopWire = static_cast<CGrenadeHopwire *> (HopWire_Create( vecSrc, orientation, vecThrow, rotSpeed, pPlayer, GetGrenadeTime(), GetWorldModel(), GetSecondaryWorldModel() ));
 		break;
 
 	}

@@ -86,6 +86,7 @@ public:
 	bool	CanConsumeEntity( CBaseEntity *pEnt );
 
 	void	InputDetonate( inputdata_t &inputdata ) { StartPull( GetAbsOrigin(), m_flRadius, m_flStrength, m_flEndTime ); }
+
 	void	InputFakeSpawnEntity( inputdata_t &inputdata ) { inputdata.value.Entity() ? (void)TrySpawnRecipeNPC( inputdata.value.Entity(), false ) : Warning("Warning: FakeSpawnEntity cannot spawn null entity\n"); }
 	void	InputCreateXenLife( inputdata_t &inputdata ) { CreateXenLife(); }
 
@@ -214,6 +215,13 @@ public:
 	void	CreateEffects( void );
 
 	void	InputSetTimer( inputdata_t &inputdata );
+
+#ifdef EZ
+	void	InputDetonateImmediately(inputdata_t& inputdata) { 
+				SetThink(&CGrenadeHopwire::CombatThink);
+				SetNextThink(gpGlobals->curtime);
+	}
+#endif
 
 	virtual void	EndThink( void );		// Last think before going away
 	virtual void	CombatThink( void );	// Makes the main explosion go off
