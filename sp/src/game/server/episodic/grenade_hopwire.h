@@ -16,6 +16,9 @@
 extern ConVar hopwire_trap;
 
 #ifdef EZ2
+extern ConVar hopwire_timer;
+extern ConVar stasis_timer;
+
 enum HopwireStyle {
 	HOPWIRE_XEN = 0,
 	HOPWIRE_STASIS
