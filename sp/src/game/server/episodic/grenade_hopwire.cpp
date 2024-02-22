@@ -2905,7 +2905,7 @@ CStasisVortexController *CStasisVortexController::Create( const Vector &origin, 
 	trace_t	tr;
 	AI_TraceLine(origin + Vector(0, 0, 1), origin - Vector(0, 0, 128), MASK_SOLID_BRUSHONLY, pVortex, COLLISION_GROUP_NONE, &tr);
 
-	UTIL_DecalTrace(&tr, "Glowbie.Puddle");
+	UTIL_DecalTrace(&tr, "StasisGrenade.Splash");
 
 	return pVortex;
 }

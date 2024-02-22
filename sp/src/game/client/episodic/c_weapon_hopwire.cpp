@@ -143,7 +143,15 @@ void C_HopwireExplosion::AddParticles( void )
 
 		// Base of the core effect
 #ifdef EZ2
-		sParticle = (SimpleParticle *) m_pSimpleEmitter->AddParticle( sizeof(SimpleParticle), m_iExplosionType == 1 ? m_pSimpleEmitter->GetPMaterial("effects/strider_muzzle") : m_pSimpleEmitter->GetPMaterial( "effects/XenGrenadeFlash" ), GetRenderOrigin() );
+		if (m_iExplosionType == 1)
+		{
+			sParticle = (SimpleParticle*)m_pSimpleEmitter->AddParticle(sizeof(SimpleParticle), m_pSimpleEmitter->GetPMaterial("effects/stasis_grenade_flash"), GetRenderOrigin());
+		}
+		else
+		{
+			sParticle = (SimpleParticle*)m_pSimpleEmitter->AddParticle(sizeof(SimpleParticle), m_pSimpleEmitter->GetPMaterial("effects/XenGrenadeFlash"), GetRenderOrigin());
+		}
+
 #else
 		sParticle = (SimpleParticle *) m_pSimpleEmitter->AddParticle( sizeof(SimpleParticle), m_pSimpleEmitter->GetPMaterial( "effects/strider_muzzle" ), GetRenderOrigin() );
 #endif
