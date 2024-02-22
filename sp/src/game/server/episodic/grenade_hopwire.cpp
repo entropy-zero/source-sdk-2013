@@ -2328,16 +2328,28 @@ void CGrenadeHopwire::Precache( void )
 #ifndef EZ2	
 	PrecacheModel( DENSE_BALL_MODEL );
 #else
-	PrecacheScriptSound( "WeaponXenGrenade.Explode" );
-	PrecacheScriptSound( "WeaponXenGrenade.SpawnXenPC" );
-	PrecacheScriptSound( "WeaponXenGrenade.Blip" );
-	PrecacheScriptSound( "WeaponXenGrenade.Hop" );
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		PrecacheScriptSound("WeaponStasisGrenade.Explode");
+		PrecacheScriptSound("WeaponStasisGrenade.Blip");
+		PrecacheScriptSound("WeaponStasisGrenade.Hop");
+		break;
+	default:
+		PrecacheScriptSound("WeaponXenGrenade.Explode");
+		PrecacheScriptSound("WeaponXenGrenade.SpawnXenPC");
+		PrecacheScriptSound("WeaponXenGrenade.Blip");
+		PrecacheScriptSound("WeaponXenGrenade.Hop");
 
-	PrecacheScriptSound( "WeaponXenGrenade.Schlorp_Huge" );
-	PrecacheScriptSound( "WeaponXenGrenade.Schlorp_Large" );
-	PrecacheScriptSound( "WeaponXenGrenade.Schlorp_Medium" );
-	PrecacheScriptSound( "WeaponXenGrenade.Schlorp_Small" );
-	PrecacheScriptSound( "WeaponXenGrenade.Schlorp_Tiny" );
+		PrecacheScriptSound("WeaponXenGrenade.Schlorp_Huge");
+		PrecacheScriptSound("WeaponXenGrenade.Schlorp_Large");
+		PrecacheScriptSound("WeaponXenGrenade.Schlorp_Medium");
+		PrecacheScriptSound("WeaponXenGrenade.Schlorp_Small");
+		PrecacheScriptSound("WeaponXenGrenade.Schlorp_Tiny");
+		break;
+	}
+
+
 
 	PrecacheParticleSystem( "xenpc_spawn" );
 
@@ -2457,6 +2469,19 @@ void CGrenadeHopwire::SpriteOff()
 {
 	if (m_pMainGlow)
 		m_pMainGlow->TurnOff();
+}
+
+void CGrenadeHopwire::BlipSound()
+{
+	switch (GetHopwireStyle())
+	{
+	case HOPWIRE_STASIS:
+		EmitSound("WeaponStasisGrenade.Blip");
+		break;
+	default:
+		EmitSound("WeaponXenGrenade.Blip");
+		break;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2689,10 +2714,20 @@ void CGrenadeHopwire::Detonate( void )
 		GetThrower()->DispatchInteraction( g_interactionXenGrenadeHop, this, GetThrower() );
 	}
 
-	EmitSound("WeaponXenGrenade.Explode");
-	SetModel( szWorldModelOpen );
+	switch (GetHopwireStyle())
+	{
+		case HOPWIRE_STASIS:
+			EmitSound("WeaponStasisGrenade.Explode");
+			SetModel(szWorldModelOpen);
 
-	EmitSound( "WeaponXenGrenade.Hop" );
+			EmitSound("WeaponStasisGrenade.Hop");
+			break;
+		default:
+			EmitSound("WeaponXenGrenade.Explode");
+			SetModel(szWorldModelOpen);
+
+			EmitSound("WeaponXenGrenade.Hop");
+	}
 
 	//Find out how tall the ceiling is and always try to hop halfway
 	trace_t	tr;

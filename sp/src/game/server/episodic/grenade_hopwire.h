@@ -213,7 +213,7 @@ public:
 
 	void	DelayThink();
 	void	SpriteOff();
-	void	BlipSound() { EmitSound( "WeaponXenGrenade.Blip" ); }
+	void	BlipSound();
 	void	OnRestore( void );
 	void	CreateEffects( void );
 
