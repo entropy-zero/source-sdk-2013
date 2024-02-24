@@ -2717,7 +2717,6 @@ void CGrenadeHopwire::Detonate( void )
 	switch (GetHopwireStyle())
 	{
 		case HOPWIRE_STASIS:
-			EmitSound("WeaponStasisGrenade.Explode");
 			SetModel(szWorldModelOpen);
 
 			EmitSound("WeaponStasisGrenade.Hop");
@@ -3264,6 +3263,9 @@ void CGrenadeStasis::CombatThink( void )
 	VPhysicsDestroyObject();
 	SetAbsVelocity( vec3_origin );
 	SetMoveType( MOVETYPE_NONE );
+
+	// Stasis grenades play explosion sound when the vortex is created
+	EmitSound("WeaponStasisGrenade.Explode");
 
 	m_hVortexController = CStasisVortexController::Create( GetAbsOrigin(), stasis_radius.GetFloat(), stasis_strength.GetFloat(), stasis_duration.GetFloat(), this );
 

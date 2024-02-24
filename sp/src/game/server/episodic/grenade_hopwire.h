@@ -220,9 +220,10 @@ public:
 	void	InputSetTimer( inputdata_t &inputdata );
 
 #ifdef EZ
-	void	InputDetonateImmediately(inputdata_t& inputdata) { 
+	virtual void InputDetonateImmediately(inputdata_t& inputdata) { 
 				SetThink(&CGrenadeHopwire::CombatThink);
 				SetNextThink(gpGlobals->curtime);
+				EmitSound("WeaponXenGrenade.Explode"); // Start explosion sound again in case the grenade never hopped
 	}
 #endif
 
@@ -273,6 +274,11 @@ public:
 
 	virtual void	EndThink( void );		// Last think before going away
 	virtual void	CombatThink( void );	// Makes the main explosion go off
+
+	virtual void InputDetonateImmediately(inputdata_t& inputdata) {
+		SetThink(&CGrenadeStasis::CombatThink);
+		SetNextThink(gpGlobals->curtime);
+	}
 
 };
 
