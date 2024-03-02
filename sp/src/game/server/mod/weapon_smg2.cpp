@@ -74,6 +74,8 @@ public:
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
+	void	SetActivity( Activity act, float duration );
+
 	DECLARE_ACTTABLE();
 
 protected:
@@ -96,7 +98,7 @@ END_DATADESC()
 
 acttable_t	CWeaponSMG2::m_acttable[] = 
 {
-	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_AR2,			true },
+	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_SMG1,			true },
 	{ ACT_RELOAD,					ACT_RELOAD_SMG1,				true },
 	{ ACT_IDLE,						ACT_IDLE_SMG1,					true },
 	{ ACT_IDLE_ANGRY,				ACT_IDLE_ANGRY_SMG1,			true },
@@ -144,6 +146,11 @@ acttable_t	CWeaponSMG2::m_acttable[] =
 	{ ACT_RANGE_AIM_LOW,			ACT_RANGE_AIM_SMG1_LOW,			false },
 	{ ACT_RELOAD_LOW,				ACT_RELOAD_SMG1_LOW,			false },
 	{ ACT_GESTURE_RELOAD,			ACT_GESTURE_RELOAD_SMG1,		true },
+
+#if EXPANDED_HL2_WEAPON_ACTIVITIES
+	{ ACT_ARM,						ACT_ARM_RIFLE,					false },
+	{ ACT_DISARM,					ACT_DISARM_RIFLE,				false },
+#endif
 };
 
 IMPLEMENT_ACTTABLE(CWeaponSMG2);
@@ -223,6 +230,18 @@ void CWeaponSMG2::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChar
 		BaseClass::Operator_HandleAnimEvent( pEvent, pOperator );
 		break;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponSMG2::SetActivity( Activity act, float duration )
+{
+	// Hack to compensate for SMG2 model only containing AR2 activity
+	if (act == ACT_RANGE_ATTACK_SMG1 && SelectWeightedSequence(ACT_RANGE_ATTACK_SMG1) == -1)
+		act = ACT_RANGE_ATTACK_AR2;
+
+	BaseClass::SetActivity( act, duration );
 }
 
 //-----------------------------------------------------------------------------
