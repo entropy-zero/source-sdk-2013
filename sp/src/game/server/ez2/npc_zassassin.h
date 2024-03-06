@@ -28,16 +28,14 @@ public:
 	void Precache( void );
 	Class_T	Classify( void );
 
+	void	SetupGlobalModelData( void );
+
 	bool	CreateBehaviors();
 	
 	virtual const char * GetSoundscriptClassname() { return "Gonome"; }
 	void IdleSound( void );
-	void PainSound( const CTakeDamageInfo &info );
-	void AlertSound( void );
-	void DeathSound( const CTakeDamageInfo &info );
 	void AttackSound( void );
 	void GrowlSound( void );
-	void FoundEnemySound(void);
 	void RetreatModeSound(void);
 	void BerserkModeSound(void);
 	void EatSound( void );

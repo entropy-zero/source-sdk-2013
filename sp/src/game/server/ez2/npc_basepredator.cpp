@@ -207,7 +207,7 @@ void CNPC_BasePredator::FoundEnemySound( void )
 	if (gpGlobals->curtime >= m_nextSoundTime)
 	{
 		EmitSound( UTIL_VarArgs( "%s.FoundEnemy", GetSoundscriptClassname() ) );
-		m_nextSoundTime	= gpGlobals->curtime + random->RandomInt( 1.5, 3.0 );
+		m_nextSoundTime	= gpGlobals->curtime + random->RandomFloat( 1.5, 3.0 );
 	}
 }
 
@@ -219,7 +219,7 @@ void CNPC_BasePredator::GrowlSound( void )
 	if (gpGlobals->curtime >= m_nextSoundTime)
 	{
 		EmitSound( UTIL_VarArgs( "%s.Growl", GetSoundscriptClassname() ) );
-		m_nextSoundTime	= gpGlobals->curtime + random->RandomInt( 1.5, 3.0 );
+		m_nextSoundTime	= gpGlobals->curtime + random->RandomFloat( 1.5, 3.0 );
 	}
 }
 
@@ -1125,8 +1125,9 @@ int CNPC_BasePredator::SelectSchedule( void )
 		// No longer dormant
 		m_bDormant = false;
 
-		if ( HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE ) )
+		if ( (HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE )) && gpGlobals->curtime - GetLastEnemyTime() > 5.0f )
 		{
+			// Hop if we suddenly take damage after not seeing an enemy for 5 seconds
 			return SCHED_PREDATOR_HURTHOP;
 		}
 	}
@@ -1273,8 +1274,8 @@ NPC_STATE CNPC_BasePredator::SelectIdealState( void )
 	{
 	case NPC_STATE_COMBAT:
 	{
-		// COMBAT goes to ALERT upon death of enemy
-		if ( GetEnemy() != NULL && ( HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE ) ) && IsPrey( GetEnemy() ) )
+		// m_flLastHurtTime is not assigned when attacked by a prey, so this check ensures they were last attacked by a non-prey rather than a prey
+		if ( GetEnemy() != NULL && ( HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE ) ) && IsPrey( GetEnemy() ) && gpGlobals->curtime - m_flLastHurtTime < 1.0f )
 		{
 			// if the predator has a prey enemy and something hurts it, it's going to forget about the prey for a while.
 			SetEnemy( NULL );
