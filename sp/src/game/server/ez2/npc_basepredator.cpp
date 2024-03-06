@@ -142,6 +142,8 @@ void CNPC_BasePredator::OnRestore()
 void CNPC_BasePredator::SetupGlobalModelData()
 {
 	CollisionProp()->SetSurroundingBoundsType( USE_HITBOXES );
+
+	m_nAttachForward = LookupAttachment( "forward" );
 }
 
 //-----------------------------------------------------------------------------
@@ -368,6 +370,25 @@ float CNPC_BasePredator::MaxYawSpeed( void )
 	}
 
 	return flYS;
+}
+
+//=========================================================
+//  Weapon_ShootPosition
+// 
+// This allows the predator's body/mouth to turn using the "forward" attachment as a pivot.
+// Use bits_CAP_AIM_GUN to enable.
+//=========================================================
+Vector CNPC_BasePredator::Weapon_ShootPosition( void )
+{
+	if (m_nAttachForward > -1 && !(CapabilitiesGet() & bits_CAP_WEAPON_RANGE_ATTACK1))
+	{
+		Vector vecOrigin;
+		QAngle angDir;
+		GetAttachment( m_nAttachForward, vecOrigin, angDir );
+		return vecOrigin;
+	}
+
+	return BaseClass::Weapon_ShootPosition();
 }
 
 //=========================================================

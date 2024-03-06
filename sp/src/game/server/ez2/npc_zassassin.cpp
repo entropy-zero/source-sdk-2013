@@ -320,6 +320,7 @@ void CNPC_Gonome::Spawn()
 	CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_INNATE_RANGE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK2 );
 	CapabilitiesAdd( bits_CAP_MOVE_JUMP | bits_CAP_MOVE_CLIMB );
 	CapabilitiesAdd( bits_CAP_OPEN_DOORS | bits_CAP_AUTO_DOORS | bits_CAP_DOORS_GROUP );
+	CapabilitiesAdd( bits_CAP_AIM_GUN ); // Technically aiming body; see CNPC_BasePredator::AimGun()
 	
 	m_fCanThreatDisplay	= TRUE;
 	m_flNextSpitTime = gpGlobals->curtime;

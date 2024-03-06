@@ -143,6 +143,8 @@ public:
 
 	float MaxYawSpeed ( void );
 
+	Vector	Weapon_ShootPosition( void );
+
 	virtual void BuildScheduleTestBits();
 	virtual bool OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
 
@@ -276,6 +278,8 @@ protected:
 
 private:
 	float m_nextSoundTime;
+
+	int m_nAttachForward;
 };
 
 #endif // NPC_BASEPREDATOR_H
