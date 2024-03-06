@@ -517,8 +517,13 @@ int CNPC_BasePredator::RangeAttack1Conditions( float flDot, float flDist )
 //=========================================================
 int CNPC_BasePredator::MeleeAttack1Conditions( float flDot, float flDist )
 {
-	if (GetEnemy()->m_iHealth <= GetWhipDamage() && flDist <= 85 && flDot >= 0.7)
+	CBaseEntity *pEnemy = GetEnemy();
+	if (pEnemy->m_iHealth <= GetWhipDamage() && flDist <= 85 && flDot >= 0.7)
 	{
+		float flZDiff = ( pEnemy->GetAbsOrigin().z - GetAbsOrigin().z );
+		if ( flZDiff >= GetMeleeZRange( pEnemy ) || flZDiff <= -GetMeleeZRangeBelow( pEnemy ) )
+			return COND_NONE;
+
 		return (COND_CAN_MELEE_ATTACK1);
 	}
 
@@ -535,7 +540,14 @@ int CNPC_BasePredator::MeleeAttack1Conditions( float flDot, float flDist )
 int CNPC_BasePredator::MeleeAttack2Conditions( float flDot, float flDist )
 {
 	if (flDist <= 85 && flDot >= 0.7 && !HasCondition( COND_CAN_MELEE_ATTACK1 ))		// The player & predator (bullsquid) can be as much as their bboxes 
+	{
+		CBaseEntity *pEnemy = GetEnemy();
+		float flZDiff = ( pEnemy->GetAbsOrigin().z - GetAbsOrigin().z );
+		if ( flZDiff >= GetMeleeZRange( pEnemy ) || flZDiff <= -GetMeleeZRangeBelow( pEnemy ) )
+			return COND_NONE;
+
 		return (COND_CAN_MELEE_ATTACK2);
+	}
 
 	return(COND_NONE);
 }

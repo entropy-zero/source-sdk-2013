@@ -154,6 +154,8 @@ public:
 	virtual float GetMinSpitWaitTime( void ) { return 0.0f; };
 	virtual float GetBiteDamage( void ) { return 0.0f; };
 	virtual float GetWhipDamage( void ) { return 0.0f; };
+	virtual float GetMeleeZRange( CBaseEntity *pEnemy ) { return GetHullHeight(); };
+	virtual float GetMeleeZRangeBelow( CBaseEntity *pEnemy ) { return pEnemy->IsNPC() ? pEnemy->MyNPCPointer()->GetHullHeight() * 0.75f : (pEnemy->EyePosition().z - pEnemy->GetAbsOrigin().z); };
 	virtual float GetSprintDistance( void ) { return 256.0f; };
 	virtual float GetEatInCombatPercentHealth( void ) { return 1.0f; };
 
