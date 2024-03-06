@@ -340,7 +340,7 @@ void CNPC_PitDrone::HandleAnimEvent( animevent_t *pEvent )
 			}
 
 			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
-			if ( pHurt && ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS ) )
+			if ( pHurt && ShouldApplyHitVelocityToTarget( pHurt ) )
 			{
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );

@@ -11,6 +11,7 @@
 #include "npc_bullsquid.h"
 #include "grenade_spit.h"
 #include "movevars_shared.h"
+#include "npc_BaseZombie.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -42,6 +43,8 @@ int ACT_SQUID_EXCITED;
 int ACT_SQUID_EAT;
 int ACT_SQUID_DETECT_SCENT;
 int ACT_SQUID_INSPECT_FLOOR;
+
+int AE_BULLSQUID_EAT_HEADCRAB_OFF_ZOMBIE;
 
 //---------------------------------------------------------
 // Save/Restore
@@ -304,6 +307,56 @@ int CNPC_Bullsquid::MeleeAttack1Conditions( float flDot, float flDist )
 //=========================================================
 void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 {
+	if (pEvent->type & AE_TYPE_NEWEVENTSYSTEM)
+	{
+		if (pEvent->event == AE_BULLSQUID_EAT_HEADCRAB_OFF_ZOMBIE)
+		{
+			// Remove the headcrab from the zombie interaction partner
+			CNPC_BaseZombie *pInteractionPartner = dynamic_cast<CNPC_BaseZombie*>( GetInteractionPartner() );
+			if ( pInteractionPartner )
+			{	
+				// Get head location
+				Vector vecHeadcrabOrigin;
+				QAngle angHeadcrabAngles;
+				int iCrabAttachment = pInteractionPartner->LookupAttachment( "headcrab" );
+				if (iCrabAttachment > 0)
+					pInteractionPartner->GetAttachment( iCrabAttachment, vecHeadcrabOrigin, angHeadcrabAngles );
+				else
+					pInteractionPartner->HeadTarget( vecHeadcrabOrigin );
+
+				// Show blood at head location
+				if (UTIL_ShouldShowBlood( BLOOD_COLOR_YELLOW ))
+				{
+					UTIL_BloodImpact( vecHeadcrabOrigin, Vector( 0, 0, 1 ), BLOOD_COLOR_YELLOW, 1 );
+
+					for (int i = 0; i < 3; i++)
+					{
+						Vector vecSpot = vecHeadcrabOrigin;
+
+						vecSpot.x += random->RandomFloat( -8, 8 );
+						vecSpot.y += random->RandomFloat( -8, 8 );
+						vecSpot.z += random->RandomFloat( -8, 8 );
+
+						UTIL_BloodDrips( vecSpot, vec3_origin, BLOOD_COLOR_YELLOW, 50 );
+					}
+				}
+
+				// Remove the head
+				pInteractionPartner->RemoveHead();
+
+				// Now kill the zombie itself
+				CTakeDamageInfo info = CTakeDamageInfo( this, this, pInteractionPartner->GetMaxHealth(), DMG_PREVENT_PHYSICS_FORCE );
+				pInteractionPartner->TakeDamage( info );
+
+				OnFed();
+				//m_bFiredEatEvent = true;
+			}
+		}
+		else
+			BaseClass::HandleAnimEvent( pEvent );
+		return;
+	}
+
 	switch( pEvent->event )
 	{
 		case PREDATOR_AE_SPIT:
@@ -460,7 +513,7 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 				if ( pHurt->GetFlags() & ( FL_NPC | FL_CLIENT ) )
 					 pHurt->ViewPunch( QAngle( 20, 0, -20 ) );
 			
-				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
+				if ( ShouldApplyHitVelocityToTarget( pHurt ) )
 				{
 					Vector right, up;
 					AngleVectors( GetAbsAngles(), NULL, &right, &up );
@@ -559,11 +612,23 @@ CBaseEntity * CNPC_Bullsquid::BiteAttack( float flDist, const Vector & mins, con
 			m_flHungryTime = gpGlobals->curtime + 10.0f; // Headcrabs only satiate the squid for 10 seconds
 		}
 		// I don't want that!
-		else if( pVictim || pHurt->GetMoveType() == MOVETYPE_FLY )
+		else if( ShouldApplyHitVelocityToTarget( pHurt ) || pHurt->GetMoveType() == MOVETYPE_FLY )
 		{
 			Vector forward, up;
 			AngleVectors( GetAbsAngles(), &forward, NULL, &up );
-			pHurt->ApplyAbsVelocityImpulse( 100 * (up-forward) * GetModelScale() * ( m_bIsBaby ? 0.5f : 1.0f ) );
+
+			Vector vecImpulse = 100 * (up - forward);
+			if (pHurt->IsNPC())
+			{
+				Vector vecInteractionDir;
+				if ( GetNearestInteractionDir( pHurt->MyNPCPointer(), vecInteractionDir ) )
+				{
+					// Push the target in the direction of the interaction
+					vecImpulse = vecInteractionDir + (100 * up);
+				}
+			}
+
+			pHurt->ApplyAbsVelocityImpulse( vecImpulse * GetModelScale() * ( m_bIsBaby ? 0.5f : 1.0f ) );
 			pHurt->SetGroundEntity( NULL );
 		}
 	}
@@ -757,7 +822,7 @@ int CNPC_Bullsquid::OnTakeDamage_Alive( const CTakeDamageInfo &inputInfo )
 	}
 #endif
 
-	if( IsSameSpecies( inputInfo.GetAttacker() ) )
+	if( IsSameSpecies( inputInfo.GetAttacker() ) && inputInfo.GetAttacker() != this )
 	{
 		// Infant squids shouldn't take damage from adults
 		// There were too many accidents in testing
@@ -1144,6 +1209,8 @@ AI_BEGIN_CUSTOM_NPC( npc_bullsquid, CNPC_Bullsquid )
 	DECLARE_ACTIVITY( ACT_SQUID_EXCITED )
 	DECLARE_ACTIVITY( ACT_SQUID_DETECT_SCENT )
 	DECLARE_ACTIVITY( ACT_SQUID_INSPECT_FLOOR )
+
+	DECLARE_ANIMEVENT( AE_BULLSQUID_EAT_HEADCRAB_OFF_ZOMBIE )
 
 	DECLARE_INTERACTION( g_interactionBullsquidThrow )
 	DECLARE_INTERACTION( g_interactionBullsquidMonch )

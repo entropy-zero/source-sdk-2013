@@ -624,6 +624,21 @@ void CNPC_Gonome::OnChangeActivity( Activity eNewActivity )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Gonome::OnStateChange( NPC_STATE OldState, NPC_STATE NewState )
+{
+	BaseClass::OnStateChange( OldState, NewState );
+
+	if ( NewState == NPC_STATE_SCRIPT )
+	{
+		// Cancel range attack when entering a script
+		if (IsPlayingGesture( ACT_GESTURE_RANGE_ATTACK1 ))
+			RemoveGesture( ACT_GESTURE_RANGE_ATTACK1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: turn in the direction of movement
 // Output :
 //-----------------------------------------------------------------------------
@@ -1018,11 +1033,25 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 			}
 
 			// Apply a velocity to hit entity if it is a character or if it has a physics movetype
-			if ( pHurt && ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS ) )
+			if ( pHurt && ShouldApplyHitVelocityToTarget( pHurt ) )
 			{
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
+
+				if (pHurt->IsNPC())
+				{
+					Vector vecInteractionDir;
+					if ( GetNearestInteractionDir( pHurt->MyNPCPointer(), vecInteractionDir ) )
+					{
+						// Push the target in the direction of the interaction
+						pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + vecInteractionDir );
+					}
+					else
+						pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
+				}
+				else
+					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
+
 				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
 				pHurt->SetGroundEntity( NULL );
 			}

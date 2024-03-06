@@ -57,6 +57,7 @@ public:
 	bool ShouldIgnite( const CTakeDamageInfo &info );
 
 	void OnChangeActivity( Activity eNewActivity );
+	void OnStateChange( NPC_STATE OldState, NPC_STATE NewState );
 
 	bool OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval );
 	float MaxYawSpeed( void );		// Get max yaw speed
