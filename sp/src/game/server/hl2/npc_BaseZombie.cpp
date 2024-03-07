@@ -900,7 +900,6 @@ HeadcrabRelease_t CNPC_BaseZombie::ShouldReleaseHeadcrab( const CTakeDamageInfo 
 	{
 		// Xenbies never release headcrabs. Headcrabs in the original Half-Life were
 		// permanently attached to their zombies. 
-		// Additionally, our assets do not support separating headcrabs.
 		// 1upD
 		return RELEASE_NO;
 	}
@@ -2744,14 +2743,6 @@ bool CNPC_BaseZombie::HeadcrabFits( CBaseAnimating *pCrab )
 //-----------------------------------------------------------------------------
 void CNPC_BaseZombie::ReleaseHeadcrab( const Vector &vecOrigin, const Vector &vecVelocity, bool fRemoveHead, bool fRagdollBody, bool fRagdollCrab )
 {
-#ifdef EZ
-	// Since Xenbies don't drop headcrabs, we need to make sure nothing happens here for when dynamic interactions cause a headcrab to drop.
-	if ( m_tEzVariant == EZ_VARIANT_XEN )
-	{
-		return;
-	}
-#endif
-
 	CAI_BaseNPC		*pCrab;
 	Vector vecSpot = vecOrigin;
 
