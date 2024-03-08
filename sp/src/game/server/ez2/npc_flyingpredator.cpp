@@ -12,6 +12,12 @@
 #include "npc_flyingpredator.h"
 #include "particle_parse.h"
 #include "ai_interactions.h"
+#include "ai_route.h"
+#include "ai_moveprobe.h"
+#include "ai_hint.h"
+#include "ai_link.h"
+#include "ai_network.h"
+#include "hl2_shareddefs.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -25,6 +31,9 @@ ConVar sk_flyingpredator_radius_explode( "sk_flyingpredator_radius_explode", "12
 ConVar sk_flyingpredator_gestation( "sk_flyingpredator_gestation", "15.0" );
 ConVar sk_flyingpredator_spawn_time( "sk_flyingpredator_spawn_time", "5.0" );
 ConVar sk_flyingpredator_eatincombat_percent( "sk_flyingpredator_eatincombat_percent", "1.0", FCVAR_NONE, "Below what percentage of health should stukabats eat during combat?" );
+ConVar sk_flyingpredator_flyspeed( "sk_flyingpredator_flyspeed", "300.0" );
+
+ConVar npc_flyingpredator_force_allow_fly( "npc_flyingpredator_force_allow_fly", "0", FCVAR_NONE, "Allows all flying predators to use air navigation regardless of what their keyvalue is set to. Useful for testing with stukabats that haven't been given the keyvalue yet" );
 
 LINK_ENTITY_TO_CLASS( npc_flyingpredator, CNPC_FlyingPredator );
 LINK_ENTITY_TO_CLASS( npc_stukabat, CNPC_FlyingPredator );
@@ -51,7 +60,14 @@ enum
 	SCHED_FLY_DIVE_BOMB,
 	SCHED_LAND,
 	SCHED_FALL,
-	SCHED_START_FLYING
+	SCHED_START_FLYING,
+	SCHED_FLY,
+	SCHED_TAKEOFF_IMMEDIATE,
+	SCHED_APPROACH_ENEMY,
+	SCHED_CIRCLE_ENEMY,
+	SCHED_FACE_AND_DIVE_BOMB,
+	SCHED_FLY_TO_EAT,
+	SCHED_TAKEOFF_AND_FLY_TO_EAT,
 };
 
 //-----------------------------------------------------------------------------
@@ -62,7 +78,9 @@ enum
 	COND_FORCED_FLY	= NEXT_CONDITION + 1,
 	COND_CAN_LAND,
 	COND_FORCED_FALL,
-	COND_CEILING_NEAR
+	COND_CEILING_NEAR,
+	COND_CAN_FLY,
+	COND_FLY_STUCK,
 };
 
 //---------------------------------------------------------
@@ -71,6 +89,74 @@ enum
 int ACT_FALL;
 int ACT_IDLE_CEILING;
 int ACT_LAND_CEILING;
+int ACT_DIVEBOMB_START;
+
+//---------------------------------------------------------
+// Animation Events
+//---------------------------------------------------------
+int AE_FLYING_PREDATOR_FLAP_WINGS;
+int AE_FLYING_PREDATOR_BEGIN_DIVEBOMB;
+
+ConVar ai_debug_stukabat( "ai_debug_stukabat", "0" );
+
+//---------------------------------------------------------
+// Node filter to check for available air nodes
+//---------------------------------------------------------
+class CFlyingPredatorAirNodeFilter : public INearestNodeFilter
+{
+public:
+	CFlyingPredatorAirNodeFilter( CNPC_FlyingPredator *pPredator ) { m_pPredator = pPredator; }
+
+	bool IsValid( CAI_Node *pNode )
+	{
+		// Must be an air node
+		if ( pNode->GetType() != NODE_AIR )
+			return false;
+
+		if (ai_debug_stukabat.GetBool())
+		{
+			float flDist = (pNode->GetOrigin() - m_pPredator->GetAbsOrigin()).LengthSqr();
+			if (flDist >= Square( MAX_AIR_NODE_LINK_DIST ))
+				NDebugOverlay::Line( pNode->GetOrigin(), m_pPredator->GetAbsOrigin(), 255, 0, 0, true, 3.0f );
+			else
+				NDebugOverlay::Line( pNode->GetOrigin(), m_pPredator->GetAbsOrigin(), 0, 255, 0, true, 3.0f );
+		}
+
+		// Must be close enough
+		if ( (pNode->GetOrigin() - m_pPredator->GetAbsOrigin()).LengthSqr() >= Square(MAX_AIR_NODE_LINK_DIST) )
+			return false;
+
+		int nStaleLinks = 0;
+		int hull = m_pPredator->GetHullType();
+		for ( int i = 0; i < pNode->NumLinks(); i++ )
+		{
+			CAI_Link *pLink = pNode->GetLinkByIndex( i );
+			if ( pLink->m_LinkInfo & ( bits_LINK_STALE_SUGGESTED | bits_LINK_OFF ) )
+			{
+				nStaleLinks++;
+			}
+			else if ( ( pLink->m_iAcceptedMoveTypes[hull] & bits_CAP_MOVE_FLY ) == 0 )
+			{
+				nStaleLinks++;
+			}
+		}
+
+		if ( nStaleLinks && nStaleLinks == pNode->NumLinks() )
+			return false;
+
+		m_bFoundValidNode = true;
+		return true;
+	}
+
+	bool ShouldContinue()
+	{
+		return !m_bFoundValidNode;
+	}
+
+private:
+	CNPC_FlyingPredator *m_pPredator;
+	bool m_bFoundValidNode;
+};
 
 //---------------------------------------------------------
 // Save/Restore
@@ -81,6 +167,14 @@ BEGIN_DATADESC( CNPC_FlyingPredator )
 
 	DEFINE_FIELD( m_vecDiveBombDirection, FIELD_VECTOR ),
 	DEFINE_FIELD( m_flDiveBombRollForce, FIELD_FLOAT ),
+
+	DEFINE_KEYFIELD( m_bCanUseFlyNav, FIELD_BOOLEAN, "CanUseFlyNav" ),
+
+	DEFINE_FIELD( m_bReachedMoveGoal, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_vLastStoredOrigin, FIELD_POSITION_VECTOR ),
+	DEFINE_FIELD( m_flLastStuckCheck, FIELD_TIME ),
+	DEFINE_FIELD( m_vDesiredTarget, FIELD_VECTOR ),
+	DEFINE_FIELD( m_vCurrentTarget, FIELD_VECTOR ),
 
 	DEFINE_INPUTFUNC( FIELD_STRING, "ForceFlying", InputForceFlying ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "Fly", InputFly ),
@@ -98,8 +192,6 @@ void CNPC_FlyingPredator::Spawn()
 
 	if (m_bIsBaby)
 	{
-		// TODO - Need a unique model for stukapups
-		SetModelScale( 0.5 );
 		SetHullType( HULL_TINY );
 	}
 	else
@@ -127,15 +219,15 @@ void CNPC_FlyingPredator::Spawn()
 
 	m_iMaxHealth		= m_bIsBaby ? sk_flyingpredator_health.GetFloat() / 4 : sk_flyingpredator_health.GetFloat();
 	m_iHealth			= m_iMaxHealth;
-	m_flFieldOfView		= 0.75;	// indicates the width of this monster's forward view cone ( as a dotproduct result )
+	m_flFieldOfView		= -0.2f;	// indicates the width of this monster's forward view cone ( as a dotproduct result )
 								// Stukabats have a wider FOV because in testing they tended to have too much tunnel vision.
 								// It makes sense since they have six eyes, three on either side - they have a very wide view
 	m_NPCState			= NPC_STATE_NONE;
 
 	CapabilitiesClear();
-	// For the purposes of melee attack conditions triggering attacks, we are treating the flying predator as though it has two melee attacks like the bullsquid.
-	// In reality, the melee attack schedules will be translated to SCHED_RANGE_ATTACK_1.
-	CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_INNATE_RANGE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK2 | bits_CAP_SQUAD | bits_CAP_MOVE_JUMP );
+	// UNDONE: Previously, stukabats used melee attack schedules to translate to the range attack.
+	// With the stukabat rewrite, this is no longer necessary, and instead causes stukabats to get stuck in a divebomb loop when too close to the player.
+	CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_INNATE_RANGE_ATTACK1 /*| bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_MELEE_ATTACK2*/ | bits_CAP_SQUAD | bits_CAP_MOVE_JUMP );
 
 	// Baby stukas are docile
 	if (m_bIsBaby)
@@ -154,6 +246,9 @@ void CNPC_FlyingPredator::Spawn()
 
 	// Reset flying state
 	SetFlyingState( m_tFlyState );
+
+	m_vLastStoredOrigin = vec3_origin;
+	m_flLastStuckCheck = gpGlobals->curtime;
 }
 
 //=========================================================
@@ -164,7 +259,7 @@ void CNPC_FlyingPredator::Precache()
 
 	if ( GetModelName() == NULL_STRING )
 	{
-		SetModelName( AllocPooledString( "models/stukabat.mdl" ) );
+		SetModelName( AllocPooledString( m_bIsBaby ? "models/stukapup.mdl" : "models/stukabat.mdl" ) );
 	}
 
 	PrecacheModel( STRING( GetModelName() ) );
@@ -192,6 +287,7 @@ void CNPC_FlyingPredator::Precache()
 	PrecacheScriptSound( "NPC_FlyingPredator.Bite" );
 	PrecacheScriptSound( "NPC_FlyingPredator.Eat" );
 	PrecacheScriptSound( "NPC_FlyingPredator.Explode" );
+	PrecacheScriptSound( "NPC_FlyingPredator.Flap" );
 	BaseClass::Precache();
 }
 
@@ -201,9 +297,29 @@ void CNPC_FlyingPredator::Precache()
 //=========================================================
 int CNPC_FlyingPredator::RangeAttack1Conditions( float flDot, float flDist )
 {
-	if ( flDist <= m_flDistTooFar && flDot >= 0.5 && gpGlobals->curtime >= m_flNextSpitTime)
+	if ( flDist <= InnateRange1MaxRange() && gpGlobals->curtime >= m_flNextSpitTime)
 	{
-		m_flNextSpitTime = gpGlobals->curtime + GetMinSpitWaitTime();
+		if ( CapableOfFlyNav() )
+		{
+			if (flDist <= InnateRange1MinRange())
+				return COND_TOO_CLOSE_TO_ATTACK;
+
+			// Trace hull to enemy
+			if (GetEnemy())
+			{
+				trace_t tr;
+				AI_TraceHull( GetAbsOrigin(), GetEnemyLKP(), GetHullMins(), GetHullMaxs(), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr);
+
+				if (tr.fraction != 1.0f && tr.m_pEnt != GetEnemy())
+					return COND_WEAPON_SIGHT_OCCLUDED;
+			}
+		}
+		else
+		{
+			if (flDot < 0.5)
+				return COND_NOT_FACING_ATTACK;
+		}
+
 		return( COND_CAN_RANGE_ATTACK1 );
 	}
 
@@ -265,9 +381,15 @@ void CNPC_FlyingPredator::GatherConditions( void )
 			SetCondition( COND_CAN_LAND );
 		}
 		break;
+	case FlyState_Walking:
+		if ( CanUseFlyNav() )
+		{
+			SetCondition( COND_CAN_FLY );
+		}
+		break;
 	}
 
-	if ( CeilingNear() )
+	if ( m_NPCState != NPC_STATE_COMBAT && CeilingNear() )
 	{
 		DevMsg( "%s - Ceiling is near, setting COND_CEILING_NEAR\n", GetDebugName() );
 		SetCondition( COND_CEILING_NEAR );
@@ -301,7 +423,8 @@ Activity CNPC_FlyingPredator::NPC_TranslateActivity( Activity eNewActivity )
 	switch (m_tFlyState)
 	{
 	case FlyState_Dive:
-		return ACT_RANGE_ATTACK2;
+		if (eNewActivity != (Activity)ACT_DIVEBOMB_START)
+			return ACT_RANGE_ATTACK2;
 	case FlyState_Flying:
 		if ( eNewActivity == ACT_WALK || eNewActivity == ACT_RUN )
 			return ACT_FLY;
@@ -383,10 +506,28 @@ int CNPC_FlyingPredator::TranslateSchedule( int scheduleType )
 		{
 			return SCHED_TAKEOFF_CEILING;
 		}
+		else if ( !HasCondition( COND_CAN_RANGE_ATTACK1 ) && CanUseFlyNav() )
+		{
+			return SCHED_TAKEOFF_IMMEDIATE;
+		}
 		break;
 	case SCHED_PREDATOR_RUN_EAT:
 	case SCHED_PRED_SNIFF_AND_EAT:
 	case SCHED_PREDATOR_EAT:
+		{
+			if (CanUseFlyNav())
+			{
+				// Prefer to fly to eat, it's faster and safer
+				if (m_tFlyState == FlyState_Flying)
+					return SCHED_FLY_TO_EAT;
+				else if (m_tFlyState == FlyState_Walking)
+				{
+					CSound *pScent = GetBestScent();
+					if (pScent && (pScent->GetSoundOrigin()).LengthSqr() > 128.0f)
+						return SCHED_TAKEOFF_AND_FLY_TO_EAT;
+				}
+			}
+		} // Fall through
 	case SCHED_PREDATOR_WALLOW:
 		if ( m_tFlyState == FlyState_Ceiling || m_tFlyState == FlyState_Flying )
 		{
@@ -394,16 +535,45 @@ int CNPC_FlyingPredator::TranslateSchedule( int scheduleType )
 		}
 		break;
 	case SCHED_PREDATOR_WANDER:
-		if ( m_tFlyState == FlyState_Flying)
+		if ( m_tFlyState == FlyState_Flying && !CanUseFlyNav() )
 		{
 			return SCHED_FALL;
 		}
+	case SCHED_PREDATOR_HURTHOP:
+		{
+			// Immediately take off or fly away
+			if (m_tFlyState != FlyState_Flying)
+				return SCHED_TAKEOFF;
+			else
+				return SCHED_RUN_RANDOM;
+		}
+		break;
 	case SCHED_CHASE_ENEMY:
 	case SCHED_CHASE_ENEMY_FAILED:
 	case SCHED_STANDOFF:
 		if ( m_tFlyState == FlyState_Ceiling )
 		{
 			return SCHED_IDLE_STAND;
+		}
+		else if ( m_tFlyState == FlyState_Flying )
+		{
+			if ( HasCondition( COND_CAN_RANGE_ATTACK1 ) && HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) )
+			{
+				return SCHED_FACE_AND_DIVE_BOMB;
+			}
+			else
+			{
+				// Didn't find a valid attack position
+				//if (IsCurSchedule( SCHED_APPROACH_ENEMY, false ) || IsCurSchedule( SCHED_CIRCLE_ENEMY, false ))
+				//	return SCHED_TAKE_COVER_FROM_ENEMY;
+
+				// Find a direct node if we can attack
+				if (HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) && !IsCurSchedule( SCHED_APPROACH_ENEMY, false ))
+					return SCHED_APPROACH_ENEMY;
+
+				// Circle the enemy and find a spot to divebomb
+				return SCHED_CIRCLE_ENEMY;
+			}
 		}
 	}
 
@@ -423,7 +593,7 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 		return SCHED_TAKEOFF;
 	}
 
-	if (HasCondition( COND_CAN_LAND ))
+	if (HasCondition( COND_CAN_LAND ) || HasCondition( COND_FLY_STUCK ))
 	{
 		return SCHED_LAND;
 	}
@@ -464,6 +634,13 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 
 			return SCHED_PREDATOR_GROW;
 		}
+		
+		if ( HasCondition( COND_CAN_FLY ) )
+		{
+			// Always try to fly when in combat
+			if ( GetEnemy() )
+				return SCHED_TAKEOFF;
+		}
 
 		break;
 
@@ -474,11 +651,82 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 			return SCHED_START_FLYING;
 		}
 
+		if ( CanUseFlyNav() && HasCondition( COND_HEAVY_DAMAGE ) )
+		{
+			m_flPlaybackRate = 1.25f;
+			return SCHED_TAKE_COVER_FROM_ENEMY;
+		}
+
 		break;
 
 	}
 
 	return BaseClass::SelectSchedule();
+}
+
+//=========================================================
+// GetSchedule 
+//=========================================================
+int CNPC_FlyingPredator::SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode )
+{
+	if (m_tFlyState == FlyState_Flying)
+	{
+		// Abort flight if we failed
+		SetFlyingState( FlyState_Falling );
+	}
+	else if (taskFailCode == FAIL_NO_ROUTE && m_tFlyState == FlyState_Walking && CanUseFlyNav())
+	{
+		// Try flying, that's a good trick
+		SetFlyingState( FlyState_Flying );
+	}
+
+	return BaseClass::SelectFailSchedule( failedSchedule, failedTask, taskFailCode );
+}
+
+//=========================================================
+// GetSchedule 
+//=========================================================
+void CNPC_FlyingPredator::BuildScheduleTestBits()
+{
+	BaseClass::BuildScheduleTestBits();
+
+	if ( IsFlying() )
+	{
+		SetCustomInterruptCondition( COND_FLY_STUCK );
+
+		if ( HasCondition( COND_CAN_RANGE_ATTACK1 ) && HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) )
+		{
+			if (IsCurSchedule( SCHED_APPROACH_ENEMY, false ) || IsCurSchedule( SCHED_CIRCLE_ENEMY, false ))
+			{
+				SetCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
+			}
+		}
+	}
+	else if ( CapableOfFlyNav() && m_tFlyState == FlyState_Walking )
+	{
+		// Interrupt when we can fly
+		if ( IsCurSchedule( SCHED_CHASE_ENEMY, false ) )
+			SetCustomInterruptCondition( COND_CAN_FLY );
+	}
+}
+
+//=========================================================
+// GetSchedule 
+//=========================================================
+void CNPC_FlyingPredator::OnStartScene()
+{
+	BaseClass::OnStartScene();
+
+	if ( IsFlying() )
+	{
+		// HACKHACK: Slam velocity and pitch/roll to 0
+		SetAbsVelocity( vec3_origin );
+
+		QAngle angles = GetLocalAngles();
+		angles.x = 0.0f;
+		angles.z = 0.0f;
+		SetLocalAngles( angles );
+	}
 }
 
 //=========================================================
@@ -516,32 +764,15 @@ void CNPC_FlyingPredator::StartTask( const Task_t *pTask )
 		break;
 	case TASK_FLY_DIVE_BOMB:
 	{
-		// Pick a direction to divebomb.
-		if (GetEnemy() != NULL)
+		if ( !HaveSequenceForActivity( (Activity)ACT_DIVEBOMB_START ) )
 		{
-			// Fly towards my enemy
-			Vector vEnemyPos = GetEnemyLKP();
-			m_vecDiveBombDirection = vEnemyPos - GetLocalOrigin();
+			DiveBombAttack();
+			SetIdealActivity( ACT_RANGE_ATTACK2 );
 		}
 		else
 		{
-			// Pick a random forward and down direction.
-			Vector forward;
-			GetVectors( &forward, NULL, NULL );
-			m_vecDiveBombDirection = forward + Vector( random->RandomFloat( -10, 10 ), random->RandomFloat( -10, 10 ), random->RandomFloat( -20, -10 ) );
+			SetIdealActivity( (Activity)ACT_DIVEBOMB_START );
 		}
-		VectorNormalize( m_vecDiveBombDirection );
-
-		// Calculate a roll force.
-		m_flDiveBombRollForce = random->RandomFloat( 20.0, 420.0 );
-		if (random->RandomInt( 0, 1 ))
-		{
-			m_flDiveBombRollForce *= -1;
-		}
-
-		SetFlyingState( FlyState_Dive );
-		AttackSound();
-		SetIdealActivity( ACT_RANGE_ATTACK2 );
 		break;
 	}
 	case TASK_LAND:
@@ -599,7 +830,33 @@ void CNPC_FlyingPredator::RunTask ( const Task_t *pTask )
 	switch ( pTask->iTask )
 	{
 	case TASK_FLY_DIVE_BOMB:
-		if ( m_tFlyState != FlyState_Dive )
+		if ( GetIdealActivity() == (Activity)ACT_DIVEBOMB_START )
+		{
+			if (GetEnemy())
+			{
+				// Face where we'll be dive bombing
+				Vector vecEnemyLKP = GetEnemyLKP();
+				if (!FInAimCone( vecEnemyLKP ))
+				{
+					GetMotor()->SetIdealYawToTarget( vecEnemyLKP );
+					GetMotor()->SetIdealYaw( CalcReasonableFacing( true ) ); // CalcReasonableFacing() is based on previously set ideal yaw
+				}
+				else
+				{
+					float flReasonableFacing = CalcReasonableFacing( true );
+					if ( fabsf( flReasonableFacing - GetMotor()->GetIdealYaw() ) >= 1 )
+					{
+						GetMotor()->SetIdealYaw( flReasonableFacing );
+					}
+				}
+
+				GetMotor()->UpdateYaw();
+			}
+
+			if ( IsActivityFinished() )
+				SetIdealActivity( ACT_RANGE_ATTACK2 );
+		}
+		else if ( m_tFlyState != FlyState_Dive )
 		{
 			TaskComplete();
 		}
@@ -637,6 +894,28 @@ void CNPC_FlyingPredator::OnFed()
 	{
 		m_bReadyToSpawn = true;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CNPC_FlyingPredator::ShouldGib( const CTakeDamageInfo &info )
+{
+	// If the damage type is "always gib", we better gib!
+	if ( info.GetDamageType() & DMG_ALWAYSGIB )
+		return true;
+
+	// Stukapups always gib
+	if ( m_bIsBaby )
+		return true;
+
+	// Stukabats gib for any non-crush, non-blast damage greater than 15 (TODO: cvar?)
+	if ( info.GetDamage() > 15.0f || (info.GetDamageType() & (DMG_CRUSH | DMG_BLAST) ) )
+		return true;
+
+	return IsBoss() || BaseClass::ShouldGib( info );
 }
 
 //-----------------------------------------------------------------------------
@@ -685,6 +964,7 @@ bool CNPC_FlyingPredator::SpawnNPC( const Vector position, bool isBaby )
 		pChild->m_tEzVariant = this->m_tEzVariant;
 		pChild->m_tWanderState = this->m_tWanderState;
 		pChild->m_bSpawningEnabled = this->m_bSpawningEnabled;
+		pChild->m_bCanUseFlyNav = this->m_bCanUseFlyNav;
 		pChild->SetModelName( this->GetModelName() );
 		pChild->m_nSkin = this->m_nSkin;
 		pChild->Precache();
@@ -755,6 +1035,26 @@ bool CNPC_FlyingPredator::QueryHearSound( CSound *pSound )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_FlyingPredator::ModifyOrAppendCriteria( AI_CriteriaSet& set )
+{
+	BaseClass::ModifyOrAppendCriteria( set );
+
+	set.AppendCriteria( "flystate", CNumStr( m_tFlyState ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_FlyingPredator::ModifyOrAppendCriteriaForPlayer( CBasePlayer *pPlayer, AI_CriteriaSet &set )
+{
+	BaseClass::ModifyOrAppendCriteriaForPlayer( pPlayer, set );
+
+	set.AppendCriteria( "flystate", CNumStr( m_tFlyState ) );
+}
+
+//-----------------------------------------------------------------------------
 // Purpose:  This is a generic function (to be implemented by sub-classes) to
 //			 handle specific interactions between different types of characters
 //			 (For example the barnacle grabbing an NPC)
@@ -806,11 +1106,71 @@ bool CNPC_FlyingPredator::HandleInteraction( int interactionType, void *data, CB
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }
 
+//=========================================================
+// HandleAnimEvent - catches the monster-specific messages
+// that occur when tagged animation frames are played.
+//=========================================================
+void CNPC_FlyingPredator::HandleAnimEvent( animevent_t *pEvent )
+{
+	if (pEvent->type & AE_TYPE_NEWEVENTSYSTEM)
+	{
+		if (pEvent->event == AE_FLYING_PREDATOR_FLAP_WINGS)
+		{
+			EmitSound( "NPC_FlyingPredator.Flap" );
+		}
+		else if (pEvent->event == AE_FLYING_PREDATOR_BEGIN_DIVEBOMB)
+		{
+			DiveBombAttack();
+		}
+		else
+			BaseClass::HandleAnimEvent( pEvent );
+		return;
+	}
+
+	BaseClass::HandleAnimEvent( pEvent );
+}
+
+//=========================================================
+// Dive bomb function
+//=========================================================
+void CNPC_FlyingPredator::DiveBombAttack()
+{
+	// Pick a direction to divebomb.
+	if (GetEnemy() != NULL)
+	{
+		// Fly towards my enemy
+		Vector vEnemyPos = GetEnemyLKP();
+		m_vecDiveBombDirection = vEnemyPos - GetLocalOrigin();
+	}
+	else
+	{
+		// Pick a random forward and down direction.
+		Vector forward;
+		GetVectors( &forward, NULL, NULL );
+		m_vecDiveBombDirection = forward + Vector( random->RandomFloat( -10, 10 ), random->RandomFloat( -10, 10 ), random->RandomFloat( -20, -10 ) );
+	}
+	VectorNormalize( m_vecDiveBombDirection );
+
+	// Calculate a roll force.
+	m_flDiveBombRollForce = random->RandomFloat( 20.0, 420.0 );
+	if (random->RandomInt( 0, 1 ))
+	{
+		m_flDiveBombRollForce *= -1;
+	}
+
+	m_flNextSpitTime = gpGlobals->curtime + GetMinSpitWaitTime();
+	SetFlyingState( FlyState_Dive );
+	AttackSound();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Switches between flying mode and ground mode.
 //-----------------------------------------------------------------------------
 void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 {
+	// Reset playback rate when changing state
+	m_flPlaybackRate = 1.0f;
+
 	if (eState == FlyState_Flying || eState == FlyState_Dive )
 	{
 		// Flying
@@ -820,6 +1180,15 @@ void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 		CapabilitiesRemove( bits_CAP_MOVE_GROUND | bits_CAP_MOVE_JUMP );
 		CapabilitiesAdd( bits_CAP_MOVE_FLY );
 		SetMoveType( MOVETYPE_STEP );
+
+		if (eState == FlyState_Dive)
+		{
+			SetCollisionGroup( COLLISION_GROUP_NPC );
+		}
+		else
+		{
+			SetCollisionGroup( HL2COLLISION_GROUP_CROW );
+		}
 	}
 	else if ( eState == FlyState_Ceiling )
 	{
@@ -829,6 +1198,7 @@ void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 		SetNavType( NAV_FLY );
 		CapabilitiesRemove( bits_CAP_MOVE_GROUND | bits_CAP_MOVE_FLY | bits_CAP_MOVE_JUMP );
 		SetMoveType( MOVETYPE_STEP );
+		SetCollisionGroup( COLLISION_GROUP_NPC );
 	}
 	else if (eState == FlyState_Walking)
 	{
@@ -843,6 +1213,7 @@ void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 		CapabilitiesRemove( bits_CAP_MOVE_FLY );
 		CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_MOVE_JUMP );
 		SetMoveType( MOVETYPE_STEP );
+		SetCollisionGroup( COLLISION_GROUP_NPC );
 	}
 	else
 	{
@@ -852,9 +1223,50 @@ void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 		CapabilitiesRemove( bits_CAP_MOVE_FLY );
 		CapabilitiesAdd( bits_CAP_MOVE_GROUND | bits_CAP_MOVE_JUMP );
 		SetMoveType( MOVETYPE_STEP );
+		SetCollisionGroup( COLLISION_GROUP_NPC );
 	}
 
 	m_tFlyState = eState;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Checks whether stukabat is capable of fly navigation
+//-----------------------------------------------------------------------------
+bool CNPC_FlyingPredator::CapableOfFlyNav( void )
+{
+	if (!m_bCanUseFlyNav && !npc_flyingpredator_force_allow_fly.GetBool())
+		return false;
+
+	if (IsBaby())
+		return false;
+	
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Checks whether stukabat can currently use fly navigation
+//-----------------------------------------------------------------------------
+bool CNPC_FlyingPredator::CanUseFlyNav( void )
+{
+	if (!CapableOfFlyNav())
+		return false;
+
+	// Needed for navigator to look for air nodes
+	bool bAlreadyFlying = (CapabilitiesGet() & bits_CAP_MOVE_FLY);
+	if (!bAlreadyFlying)
+		CapabilitiesAdd( bits_CAP_MOVE_FLY );
+	
+	// Any air nodes I can use?
+	CFlyingPredatorAirNodeFilter filter( this );
+	int nNode = GetNavigator()->GetNetwork()->NearestNodeToPoint( this, GetAbsOrigin(), true, &filter );
+
+	if (!bAlreadyFlying)
+		CapabilitiesRemove( bits_CAP_MOVE_FLY );
+
+	if (nNode == NO_NODE)
+		return false;
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -870,6 +1282,84 @@ bool CNPC_FlyingPredator::OverrideMove( float flInterval )
 	if ( m_tFlyState == FlyState_Dive )
 	{
 		MoveToDivebomb( flInterval );
+		return true;
+	}
+
+	// ----------------------------------------------
+	//	If flying
+	// ----------------------------------------------
+	if ( IsFlying() && CapableOfFlyNav() )
+	{
+		if ( IsCurSchedule( SCHED_FACE_AND_DIVE_BOMB, false ) || IsCurSchedule( SCHED_FLY_DIVE_BOMB, false ) )
+		{
+			// Slow down and align pitch and roll with target
+			SetAbsVelocity( GetAbsVelocity() * 0.5f );
+
+			Vector vecDir = ( GetEnemyLKP() - GetAbsOrigin() );
+			QAngle angDir;
+			VectorAngles( vecDir, angDir );
+
+			QAngle angles = GetLocalAngles();
+			angles.x += AngleDiff( angDir.x, angles.x ) * 0.5f;
+			angles.z *= 0.5f;
+			SetLocalAngles( angles );
+		}
+		else if ( GetNavigator()->GetPath()->GetCurWaypoint() && !m_bReachedMoveGoal )
+		{
+			if ( m_flLastStuckCheck <= gpGlobals->curtime )
+			{
+				if ( m_vLastStoredOrigin == GetAbsOrigin() )
+				{
+					if ( GetAbsVelocity() == vec3_origin )
+					{
+						SetCondition( COND_FLY_STUCK );
+						return false;
+					}
+					else
+					{
+						m_vLastStoredOrigin = GetAbsOrigin();
+					}
+				}
+				else
+				{
+					m_vLastStoredOrigin = GetAbsOrigin();
+				}
+				
+				m_flLastStuckCheck = gpGlobals->curtime + 1.0f;
+			}
+
+			/*if (m_bReachedMoveGoal )
+			{
+				SetIdealActivity( ACT_LAND );
+				SetFlyingState( FlyState_Landing );
+				TaskMovementComplete();
+			}
+			else*/
+			{
+				if (GetIdealActivity() != ACT_FLY)
+				{
+					// Initial playback rate based on whether we're moving to attack
+					if (HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ))
+						m_flPlaybackRate = 1.5f;
+					else
+						m_flPlaybackRate = 0.75f;
+				}
+
+				SetIdealActivity ( ACT_FLY );
+				MoveFly( flInterval );
+			}
+		}
+		else
+		{
+			SetIdealActivity( ACT_HOVER );
+
+			if ( m_bReachedMoveGoal )
+			{
+				TaskMovementComplete();
+				m_bReachedMoveGoal = false;
+				SetAbsVelocity( vec3_origin );
+			}
+		}
 		return true;
 	}
 
@@ -895,7 +1385,7 @@ void CNPC_FlyingPredator::MoveToDivebomb( float flInterval )
 	MoveInDirection( flInterval, m_vecDiveBombDirection, myAccel, myAccel, myDecay );
 
 	// Spin out of control.
-	Vector forward;
+	/*Vector forward;
 	VPhysicsGetObject()->LocalToWorldVector( &forward, Vector( 1.0, 0.0, 0.0 ) );
 	AngularImpulse torque = forward * m_flDiveBombRollForce;
 	VPhysicsGetObject()->ApplyTorqueCenter( torque );
@@ -903,7 +1393,12 @@ void CNPC_FlyingPredator::MoveToDivebomb( float flInterval )
 	// BUGBUG: why Y axis and not Z?
 	Vector up;
 	VPhysicsGetObject()->LocalToWorldVector( &up, Vector( 0.0, 1.0, 0.0 ) );
-	VPhysicsGetObject()->ApplyForceCenter( up * 2000 );
+	VPhysicsGetObject()->ApplyForceCenter( up * 2000 );*/
+
+	// Slowly correct roll
+	QAngle angles = GetLocalAngles();
+	angles.z *= 0.5f;
+	SetLocalAngles( angles );
 }
 
 void CNPC_FlyingPredator::MoveInDirection( float flInterval, const Vector &targetDir,
@@ -921,6 +1416,179 @@ void CNPC_FlyingPredator::MoveInDirection( float flInterval, const Vector &targe
 	newVelocity.z = (decay * oldVelocity.z + accelZ  * targetDir.z);
 
 	SetAbsVelocity( newVelocity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Handles all flight movement.
+// Input  : flInterval - Seconds to simulate.
+//-----------------------------------------------------------------------------
+void CNPC_FlyingPredator::MoveFly( float flInterval )
+{
+	//
+	// Bound interval so we don't get ludicrous motion when debugging
+	// or when framerate drops catastrophically.  
+	//
+	if (flInterval > 1.0)
+	{
+		flInterval = 1.0;
+	}
+
+	//
+	// Determine the goal of our movement.
+	//
+	Vector vecMoveGoal = GetAbsOrigin();
+
+	if ( GetNavigator()->IsGoalActive() )
+	{
+		vecMoveGoal = GetNavigator()->GetCurWaypointPos();
+
+		if ( GetNavigator()->CurWaypointIsGoal() == false  )
+		{
+  			AI_ProgressFlyPathParams_t params( MASK_NPCSOLID );
+			params.bTrySimplify = false;
+
+			GetNavigator()->ProgressFlyPath( params ); // ignore result, crow handles completion directly
+
+			// Fly towards the hint.
+			if ( GetNavigator()->GetPath()->GetCurWaypoint() )
+			{
+				vecMoveGoal = GetNavigator()->GetCurWaypointPos();
+			}
+		}
+	}
+	else
+	{
+		// No movement goal.
+		vecMoveGoal = GetAbsOrigin();
+		SetAbsVelocity( vec3_origin );
+		return;
+	}
+
+	Vector vecMoveDir = ( vecMoveGoal - GetAbsOrigin() );
+	Vector vForward;
+	AngleVectors( GetAbsAngles(), &vForward );
+	
+	//
+	// Fly towards the movement goal.
+	//
+	float flDistance = ( vecMoveGoal - GetAbsOrigin() ).Length();
+
+	if ( vecMoveGoal != m_vDesiredTarget )
+	{
+		m_vDesiredTarget = vecMoveGoal;
+	}
+	else
+	{
+		m_vCurrentTarget = ( m_vDesiredTarget - GetAbsOrigin() );
+		VectorNormalize( m_vCurrentTarget );
+	}
+
+	float flLerpMod = 0.25f;
+
+	if ( flDistance <= 256.0f )
+	{
+		flLerpMod = 1.0f - ( flDistance / 256.0f );
+	}
+
+	VectorLerp( vForward, m_vCurrentTarget, flLerpMod, vForward );
+
+	float flFlightSpeed = sk_flyingpredator_flyspeed.GetFloat();
+	if ( flDistance < flFlightSpeed * flInterval )
+	{
+		if ( GetNavigator()->IsGoalActive() )
+		{
+			if ( GetNavigator()->CurWaypointIsGoal() )
+			{
+				m_bReachedMoveGoal = true;
+			}
+			else
+			{
+				GetNavigator()->AdvancePath();
+			}
+		}
+		else
+			m_bReachedMoveGoal = true;
+	}
+
+	// Slow down on approach and reflect speed in pose
+
+	flFlightSpeed *= m_flPlaybackRate;
+
+	if ( GetHintNode() )
+	{
+		AIMoveTrace_t moveTrace;
+		GetMoveProbe()->MoveLimit( NAV_FLY, GetAbsOrigin(), GetNavigator()->GetCurWaypointPos(), MASK_NPCSOLID, GetNavTargetEntity(), &moveTrace );
+
+		//See if it succeeded
+		if ( IsMoveBlocked( moveTrace.fStatus ) )
+		{
+			Vector vNodePos = vecMoveGoal;
+			GetHintNode()->GetPosition(this, &vNodePos);
+			
+			GetNavigator()->SetGoal( vNodePos );
+		}
+	}
+
+	//
+	// Look to see if we are going to hit anything.
+	//
+	VectorNormalize( vForward );
+	Vector vecDeflect;
+	if ( Probe( vForward, flFlightSpeed * flInterval, vecDeflect ) )
+	{
+		vForward = vecDeflect;
+		VectorNormalize( vForward );
+	}
+
+	SetAbsVelocity( vForward * flFlightSpeed );
+
+
+	//Bank and set angles.
+	Vector vRight;
+	QAngle vRollAngle;
+	
+	VectorAngles( vForward, vRollAngle );
+	vRollAngle.z = 0;
+
+	AngleVectors( vRollAngle, NULL, &vRight, NULL );
+
+	float flRoll = DotProduct( vRight, vecMoveDir ) * 45;
+	flRoll = clamp( flRoll, -45, 45 );
+
+	vRollAngle[ROLL] = flRoll;
+	SetAbsAngles( vRollAngle );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Looks ahead to see if we are going to hit something. If we are, a
+//			recommended avoidance path is returned.
+// Input  : vecMoveDir - 
+//			flSpeed - 
+//			vecDeflect - 
+// Output : Returns true if we hit something and need to deflect our course,
+//			false if all is well.
+//-----------------------------------------------------------------------------
+bool CNPC_FlyingPredator::Probe( const Vector &vecMoveDir, float flSpeed, Vector &vecDeflect )
+{
+	//
+	// Look 1/2 second ahead.
+	//
+	trace_t tr;
+	AI_TraceHull( GetAbsOrigin(), GetAbsOrigin() + vecMoveDir * flSpeed, GetHullMins(), GetHullMaxs(), MASK_NPCSOLID, this, HL2COLLISION_GROUP_CROW, &tr );
+	if ( tr.fraction < 1.0f )
+	{
+		//
+		// If we hit something, deflect flight path parallel to surface hit.
+		//
+		Vector vecUp;
+		CrossProduct( vecMoveDir, tr.plane.normal, vecUp );
+		CrossProduct( tr.plane.normal, vecUp, vecDeflect );
+		VectorNormalize( vecDeflect );
+		return true;
+	}
+
+	vecDeflect = vec3_origin;
+	return false;
 }
 
 //---------------------------------------------------------
@@ -951,11 +1619,18 @@ void CNPC_FlyingPredator::StartTouch( CBaseEntity *pOther )
 				// If being flung, take self damage as well!
 				TakeDamage( info );
 			}
+			else
+			{
+				EmitSound( "NPC_FlyingPredator.Bite" );
+			}
 		}
 
 		if (m_tFlyState != FlyState_Falling)
 		{
-			SetFlyingState( CanLand() ? FlyState_Walking : FlyState_Falling );
+			if ( CanUseFlyNav() )
+				SetFlyingState( CanLand() ? FlyState_Walking : FlyState_Flying );
+			else
+				SetFlyingState( CanLand() ? FlyState_Walking : FlyState_Falling );
 		}
 		break;
 	}
@@ -978,6 +1653,38 @@ void CNPC_FlyingPredator::InputFly( inputdata_t &inputdata )
 	SetCondition( COND_FORCED_FLY );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Draw any debug text overlays
+// Input  :
+// Output : Current text offset from the top
+//-----------------------------------------------------------------------------
+int CNPC_FlyingPredator::DrawDebugTextOverlays( void )
+{
+	int text_offset = BaseClass::DrawDebugTextOverlays();
+
+	if (m_debugOverlays & OVERLAY_TEXT_BIT)
+	{
+		static const char *g_pszFlyStates[] =
+		{
+			"Walking",
+			"Landing",
+			"Falling",
+			"Dive",
+			"Flying",
+			"Ceiling",
+		};
+
+		const char *pszFlyState = g_pszFlyStates[(int)m_tFlyState];
+
+		char tempstr[64];
+		Q_snprintf( tempstr, sizeof( tempstr ), "Flying State: %s (%i)", pszFlyState, (int)m_tFlyState );
+		EntityText( text_offset, tempstr, 0 );
+		text_offset++;
+	}
+
+	return text_offset;
+}
+
 //------------------------------------------------------------------------------
 //
 // Schedules
@@ -989,11 +1696,17 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 	DECLARE_ACTIVITY( ACT_FALL )
 	DECLARE_ACTIVITY( ACT_IDLE_CEILING )
 	DECLARE_ACTIVITY( ACT_LAND_CEILING )
+	DECLARE_ACTIVITY( ACT_DIVEBOMB_START )
+
+	DECLARE_ANIMEVENT( AE_FLYING_PREDATOR_FLAP_WINGS )
+	DECLARE_ANIMEVENT( AE_FLYING_PREDATOR_BEGIN_DIVEBOMB )
 
 	DECLARE_CONDITION( COND_FORCED_FLY );
 	DECLARE_CONDITION( COND_CAN_LAND );
 	DECLARE_CONDITION( COND_FORCED_FALL );
 	DECLARE_CONDITION( COND_CEILING_NEAR );
+	DECLARE_CONDITION( COND_CAN_FLY );
+	DECLARE_CONDITION( COND_FLY_STUCK );
 
 	DECLARE_TASK( TASK_TAKEOFF )
 	DECLARE_TASK( TASK_FLY_DIVE_BOMB )
@@ -1040,8 +1753,7 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 		SCHED_FLY_DIVE_BOMB,
 
 		"	Tasks"
-		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_RANGE_ATTACK2"		
-		"		TASK_FACE_ENEMY			0"
+		//"		TASK_FACE_ENEMY			0"
 		"		TASK_WAIT				0.2"
 		"		TASK_FLY_DIVE_BOMB		0"
 		"		"
@@ -1083,6 +1795,97 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 		"		"
 		"	Interrupts"
 		"		COND_FORCED_FALL"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_TAKEOFF_IMMEDIATE,
+
+		"	Tasks"
+		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_LEAP"
+		"		TASK_START_FLYING		0"
+		"		"
+		"	Interrupts"
+		"		COND_FORCED_FALL"
+		"		COND_CEILING_NEAR"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_APPROACH_ENEMY,
+
+		"	Tasks"
+		"		TASK_SET_TOLERANCE_DISTANCE				64"
+		"		TASK_SET_ROUTE_SEARCH_TIME				1"	// Spend 1 second trying to build a path if stuck
+		"		TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS	512"
+		"		TASK_WAIT_FOR_MOVEMENT					0"
+		"		"
+		"	Interrupts"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_FORCED_FALL"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_CIRCLE_ENEMY,
+
+		"	Tasks"
+		"		TASK_SET_TOLERANCE_DISTANCE				64"
+		"		TASK_SET_ROUTE_SEARCH_TIME				1"	// Spend 1 second trying to build a path if stuck
+		"		TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS	90"
+		"		TASK_WAIT_FOR_MOVEMENT					0"
+		"		"
+		"	Interrupts"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_FORCED_FALL"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_FACE_AND_DIVE_BOMB,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING		0"
+		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_IDLE"
+		"		TASK_WAIT				0.25"
+		"		TASK_FACE_ENEMY			0"
+		"		TASK_WAIT				0.25"
+		"		TASK_SET_SCHEDULE		SCHEDULE:SCHED_FLY_DIVE_BOMB"
+		"		"
+		"	Interrupts"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_CAN_LAND"
+		"		COND_FORCED_FALL"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_FLY_TO_EAT,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_PREDATOR_EAT					10"
+		"		TASK_GET_PATH_TO_BESTSCENT			0"
+		"		TASK_RUN_PATH						0"
+		"		TASK_WAIT_FOR_MOVEMENT				0"
+		"		TASK_LAND							0"
+		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+		"		TASK_PREDATOR_EAT					30"
+		"		TASK_PREDATOR_REGEN					0"
+		"	"
+		"	Interrupts"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_TAKEOFF_AND_FLY_TO_EAT,
+
+		"	Tasks"
+		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_LEAP"
+		"		TASK_START_FLYING		0"
+		"		TASK_SET_SCHEDULE		SCHEDULE:SCHED_FLY_TO_EAT"
+		"	"
+		"	Interrupts"
 	)
 
 		
