@@ -106,6 +106,7 @@ int g_interactionXenGrenadeHop			= 0;
 int g_interactionXenGrenadeRagdoll      = 0;
 
 int	g_interactionStasisGrenadeFreeze	= 0;
+int	g_interactionStasisGrenadeUnfreeze  = 0;
 #endif
 
 #ifdef EZ2
@@ -2366,6 +2367,7 @@ void CGrenadeHopwire::Precache( void )
 		g_interactionXenGrenadeRagdoll = CBaseCombatCharacter::GetInteractionID();
 
 		g_interactionStasisGrenadeFreeze = CBaseCombatCharacter::GetInteractionID();
+		g_interactionStasisGrenadeUnfreeze = CBaseCombatCharacter::GetInteractionID();
 	}
 
 	if (GetHopwireStyle() == HOPWIRE_XEN)
@@ -3014,7 +3016,8 @@ void CStasisVortexController::PullThink( void )
 		if (pEnts[i]->MyCombatCharacterPointer())
 		{
 			// If this NPC has already been frozen, don't refreeze
-			if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
+			// if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
+			if (pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
 			{
 				continue;
 			}
@@ -3028,11 +3031,11 @@ void CStasisVortexController::PullThink( void )
 			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze" );
 
 			// Don't cancel the think function until the NPC picks up SCHED_NPC_FREEZE
-			if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false)))
-				continue;
+			//if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false)))
+			//	continue;
 
-			pEnts[i]->SetNextThink( TICK_NEVER_THINK );
-			DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
+			//pEnts[i]->SetNextThink( TICK_NEVER_THINK );
+			//DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
 
 			continue;
 		}
@@ -3109,11 +3112,21 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 	if (MyNPCPointer() == NULL)
 		return;
 
+	// Dispatch interaction. Skip unfreezing if it returns true
+	if (MyNPCPointer()->DispatchInteraction(g_interactionStasisGrenadeUnfreeze, NULL, GetThrower()))
+	{
+		return;
+	}
+
 	MyNPCPointer()->TaskInterrupt();
 	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
 	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
-	MyNPCPointer()->Think();
-	SetNextThink( gpGlobals->curtime );
+
+	// Reset the animation playback rate to 1.0f
+	MyNPCPointer()->m_flPlaybackRate = 1.0f;
+
+	// MyNPCPointer()->Think();
+	// SetNextThink( gpGlobals->curtime );
 }
 
 //-----------------------------------------------------------------------------
@@ -3159,7 +3172,7 @@ void CStasisVortexController::StartPull( const Vector &origin, float radius, flo
 	m_flStrength= strength;
 
 	// Play a danger sound throughout the duration of the vortex so that NPCs run away
-	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius, duration, this );
+	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius * 1.25f, duration, this );
 
 	SetDefLessFunc( m_SpawnList );
 	m_SpawnList.EnsureCapacity( 16 );

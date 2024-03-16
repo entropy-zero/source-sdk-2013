@@ -349,6 +349,10 @@ public:
 	virtual bool		CanFlinch( void );
 #endif
 
+#ifdef EZ2
+	bool		HandleInteraction(int interactionType, void* data, CBaseCombatCharacter* sourceEnt);
+#endif
+
 	//---------------------------------
 	// Combat
 	//---------------------------------
