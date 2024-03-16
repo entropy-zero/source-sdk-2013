@@ -2440,7 +2440,11 @@ void CGrenadeHopwire::DelayThink()
 
 	if( !m_bHasWarnedAI && gpGlobals->curtime >= m_flWarnAITime )
 	{
+#ifndef EZ2
 		CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), 400, 1.5, this );
+#else
+		CSoundEnt::InsertSound( SOUND_DANGER, GetAbsOrigin(), 400, m_flDetonateTime - gpGlobals->curtime, this );
+#endif
 		m_bHasWarnedAI = true;
 	}
 	
@@ -3012,30 +3016,25 @@ void CStasisVortexController::PullThink( void )
 		// Reset ragdoll
 		pRagdoll = NULL;
 
-		// Freeze NPCs by stopping their think function
+		// Freeze NPCs
 		if (pEnts[i]->MyCombatCharacterPointer())
 		{
 			// If this NPC has already been frozen, don't refreeze
 			// if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
-			if (pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
+			if (pEnts[i]->MyNPCPointer() && pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
 			{
 				continue;
 			}
 
 			if (pEnts[i]->MyNPCPointer())
-			{			
-				pEnts[i]->MyNPCPointer()->SetCondition( COND_NPC_FREEZE );
+			{
+				pEnts[i]->MyNPCPointer()->SetEnemy(NULL);
+				pEnts[i]->MyNPCPointer()->SetCondition(COND_NPC_FREEZE);
 				pEnts[i]->MyNPCPointer()->TaskInterrupt();
+
 			}
 
-			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze" );
-
-			// Don't cancel the think function until the NPC picks up SCHED_NPC_FREEZE
-			//if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false)))
-			//	continue;
-
-			//pEnts[i]->SetNextThink( TICK_NEVER_THINK );
-			//DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
+			pEnts[i]->SetContextThink(&CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze");
 
 			continue;
 		}
@@ -3121,12 +3120,6 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 	MyNPCPointer()->TaskInterrupt();
 	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
 	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
-
-	// Reset the animation playback rate to 1.0f
-	MyNPCPointer()->m_flPlaybackRate = 1.0f;
-
-	// MyNPCPointer()->Think();
-	// SetNextThink( gpGlobals->curtime );
 }
 
 //-----------------------------------------------------------------------------
@@ -3172,7 +3165,7 @@ void CStasisVortexController::StartPull( const Vector &origin, float radius, flo
 	m_flStrength= strength;
 
 	// Play a danger sound throughout the duration of the vortex so that NPCs run away
-	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius * 1.25f, duration, this );
+	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius * 1.25f, duration * 1.25f, this );
 
 	SetDefLessFunc( m_SpawnList );
 	m_SpawnList.EnsureCapacity( 16 );
