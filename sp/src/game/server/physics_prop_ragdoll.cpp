@@ -2002,6 +2002,23 @@ void CRagdollProp::GetAngleOverrideFromCurrentState( char *pOut, int size )
 	}
 }
 
+#ifdef EZ2
+bool CRagdollProp::IsMotionEnabled(void)
+{
+	for (int iRagdoll = 0; iRagdoll < m_ragdoll.listCount; ++iRagdoll)
+	{
+		IPhysicsObject* pPhysicsObject = m_ragdoll.list[iRagdoll].pObject;
+		if (pPhysicsObject != NULL && !pPhysicsObject->IsMotionEnabled())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+#endif
+
+
 void CRagdollProp::DisableMotion( void )
 {
 	for ( int iRagdoll = 0; iRagdoll < m_ragdoll.listCount; ++iRagdoll )

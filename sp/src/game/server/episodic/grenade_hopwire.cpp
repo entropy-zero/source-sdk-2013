@@ -2440,11 +2440,11 @@ void CGrenadeHopwire::DelayThink()
 
 	if( !m_bHasWarnedAI && gpGlobals->curtime >= m_flWarnAITime )
 	{
-#ifndef EZ2
+//#ifndef EZ2
 		CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), 400, 1.5, this );
-#else
-		CSoundEnt::InsertSound( SOUND_DANGER, GetAbsOrigin(), 400, m_flDetonateTime - gpGlobals->curtime, this );
-#endif
+//#else
+//		CSoundEnt::InsertSound( SOUND_DANGER, GetAbsOrigin(), 400, m_flDetonateTime - gpGlobals->curtime, this );
+//#endif
 		m_bHasWarnedAI = true;
 	}
 	
@@ -3033,21 +3033,22 @@ void CStasisVortexController::PullThink( void )
 				pEnts[i]->MyNPCPointer()->TaskInterrupt();
 
 			}
-
-			pEnts[i]->SetContextThink(&CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze");
+			// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+			pEnts[i]->SetContextThink(&CStasisVortexController::UnfreezeNPCThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze");
 
 			continue;
 		}
 
 		if (FClassnameIs( pEnts[i], "prop_ragdoll" ))
 		{
-			pRagdoll = dynamic_cast< CRagdollProp* >(this);
+			pRagdoll = dynamic_cast< CRagdollProp* >(pEnts[i]);
 		}
 
-		if (pRagdoll)
+		if (pRagdoll && pRagdoll->IsMotionEnabled())
 		{
 			pRagdoll->DisableMotion();
-			pRagdoll->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
+			// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze" );
 			continue;
 		}
 
@@ -3067,7 +3068,8 @@ void CStasisVortexController::PullThink( void )
 
 		pPhysObject->EnableMotion(false);
 		pPhysObject->EnableGravity( false );
-		pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
+		// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+		pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze" );
 	}
 
 	// Keep going if need-be
@@ -3131,15 +3133,17 @@ void CStasisVortexController::UnfreezePhysicsObjectThink( void )
 
 	SetContextThink( NULL, TICK_NEVER_THINK, "StasisGrenadeUnfreeze" );
 
-	if (FClassnameIs( this, "prop_ragdoll" ))
+	if (FClassnameIs( GetBaseEntity(), "prop_ragdoll"))
 	{
-		pRagdoll = dynamic_cast< CRagdollProp* >(this);
+		pRagdoll = dynamic_cast< CRagdollProp* >(GetBaseEntity());
 	}
 
 	if (pRagdoll)
 	{
-		inputdata_t dummy;
-		pRagdoll->InputEnableMotion( dummy );
+		inputdata_t ragdollData;
+		ragdollData.value.SetFloat(0.1f);
+		pRagdoll->InputEnableMotion(ragdollData);
+		pRagdoll->InputStartRadgollBoogie(ragdollData);
 		return;
 	}
 
