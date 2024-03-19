@@ -3017,22 +3017,20 @@ void CStasisVortexController::PullThink( void )
 		pRagdoll = NULL;
 
 		// Freeze NPCs
-		if (pEnts[i]->MyCombatCharacterPointer())
+		if (pEnts[i]->MyNPCPointer())
 		{
-			// If this NPC has already been frozen, don't refreeze
-			// if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
-			if (pEnts[i]->MyNPCPointer() && pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
+			// If this NPC is in the freeze schedule, set it's think to the end of the vortex
+			if (pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
 			{
+				pEnts[i]->SetNextThink(MAX(pEnts[i]->GetNextThink(), m_flEndTime - TICK_INTERVAL));
+				pEnts[i]->SetAbsVelocity(vec3_origin);
+				//pEnts[i]->MyNPCPointer()->SetPlaybackRate(0.0f);
 				continue;
 			}
 
-			if (pEnts[i]->MyNPCPointer())
-			{
-				pEnts[i]->MyNPCPointer()->SetEnemy(NULL);
-				pEnts[i]->MyNPCPointer()->SetCondition(COND_NPC_FREEZE);
-				pEnts[i]->MyNPCPointer()->TaskInterrupt();
+			pEnts[i]->MyNPCPointer()->SetCondition(COND_NPC_FREEZE);
+			pEnts[i]->MyNPCPointer()->TaskInterrupt();
 
-			}
 			// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
 			pEnts[i]->SetContextThink(&CStasisVortexController::UnfreezeNPCThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze");
 
@@ -3119,9 +3117,13 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 		return;
 	}
 
-	MyNPCPointer()->TaskInterrupt();
 	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
 	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
+
+	//if (MyNPCPointer()->GetPlaybackRate() == 0)
+	//{
+	//	MyNPCPointer()->SetPlaybackRate(1.0f);
+	//}
 }
 
 //-----------------------------------------------------------------------------
