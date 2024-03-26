@@ -28,6 +28,8 @@
 // So now it's CAI_SensingDummy<CAI_PlayerAlly>.
 typedef CAI_SensingDummy<CAI_PlayerAlly> CAI_WilsonBase;
 
+class CWilsonCamera;
+
 //-----------------------------------------------------------------------------
 // Purpose: Wilson, Willie, Will-E
 // 
@@ -53,6 +55,8 @@ public:
 	void	Precache();
 	void	Spawn();
 	void	Activate( void );
+	bool	KeyValue( const char *szKeyName, const char *szValue );
+	void	NPCInit( void );
 	bool	CreateVPhysics( void );
 	void	UpdateOnRemove( void );
 	float	MaxYawSpeed( void ){ return 0; }
@@ -96,6 +100,12 @@ public:
 	void 			OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 
 	void			AimGun();
+
+	bool			FInViewCone( CBaseEntity *pEntity ) { return BaseClass::FInViewCone( pEntity ); }
+	bool			FInViewCone( const Vector &vecSpot );
+	bool			FVisible( CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
+	bool			FVisible( const Vector &vecTarget, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
+	CWilsonCamera*	GetCameraForTarget( CBaseEntity *pTarget );
 
 	bool			QueryHearSound( CSound *pSound );
 
@@ -151,6 +161,9 @@ public:
 
 	bool			IsOmniscient() { return m_bOmniscient; }
 
+	void			RefreshCameraTargets();
+	const Vector&	GetSpeechTargetSearchOrigin();
+
 	void			InputEnableMotion( inputdata_t &inputdata );
 	void			InputDisableMotion( inputdata_t &inputdata );
 
@@ -178,6 +191,15 @@ public:
 
 	void			InputTurnOnDeadMode( inputdata_t &inputdata ) { SetPlayingDead( true ); }
 	void			InputTurnOffDeadMode( inputdata_t &inputdata ) { SetPlayingDead( false ); }
+
+	void			InputSetCameraTargets( inputdata_t &inputdata ) { m_iszCameraTargets = inputdata.value.StringID(); RefreshCameraTargets(); }
+	void			InputClearCameraTargets( inputdata_t &inputdata ) { m_iszCameraTargets = NULL_STRING; RefreshCameraTargets(); }
+
+	void			InputEnableSeeThroughPlayer( inputdata_t &inputdata ) { m_bSeeThroughPlayer = true; }
+	void			InputDisableSeeThroughPlayer( inputdata_t &inputdata ) { m_bSeeThroughPlayer = false; }
+
+	void			InputEnableOmnipresence( inputdata_t &inputdata ) { m_bOmniscient = true; }
+	void			InputDisableOmnipresence( inputdata_t &inputdata ) { m_bOmniscient = false; }
 
 
 protected:
@@ -244,7 +266,14 @@ protected:
 
 	// Makes Will-E always available as a speech target, even when out of regular range.
 	// (e.g. Will-E on monitor in ez2_c3_3)
+	// 
+	// MISNOMER: Actually means "omnipresent". This should be corrected next time we can break saves.
 	bool	m_bOmniscient;
+
+	string_t								m_iszCameraTargets;
+	CUtlVector<CHandle<CWilsonCamera>>		m_hCameraTargets;	// Refreshed every restore
+
+	bool	m_bSeeThroughPlayer;
 
 	// See CNPC_Wilson::CanBeAnEnemyOf().
 	bool	m_bCanBeEnemy;
@@ -355,4 +384,36 @@ private:
 
 	int m_iScanAttachment;
 
+};
+
+//-----------------------------------------------------------------------------
+// Purpose: Camera entity that Wilson can use to see outside of his body.
+//-----------------------------------------------------------------------------
+class CWilsonCamera : public CBaseEntity
+{
+	DECLARE_CLASS( CWilsonCamera, CBaseEntity );
+	DECLARE_DATADESC();
+public:
+	CWilsonCamera();
+
+	void Spawn();
+	bool FInViewCone( const Vector &vecSpot );
+
+	inline bool IsEnabled() const { return !m_bDisabled; }
+	inline float GetFOV() const { return m_flFieldOfView; }
+	inline float GetLookDistSqr() const { return m_flLookDistSqr; }
+	inline bool Using3DViewCone() const { return m_b3DViewCone; }
+
+	void	InputEnable( inputdata_t &inputdata ) { m_bDisabled = false; }
+	void	InputDisable( inputdata_t &inputdata ) { m_bDisabled = true; }
+
+	void	InputSetFOV( inputdata_t &inputdata ) { m_flFieldOfView = cos( DEG2RAD( inputdata.value.Float() / 2 ) ); }
+	void	InputSetLookDist( inputdata_t &inputdata ) { m_flLookDistSqr = Square( inputdata.value.Float() ); }
+
+private:
+
+	bool m_bDisabled;
+	float m_flFieldOfView;
+	float m_flLookDistSqr;
+	bool m_b3DViewCone;
 };

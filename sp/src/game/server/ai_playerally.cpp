@@ -1619,7 +1619,11 @@ bool CAI_PlayerAlly::IsValidSpeechTarget( int flags, CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 CBaseEntity *CAI_PlayerAlly::FindSpeechTarget( int flags )
 {
+#ifdef EZ2
+	const Vector &	vAbsOrigin 		= GetSpeechTargetSearchOrigin();
+#else
 	const Vector &	vAbsOrigin 		= GetAbsOrigin();
+#endif
 	float 			closestDistSq 	= FLT_MAX;
 	CBaseEntity *	pNearest 		= NULL;
 	float			distSq;
