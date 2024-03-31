@@ -2440,11 +2440,7 @@ void CGrenadeHopwire::DelayThink()
 
 	if( !m_bHasWarnedAI && gpGlobals->curtime >= m_flWarnAITime )
 	{
-//#ifndef EZ2
 		CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), 400, 1.5, this );
-//#else
-//		CSoundEnt::InsertSound( SOUND_DANGER, GetAbsOrigin(), 400, m_flDetonateTime - gpGlobals->curtime, this );
-//#endif
 		m_bHasWarnedAI = true;
 	}
 	
@@ -3024,7 +3020,6 @@ void CStasisVortexController::PullThink( void )
 			{
 				pEnts[i]->SetNextThink(MAX(pEnts[i]->GetNextThink(), m_flEndTime - TICK_INTERVAL));
 				pEnts[i]->SetAbsVelocity(vec3_origin);
-				//pEnts[i]->MyNPCPointer()->SetPlaybackRate(0.0f);
 				continue;
 			}
 
@@ -3119,11 +3114,6 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 
 	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
 	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
-
-	//if (MyNPCPointer()->GetPlaybackRate() == 0)
-	//{
-	//	MyNPCPointer()->SetPlaybackRate(1.0f);
-	//}
 }
 
 //-----------------------------------------------------------------------------

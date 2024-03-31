@@ -3737,7 +3737,6 @@ bool CNPC_MetroPolice::HandleInteraction(int interactionType, void *data, CBaseC
 	if (interactionType == g_interactionStasisGrenadeFreeze)
 	{
 		CapabilitiesRemove(bits_CAP_TURN_HEAD);
-		//SetCondition(COND_METROPOLICE_HIT_BY_BUGBAIT);
 		// Handle unfreeze normally
 		return false;
 	}
