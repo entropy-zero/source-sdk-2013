@@ -59,6 +59,7 @@ STUB_WEAPON_CLASS( weapon_arbeit_clipboard, WeaponArbeitClipboard, C_WeaponCitiz
 
 STUB_WEAPON_CLASS( weapon_flechette_shotgun, WeaponFlechetteShotgun, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_stasis_grenade, WeaponStasisGrenade, C_BaseHLCombatWeapon );
+STUB_WEAPON_CLASS( weapon_oicw, WeaponOICW, C_HLSelectFireMachineGun );
 #endif
 
 

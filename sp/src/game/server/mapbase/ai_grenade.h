@@ -416,7 +416,7 @@ bool CAI_GrenadeUser<BASE_NPC>::CanAltFireEnemy( bool bUseFreeKnowledge )
 		return false;
 
 #ifdef EZ2
-	if (!EntIsClass(this->GetActiveWeapon(), gm_isz_class_AR2) && !EntIsClass(this->GetActiveWeapon(), gm_isz_class_SMG1) && !FClassnameIs(this->GetActiveWeapon(), "weapon_pulsepistol"))
+	if (!EntIsClass(this->GetActiveWeapon(), gm_isz_class_AR2) && !EntIsClass(this->GetActiveWeapon(), gm_isz_class_SMG1) && !FClassnameIs(this->GetActiveWeapon(), "weapon_pulsepistol") && !FClassnameIs(this->GetActiveWeapon(), "weapon_oicw"))
 #else
 	if (!EntIsClass(this->GetActiveWeapon(), gm_isz_class_AR2) && !EntIsClass(this->GetActiveWeapon(), gm_isz_class_SMG1))
 #endif
@@ -725,7 +725,11 @@ void CAI_GrenadeUser<BASE_NPC>::DropGrenadeItemsOnDeath( const CTakeDamageInfo &
 		CBaseEntity *pItem;
 		if (this->GetActiveWeapon())
 		{
+#ifdef EZ2
+			if (FClassnameIs( this->GetActiveWeapon(), "weapon_smg1" ) || FClassnameIs( this->GetActiveWeapon(), "weapon_oicw" ))
+#else
 			if (FClassnameIs( this->GetActiveWeapon(), "weapon_smg1" ))
+#endif
 				pItem = this->DropItem( "item_ammo_smg1_grenade", this->WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
 #ifdef EZ2
 			else if (FClassnameIs( this->GetActiveWeapon(), "weapon_pulsepistol" ))

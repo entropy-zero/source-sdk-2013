@@ -89,6 +89,7 @@ $Project "Server (Entropy Zero 2)"
 			$File	"ez2\npc_zombigaunt.h"
 			$File	"ez2\npc_zombigaunt.cpp"
 			$File	"ez2\prop_command_point.cpp"
+			$File	"ez2\weapon_oicw.cpp"
 			$File	"ez2\weapon_displacer_pistol.h"
 			$File	"ez2\weapon_displacer_pistol.cpp"
 		}
