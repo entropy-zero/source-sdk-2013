@@ -92,7 +92,12 @@ public:
 											1.0f ); 
 
 			// We lerp from very accurate to inaccurate over time
+#ifdef EZ2
+			// Twice as inaccurate when dual wielding
+			VectorLerp( VECTOR_CONE_1DEGREES, IsDualWielding() ? VECTOR_CONE_6DEGREES*2 : VECTOR_CONE_6DEGREES, ramp, cone );
+#else
 			VectorLerp( VECTOR_CONE_1DEGREES, VECTOR_CONE_6DEGREES, ramp, cone );
+#endif
 		}
 		else
 		{
@@ -116,7 +121,7 @@ public:
 	virtual float GetFireRate( void ) 
 	{
 #ifdef EZ2
-		if (m_hLeftHandGun != NULL)
+		if (IsDualWielding() && (GetOwner() && GetOwner()->IsNPC()))
 			return 0.25f;
 #endif
 
@@ -136,12 +141,6 @@ public:
 	virtual void			SetActivity( Activity act, float duration );
 
 	bool				CanDualWield() const { return true; }
-	CBaseAnimating		*GetLeftHandGun() const { return m_hLeftHandGun; }
-	void				SetLeftHandGun( CBaseAnimating *pGun ) { m_hLeftHandGun = pGun; }
-
-private:
-
-	CHandle<CBaseAnimating> m_hLeftHandGun;
 #endif
 
 protected:
@@ -370,7 +369,7 @@ void CWeaponPistol::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCh
 		{
 #ifdef EZ2
 			// HACKHACK: Ignore the regular firing event while dual-wielding
-			if (GetLeftHandGun())
+			if (IsDualWielding())
 				return;
 #endif
 
@@ -467,7 +466,11 @@ void CWeaponPistol::PrimaryAttack( void )
 	}
 
 	m_flLastAttackTime = gpGlobals->curtime;
+#ifdef EZ2
+	m_flSoonestPrimaryAttack = gpGlobals->curtime + (IsDualWielding() ? PISTOL_FASTEST_REFIRE_TIME * 0.5f : PISTOL_FASTEST_REFIRE_TIME);
+#else
 	m_flSoonestPrimaryAttack = gpGlobals->curtime + PISTOL_FASTEST_REFIRE_TIME;
+#endif
 	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner() );
 
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
@@ -664,7 +667,20 @@ public:
 
 	virtual bool Reload( void ) { return false; } // The pulse pistol does not reload
 
-	virtual int GetMaxClip2( void ) const { int iBase = BaseClass::GetMaxClip2(); return iBase > 0 ? iBase : sv_pulse_pistol_max_charge.GetInt(); }
+	virtual int GetMaxClip2( void ) const
+	{
+		int iBase = BaseClass::GetMaxClip2();
+		if (iBase > 0)
+		{
+			return iBase;
+		}
+		else
+		{
+			return IsDualWielding() ? (sv_pulse_pistol_max_charge.GetInt() * 2) : sv_pulse_pistol_max_charge.GetInt();
+		}
+	}
+
+	int GetMinShotClip() const { return IsDualWielding() ? 20 : 10; }
 
 	virtual const Vector& GetBulletSpread( void )
 	{
@@ -685,7 +701,12 @@ public:
 			1.0f );
 
 		// We lerp from very accurate to inaccurate over time
+#ifdef EZ2
+		// Twice as inaccurate when dual wielding
+		VectorLerp( VECTOR_CONE_2DEGREES, IsDualWielding() ? VECTOR_CONE_15DEGREES * 2 : VECTOR_CONE_15DEGREES, ramp, cone);
+#else
 		VectorLerp( VECTOR_CONE_2DEGREES, VECTOR_CONE_15DEGREES, ramp, cone );
+#endif
 
 		return cone;
 	}
@@ -697,7 +718,7 @@ public:
 			return 3.0f;
 		}
 
-		if (GetLeftHandGun() != NULL)
+		if (IsDualWielding() != NULL)
 			return 0.5f;
 
 		return 1.0f;
@@ -725,6 +746,7 @@ public:
 
 protected:
 	CHandle<CSprite>	m_hChargeSprite;
+	CHandle<CSprite>	m_hChargeSprite2; // For dual pistols
 
 private:
 	// For recharging the ammo
@@ -811,7 +833,7 @@ bool CWeaponPulsePistol::IsChargePressed( int chargeButton, CBasePlayer * pOwner
 		return false;
 
 	// If "no charge hold" is set, we're out of ammo, but we have a charge, treat it as though the player let go of the attack button
-	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_iClip2 > 0 && m_iClip1 <= 10)
+	if (sv_pulse_pistol_no_charge_hold.GetBool() && m_iClip2 > 0 && m_iClip1 <= GetMinShotClip())
 		return false;
 
 	return (pOwner->m_nButtons & chargeButton) > 0;
@@ -903,7 +925,7 @@ void CWeaponPulsePistol::Operator_HandleAnimEvent( animevent_t * pEvent, CBaseCo
 	{
 	case AE_WPN_INCREMENTAMMO:
 	case AE_SLIDERETURN:
-		m_iClip1 = MAX( m_iClip1, sv_pulse_pistol_slide_return_charge.GetInt() );
+		m_iClip1 = MAX( m_iClip1, IsDualWielding() ? sv_pulse_pistol_slide_return_charge.GetInt()*2 : sv_pulse_pistol_slide_return_charge.GetInt() );
 		WeaponSound( RELOAD, m_flNextPrimaryAttack );
 		break;
 
@@ -946,14 +968,14 @@ void CWeaponPulsePistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, 
 	pOperator->FireBullets( info );
 	pOperator->DoMuzzleFlash();
 
-	if (m_iClip1 < 10)
+	if (m_iClip1 < GetMinShotClip())
 	{
 		// Reload immediately
 		m_iClip1 = 0;
 	}
 	else
 	{
-		m_iClip1 -= 10;
+		m_iClip1 -= GetMinShotClip();
 
 		// NPCs handle recharging after every shot
 		RechargeAmmo();
@@ -1038,14 +1060,17 @@ void CWeaponPulsePistol::RechargeAmmo( void )
 	float flChargeInterval = gpGlobals->curtime - m_flLastChargeTime;
 	m_flLastChargeTime = gpGlobals->curtime;
 
-	// This code is inherited from the airboat. I've changed it to work for the pistol.
-	int nMaxAmmo = 50;
-	if (m_iClip1 == nMaxAmmo)
+	if (m_iClip1 == GetMaxClip1())
 	{
 		return;
 	}
 
+	// This code is inherited from the airboat. I've changed it to work for the pistol.
 	float flRechargeRate = 5;
+
+	if (IsDualWielding())
+		flRechargeRate *= 2.0f;
+
 	float flChargeAmount = flRechargeRate * flChargeInterval;
 	if (m_flDrainRemainder != 0.0f)
 	{
@@ -1065,9 +1090,9 @@ void CWeaponPulsePistol::RechargeAmmo( void )
 	int nAmmoToAdd = (int)m_flChargeRemainder;
 	m_flChargeRemainder -= nAmmoToAdd;
 	m_iClip1 += nAmmoToAdd;
-	if (m_iClip1 > nMaxAmmo)
+	if (m_iClip1 > GetMaxClip1())
 	{
-		m_iClip1 = nMaxAmmo;
+		m_iClip1 = GetMaxClip1();
 		m_flChargeRemainder = 0.0f;
 	}
 }
@@ -1093,7 +1118,7 @@ void CWeaponPulsePistol::MakeTracer( const Vector &vecTracerSrc, const trace_t &
 //-----------------------------------------------------------------------------
 void CWeaponPulsePistol::PrimaryAttack( void )
 {
-	if (m_iClip1 < 10) // Don't allow firing if we only have one shot left
+	if (m_iClip1 < GetMinShotClip()) // Don't allow firing if we only have one shot left
 	{
 		DryFire();
 	}
@@ -1148,7 +1173,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		}
 
 		// Subtract the charge
-		m_iClip1 = MAX(m_iClip1 - 10, 1); // Never drop the charge below 1
+		m_iClip1 = MAX(m_iClip1 - GetMinShotClip(), 1); // Never drop the charge below 1
 		m_iClip2 = 0;
 
 		m_iPrimaryAttacks++;
@@ -1192,7 +1217,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 		m_iPrimaryAttacks++;
 		gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
 
-		m_flSoonestPrimaryAttack = gpGlobals->curtime + PULSE_PISTOL_FASTEST_REFIRE_TIME;
+		m_flSoonestPrimaryAttack = gpGlobals->curtime + (IsDualWielding() ? PULSE_PISTOL_FASTEST_REFIRE_TIME * 0.5f : PULSE_PISTOL_FASTEST_REFIRE_TIME);
 		m_flNextPrimaryAttack = gpGlobals->curtime + PULSE_PISTOL_FASTEST_REFIRE_TIME;
 	}
 }
@@ -1203,7 +1228,7 @@ void CWeaponPulsePistol::PrimaryAttack( void )
 void CWeaponPulsePistol::ChargeAttack( void )
 {
 	// Play the slide rack animation if we're trying to charge but have no ammo
-	if ( m_iClip1 <= 10 && m_iClip2 <= 0 ) {
+	if ( m_iClip1 <= GetMinShotClip() && m_iClip2 <= 0) {
 		if( m_flNextPrimaryAttack <= gpGlobals->curtime )
 			DryFire();
 		return;
@@ -1211,7 +1236,7 @@ void CWeaponPulsePistol::ChargeAttack( void )
 
 	int nMaxCharge = GetMaxClip2();
 	// If there is only one shot left or the charge has reached maximum, do not charge!
-	if (m_iClip1 <= 10 || m_iClip2 == nMaxCharge)
+	if (m_iClip1 <= GetMinShotClip() || m_iClip2 == nMaxCharge)
 	{
 		RechargeAmmo();
 		return;
@@ -1229,6 +1254,10 @@ void CWeaponPulsePistol::ChargeAttack( void )
 
 	// The charge attack charges twice as quickly as ammo recharges
 	float flRechargeRate = 10;
+
+	if (IsDualWielding())
+		flRechargeRate *= 2.0f;
+
 	float flChargeAmount = flRechargeRate * flChargeInterval;
 
 	m_flChargeRemainder += flChargeAmount;
@@ -1337,6 +1366,18 @@ void CWeaponPulsePistol::StartChargeEffects()
 		m_hChargeSprite->SetBrightness( 0, 0.1f );
 		m_hChargeSprite->SetScale( 0.05f, 0.05f );
 		m_hChargeSprite->TurnOn();
+
+		if (IsDualWielding())
+		{
+			m_hChargeSprite2 = CSprite::SpriteCreate( "effects/fluttercore.vmt", GetAbsOrigin(), false );
+
+			m_hChargeSprite2->SetAsTemporary();
+			m_hChargeSprite2->SetAttachment( pOwner->GetViewModel(), 3 );
+			m_hChargeSprite2->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNone );
+			m_hChargeSprite2->SetBrightness( 0, 0.1f );
+			m_hChargeSprite2->SetScale( 0.05f, 0.05f );
+			m_hChargeSprite2->TurnOn();
+		}
 	}
 }
 
@@ -1348,6 +1389,11 @@ void CWeaponPulsePistol::SetChargeEffectBrightness( float alpha )
 	if (m_hChargeSprite != NULL)
 	{
 		m_hChargeSprite->SetBrightness( m_iClip2, 0.1f );
+
+		if (m_hChargeSprite2 != NULL)
+		{
+			m_hChargeSprite2->SetBrightness( m_iClip2, 0.1f );
+		}
 	}
 }
 
@@ -1360,6 +1406,12 @@ void CWeaponPulsePistol::KillChargeEffects()
 	{
 		UTIL_Remove( m_hChargeSprite );
 		m_hChargeSprite = NULL;
+	}
+
+	if (m_hChargeSprite2 != NULL)
+	{
+		UTIL_Remove( m_hChargeSprite2 );
+		m_hChargeSprite2 = NULL;
 	}
 }
 
@@ -1482,6 +1534,7 @@ PRECACHE_WEAPON_REGISTER( weapon_pulsepistol );
 BEGIN_DATADESC( CWeaponPulsePistol )
 	DEFINE_FIELD( m_flLastChargeTime, FIELD_TIME ),
 	DEFINE_FIELD( m_flLastChargeSoundTime, FIELD_TIME ),
-	DEFINE_FIELD( m_hChargeSprite, FIELD_EHANDLE )
+	DEFINE_FIELD( m_hChargeSprite, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hChargeSprite2, FIELD_EHANDLE ),
 END_DATADESC()
 #endif

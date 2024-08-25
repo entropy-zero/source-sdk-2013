@@ -22,8 +22,14 @@ IMPLEMENT_NETWORKCLASS_ALIASED( BaseHLCombatWeapon , DT_BaseHLCombatWeapon )
 BEGIN_NETWORK_TABLE( CBaseHLCombatWeapon , DT_BaseHLCombatWeapon )
 #if !defined( CLIENT_DLL )
 //	SendPropInt( SENDINFO( m_bReflectViewModelAnimations ), 1, SPROP_UNSIGNED ),
+#ifdef EZ2
+	SendPropEHandle( SENDINFO( m_hLeftHandGun ) ),
+#endif
 #else
 //	RecvPropInt( RECVINFO( m_bReflectViewModelAnimations ) ),
+#ifdef EZ2
+	RecvPropEHandle( RECVINFO( m_hLeftHandGun ) ),
+#endif
 #endif
 END_NETWORK_TABLE()
 
@@ -42,6 +48,10 @@ BEGIN_DATADESC( CBaseHLCombatWeapon )
 	DEFINE_FIELD( m_flHolsterTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_iPrimaryAttacks,	FIELD_INTEGER ),
 	DEFINE_FIELD( m_iSecondaryAttacks,	FIELD_INTEGER ),
+
+#ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_VOID, "CreateLeftHandGun", InputCreateLeftHandGun ),
+#endif
 
 END_DATADESC()
 
@@ -250,7 +260,41 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 	}
 }
 
-#if defined(EZ2) && defined(GAME_DLL)
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const char *CBaseHLCombatWeapon::GetViewModel( int viewmodelindex ) const
+{
+	if (GetLeftHandGun() && GetWpnData().szViewModelDual[0])
+		return GetWpnData().szViewModelDual;
+
+	return BaseClass::GetViewModel( viewmodelindex );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CHudTexture const *CBaseHLCombatWeapon::GetSpriteActive( void ) const
+{
+	if (GetLeftHandGun() && GetWpnData().iconActiveDual)
+		return GetWpnData().iconActiveDual;
+
+	return GetWpnData().iconActive;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CHudTexture const *CBaseHLCombatWeapon::GetSpriteInactive( void ) const
+{
+	if (GetLeftHandGun() && GetWpnData().iconInactiveDual)
+		return GetWpnData().iconInactiveDual;
+
+	return GetWpnData().iconInactive;
+}
+
+#ifdef GAME_DLL
 // HACKHACK: Draws directly from npc_assassin private animevents
 extern int AE_PISTOL_FIRE_LEFT;
 extern int AE_PISTOL_FIRE_RIGHT;
@@ -412,6 +456,133 @@ Activity CBaseHLCombatWeapon::ActivityOverride( Activity baseAct, bool *pRequire
 
 	return BaseClass::ActivityOverride( baseAct, pRequired );
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Drop/throw the weapon with the given velocity.
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::Drop( const Vector &vecVelocity )
+{
+	if (GetLeftHandGun())
+	{
+		m_iClip1 /= 2;
+		m_iClip2 /= 2;
+	}
+
+	CBaseCombatCharacter *pOwner = GetOwner();
+
+	BaseClass::Drop( vecVelocity );
+
+	if (pOwner && pOwner->IsPlayer())
+	{
+		// Spawn left hand gun when regular one is dropped
+		if (GetLeftHandGun())
+		{
+			// Drop the fake gun
+			CBaseEntity *pRealGun = CreateNoSpawn( GetClassname(), GetAbsOrigin() - Vector( 0, 0, BoundingRadius() ), GetAbsAngles(), this );
+			DispatchSpawn( pRealGun );
+
+			if (pRealGun)
+			{
+				if (pRealGun->VPhysicsGetObject())
+				{
+					// Copy velocity
+					Vector vecVelocity;
+					AngularImpulse vecAngVelocity;
+					VPhysicsGetObject()->GetVelocity( &vecVelocity, &vecAngVelocity );
+					pRealGun->VPhysicsGetObject()->SetVelocity( &vecVelocity, &vecAngVelocity );
+				}
+
+				pRealGun->MyCombatWeaponPointer()->m_iClip1 = m_iClip1;
+				pRealGun->MyCombatWeaponPointer()->m_iClip2 = m_iClip2;
+
+				// Act as if it was dropped the same way
+				pRealGun->SetThink( &CBaseCombatWeapon::SetPickupTouch );
+				pRealGun->SetTouch( NULL );
+				pRealGun->SetNextThink( gpGlobals->curtime + 1.0f );
+			}
+
+			UTIL_Remove( GetLeftHandGun() );
+
+			SetLeftHandGun( NULL );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+CBaseAnimating *CBaseHLCombatWeapon::CreateLeftHandGun()
+{
+	if (!GetOwner())
+	{
+		Warning( "%s cannot create left hand gun because it has no owner\n", GetDebugName() );
+		return NULL;
+	}
+
+	if (!CanDualWield())
+	{
+		Warning( "%s not capable of dual wielding\n", GetDebugName() );
+		return NULL;
+	}
+
+	if (GetLeftHandGun())
+	{
+		Warning("%s already has a left-handed weapon (%s)\n", GetDebugName(), GetLeftHandGun()->GetDebugName());
+		return NULL;
+	}
+
+	// Create a fake second gun
+	CBaseEntity *pEnt = CBaseEntity::CreateNoSpawn( "prop_dynamic_override", this->GetLocalOrigin(), this->GetLocalAngles(), this );
+	if (pEnt)
+	{
+		char szLeftModel[MAX_PATH];
+		if (GetWpnData().szWorldModelDual[0])
+		{
+			V_strncpy( szLeftModel, GetWpnData().szWorldModelDual, sizeof( szLeftModel ) );
+		}
+		else
+		{
+			// If there is no specific worldmodel, then just try adding "_left" to the end of the model name
+			V_StripExtension( GetWorldModel(), szLeftModel, sizeof( szLeftModel ) );
+			V_strncat( szLeftModel, "_left.mdl", sizeof( szLeftModel ) );
+		}
+
+		pEnt->SetModelName( MAKE_STRING( szLeftModel ) );
+		pEnt->SetRenderMode( kRenderTransColor );
+		DispatchSpawn( pEnt );
+		pEnt->FollowEntity( GetOwner(), true );
+		pEnt->SetOwnerEntity( this );
+		pEnt->AddEffects( EF_NOSHADOW );
+
+		CBaseAnimating *pAnimating = static_cast<CBaseAnimating *>(pEnt);
+		SetLeftHandGun( pAnimating );
+
+		if (GetOwner()->IsPlayer())
+		{
+			SetModel( GetViewModel() );
+
+			if (GetOwner()->GetActiveWeapon() == this)
+			{
+				// Play the first draw animation and re-deploy the model
+				m_bFirstDraw = true;
+				DefaultDeploy( (char *)GetViewModel(), (char *)GetWorldModel(), GetDrawActivity(), (char *)GetAnimPrefix() );
+			}
+		}
+
+		return pAnimating;
+	}
+
+	return NULL;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::InputCreateLeftHandGun( inputdata_t &inputdata )
+{
+	CreateLeftHandGun();
+}
+#endif
 #endif
 
 float	g_lateralBob;
