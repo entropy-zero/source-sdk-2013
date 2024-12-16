@@ -44,6 +44,10 @@ public:
 	// Attempt to replace a dynamic_cast
 	virtual bool IsPropPhysics() { return false; }
 #endif
+
+#ifdef EZ2
+	virtual void PostPropDataPrecache( void ) {}
+#endif
 };
 
 
@@ -61,6 +65,9 @@ public:
 
 	virtual void Spawn();
 	virtual void Precache();
+#ifdef EZ2
+	virtual void PostPropDataPrecache( void );
+#endif
 	virtual float GetAutoAimRadius() { return 24.0f; }
 
 #ifdef MAPBASE

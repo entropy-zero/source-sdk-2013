@@ -50,6 +50,8 @@
 #ifdef EZ2
 #include "ez2/ez2_player.h"
 #include "eventqueue.h"
+#include "RagdollBoogie.h"
+#include "particle_parse.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -107,6 +109,9 @@ ConVar mapbase_prop_consistency_noremove("mapbase_prop_consistency_noremove", "1
 
 #ifdef EZ2
 	#define PROP_PHYSICS_KICK_MULTIPLIER 3
+
+	// Unique vort barrel boogie color
+	static const Vector g_vecVortBarrelBoogieColor( 0.1675, 0.90, 0.1675 );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -279,6 +284,10 @@ void CBaseProp::Spawn( void )
 		}
 #endif
 	}
+
+#ifdef EZ2
+	PostPropDataPrecache();
+#endif
 
 	SetMoveType( MOVETYPE_PUSH );
 	m_takedamage = DAMAGE_NO;
@@ -831,6 +840,9 @@ bool CBreakableProp::HandleInteraction( int interactionType, void *data, CBaseCo
 		// If we're an explosive barrel, DON'T explode violently!
 		if (
 				HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
+#ifdef EZ2
+				HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
+#endif
 				HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) ||
 				HasInteraction( PROPINTER_FIRE_FLAMMABLE ) ||
 				HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) ||
@@ -1034,6 +1046,9 @@ void CBreakableProp::Spawn()
 	if ( ( m_iHealth == 0 ) ||
         ( !m_iNumBreakableChunks && 
 		    !HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) &&
+#ifdef EZ2
+			!HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) &&
+#endif
 		    !HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) &&
 		    !HasInteraction( PROPINTER_FIRE_FLAMMABLE ) &&
 		    !HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) &&
@@ -1049,6 +1064,9 @@ void CBreakableProp::Spawn()
 		if( g_pGameRules->GetAutoAimMode() == AUTOAIM_ON_CONSOLE )
 		{
 			if ( HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
+#ifdef EZ2
+				HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
+#endif
 				HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) )
 			{
 				// Exploding barrels, exploding gas cans
@@ -1842,8 +1860,29 @@ void CBreakableProp::Precache()
 		PrecacheScriptSound( STRING(m_iszPuntSound) );
 	}
 
+#ifdef EZ2
+	// Prop data isn't initialized until spawn, but this is needed for save/restore
+	PostPropDataPrecache();
+#endif
+
 	BaseClass::Precache();
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBreakableProp::PostPropDataPrecache( void )
+{
+	if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+	{
+		PrecacheScriptSound( "VortBarrel.Burst" );
+		PrecacheParticleSystem( "vortbarrel_explode" );
+	}
+
+	BaseClass::PostPropDataPrecache();
+}
+#endif
 
 // Get the root physics object from which all broken pieces will
 // derive their positions and velocities
@@ -1953,6 +1992,17 @@ void CBreakableProp::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info )
 				0.0f, this );
 			EmitSound("PropaneTank.Burst");
 		}
+#ifdef EZ2
+		else if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+		{
+			ExplosionCreate( origin, angles, pAttacker, m_explodeDamage, m_explodeRadius,
+				SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOFIREBALL | SF_ENVEXPLOSION_NOPARTICLES | SF_ENVEXPLOSION_NOSOUND,
+				0.0f, this, DMG_SHOCK | DMG_BLAST );
+
+			DispatchParticleEffect( "vortbarrel_explode", GetAbsOrigin(), GetAbsAngles() );
+			EmitSound( "VortBarrel.Burst" );
+		}
+#endif
 		else
 		{
 			float flScale = GetModelScale();
@@ -2052,6 +2102,31 @@ void CBreakableProp::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info )
 			}
 		}
 	}
+#ifdef EZ2
+	else if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+	{
+		if ( bExploded == false )
+		{
+			ExplosionCreate( origin, angles, pAttacker, m_explodeDamage, m_explodeRadius,
+				SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOFIREBALL | SF_ENVEXPLOSION_NOPARTICLES | SF_ENVEXPLOSION_NOSOUND,
+				0.0f, this, DMG_SHOCK | DMG_BLAST );
+
+			DispatchParticleEffect( "vortbarrel_explode", GetAbsOrigin(), GetAbsAngles() );
+			EmitSound( "VortBarrel.Burst" );
+		}
+
+		// Find and boogie all dead NPCs within the radius
+		// TODO: Boogie ragdolls directly? That means ragdolls already on the ground would boogie
+		CBaseEntity *pEntity = NULL;
+		for ( CEntitySphereQuery sphere( origin, m_explodeRadius ); ( pEntity = sphere.GetCurrentEntity() ) != NULL; sphere.NextEntity() )
+		{
+			if( pEntity && !pEntity->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pEntity->MyCombatCharacterPointer() && pEntity->MyCombatCharacterPointer()->m_hDeathRagdoll )
+			{
+				CRagdollBoogie::Create( pEntity->MyCombatCharacterPointer()->m_hDeathRagdoll, 200, gpGlobals->curtime, 4.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBarrelBoogieColor );
+			}
+		}
+	}
+#endif
 
 #ifndef HL2MP
 	UTIL_Remove( this );
