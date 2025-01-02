@@ -3316,6 +3316,7 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 		// EXPLOSION!
 		pPhysExplosion->Spawn();
 		pPhysExplosion->Explode( this, this );
+		UTIL_Remove(pPhysExplosion);
 	}
 
 	// It's dangerous to go alone. Take this with you!
