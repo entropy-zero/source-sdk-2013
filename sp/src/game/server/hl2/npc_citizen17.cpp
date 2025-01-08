@@ -2614,6 +2614,17 @@ int CNPC_Citizen::SelectRangeAttack2Schedule()
 	return BaseClass::SelectRangeAttack2Schedule();
 }
 
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_Citizen::OnStartSchedule( int schedule )
+{
+	// Stop aiming our gun at hints if we're investigating a sound
+	if ( schedule == SCHED_INVESTIGATE_SOUND )
+		StopAiming( "Investigating sound" );
+
+	BaseClass::OnStartSchedule( schedule );
+}
+
 #define CITIZEN_DECOY_RADIUS 128.0f
 #define CITIZEN_NUM_DECOYS 10
 #define CITIZEN_DECOY_MAX_MASS 200.0f

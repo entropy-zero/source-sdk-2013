@@ -232,6 +232,7 @@ public:
 	int 			TranslateWillpowerSchedule(int scheduleType);
 	int				TranslateSuppressingFireSchedule(int scheduleType);
 	int				SelectRangeAttack2Schedule();
+	void			OnStartSchedule( int scheduleType );
 	bool			FindDecoyObject(void);
 	bool			FindEnemyCoverTarget(void);
 	void			AimGun();
