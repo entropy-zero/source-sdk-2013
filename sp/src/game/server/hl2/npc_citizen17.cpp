@@ -136,6 +136,7 @@ ConVar ai_min_suppression_distance("ai_min_suppression_distance", "256", FCVAR_R
 ConVar ai_suppression_distance_ratio("ai_suppression_distance_ratio", "0.5", FCVAR_REPLICATED); // 1upD - What percent of distance to suppression target must be covered
 ConVar ai_willpower_translate_schedules("ai_willpower_translate_schedules", "1", FCVAR_REPLICATED); // 1upD - Should new EZ2 schedules be used?
 ConVar ai_suppression_shoot_props( "ai_suppression_shoot_props", "1", FCVAR_REPLICATED ); // 1upD - Should rebels with suppressing fire shoot at props?
+ConVar ai_suppression_use_enemy_memory( "ai_suppression_use_enemy_memory", "0", FCVAR_REPLICATED ); // Blixibon - Allows suppression AI to respect enemy memory
 #ifdef EZ1
 // Disable this in EZ1
 ConVar npc_citizen_gib( "npc_citizen_gib", "0" );
@@ -2566,6 +2567,23 @@ int CNPC_Citizen::TranslateSuppressingFireSchedule(int scheduleType)
 		return scheduleType;
 	}
 
+	if (ai_suppression_use_enemy_memory.GetBool() && GetSquad() && GetSquad()->NumMembers() > 1)
+	{
+		// If the enemy has eluded any of our squadmates, then someone must've peeked ahead to establish LOF and found no one there
+		// This means they're not at the position we think they're in
+		AISquadIter_t iter;
+		for ( CAI_BaseNPC *pSquadmate = m_pSquad ? m_pSquad->GetFirstMember(&iter) : this; pSquadmate; pSquadmate = m_pSquad ? m_pSquad->GetNextMember(&iter) : NULL )
+		{
+			AI_EnemyInfo_t *pMemory = pSquadmate->GetEnemies()->Find( pEnemy );
+			if( pMemory && pMemory->bEludedMe )
+			{
+				if(ai_debug_rebel_suppressing_fire.GetBool())
+					DevMsg("NPC_Citizen::TranslateSuppressingFireSchedule: %s not using suppressive fire due to enemy eluded by squad\n", GetDebugName());
+				return scheduleType;
+			}
+		}
+	}
+
 #ifdef EZ1
 	if(m_flLastAttackTime == 0)
 	{
@@ -2613,7 +2631,13 @@ bool CNPC_Citizen::FindDecoyObject(void)
 	CBaseEntity	*pCurrent;
 	int			count;
 	int			i;
-	Vector vecTarget = GetEnemy()->WorldSpaceCenter();
+
+	Vector vecTarget;
+	if (ai_suppression_use_enemy_memory.GetBool())
+		vecTarget = GetEnemyLKP() + (GetEnemy()->WorldSpaceCenter() - GetEnemy()->GetAbsOrigin()); // Worldspace center relative to LKP
+	else
+		vecTarget = GetEnemy()->WorldSpaceCenter();
+
 	Vector vecDelta;
 
 	for (i = 0; i < CITIZEN_NUM_DECOYS; i++)
@@ -2754,7 +2778,12 @@ bool CNPC_Citizen::FindEnemyCoverTarget(void)
 
 	trace_t tr;
 	Vector startpos = this->Weapon_ShootPosition();
-	Vector targetpos = GetEnemy()->EyePosition();
+
+	Vector targetpos;
+	if (ai_suppression_use_enemy_memory.GetBool())
+		targetpos = GetEnemyLKP() + GetEnemy()->GetViewOffset(); // Eye position relative to LKP
+	else
+		targetpos = GetEnemy()->EyePosition();
 
 	float distance = UTIL_DistApprox(startpos, targetpos);
 	if (ai_debug_rebel_suppressing_fire.GetBool() && distance <= ai_min_suppression_distance.GetFloat())
