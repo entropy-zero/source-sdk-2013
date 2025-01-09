@@ -107,6 +107,10 @@ int g_interactionMetrocopIdleChatter = 0;
 int g_interactionMetrocopClearSentenceQueues = 0;
 
 extern int g_interactionHitByPlayerThrownPhysObj;
+#ifdef EZ2
+extern int g_interactionStasisGrenadeFreeze;
+extern int g_interactionStasisGrenadeUnfreeze;
+#endif
 
 ConVar	sk_metropolice_stitch_reaction( "sk_metropolice_stitch_reaction","1.0");
 ConVar	sk_metropolice_stitch_tight_hitcount( "sk_metropolice_stitch_tight_hitcount","2");
@@ -3728,6 +3732,21 @@ bool CNPC_MetroPolice::HandleInteraction(int interactionType, void *data, CBaseC
 
 		return true;
 	}
+
+#ifdef EZ2
+	if (interactionType == g_interactionStasisGrenadeFreeze)
+	{
+		CapabilitiesRemove(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+	else if (interactionType == g_interactionStasisGrenadeUnfreeze)
+	{
+		CapabilitiesAdd(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+#endif
 
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }

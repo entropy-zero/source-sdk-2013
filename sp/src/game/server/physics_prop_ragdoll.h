@@ -123,6 +123,9 @@ public:
 	void			SetKiller( CBaseEntity *pKiller ) { m_hKiller = pKiller; }
 	void			GetAngleOverrideFromCurrentState( char *pOut, int size );
 
+#ifdef EZ2
+	bool			IsMotionEnabled(void);
+#endif
 	void			DisableMotion( void );
 
 	// Input/Output

@@ -176,6 +176,9 @@ BEGIN_DATADESC( CNPC_FlyingPredator )
 	DEFINE_FIELD( m_vDesiredTarget, FIELD_VECTOR ),
 	DEFINE_FIELD( m_vCurrentTarget, FIELD_VECTOR ),
 
+	DEFINE_KEYFIELD( m_AdultModelName, FIELD_MODELNAME, "adultmodel" ),
+	DEFINE_KEYFIELD( m_BabyModelName, FIELD_MODELNAME, "babymodel" ),
+
 	DEFINE_INPUTFUNC( FIELD_STRING, "ForceFlying", InputForceFlying ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "Fly", InputFly ),
 
@@ -188,14 +191,14 @@ void CNPC_FlyingPredator::Spawn()
 {
 	Precache( );
 
-	SetModel( STRING( GetModelName() ) );
-
 	if (m_bIsBaby)
 	{
+		SetModel( STRING( m_BabyModelName ) );
 		SetHullType( HULL_TINY );
 	}
 	else
 	{
+		SetModel( STRING( m_AdultModelName ) );
 		SetHullType( HULL_WIDE_SHORT );
 	}
 
@@ -259,10 +262,23 @@ void CNPC_FlyingPredator::Precache()
 
 	if ( GetModelName() == NULL_STRING )
 	{
-		SetModelName( AllocPooledString( m_bIsBaby ? "models/stukapup.mdl" : "models/stukabat.mdl" ) );
+		SetModelName( AllocPooledString( "models/stukabat.mdl" ) );
+	}
+
+	if ( m_AdultModelName == NULL_STRING )
+	{
+		m_AdultModelName = GetModelName();
+	}
+	else
+		PrecacheModel( STRING( m_AdultModelName ) );
+
+	if ( m_BabyModelName == NULL_STRING )
+	{
+		m_BabyModelName = AllocPooledString( "models/stukapup.mdl" );
 	}
 
 	PrecacheModel( STRING( GetModelName() ) );
+	PrecacheModel( STRING( m_BabyModelName ) );
 
 	if (m_tEzVariant == EZ_VARIANT_RAD)
 	{
@@ -965,7 +981,8 @@ bool CNPC_FlyingPredator::SpawnNPC( const Vector position, bool isBaby )
 		pChild->m_tWanderState = this->m_tWanderState;
 		pChild->m_bSpawningEnabled = this->m_bSpawningEnabled;
 		pChild->m_bCanUseFlyNav = this->m_bCanUseFlyNav;
-		pChild->SetModelName( this->GetModelName() );
+		pChild->m_BabyModelName = this->m_BabyModelName;
+		pChild->m_AdultModelName = this->m_AdultModelName;
 		pChild->m_nSkin = this->m_nSkin;
 		pChild->Precache();
 

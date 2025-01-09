@@ -128,7 +128,10 @@ BEGIN_DATADESC(CNPC_Wilson)
 
 	DEFINE_KEYFIELD( m_bDead, FIELD_BOOLEAN, "dead" ),
 
-	DEFINE_INPUT( m_bOmniscient, FIELD_BOOLEAN, "SetOmniscient" ),
+	DEFINE_INPUT( m_bOmniscient, FIELD_BOOLEAN, "SetOmniscient" ), // TODO: Replace with "Omnipresent" when saves can be changed
+	DEFINE_KEYFIELD( m_iszCameraTargets, FIELD_STRING, "CameraTargets" ),
+
+	DEFINE_KEYFIELD( m_bSeeThroughPlayer, FIELD_BOOLEAN, "SeeThroughPlayer" ),
 
 	DEFINE_INPUT( m_bCanBeEnemy, FIELD_BOOLEAN, "SetCanBeEnemy" ),
 	
@@ -152,6 +155,15 @@ BEGIN_DATADESC(CNPC_Wilson)
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnDeadMode", InputTurnOnDeadMode ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffDeadMode", InputTurnOffDeadMode ),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetCameraTargets", InputSetCameraTargets ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "ClearCameraTargets", InputClearCameraTargets ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableSeeThroughPlayer", InputEnableSeeThroughPlayer ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableSeeThroughPlayer", InputDisableSeeThroughPlayer ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableOmnipresence", InputEnableOmnipresence ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableOmnipresence", InputDisableOmnipresence ),
 
 	DEFINE_THINKFUNC( TeslaThink ),
 
@@ -367,6 +379,42 @@ void CNPC_Wilson::Activate( void )
 		{
 			m_pMotionController->Enable();
 		}
+	}
+
+	RefreshCameraTargets();
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_Wilson::KeyValue( const char *szKeyName, const char *szValue )
+{
+	bool bResult = BaseClass::KeyValue( szKeyName, szValue );
+
+	if( !bResult )
+	{
+		// Temporary until we can change saves and rename m_bOmniscient
+		if (FStrEq( szKeyName, "Omnipresent" ))
+		{
+			m_bOmniscient = atoi(szValue) != 0 ? true : false;
+			return true;
+		}
+	}
+
+	return bResult;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Wilson::NPCInit( void )
+{
+	BaseClass::NPCInit();
+
+	if (m_bOmniscient)
+	{
+		// Infinite look distance needed to see through distant cameras
+		SetDistLook( 9999999.0f );
+		m_flDistTooFar = 9999999.0f;
 	}
 }
 
@@ -718,7 +766,7 @@ void CNPC_Wilson::NPCThink()
 {
 	BaseClass::NPCThink();
 
-	if (HasCondition(COND_IN_PVS))
+	if (HasCondition(COND_IN_PVS) && (!m_bOmniscient || HasCondition(COND_SEE_PLAYER)))
 	{
 		// Needed for choreography reasons
 		AimGun();
@@ -1174,6 +1222,123 @@ void CNPC_Wilson::AimGun()
 	{
 		RelaxAim();
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Wilson::FInViewCone( const Vector &vecSpot )
+{
+	if ( m_bSeeThroughPlayer )
+	{
+		// Bad Cop has special eye
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+		if ( pPlayer && pPlayer->FInViewCone( vecSpot ) )
+			return true;
+	}
+
+	if ( m_hCameraTargets.Count() > 0 )
+	{
+		FOR_EACH_VEC( m_hCameraTargets, i )
+		{
+			if ( !m_hCameraTargets[i]->IsEnabled() )
+				continue;
+
+			if ( m_hCameraTargets[i]->FInViewCone( vecSpot ) )
+				return true;
+		}
+
+		// None of the cameras saw it
+		// If we're omniscient, then our actual POV is irrelevant
+		if (m_bOmniscient)
+			return false;
+	}
+
+	return BaseClass::FInViewCone( vecSpot );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Wilson::FVisible( CBaseEntity *pEntity, int traceMask, CBaseEntity **ppBlocker )
+{
+	if ( m_bSeeThroughPlayer )
+	{
+		// Bad Cop has special eye
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+		if ( pEntity == pPlayer || (pPlayer && pPlayer->FVisible( pEntity )) )
+			return true;
+	}
+
+	if ( m_hCameraTargets.Count() > 0 )
+	{
+		FOR_EACH_VEC( m_hCameraTargets, i )
+		{
+			if ( !m_hCameraTargets[i]->IsEnabled() )
+				continue;
+
+			// Note that this will not use the visibility cache normally used by CBaseCombatCharacters (which is acceptable)
+			if ( m_hCameraTargets[i]->FVisible( pEntity, traceMask, ppBlocker ) )
+				return true;
+		}
+
+		// None of the cameras saw it
+		// If we're omniscient, then our actual POV is irrelevant
+		if (m_bOmniscient)
+			return false;
+	}
+
+	return BaseClass::FVisible( pEntity, traceMask, ppBlocker );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Wilson::FVisible( const Vector &vecTarget, int traceMask, CBaseEntity **ppBlocker )
+{
+	if ( m_bSeeThroughPlayer )
+	{
+		// Bad Cop has special eye
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+		if ( pPlayer && pPlayer->FVisible( vecTarget ) )
+			return true;
+	}
+
+	if ( m_hCameraTargets.Count() > 0 )
+	{
+		FOR_EACH_VEC( m_hCameraTargets, i )
+		{
+			if ( !m_hCameraTargets[i]->IsEnabled() )
+				continue;
+
+			if ( m_hCameraTargets[i]->FVisible( vecTarget, traceMask, ppBlocker ) )
+				return true;
+		}
+
+		// None of the cameras saw it
+		// If we're omniscient, then our actual POV is irrelevant
+		if (m_bOmniscient)
+			return false;
+	}
+
+	return BaseClass::FVisible( vecTarget, traceMask, ppBlocker );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Gets the first camera which can see the target
+//-----------------------------------------------------------------------------
+CWilsonCamera *CNPC_Wilson::GetCameraForTarget( CBaseEntity *pTarget )
+{
+	FOR_EACH_VEC( m_hCameraTargets, i )
+	{
+		if ( !m_hCameraTargets[i]->IsEnabled() )
+			continue;
+
+		if ( m_hCameraTargets[i]->FInViewCone( pTarget->WorldSpaceCenter() ) && m_hCameraTargets[i]->FVisible( pTarget ) )
+			return m_hCameraTargets[i];
+	}
+
+	return NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -1747,6 +1912,19 @@ void CNPC_Wilson::ModifyOrAppendCriteria(AI_CriteriaSet& set)
 		set.AppendCriteria( "wilson_distance", "99999999999" );
 		set.AppendCriteria( "player_in_vehicle", "0" );
 	}
+
+	if (m_hCameraTargets.Count() > 0 && GetSpeechTarget())
+	{
+		// Check which camera we're looking at our speech target through
+		CWilsonCamera *pCamera = GetCameraForTarget( GetSpeechTarget() );
+		if (pCamera)
+		{
+			set.AppendCriteria( "camera", STRING(pCamera->GetEntityName()) );
+			pCamera->AppendContextToCriteria( set, "camera_" );
+		}
+		else
+			set.AppendCriteria( "camera", "0" );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1888,6 +2066,47 @@ bool CNPC_Wilson::GetGameTextSpeechParams( hudtextparms_t &params )
 	params.b1 = 199;
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Wilson::RefreshCameraTargets()
+{
+	m_hCameraTargets.RemoveAll();
+
+	if (m_iszCameraTargets == NULL_STRING)
+		return;
+
+	CBaseEntity *pCamera = gEntList.FindEntityGeneric( NULL, STRING( m_iszCameraTargets ), this, this, this );
+	while (pCamera)
+	{
+		if (!FClassnameIs( pCamera, "point_wilson_camera" ))
+		{
+			DevWarning( "%s: \"%s\" (%s) is not a point_wilson_camera\n", GetDebugName(), pCamera->GetDebugName(), pCamera->GetClassname() );
+			continue;
+		}
+
+		m_hCameraTargets.AddToTail( static_cast<CWilsonCamera*>(pCamera) );
+
+		pCamera = gEntList.FindEntityGeneric( pCamera, STRING( m_iszCameraTargets ), this, this, this );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const Vector &CNPC_Wilson::GetSpeechTargetSearchOrigin()
+{
+	if ( m_bOmniscient )
+	{
+		// It doesn't matter where we are, so search from the player's origin
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+		if (pPlayer)
+			return pPlayer->GetAbsOrigin();
+	}
+
+	return BaseClass::GetSpeechTargetSearchOrigin();
 }
 
 //-----------------------------------------------------------------------------
@@ -2483,4 +2702,79 @@ void CArbeitScanner::CleanupScan(bool dispatchInteraction)
 		UTIL_Remove(m_pSprite);
 		m_pSprite = NULL;
 	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+BEGIN_DATADESC( CWilsonCamera )
+
+	DEFINE_KEYFIELD( m_bDisabled,		FIELD_BOOLEAN, "StartDisabled" ),
+	DEFINE_KEYFIELD( m_flFieldOfView,	FIELD_FLOAT, "FieldOfView" ),
+	DEFINE_KEYFIELD( m_flLookDistSqr,		FIELD_FLOAT, "LookDist" ),
+	DEFINE_KEYFIELD( m_b3DViewCone,		FIELD_BOOLEAN, "Use3DViewCone" ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFOV", InputSetFOV ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetLookDist", InputSetLookDist ),
+
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( point_wilson_camera, CWilsonCamera );
+
+//-----------------------------------------------------------------------------
+// Constructor
+//-----------------------------------------------------------------------------
+CWilsonCamera::CWilsonCamera( void )
+{
+	m_bDisabled = false;
+	m_flFieldOfView = 90.0f;
+	m_flLookDistSqr = 1024.0f;
+	m_b3DViewCone = false;
+}
+
+//------------------------------------------------------------------------------
+// Purpose :
+// Input   :
+// Output  :
+//------------------------------------------------------------------------------
+void CWilsonCamera::Spawn( void )
+{
+	BaseClass::Spawn();
+
+	// Make FOV and look dist ready for visibility calculations
+	m_flFieldOfView = cos( DEG2RAD(m_flFieldOfView/2) );
+	m_flLookDistSqr *= m_flLookDistSqr;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CWilsonCamera::FInViewCone( const Vector &vecSpot )
+{
+	Vector los = ( vecSpot - EyePosition() );
+
+	if (los.LengthSqr() > m_flLookDistSqr)
+		return false;
+
+	Vector facingDir;
+	GetVectors( &facingDir, NULL, NULL );
+
+	if (m_b3DViewCone)
+	{
+		// do this in 2D
+		los.z = 0;
+		VectorNormalize( los );
+
+		facingDir.z = 0;
+		facingDir.AsVector2D().NormalizeInPlace();
+	}
+
+	float flDot = DotProduct( los, facingDir );
+
+	if ( flDot > m_flFieldOfView )
+		return true;
+
+	return false;
 }

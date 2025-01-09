@@ -225,7 +225,7 @@ void CNPC_LostSoul::Spawn( void )
 	CEntityFlame *pFlame = CEntityFlame::Create(this);
 	if (pFlame)
 	{
-		pFlame->SetLifetime(HUGE_VAL);
+		pFlame->SetLifetime(FLT_MAX);
 		SetEffectEntity(pFlame);
 		pFlame->SetSize(8);
 		pFlame->SetDamage(0.0f);

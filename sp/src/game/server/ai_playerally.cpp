@@ -18,6 +18,7 @@
 #ifdef EZ2
 #include "ez2/ai_concept_response.h"
 #include "ez2/ez2_player.h"
+#include "ai_interactions.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1342,6 +1343,37 @@ bool CAI_PlayerAlly::CanFlinch( void )
 }
 #endif
 
+#ifdef EZ2
+extern int g_interactionStasisGrenadeFreeze;
+extern int g_interactionStasisGrenadeUnfreeze;
+
+//-----------------------------------------------------------------------------
+// Purpose:  This is a generic function (to be implemented by sub-classes) to
+//			 handle specific interactions between different types of characters
+//			 (For example the barnacle grabbing an NPC)
+// Input  :  Constant for the type of interaction
+// Output :	 true  - if sub-class has a response for the interaction
+//			 false - if sub-class has no response
+//-----------------------------------------------------------------------------
+bool CAI_PlayerAlly::HandleInteraction(int interactionType, void* data, CBaseCombatCharacter* sourceEnt)
+{
+	if (interactionType == g_interactionStasisGrenadeFreeze)
+	{
+		CapabilitiesRemove(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+	else if (interactionType == g_interactionStasisGrenadeUnfreeze)
+	{
+		CapabilitiesAdd(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+
+	return BaseClass::HandleInteraction(interactionType, data, sourceEnt);
+}
+#endif
+
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 void CAI_PlayerAlly::OnKilledNPC( CBaseCombatCharacter *pKilled )
@@ -1619,7 +1651,11 @@ bool CAI_PlayerAlly::IsValidSpeechTarget( int flags, CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 CBaseEntity *CAI_PlayerAlly::FindSpeechTarget( int flags )
 {
+#ifdef EZ2
+	const Vector &	vAbsOrigin 		= GetSpeechTargetSearchOrigin();
+#else
 	const Vector &	vAbsOrigin 		= GetAbsOrigin();
+#endif
 	float 			closestDistSq 	= FLT_MAX;
 	CBaseEntity *	pNearest 		= NULL;
 	float			distSq;

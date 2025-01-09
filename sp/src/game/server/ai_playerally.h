@@ -349,6 +349,10 @@ public:
 	virtual bool		CanFlinch( void );
 #endif
 
+#ifdef EZ2
+	bool		HandleInteraction(int interactionType, void* data, CBaseCombatCharacter* sourceEnt);
+#endif
+
 	//---------------------------------
 	// Combat
 	//---------------------------------
@@ -379,6 +383,11 @@ public:
 
 	CBaseEntity *FindSpeechTarget( int flags );
 	virtual bool IsValidSpeechTarget( int flags, CBaseEntity *pEntity );
+
+#ifdef EZ2
+	// Used by Wilson camera targets
+	virtual const Vector &GetSpeechTargetSearchOrigin() { return GetAbsOrigin(); }
+#endif
 	
 	CBaseEntity *GetSpeechTarget()								{ return m_hTalkTarget.Get(); }
 	void		SetSpeechTarget( CBaseEntity *pSpeechTarget ) 	{ m_hTalkTarget = pSpeechTarget; }

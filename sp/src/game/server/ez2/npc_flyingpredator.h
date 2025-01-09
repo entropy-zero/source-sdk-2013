@@ -126,6 +126,9 @@ protected:
 	Vector		m_vDesiredTarget;
 	Vector		m_vCurrentTarget;
 
+	string_t	m_BabyModelName;
+	string_t	m_AdultModelName;
+
 	DEFINE_CUSTOM_AI;
 };
 #endif // NPC_FLYINGPREDATOR_H
