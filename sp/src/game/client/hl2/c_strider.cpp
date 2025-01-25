@@ -32,6 +32,9 @@
 #include "clienteffectprecachesystem.h"
 #include <bitbuf.h>
 #include "fx_water.h"
+#ifdef EZ2
+#include "ez2/c_npc_base_husk.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -166,6 +169,11 @@ IMPLEMENT_CLIENTCLASS_DT(C_Strider, DT_NPC_Strider, CNPC_Strider)
 	RecvPropVector(RECVINFO(m_vecIKTarget[4])),
 	RecvPropVector(RECVINFO(m_vecIKTarget[5])),
 END_RECV_TABLE()
+
+#ifdef EZ2
+// This needs to be defined here so that it can access C_Strider.
+HUSK_CLIENT_STUB( Strider, C_Strider, npc_husk_strider )
+#endif
 
 C_StriderFX::C_StriderFX()
 {
