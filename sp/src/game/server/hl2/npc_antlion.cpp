@@ -424,6 +424,8 @@ void CNPC_Antlion::Spawn( void )
 		sInteraction01.flMaxAngleDiff = 180.0f; // Initiate from any angle
 #ifdef EZ
 		sInteraction01.iFlags |= SCNPC_FLAG_TEST_SQUADMATE_HEALTH;
+		sInteraction01.flHealthRatio = 0.25f;
+		sInteraction01.MiscCriteria = AllocPooledString( "their_health:<100" );
 #endif
 
 		ScriptedNPCInteraction_t sInteraction02;
@@ -440,6 +442,8 @@ void CNPC_Antlion::Spawn( void )
 		sInteraction02.flMaxAngleDiff = 180.0f; // Initiate from any angle
 #ifdef EZ
 		sInteraction02.iFlags |= SCNPC_FLAG_TEST_SQUADMATE_HEALTH;
+		sInteraction02.flHealthRatio = 0.25f;
+		sInteraction02.MiscCriteria = AllocPooledString( "their_health:<100" );
 #endif
 		AddScriptedNPCInteraction(&sInteraction01);
 		AddScriptedNPCInteraction(&sInteraction02);
