@@ -164,7 +164,7 @@ void CAI_AllyManager::CountAllies( int *pTotal, int *pMedics )
 
 #ifdef EZ
 			// Blixibon - The soldiers' "IsCommandable" function only checks the spawnflag, so it's fine here
-			if( FClassnameIs( ppAIs[i], "npc_combine_s" ) ) 
+			if( FClassnameIs( ppAIs[i], "npc_combine_s" ) || FClassnameIs( ppAIs[i], "npc_husk_soldier" ) ) 
 			{
 				CNPC_Combine *pCombine = assert_cast<CNPC_Combine*>(ppAIs[i]);
 				if ( !pCombine->IsCommandable() )
