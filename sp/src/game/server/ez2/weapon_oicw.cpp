@@ -17,6 +17,7 @@
 #include "soundent.h"
 #include "rumble_shared.h"
 #include "gamestats.h"
+#include "hl2_player.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -49,11 +50,13 @@ public:
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 	int		WeaponRangeAttack2Condition( float flDot, float flDist );
 	Activity	GetPrimaryAttackActivity( void );
+	bool		SendWeaponAnim( int iActivity );
+	void		WeaponIdle( void );
 
 	virtual const Vector& GetBulletSpread( void )
 	{
 		static const Vector cone = VECTOR_CONE_2DEGREES;
-		static const Vector zoomedCone = VECTOR_CONE_1DEGREES;
+		static const Vector zoomedCone = VECTOR_CONE_1DEGREES * 0.25f;
 
 		if (GetOwner() && GetOwner()->IsNPC())
 		{
@@ -63,6 +66,8 @@ public:
 
 		return m_bZoomed ? zoomedCone : cone;
 	}
+
+	bool	IsDynamicScopeZoomed( void ) const { return m_bZoomed; }
 
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
 
@@ -76,10 +81,13 @@ protected:
 
 	Vector	m_vecTossVelocity;
 	float	m_flNextGrenadeCheck;
-	bool	m_bZoomed;
+	CNetworkVar( bool, m_bZoomed );
+	CNetworkVar( bool, m_bZoomTransition );
 };
 
 IMPLEMENT_SERVERCLASS_ST(CWeaponOICW, DT_WeaponOICW)
+	SendPropBool( SENDINFO( m_bZoomed ) ),
+	SendPropBool( SENDINFO( m_bZoomTransition ) ),
 END_SEND_TABLE()
 
 //LINK_ENTITY_TO_CLASS( weapon_ar1, CWeaponOICW );
@@ -346,6 +354,9 @@ void CWeaponOICW::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChar
 //-----------------------------------------------------------------------------
 Activity CWeaponOICW::GetPrimaryAttackActivity( void )
 {
+	if ( m_bZoomed )
+		return ACT_VM_PRIMARYATTACK_SPECIAL;
+
 	if ( m_nShotsFired < 2 )
 		return ACT_VM_PRIMARYATTACK;
 
@@ -361,18 +372,62 @@ Activity CWeaponOICW::GetPrimaryAttackActivity( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CWeaponOICW::SendWeaponAnim( int iActivity )
+{
+	// Finished transitioning to or from zoom
+	if ( m_bZoomTransition && iActivity == GetIdealActivity() )
+		m_bZoomTransition = false;
+
+	return BaseClass::SendWeaponAnim( iActivity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponOICW::WeaponIdle( void )
+{
+	if ( m_bZoomed )
+	{
+		// Override base weapon idle when zoomed
+		if ( HasWeaponIdleTimeElapsed() )
+			SendWeaponAnim( ACT_VM_IDLE_SPECIAL );
+		
+		return;
+	}
+
+	return BaseClass::WeaponIdle();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CWeaponOICW::ItemPostFrame( void )
 {
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 	if ( pOwner )
 	{
-		if ( pOwner->m_nButtons & IN_ZOOM )
+		CHL2_Player *pHL2Player = static_cast<CHL2_Player *>(GetOwner());
+		if ( pHL2Player->IsZooming() )
 		{
-			m_bZoomed = true;
+			if (!m_bZoomed)
+			{
+				// Reset to new idle sequence
+				SetWeaponIdleTime( gpGlobals->curtime );
+
+				m_bZoomed = true;
+				m_bZoomTransition = true;
+			}
 		}
 		else
 		{
-			m_bZoomed = false;
+			if (m_bZoomed)
+			{
+				// Reset to new idle sequence
+				SetWeaponIdleTime( gpGlobals->curtime );
+
+				m_bZoomed = false;
+				m_bZoomTransition = true;
+			}
 		}
 	}
 
@@ -395,6 +450,14 @@ bool CWeaponOICW::Reload( void )
 		m_flNextSecondaryAttack = GetOwner()->m_flNextAttack = fCacheTime;
 
 		WeaponSound( RELOAD );
+
+		if (m_bZoomed)
+		{
+			// Make the player stop zooming
+			CHL2_Player *pHL2Player = static_cast<CHL2_Player *>(GetOwner());
+			if (pHL2Player->IsZooming())
+				pHL2Player->StopZooming();
+		}
 	}
 
 	return fRet;
@@ -410,8 +473,8 @@ void CWeaponOICW::AddViewKick( void )
 	#define	SLIDE_LIMIT			1.5f	//Seconds
 	
 	#define	ZOOMED_EASY_DAMPEN			0.5f
-	#define	ZOOMED_MAX_VERTICAL_KICK	4.0f	//Degrees
-	#define	ZOOMED_SLIDE_LIMIT			3.5f	//Seconds
+	#define	ZOOMED_MAX_VERTICAL_KICK	3.5f	//Degrees
+	#define	ZOOMED_SLIDE_LIMIT			8.0f	//Seconds
 
 	//Get the view kick
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );

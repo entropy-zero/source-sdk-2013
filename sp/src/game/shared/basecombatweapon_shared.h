@@ -427,6 +427,11 @@ public:
 	virtual const char		*GetDroppedModel( void ) const;
 	bool					UsesHands( void ) const;
 #endif
+#ifdef EZ2
+	float					GetDynamicScopeFOV( void ) const;
+	float					GetDynamicScopeSuitFOV( void ) const;
+	virtual bool			IsDynamicScopeZoomed( void ) const { return false; }
+#endif
 
 	// derive this function if you mod uses encrypted weapon info files
 	virtual const unsigned char *GetEncryptionKey( void );

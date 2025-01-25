@@ -1899,6 +1899,14 @@ void CHL2_Player::StartZooming( void )
 {
 #ifdef MAPBASE
 	int iFOV = GetPlayerProxy() ? GetPlayerProxy()->m_SuitZoomFOV : 25;
+	
+#ifdef EZ2
+	if (GetActiveWeapon() && GetActiveWeapon()->GetDynamicScopeSuitFOV() != 0.0f)
+	{
+		// The weapon has its own suit zoom FOV
+		iFOV = GetActiveWeapon()->GetDynamicScopeSuitFOV();
+	}
+#endif
 #else
 	int iFOV = 25;
 #endif

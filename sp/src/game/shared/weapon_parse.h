@@ -152,6 +152,9 @@ public:
 
 	char					szWorldModelDual[MAX_WEAPON_STRING];	// World model when dual wielding
 	char					szViewModelDual[MAX_WEAPON_STRING];		// View model when dual wielding
+
+	float					m_flDynamicScopeFOV;		// Dynamic scope FOV. 0 = No dynamic scope
+	float					m_flDynamicScopeSuitFOV;	// If overridden, makes the suit zoom use this FOV (complements dynamic scope)
 #endif
 
 // CLIENT DLL

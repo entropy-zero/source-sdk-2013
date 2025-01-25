@@ -531,6 +531,9 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 
 	Q_strncpy( szWorldModelDual, pKeyValuesData->GetString( "playermodel_dual" ), MAX_WEAPON_STRING );
 	Q_strncpy( szViewModelDual, pKeyValuesData->GetString( "viewmodel_dual" ), MAX_WEAPON_STRING );
+
+	m_flDynamicScopeFOV = pKeyValuesData->GetFloat( "dynamic_scope_fov", 0.0f );
+	m_flDynamicScopeSuitFOV = pKeyValuesData->GetFloat( "dynamic_scope_suit_fov", 0.0f );
 #endif
 
 #ifndef MAPBASE // Mapbase makes weapons in the same slot & position swap each other out, which is a feature mods can intentionally use.
