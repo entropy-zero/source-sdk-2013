@@ -100,6 +100,7 @@ public:
 	virtual int		SelectSchedule( void );
 	virtual int		SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
 	virtual bool	IsValidEnemy( CBaseEntity *pEnemy );
+	virtual Vector	GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy = true );
 	bool			IsLeading( void ) { return ( GetRunningBehavior() == &m_LeadBehavior && m_LeadBehavior.HasGoal() ); }
 
 	void			DeathSound( const CTakeDamageInfo &info );
@@ -305,6 +306,31 @@ private:
 	COutputEvent	m_OnFinishedExtractingBugbait;
 	COutputEvent	m_OnFinishedChargingTarget;
 	COutputEvent	m_OnPlayerUse;
+
+#ifdef EZ2
+	class CVortigauntStandoffBehavior : public CAI_StandoffBehavior
+	{
+		typedef CAI_StandoffBehavior BaseClass;
+
+	public:
+		virtual int SelectScheduleUpdateWeapon();
+		virtual int SelectScheduleAttack()
+		{
+			int result = GetOuterVort()->SelectRangeAttack2Schedule();
+			if ( result == SCHED_NONE )
+				result = BaseClass::SelectScheduleAttack();
+			return result;
+		}
+
+		virtual int TranslateSchedule( int schedule );
+
+		inline CNPC_Vortigaunt *GetOuterVort() { return static_cast<CNPC_Vortigaunt*>(GetOuter()); }
+	};
+
+	virtual CAI_StandoffBehavior &GetStandoffBehavior( void ) { return m_StandoffBehavior; }
+
+	CVortigauntStandoffBehavior	m_StandoffBehavior;
+#endif
 
 #ifdef EZ
 // Child classes need these attachments!

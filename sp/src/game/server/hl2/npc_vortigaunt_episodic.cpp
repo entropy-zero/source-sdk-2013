@@ -2658,6 +2658,42 @@ bool CNPC_Vortigaunt::IsValidEnemy( CBaseEntity *pEnemy )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose:
+// Input  :
+// Output :
+//-----------------------------------------------------------------------------
+Vector CNPC_Vortigaunt::GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy )
+{
+	Vector vecBase = BaseClass::GetShootEnemyDir( shootOrigin, bNoisy );
+
+#ifdef EZ2
+	CBaseEntity *pEnemy = GetEnemy();
+	if ( IsPlayerAlly() && pEnemy )
+	{
+		trace_t tr;
+		AI_TraceLine( shootOrigin, shootOrigin + (vecBase * InnateRange1MaxRange()), MASK_SHOT, this, COLLISION_GROUP_NONE, &tr );
+
+		// If it won't reach, try the same thing as base class but with the head target
+		if (tr.m_pEnt != pEnemy)
+		{
+			Vector vecEnemyLKP = GetEnemyLKP();
+			Vector vecEnemyOffset = pEnemy->HeadTarget( shootOrigin ) - pEnemy->GetAbsOrigin();
+
+			Vector retval = vecEnemyOffset + vecEnemyLKP - shootOrigin;
+			VectorNormalize( retval );
+			AI_TraceLine( shootOrigin, shootOrigin + (retval * InnateRange1MaxRange()), MASK_SHOT, this, COLLISION_GROUP_NONE, &tr );
+			if (tr.m_pEnt == pEnemy)
+			{
+				return retval;
+			}
+		}
+	}
+#endif
+
+	return vecBase;
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Creates a blast where the beam has struck a target
 // Input  : &vecOrigin - position to eminate from
 //-----------------------------------------------------------------------------
@@ -3360,6 +3396,10 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 		if ( pEntity == this || pEntity == NULL )
 			continue;
 
+		// Don't hit friendly or neutral targets
+		if ( IRelationType( pEntity ) >= D_LI )
+			continue;
+
 		// Antlions react differently
 		if ( IsAntlion( pEntity ) )
 		{
@@ -3397,7 +3437,7 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 				}
 			}
 		}
-		else if ( bDispel && pEntity->MyNPCPointer() != NULL && IRelationType( pEntity ) <= D_FR )
+		else if ( bDispel && pEntity->MyNPCPointer() != NULL )
 		{
 			CAI_BaseNPC *pNPC = pEntity->MyNPCPointer();
 			// Attempt to trace a line to hit the target
@@ -3799,7 +3839,7 @@ AI_BEGIN_CUSTOM_NPC( npc_vortigaunt, CNPC_Vortigaunt )
 		"		TASK_GET_PATH_TO_TARGET			0"
 		"		TASK_MOVE_TO_TARGET_RANGE		350"
 		"		TASK_STOP_MOVING				0"
-		"		TASK_FACE_PLAYER				0"
+		"		TASK_FACE_TARGET				0"
 		"		TASK_VORTIGAUNT_HEAL			0"
 		""
 		"	Interrupts"
@@ -3991,6 +4031,48 @@ AI_BEGIN_CUSTOM_NPC( npc_vortigaunt, CNPC_Vortigaunt )
 		"		COND_HEAR_DANGER"
 		);
 AI_END_CUSTOM_NPC()
+
+
+#ifdef EZ2
+//=============================================================================
+// 
+//  Vortigaunt Standoff Behavior 
+//	
+//=============================================================================
+int CNPC_Vortigaunt::CVortigauntStandoffBehavior::SelectScheduleUpdateWeapon( void )
+{
+	if (GetOuter()->GetActiveWeapon())
+		return BaseClass::SelectScheduleUpdateWeapon();
+
+	if ( HasCondition( COND_LIGHT_DAMAGE ) )
+	{
+		// if hurt:
+		int iPercent = random->RandomInt(0,99);
+
+		if ( iPercent <= GetParams().oddsCover && GetEnemy() != NULL)
+		{
+			// Vorts go into cover right away
+			SetReuseCurrentCover();
+			GetOuter()->GetShotRegulator()->Reset( false );
+		}
+	}
+
+	return SCHED_NONE;
+}
+
+int CNPC_Vortigaunt::CVortigauntStandoffBehavior::TranslateSchedule( int schedule )
+{
+	int iBase = BaseClass::TranslateSchedule( schedule );
+
+	/*if (iBase == SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK)
+	{
+		// TODO: Vorts often fail LOS when enemies are in cover, do something different
+		return ???;
+	}*/
+
+	return iBase;
+}
+#endif
 
 
 //=============================================================================
