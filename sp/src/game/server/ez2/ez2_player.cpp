@@ -1601,7 +1601,7 @@ bool CEZ2_Player::GetGameTextSpeechParams( hudtextparms_t &params )
 //-----------------------------------------------------------------------------
 CAI_Expresser *CEZ2_Player::CreateExpresser(void)
 {
-	m_pExpresser = new CAI_Expresser(this);
+	m_pExpresser = new CAI_ExpresserWithFollowup(this);
 	if (!m_pExpresser)
 		return NULL;
 

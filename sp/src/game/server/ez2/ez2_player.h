@@ -126,6 +126,8 @@ public:
 	virtual CAI_Expresser * CreateExpresser(void);
 	virtual CAI_Expresser * GetExpresser() { return m_pExpresser;  }
 
+	bool			IsAllowedToSpeakFollowup( AIConcept_t concept ) { return IsAllowedToSpeak( concept ); }
+
 	bool			GetGameTextSpeechParams( hudtextparms_t &params );
 
 	void			ModifyOrAppendDamageCriteria(AI_CriteriaSet & set, const CTakeDamageInfo & info, bool bPlayer = true);
