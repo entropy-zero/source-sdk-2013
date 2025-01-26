@@ -423,6 +423,8 @@ public:
 	// So Will-E can override idle speech stuff
 	virtual void HandlePrescheduleIdleSpeech();
 	inline void SetNextIdleSpeechTime( float flTime ) { m_flNextIdleSpeechTime = flTime; }
+
+	bool		Remark( AI_CriteriaSet &modifiers, CBaseEntity *pRemarkable ) { return SpeakIfAllowed( TLK_REMARK, modifiers ); }
 #endif
 
 	//---------------------------------
