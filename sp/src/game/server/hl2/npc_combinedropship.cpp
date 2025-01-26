@@ -180,6 +180,11 @@ public:
 	bool AllowsAnyDamage( const CTakeDamageInfo &info );
 #endif
 
+#ifdef EZ
+	// Don't displace dropship containers
+	virtual bool	IsDisplacementImpossible() { return true; }
+#endif
+
 private:
 	enum
 	{
