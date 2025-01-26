@@ -5891,10 +5891,10 @@ void CNPC_Combine::OnEndMoveAndShoot()
 //-----------------------------------------------------------------------------
 bool CNPC_Combine::PickTacticalLookTarget( AILookTargetArgs_t *pArgs )
 {
-	if( GetState() == NPC_STATE_COMBAT )
+	if ( HasCondition( COND_SEE_ENEMY ) )
 	{
 		CBaseEntity *pEnemy = GetEnemy();
-		if ( pEnemy && FVisible( pEnemy ) && ValidHeadTarget(pEnemy->EyePosition()) )
+		if ( pEnemy && ValidHeadTarget( pEnemy->EyePosition() ) )
 		{
 			// Look at the enemy if possible.
 			pArgs->hTarget = pEnemy;
@@ -5903,8 +5903,12 @@ bool CNPC_Combine::PickTacticalLookTarget( AILookTargetArgs_t *pArgs )
 		}
 		else
 		{
-			// Look at yourself instead. We can't be looking in random directions.
-			pArgs->hTarget = this;
+			// Look ahead instead. We can't be looking in random directions.
+			Vector vecForward;
+			GetVectors( &vecForward, NULL, NULL );
+
+			pArgs->vTarget = EyePosition() + (vecForward * 16.0f);
+			pArgs->hTarget = NULL;
 			pArgs->flInfluence = random->RandomFloat( 0.8, 1.0 );
 			pArgs->flRamp = 0;
 		}
