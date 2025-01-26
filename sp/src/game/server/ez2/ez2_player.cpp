@@ -1994,6 +1994,20 @@ void CEZ2_Player::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Overrides bullet tracers
+//-----------------------------------------------------------------------------
+void CEZ2_Player::OverrideTracerStartPosition( const Vector &vecShotSrc, Vector *pVecTracerStart )
+{
+	// TODO: Identify when doing dual wield secondary attack
+	/*if ()
+	{
+		Vector right;
+		EyeVectors( NULL, &right, NULL );
+		*pVecTracerStart -= right * 4;
+	}*/
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Event fired upon picking up a new weapon
 //-----------------------------------------------------------------------------
 void CEZ2_Player::Event_FirstDrawWeapon( CBaseCombatWeapon *pWeapon )

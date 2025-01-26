@@ -184,6 +184,7 @@ public:
 	bool			HandleRemoveFromPlayerSquad( CAI_BaseNPC *pNPC );
 
 	void			Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
+	void			OverrideTracerStartPosition( const Vector &vecShotSrc, Vector *pVecTracerStart );
 
 	void			Event_FirstDrawWeapon( CBaseCombatWeapon *pWeapon );
 	void			Event_ThrewGrenade( CBaseCombatWeapon *pWeapon );

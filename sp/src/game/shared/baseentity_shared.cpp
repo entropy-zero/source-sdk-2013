@@ -2279,6 +2279,11 @@ void CBaseEntity::ComputeTracerStartPosition( const Vector &vecShotSrc, Vector *
 			}
 		}
 	}
+
+#if defined(EZ2) && defined(GAME_DLL)
+	// For dual wielded weapons
+	OverrideTracerStartPosition( vecShotSrc, pVecTracerStart );
+#endif
 }
 
 
