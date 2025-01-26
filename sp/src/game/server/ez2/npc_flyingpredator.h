@@ -78,6 +78,7 @@ public:
 	// No fly. Jump good!
 	bool IsJumpLegal( const Vector & startPos, const Vector & apex, const Vector & endPos ) const { return true; }
 
+	void		Event_Killed( const CTakeDamageInfo &info );
 
 	bool		ShouldGib( const CTakeDamageInfo &info );
 	bool		CorpseGib( const CTakeDamageInfo &info );

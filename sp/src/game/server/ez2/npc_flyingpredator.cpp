@@ -18,6 +18,7 @@
 #include "ai_link.h"
 #include "ai_network.h"
 #include "hl2_shareddefs.h"
+#include "eventqueue.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1169,6 +1170,26 @@ void CNPC_FlyingPredator::OnFed()
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+void CNPC_FlyingPredator::Event_Killed( const CTakeDamageInfo & info )
+{
+	BaseClass::Event_Killed( info );
+
+	if (m_hDeathRagdoll)
+	{
+		if (GetGroundEntity() == NULL || info.GetDamageType() & DMG_CLUB)
+		{
+			// Ragdoll falls down to earth and explodes when dying in mid-air or from kick
+			// (need to wait a bit to avoid unfairly exploding in the player's face)
+			variant_t emptyVariant;
+			g_EventQueue.AddEvent( m_hDeathRagdoll, "EnableFirstCollisionInteractions", 0.4f, info.GetAttacker(), this );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Input  : &info - 
 // Output : Returns true on success, false on failure.
 //-----------------------------------------------------------------------------
@@ -1182,9 +1203,20 @@ bool CNPC_FlyingPredator::ShouldGib( const CTakeDamageInfo &info )
 	if ( m_bIsBaby )
 		return true;
 
-	// Stukabats gib for any non-crush, non-blast damage greater than 15 (TODO: cvar?)
-	if ( info.GetDamage() > 15.0f || (info.GetDamageType() & (DMG_CRUSH | DMG_BLAST) ) )
+	if ( info.GetDamageType() & ( DMG_CRUSH | DMG_BLAST ) )
 		return true;
+
+	// Stukabats in mid-air (or kicked/clubbed) gib instantly for damage greater than 100, stukabats on the ground gib for damage greater than 50 (TODO: cvar?)
+	if (GetGroundEntity() == NULL || info.GetDamageType() & DMG_CLUB)
+	{
+		if ( info.GetDamage() > 100.0f)
+			return true;
+	}
+	else
+	{
+		if ( info.GetDamage() > 50.0f )
+			return true;
+	}
 
 	return IsBoss() || BaseClass::ShouldGib( info );
 }
@@ -1360,6 +1392,14 @@ bool CNPC_FlyingPredator::HandleInteraction( int interactionType, void *data, CB
 	// YEET - Similar to how base predator handles baby predator kicks, but for all stukabats
 	if ( interactionType == g_interactionBadCopKick )
 	{
+		KickInfo_t *pInfo = static_cast<KickInfo_t *>(data);
+		CTakeDamageInfo *pDamageInfo = pInfo->dmgInfo;
+		pDamageInfo->SetDamage( GetMaxHealth() ); // Instant-kill
+		pDamageInfo->ScaleDamageForce( 100 );
+		ApplyAbsVelocityImpulse( (pInfo->tr->endpos - pInfo->tr->startpos) * 100 );
+		DispatchTraceAttack( *pDamageInfo, pDamageInfo->GetDamageForce(), pInfo->tr );
+
+#if 0
 		// Set the stukabat into falling mode
 		// MAKE SURE the stukabat enters falling mode before any forces are applied, as falling mode resets velocity
 		SetFlyingState( FlyState_Falling );
@@ -1371,6 +1411,7 @@ bool CNPC_FlyingPredator::HandleInteraction( int interactionType, void *data, CB
 		DispatchTraceAttack( *pDamageInfo, pDamageInfo->GetDamageForce(), pInfo->tr );
 	 
 		ApplyAbsVelocityImpulse( (pInfo->tr->endpos - pInfo->tr->startpos) * 500 );
+#endif
 
 		// Already handled the kick
 		return true;
