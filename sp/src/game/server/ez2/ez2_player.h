@@ -190,6 +190,9 @@ public:
 	void			Event_DisplacerPistolDisplace( CBaseCombatWeapon *pWeapon, CBaseEntity *pVictimEntity );
 	void			Event_DisplacerPistolRelease( CBaseCombatWeapon *pWeapon, CBaseEntity *pReleaseEntity, CBaseEntity *pVictimEntity );
 
+	void			LostEnemySound( CBaseEntity *pEnemy );
+	void			FoundEnemySound( CBaseEntity *pEnemy );
+
 	void			FireGameEvent( IGameEvent *event );
 
 	void			InputFinishBonusChallenge( inputdata_t &inputdata );
@@ -345,6 +348,9 @@ public:
 	bool	QuerySeeEntity( CBaseEntity *pEntity, bool bOnlyHateOrFearIfNPC = false );
 
 	bool	UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position, CBaseEntity *pInformer = NULL );
+
+	void	LostEnemySound( CBaseEntity *pEnemy );
+	void	FoundEnemySound( CBaseEntity *pEnemy );
 
 	void	DrawDebugGeometryOverlays( void );
 
