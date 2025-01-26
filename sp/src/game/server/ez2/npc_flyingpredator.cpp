@@ -47,7 +47,9 @@ enum
 	TASK_FLY_DIVE_BOMB,
 	TASK_LAND,
 	TASK_START_FLYING,
-	TASK_START_FALLING
+	TASK_START_FALLING,
+	TASK_GET_PATH_TO_GROUND_NODE,
+	TASK_LAND_CEILING,
 };
 
 //=========================================================
@@ -68,6 +70,10 @@ enum
 	SCHED_FACE_AND_DIVE_BOMB,
 	SCHED_FLY_TO_EAT,
 	SCHED_TAKEOFF_AND_FLY_TO_EAT,
+	SCHED_FLY_TO_GROUND,
+	SCHED_TAKEOFF_AND_FLY_TO_PERCH,
+	SCHED_FLY_TO_PERCH,
+	SCHED_LAND_CEILING,
 };
 
 //-----------------------------------------------------------------------------
@@ -100,30 +106,40 @@ int AE_FLYING_PREDATOR_BEGIN_DIVEBOMB;
 ConVar ai_debug_stukabat( "ai_debug_stukabat", "0" );
 
 //---------------------------------------------------------
-// Node filter to check for available air nodes
+// Node filter to check for available air or ground nodes
 //---------------------------------------------------------
-class CFlyingPredatorAirNodeFilter : public INearestNodeFilter
+class CFlyingPredatorNodeFilter : public INearestNodeFilter
 {
 public:
-	CFlyingPredatorAirNodeFilter( CNPC_FlyingPredator *pPredator ) { m_pPredator = pPredator; }
+	CFlyingPredatorNodeFilter( CNPC_FlyingPredator *pPredator, float flRadiusSqr, bool bAir = true )
+	{
+		m_pPredator = pPredator;
+		m_flRadiusSqr = flRadiusSqr;
+
+		if (bAir)
+		{
+			m_nNodeType = NODE_AIR;
+			m_nNodeCap = bits_CAP_MOVE_FLY;
+		}
+	}
 
 	bool IsValid( CAI_Node *pNode )
 	{
 		// Must be an air node
-		if ( pNode->GetType() != NODE_AIR )
+		if ( pNode->GetType() != m_nNodeType )
 			return false;
 
 		if (ai_debug_stukabat.GetBool())
 		{
 			float flDist = (pNode->GetOrigin() - m_pPredator->GetAbsOrigin()).LengthSqr();
-			if (flDist >= Square( MAX_AIR_NODE_LINK_DIST ))
+			if (flDist >= m_flRadiusSqr)
 				NDebugOverlay::Line( pNode->GetOrigin(), m_pPredator->GetAbsOrigin(), 255, 0, 0, true, 3.0f );
 			else
 				NDebugOverlay::Line( pNode->GetOrigin(), m_pPredator->GetAbsOrigin(), 0, 255, 0, true, 3.0f );
 		}
 
 		// Must be close enough
-		if ( (pNode->GetOrigin() - m_pPredator->GetAbsOrigin()).LengthSqr() >= Square(MAX_AIR_NODE_LINK_DIST) )
+		if ( (pNode->GetOrigin() - m_pPredator->GetAbsOrigin()).LengthSqr() >= m_flRadiusSqr )
 			return false;
 
 		int nStaleLinks = 0;
@@ -135,7 +151,7 @@ public:
 			{
 				nStaleLinks++;
 			}
-			else if ( ( pLink->m_iAcceptedMoveTypes[hull] & bits_CAP_MOVE_FLY ) == 0 )
+			else if ( ( pLink->m_iAcceptedMoveTypes[hull] & m_nNodeCap ) == 0 )
 			{
 				nStaleLinks++;
 			}
@@ -155,6 +171,10 @@ public:
 
 private:
 	CNPC_FlyingPredator *m_pPredator;
+	float m_flRadiusSqr;
+	int	m_nNodeType;
+	int	m_nNodeCap;
+
 	bool m_bFoundValidNode;
 };
 
@@ -169,6 +189,7 @@ BEGIN_DATADESC( CNPC_FlyingPredator )
 	DEFINE_FIELD( m_flDiveBombRollForce, FIELD_FLOAT ),
 
 	DEFINE_KEYFIELD( m_bCanUseFlyNav, FIELD_BOOLEAN, "CanUseFlyNav" ),
+	DEFINE_KEYFIELD( m_bPassiveWhenPerched, FIELD_BOOLEAN, "PassiveWhenPerched" ),
 
 	DEFINE_FIELD( m_bReachedMoveGoal, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_vLastStoredOrigin, FIELD_POSITION_VECTOR ),
@@ -181,6 +202,7 @@ BEGIN_DATADESC( CNPC_FlyingPredator )
 
 	DEFINE_INPUTFUNC( FIELD_STRING, "ForceFlying", InputForceFlying ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "Fly", InputFly ),
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "PerchAt", InputPerchAt ),
 
 END_DATADESC()
 
@@ -359,6 +381,17 @@ int CNPC_FlyingPredator::RangeAttack1Conditions( float flDot, float flDist )
 }
 
 //=========================================================
+// Allows stukabats to use perch hints
+//=========================================================
+bool CNPC_FlyingPredator::FValidateHintType( CAI_Hint *pHint )
+{
+	if ( pHint->HintType() == HINT_PREDATOR_CEILING_PERCH )
+		return true;
+
+	return BaseClass::FValidateHintType( pHint );
+}
+
+//=========================================================
 // Delays for next bullsquid spit time
 //=========================================================
 float CNPC_FlyingPredator::GetMaxSpitWaitTime( void )
@@ -393,6 +426,35 @@ Disposition_t CNPC_FlyingPredator::IRelationType( CBaseEntity *pTarget )
 	}
 
 	return disposition;
+}
+
+//=========================================================
+// Allows stukabats ignore enemies if they're on the ceiling
+//=========================================================
+bool CNPC_FlyingPredator::IsValidEnemy( CBaseEntity *pEnemy )
+{
+	if ( m_bPassiveWhenPerched && m_tFlyState == FlyState_Ceiling )
+	{
+		// Ignore enemies when perched
+		return false;
+	}
+
+	return BaseClass::IsValidEnemy( pEnemy );
+}
+
+//=========================================================
+// Allows stukabats to be ignored if they're on the ceiling
+//=========================================================
+bool CNPC_FlyingPredator::CanBeAnEnemyOf( CBaseEntity *pEnemy )
+{
+	if ( m_bPassiveWhenPerched && m_tFlyState == FlyState_Ceiling )
+	{
+		// Ignored by enemies when perched (unless we're already that entity's enemy)
+		if (pEnemy->GetEnemy() != this)
+			return false;
+	}
+
+	return BaseClass::CanBeAnEnemyOf( pEnemy );
 }
 
 //=========================================================
@@ -607,6 +669,12 @@ int CNPC_FlyingPredator::TranslateSchedule( int scheduleType )
 				return SCHED_CIRCLE_ENEMY;
 			}
 		}
+		break;
+	case SCHED_FLY_TO_PERCH:
+		if ( m_tFlyState != FlyState_Flying )
+		{
+			return SCHED_TAKEOFF_AND_FLY_TO_PERCH;
+		}
 	}
 
 	return BaseClass::TranslateSchedule( scheduleType );
@@ -653,6 +721,15 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 		{
 			return SCHED_FALL;
 		}
+		else if ( !GetHintNode() )
+		{
+			// If we're attached to the ceiling but have no hint (e.g. because we spawned that way), then see if there's a nearby ceiling perch hint we should occupy
+			CAI_Hint *pHint = CAI_HintManager::FindHint( this, HINT_PREDATOR_CEILING_PERCH, bits_HINT_NODE_NEAREST | bits_HINT_NODE_USE_GROUP, 64.0f );
+			if (pHint && pHint->Lock( this ))
+			{
+				SetHintNode( pHint );
+			}
+		}
 
 		return SCHED_IDLE_STAND;
 	case FlyState_Walking:
@@ -693,7 +770,29 @@ int CNPC_FlyingPredator::SelectSchedule( void )
 
 	}
 
-	return BaseClass::SelectSchedule();
+	int nBase = BaseClass::SelectSchedule();
+
+	if (nBase == SCHED_IDLE_STAND && CanUseFlyNav() && !m_bReadyToSpawn)
+	{
+		if (m_tFlyState != FlyState_Ceiling)
+		{
+			// Look for a spot we can perch at
+			CAI_Hint *pHint = CAI_HintManager::FindHint( this, HINT_PREDATOR_CEILING_PERCH, bits_HINT_NODE_USE_GROUP, 2500.0f );
+			if (pHint && pHint->Lock(this))
+			{
+				SetHintNode( pHint );
+				return SCHED_FLY_TO_PERCH;
+			}
+		}
+
+		if (IsFlying())
+		{
+			// No need to fly anymore, just find a spot to relax
+			return SCHED_FLY_TO_GROUND;
+		}
+	}
+
+	return nBase;
 }
 
 //=========================================================
@@ -737,7 +836,7 @@ void CNPC_FlyingPredator::BuildScheduleTestBits()
 	else if ( CapableOfFlyNav() && m_tFlyState == FlyState_Walking )
 	{
 		// Interrupt when we can fly
-		if ( IsCurSchedule( SCHED_CHASE_ENEMY, false ) )
+		if ( IsCurSchedule( SCHED_CHASE_ENEMY, false ) || IsCurSchedule( SCHED_CHASE_ENEMY_FAILED, false ) )
 			SetCustomInterruptCondition( COND_CAN_FLY );
 	}
 }
@@ -846,6 +945,100 @@ void CNPC_FlyingPredator::StartTask( const Task_t *pTask )
 		// Task should end after scale is applied
 		TaskComplete();
 		break;
+		
+	case TASK_GET_PATH_TO_HINTNODE:
+	{
+		//How did this happen?!
+		if ( GetGoalEnt() == this )
+		{
+			SetGoalEnt( NULL );
+		}
+
+		if ( m_tFlyState != FlyState_Flying && !CanUseFlyNav() )
+		{
+			TaskFail( FAIL_NO_ROUTE );
+			SetHintNode( NULL );
+			return;
+		}
+
+		if ( GetGoalEnt() )
+		{
+			SetFlyingState( FlyState_Flying );
+			StartTargetHandling( GetGoalEnt() );
+		
+			m_bReachedMoveGoal = false;
+			TaskComplete();
+			SetHintNode( NULL );
+			return;
+		}
+
+		if ( GetHintNode() )
+		{
+			Vector vHintPos;
+			GetHintNode()->GetPosition(this, &vHintPos);
+	
+			// Needed for navigator to look for air nodes
+			bool bAlreadyFlying = (CapabilitiesGet() & bits_CAP_MOVE_FLY);
+			if (!bAlreadyFlying)
+			{
+				SetNavType( NAV_FLY );
+				CapabilitiesAdd( bits_CAP_MOVE_FLY );
+			}
+
+			bool bFoundPath = GetNavigator()->SetGoal( vHintPos );
+			if ( !bFoundPath )
+			{
+				GetHintNode()->DisableForSeconds( .3 );
+				SetHintNode(NULL);
+			}
+
+			if (!bAlreadyFlying)
+			{
+				SetNavType( NAV_GROUND );
+				CapabilitiesRemove( bits_CAP_MOVE_FLY );
+			}
+		}
+
+		if ( GetHintNode() )
+		{
+			m_bReachedMoveGoal = false;
+			TaskComplete();
+		}
+		else
+		{
+			TaskFail( FAIL_NO_ROUTE );
+		}
+		break;
+	}
+
+	case TASK_GET_PATH_TO_GROUND_NODE:
+	{
+		// Look for any ground nodes we can fly to
+		CFlyingPredatorNodeFilter filter( this, Square( 2048.0f ), false );
+		int nNode = GetNavigator()->GetNetwork()->NearestNodeToPoint( this, GetAbsOrigin(), true, &filter );
+		if (nNode != NO_NODE)
+		{
+			bool bFoundPath = GetNavigator()->SetGoal( GetNavigator()->GetNetwork()->GetNodePosition( this, nNode ) );
+			if (bFoundPath)
+			{
+				m_bReachedMoveGoal = false;
+				TaskComplete();
+			}
+			else
+			{
+				TaskFail( FAIL_NO_ROUTE );
+			}
+		}
+
+		TaskFail( FAIL_NO_REACHABLE_NODE );
+		break;
+	}
+
+	case TASK_LAND_CEILING:
+		SetIdealActivity( (Activity)ACT_LAND_CEILING );
+		SetFlyingState( FlyState_Ceiling );
+		break;
+
 	default:
 	{
 		BaseClass::StartTask( pTask );
@@ -908,6 +1101,52 @@ void CNPC_FlyingPredator::RunTask ( const Task_t *pTask )
 		{
 			SetFlyingState( FlyState_Walking );
 			TaskComplete();
+		}
+		break;
+	case TASK_LAND_CEILING:
+		if (GetHintNode())
+		{
+			Vector vNodePos;
+			GetHintNode()->GetPosition( this, &vNodePos );
+
+			// Slowly shift towards the node position
+			Vector vecDelta = (vNodePos - GetAbsOrigin());
+			SetAbsVelocity( vecDelta * 0.75f );
+
+			if (GetHintNode()->GetIgnoreFacing() == HIF_NO)
+			{
+				// Update yaw too if facing matters
+				GetMotor()->SetIdealYawAndUpdate( GetHintNode()->GetDirection() );
+			}
+
+			// Make sure we're not doing this at a weird angle
+			QAngle angHintAngles = GetHintNode()->GetLocalAngles();
+			QAngle angMyAngles = GetLocalAngles();
+			if (angHintAngles.x != angMyAngles.x)
+			{
+				angMyAngles.x = ApproachAngle( angHintAngles.x, angMyAngles.x, 2.0f );
+			}
+			if (angHintAngles.z != angMyAngles.z)
+			{
+				angMyAngles.z = ApproachAngle( angHintAngles.z, angMyAngles.z, 2.0f );
+			}
+			SetLocalAngles( angMyAngles );
+
+			// Complete task when finished
+			if ( IsActivityFinished() && vecDelta.LengthSqr() < 0.97f && (GetHintNode()->GetIgnoreFacing() != HIF_NO || FacingIdeal()) )
+			{
+				SetAbsVelocity( vec3_origin );
+				SetAbsOrigin( vNodePos );
+				TaskComplete();
+			}
+		}
+		else
+		{
+			// Just wait for the animation if there's no node
+			if ( IsActivityFinished() )
+			{
+				TaskComplete();
+			}
 		}
 		break;
 	default:
@@ -997,6 +1236,7 @@ bool CNPC_FlyingPredator::SpawnNPC( const Vector position, bool isBaby )
 		pChild->m_tWanderState = this->m_tWanderState;
 		pChild->m_bSpawningEnabled = this->m_bSpawningEnabled;
 		pChild->m_bCanUseFlyNav = this->m_bCanUseFlyNav;
+		pChild->m_bPassiveWhenPerched = this->m_bPassiveWhenPerched;
 		pChild->m_BabyModelName = this->m_BabyModelName;
 		pChild->m_AdultModelName = this->m_AdultModelName;
 		pChild->m_nSkin = this->m_nSkin;
@@ -1263,6 +1503,16 @@ void CNPC_FlyingPredator::SetFlyingState( FlyState_t eState )
 		SetCollisionGroup( COLLISION_GROUP_NPC );
 	}
 
+	if (m_tFlyState == FlyState_Ceiling || m_tFlyState == FlyState_Flying)
+	{
+		// Unlock hint node when transitioning from ceiling or flying (the latter can happen if interrupted)
+		if (GetHintNode() && GetHintNode()->HintType() == HINT_PREDATOR_CEILING_PERCH)
+		{
+			GetHintNode()->Unlock( 2.0f );
+			SetHintNode( NULL );
+		}
+	}
+
 	m_tFlyState = eState;
 }
 
@@ -1294,7 +1544,7 @@ bool CNPC_FlyingPredator::CanUseFlyNav( void )
 		CapabilitiesAdd( bits_CAP_MOVE_FLY );
 	
 	// Any air nodes I can use?
-	CFlyingPredatorAirNodeFilter filter( this );
+	CFlyingPredatorNodeFilter filter( this, MAX_AIR_NODE_LINK_DIST_SQ, true );
 	int nNode = GetNavigator()->GetNetwork()->NearestNodeToPoint( this, GetAbsOrigin(), true, &filter );
 
 	if (!bAlreadyFlying)
@@ -1396,6 +1646,11 @@ bool CNPC_FlyingPredator::OverrideMove( float flInterval )
 				m_bReachedMoveGoal = false;
 				SetAbsVelocity( vec3_origin );
 			}
+
+			// Correct roll when hovering in place
+			QAngle angles = GetLocalAngles();
+			angles.z = 0.0f;
+			SetLocalAngles( angles );
 		}
 		return true;
 	}
@@ -1705,6 +1960,19 @@ void CNPC_FlyingPredator::InputFly( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Input handler that makes the crow fly away.
+//-----------------------------------------------------------------------------
+void CNPC_FlyingPredator::InputPerchAt( inputdata_t &inputdata )
+{
+	CAI_Hint *pHint = dynamic_cast<CAI_Hint*>( inputdata.value.Entity().Get() );
+	if (pHint && pHint->Lock( this ))
+	{
+		SetHintNode( pHint );
+		SetSchedule( m_tFlyState == FlyState_Flying ? SCHED_FLY_TO_PERCH : SCHED_TAKEOFF_AND_FLY_TO_PERCH );
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Draw any debug text overlays
 // Input  :
 // Output : Current text offset from the top
@@ -1764,6 +2032,8 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 	DECLARE_TASK( TASK_LAND )
 	DECLARE_TASK( TASK_START_FLYING )
 	DECLARE_TASK( TASK_START_FALLING )
+	DECLARE_TASK( TASK_GET_PATH_TO_GROUND_NODE )
+	DECLARE_TASK( TASK_LAND_CEILING )
 
 	//=========================================================
 	DEFINE_SCHEDULE
@@ -1936,6 +2206,67 @@ AI_BEGIN_CUSTOM_NPC( NPC_FlyingPredator, CNPC_FlyingPredator )
 		"		TASK_START_FLYING		0"
 		"		TASK_SET_SCHEDULE		SCHEDULE:SCHED_FLY_TO_EAT"
 		"	"
+		"	Interrupts"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_FLY_TO_GROUND,
+
+		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_IDLE_WANDER"
+		"		TASK_GET_PATH_TO_GROUND_NODE	0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"		"
+		"	Interrupts"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAR_BULLET_IMPACT"
+		"		COND_HEAR_DANGER"
+		"		COND_PREDATOR_SMELL_FOOD"
+		"		COND_SMELL"
+		"		COND_PREDATOR_CAN_GROW"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_TAKEOFF_AND_FLY_TO_PERCH,
+
+		"	Tasks"
+		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_LEAP"
+		"		TASK_START_FLYING		0"
+		"		TASK_SET_SCHEDULE		SCHEDULE:SCHED_FLY_TO_PERCH"
+		"	"
+		"	Interrupts"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_FLY_TO_PERCH,
+
+		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_IDLE_WANDER"
+		//"		TASK_FIND_HINTNODE				0"
+		"		TASK_GET_PATH_TO_HINTNODE		0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"		TASK_SET_SCHEDULE				SCHEDULE:SCHED_LAND_CEILING"
+		"		"
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAR_BULLET_IMPACT"
+		"		COND_HEAR_DANGER"
+		"		COND_PREDATOR_SMELL_FOOD"
+		"		COND_SMELL"
+		"		COND_PREDATOR_CAN_GROW"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_LAND_CEILING,
+
+		"	Tasks"
+		"		TASK_LAND_CEILING				0"
+		"		"
 		"	Interrupts"
 	)
 
