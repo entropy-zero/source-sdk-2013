@@ -82,7 +82,7 @@ BEGIN_DATADESC(CEZ2_Player)
 	DEFINE_INPUTFUNC(FIELD_VOID, "__FinishBonusChallenge", InputFinishBonusChallenge),
 END_DATADESC()
 
-BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CBasePlayer, "E:Z2's player entity." )
+BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetNPCComponent, "GetNPCComponent", "Gets the player's NPC component." )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetStaringEntity, "GetStaringEntity", "Gets the player's staring entity." )
