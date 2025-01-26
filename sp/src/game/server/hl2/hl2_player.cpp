@@ -814,18 +814,18 @@ void CHL2_Player::Precache( void )
 	// Interactions
 	if ( g_interactionBadCopKick == 0 )
 	{
-		g_interactionBadCopKick = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopKick, "g_interactionBadCopKick" );
 	}
 	
 	if ( g_interactionBadCopKickWarn == 0 )
 	{
-		g_interactionBadCopKickWarn = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopKickWarn, "g_interactionBadCopKickWarn" );
 	}
 
 	// Interactions
 	if (g_interactionBadCopOrderSurrender == 0)
 	{
-		g_interactionBadCopOrderSurrender = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopOrderSurrender, "g_interactionBadCopOrderSurrender" );
 	}
 
 #endif
