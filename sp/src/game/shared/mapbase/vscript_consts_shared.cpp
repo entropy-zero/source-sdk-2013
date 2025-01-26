@@ -534,14 +534,14 @@ void RegisterSharedScriptConstants()
 	ScriptRegisterConstant( g_pScriptVM, CLASS_ANTLION, "Used by antlions, antlion guards, etc." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_BARNACLE, "Used by barnacles." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_BULLSEYE, "Used by npc_bullseye." );
-	//ScriptRegisterConstant( g_pScriptVM, CLASS_BULLSQUID, "Used by bullsquids." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_BULLSQUID, "Used by bullsquids." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_CITIZEN_PASSIVE, "Used by citizens when the \"gordon_precriminal\" or \"citizens_passive\" states are enabled." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_CITIZEN_REBEL, "UNUSED IN HL2. Rebels normally use CLASS_PLAYER_ALLY." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_COMBINE, "Used by Combine soldiers, Combine turrets, and other misc. Combine NPCs." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_COMBINE_GUNSHIP, "Used by Combine gunships, helicopters, etc." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_CONSCRIPT, "UNUSED IN HL2. Would've been used by conscripts." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_HEADCRAB, "Used by headcrabs." );
-	//ScriptRegisterConstant( g_pScriptVM, CLASS_HOUNDEYE, "Used by houndeyes." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_HOUNDEYE, "Used by houndeyes." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_MANHACK, "Used by Combine manhacks." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_METROPOLICE, "Used by Combine metrocops." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_MILITARY, "In HL2, this is only used by npc_combinecamera and func_guntarget. This appears to be recognized as a Combine class." );
@@ -555,6 +555,15 @@ void RegisterSharedScriptConstants()
 	ScriptRegisterConstant( g_pScriptVM, CLASS_EARTH_FAUNA, "Used by birds and other terrestrial animals." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_HACKED_ROLLERMINE, "Used by rollermines which were hacked by Alyx." );
 	ScriptRegisterConstant( g_pScriptVM, CLASS_COMBINE_HUNTER, "Used by Combine hunters." );
+#ifdef EZ
+	ScriptRegisterConstant( g_pScriptVM, CLASS_ALIEN_FAUNA, "Used by boids and other passive Xen fauna." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_ALIEN_PREDATOR, "Used by Xen predators." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_ALIEN_FLORA, "Used by Xen plants." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_RACE_X, "Used by Race X." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_COMBINE_NEMESIS, "Used by Clone Cop and his manhacks." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_ARBEIT_TECH, "Used by Wilson and other Arbeit technology." );
+	ScriptRegisterConstant( g_pScriptVM, CLASS_COMBINE_HUSK, "Used by husks." );
+#endif
 
 #elif defined( HL1_DLL )
 
