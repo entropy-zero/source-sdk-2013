@@ -57,12 +57,14 @@ public:
 	//
 	// Dual wielding
 	//
+	virtual void		ItemPostFrame( void );
 	virtual const char *GetViewModel( int viewmodelindex = 0 ) const;
 	
 	virtual CHudTexture const	*GetSpriteActive( void ) const;
 	virtual CHudTexture const	*GetSpriteInactive( void ) const;
 
 	virtual bool			CanDualWield() const { return false; }
+	virtual bool			DualWieldOverridesSecondary() const { return true; }
 	bool					IsDualWielding() const { return m_hLeftHandGun != NULL; }
 
 	CBaseAnimating			*GetLeftHandGun() const { return m_hLeftHandGun; }

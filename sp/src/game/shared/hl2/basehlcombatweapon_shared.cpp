@@ -8,6 +8,7 @@
 #include "basehlcombatweapon_shared.h"
 #if defined(EZ2) && defined(GAME_DLL)
 #include "npcevent.h"
+#include "in_buttons.h"
 #endif
 
 #include "hl2_player_shared.h"
@@ -261,6 +262,42 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 }
 
 #ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::ItemPostFrame( void )
+{
+#ifdef GAME_DLL
+	// When dual wielding, secondary attack is synonymous with primary attack
+	if (IsDualWielding() && DualWieldOverridesSecondary())
+	{
+		CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+		if ( pOwner != NULL )
+		{
+			if (pOwner->m_nButtons & IN_ATTACK2)
+			{
+				pOwner->m_nButtons |= IN_ATTACK;
+				pOwner->m_nButtons &= ~IN_ATTACK2;
+			}
+
+			if (pOwner->m_afButtonPressed & IN_ATTACK2)
+			{
+				pOwner->m_afButtonPressed |= IN_ATTACK;
+				pOwner->m_afButtonPressed &= ~IN_ATTACK2;
+			}
+
+			if (pOwner->m_afButtonReleased & IN_ATTACK2)
+			{
+				pOwner->m_afButtonReleased |= IN_ATTACK;
+				pOwner->m_afButtonReleased &= ~IN_ATTACK2;
+			}
+		}
+	}
+#endif
+
+	BaseClass::ItemPostFrame();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

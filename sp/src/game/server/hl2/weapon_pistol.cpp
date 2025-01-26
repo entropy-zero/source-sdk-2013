@@ -667,6 +667,8 @@ public:
 
 	virtual bool Reload( void ) { return false; } // The pulse pistol does not reload
 
+	bool	DualWieldOverridesSecondary() const { return false; }
+
 	virtual int GetMaxClip2( void ) const
 	{
 		int iBase = BaseClass::GetMaxClip2();
