@@ -122,6 +122,9 @@ enum Hint_e
 	HINT_BEAST_FRUSTRATION,
 	HINT_SURRENDER_IDLE_DEST,
 	HINT_TACTICAL_VANTAGE_POINT, // Less confusing successor to HINT_TACTICAL_ENEMY_DISADVANTAGED because E:Z2 already uses ENEMY_DISADVANTAGED differently
+
+	// Predator hints
+	HINT_PREDATOR_CEILING_PERCH = 2100,
 #endif
 
 #ifdef MAPBASE
