@@ -201,6 +201,14 @@ void CMapbasePlayerAnimState::SetPlayerAnimation( PLAYER_ANIM playerAnim )
 		m_bReloading = false;
 		m_flReloadCycle = 0;
     }
+#ifdef EZ2
+    if ( playerAnim == PLAYER_ATTACK3 )
+    {
+        m_iFireSequence = SelectWeightedSequence( TranslateActivity( ACT_GESTURE_MELEE_ATTACK2 ) );
+        m_bFiring = m_iFireSequence != -1;
+        m_flFireCycle = 0;
+    }
+#endif
     else if ( playerAnim == PLAYER_JUMP )
     {
         // Play the jump animation.

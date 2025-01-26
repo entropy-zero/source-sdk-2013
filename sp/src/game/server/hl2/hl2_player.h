@@ -489,7 +489,7 @@ private:
 	EHANDLE				m_hFlashlightColorCorrection;
 	bool				m_bHandledColorCorrection; // NOT saved - this tells us that within this session, CC hasn't been cleaned up yet
 
-	float				m_flNextKickAttack;
+	CNetworkVar( float, m_flNextKickAttack );
 	bool				m_bKickWeaponLowered;
 
 	string_t		    m_LegModelName;

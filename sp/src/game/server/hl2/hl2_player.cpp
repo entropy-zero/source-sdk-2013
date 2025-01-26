@@ -798,6 +798,9 @@ IMPLEMENT_SERVERCLASS_ST(CHL2_Player, DT_HL2_Player)
 	SendPropFloat( SENDINFO(m_flAnimRenderYaw), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO(m_flAnimRenderZ), 0, SPROP_NOSCALE ),
 #endif
+#ifdef EZ2
+	SendPropFloat( SENDINFO(m_flNextKickAttack), 0, SPROP_NOSCALE ),
+#endif
 END_SEND_TABLE()
 
 
@@ -2310,6 +2313,8 @@ bool CHL2_Player::CommanderExecuteOne( CAI_BaseNPC *pNpc, const commandgoal_t &g
 		if ( GetActiveWeapon() && goal.m_pGoalEntity == this && sv_command_viewmodel_anims.GetBool()) {
 			GetActiveWeapon()->SendWeaponAnim( ACT_VM_COMMAND_RECALL );
 		}
+
+		AddAnimStateLayer( SelectWeightedSequence( ACT_GESTURE_SIGNAL_GROUP ) );
 		
 		// 1upD - Fire player proxy output
 		helperFireSquadCommandOuput("OnPlayerRecallSquad", Allies);
@@ -2324,6 +2329,8 @@ bool CHL2_Player::CommanderExecuteOne( CAI_BaseNPC *pNpc, const commandgoal_t &g
 		if (GetActiveWeapon() && sv_command_viewmodel_anims.GetBool()) {
 			GetActiveWeapon()->SendWeaponAnim( ACT_VM_COMMAND_SEND );
 		}
+		
+		AddAnimStateLayer( SelectWeightedSequence( ACT_GESTURE_SIGNAL_ADVANCE ) );
 
 		// 1upD - Fire player proxy output
 		helperFireSquadCommandOuput("OnPlayerSendSquad", Allies);
@@ -5066,6 +5073,8 @@ void CHL2_Player::StartKickAnimation( void )
 			vm->SetPlaybackRate( 1.0f );
 		}
 	}
+
+	SetAnimation( PLAYER_ATTACK3 );
 }
 
 void CHL2_Player::HandleKickAnimation( void )
