@@ -1844,6 +1844,9 @@ private:
 
 	// Computes the tracer start position
 	void ComputeTracerStartPosition( const Vector &vecShotSrc, Vector *pVecTracerStart );
+#ifdef EZ2
+	virtual void OverrideTracerStartPosition( const Vector &vecShotSrc, Vector *pVecTracerStart ) {}
+#endif
 
 	// Computes the tracer start position
 	void CreateBubbleTrailTracer( const Vector &vecShotSrc, const Vector &vecShotEnd, const Vector &vecShotDir );
