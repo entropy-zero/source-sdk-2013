@@ -42,6 +42,10 @@ ConVar ragdoll_always_allow_use( "ragdoll_always_allow_use", "0", FCVAR_NONE, "A
 ConVar ragdoll_ai_scent_radius( "ragdoll_ai_scent_radius", "2048", FCVAR_NONE, "Radius for server ragdoll AI scents" );
 ConVar ragdoll_ai_scent_time( "ragdoll_ai_scent_time", "15", FCVAR_NONE, "Duration for server ragdoll AI scents" );
 ConVar ragdoll_gibs( "ragdoll_gibs", "1", FCVAR_NONE, "Should death ragdolls be destructible?" );
+
+// TODO: Unique cvars?
+extern ConVar sk_flyingpredator_dmg_explode;
+extern ConVar sk_flyingpredator_radius_explode;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -115,6 +119,8 @@ BEGIN_DATADESC(CRagdollProp)
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableScent", InputDisableScent ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "Gib", InputGib ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableFirstCollisionInteractions", InputEnableFirstCollisionInteractions ),
 #endif
 
 #ifdef MAPBASE
@@ -832,7 +838,11 @@ void CRagdollProp::HandleFirstCollisionInteractions( int index, gamevcollisionev
 		info.SetDamage( m_iHealth );
 		info.SetAttacker( this );
 		info.SetInflictor( this );
+#ifdef EZ2
+		info.SetDamageType( DMG_CRUSH | DMG_ALWAYSGIB );
+#else
 		info.SetDamageType( DMG_GENERIC );
+#endif
 
 		Vector vecPosition;
 		Vector vecVelocity;
@@ -1116,6 +1126,18 @@ int	CRagdollProp::OnTakeDamage( const CTakeDamageInfo &info )
 			else
 			{
 				CGib::SpawnRandomGibs( this, 4, GIB_ALIEN );	// throw some alien gibs.
+			}
+
+			if ( HasPhysgunInteraction( "onbreak", "explode_acid" ) )
+			{
+				// TODO - Replace this with a unique particle
+				DispatchParticleEffect( "bullsquid_explode", WorldSpaceCenter(), GetAbsAngles() );
+
+				// TODO: Unique cvars?
+				CTakeDamageInfo info( this, this, sk_flyingpredator_dmg_explode.GetFloat(), DMG_BLAST_SURFACE | DMG_ACID | DMG_ALWAYSGIB );
+
+				RadiusDamage( info, GetAbsOrigin(), sk_flyingpredator_radius_explode.GetFloat(), CLASS_NONE, this );
+				EmitSound( "NPC_FlyingPredator.Explode" );
 			}
 		}
 	}

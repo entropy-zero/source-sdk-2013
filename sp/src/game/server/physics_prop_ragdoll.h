@@ -156,6 +156,8 @@ public:
 	void			InputDisableScent( inputdata_t &inputdata );
 
 	void			InputGib( inputdata_t &inputdata );
+
+	void			InputEnableFirstCollisionInteractions( inputdata_t &inputdata ) { m_bFirstCollisionAfterLaunch = true; }
 #endif
 
 	DECLARE_DATADESC();
