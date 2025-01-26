@@ -86,6 +86,7 @@ public:
 
 	CBaseAnimating			*CreateLeftHandGun();
 	void					InputCreateLeftHandGun( inputdata_t &inputdata );
+	void					InputSetLeftHandGun( inputdata_t &inputdata );
 
 protected:
 

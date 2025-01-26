@@ -69,6 +69,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD(m_hSpeechTarget, FIELD_EHANDLE),
 
+	DEFINE_KEYFIELD( m_bCanDualWield, FIELD_BOOLEAN, "CanDualWield" ),
+
 	// These don't need to be saved
 	//DEFINE_FIELD(m_iVisibleEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCloseEnemies, FIELD_INTEGER),
@@ -80,6 +82,9 @@ BEGIN_DATADESC(CEZ2_Player)
 	DEFINE_INPUTFUNC(FIELD_VOID, "StopScripting", InputStopScripting),
 	
 	DEFINE_INPUTFUNC(FIELD_VOID, "__FinishBonusChallenge", InputFinishBonusChallenge),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableDualWield", InputEnableDualWield ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableDualWield", InputDisableDualWield ),
 END_DATADESC()
 
 BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CBasePlayer, "E:Z2's player entity." )
@@ -1991,6 +1996,48 @@ void CEZ2_Player::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 	{
 		AddContext( "displacer_used", "1", 1200.0f );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:	Equips a dual weapon
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon )
+{
+	if (!m_bCanDualWield)
+		return false;
+
+	// For now, only identical weapons can be dual wielded
+	if (pWeapon->GetClassname() != pExistingWeapon->GetClassname())
+		return false;
+
+	CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+	if (pHLWeapon && pHLWeapon->CanDualWield() && pHLWeapon->GetWpnData().szViewModelDual[0])
+	{
+		CBaseHLCombatWeapon *pHLExistingWeapon = static_cast<CBaseHLCombatWeapon*>(pExistingWeapon);
+		Assert( pHLExistingWeapon );
+
+		if (pHLExistingWeapon && !pHLExistingWeapon->GetLeftHandGun())
+		{
+			pHLExistingWeapon->CreateLeftHandGun();
+
+			// Combine the ammo
+			pHLExistingWeapon->m_iClip1 += pWeapon->m_iClip1;
+			pHLExistingWeapon->m_iClip2 += pWeapon->m_iClip2;
+
+			// Switch to the new dual weapon
+			Weapon_Switch( pExistingWeapon );
+
+			// Remove the weapon on the ground
+			UTIL_Remove( pWeapon );
+
+			// Emit a pickup sound
+			EmitSound( "BaseCombatCharacter.AmmoPickup" );
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------

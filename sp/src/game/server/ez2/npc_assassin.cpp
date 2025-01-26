@@ -1999,24 +1999,28 @@ void CNPC_Assassin::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecT
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:	
+// Purpose:	Equips a dual weapon
 //-----------------------------------------------------------------------------
-void CNPC_Assassin::Weapon_Equip( CBaseCombatWeapon *pWeapon )
+bool CNPC_Assassin::Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon )
 {
-	if ( GetActiveWeapon() && GetActiveWeapon()->GetClassname() == pWeapon->GetClassname() )
+	if (GetActiveWeapon() != pExistingWeapon)
+		return false;
+
+	// For now, only identical weapons can be dual wielded
+	if (pWeapon->GetClassname() != pExistingWeapon->GetClassname())
+		return false;
+
+	CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+	if (pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons)
 	{
-		CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
-		if ( pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons )
-		{
-			// Add left hand gun for weapon that already exists
-			AddLeftHandGun( GetActiveWeapon() );
-			m_bDualWeapons = true;
-			UTIL_Remove( pWeapon );
-			return;
-		}
+		// Add left hand gun for weapon that already exists
+		AddLeftHandGun( GetActiveWeapon() );
+		m_bDualWeapons = true;
+		UTIL_Remove( pWeapon );
+		return true;
 	}
 
-	BaseClass::Weapon_Equip( pWeapon );
+	return false;
 }
 
 //-----------------------------------------------------------------------------

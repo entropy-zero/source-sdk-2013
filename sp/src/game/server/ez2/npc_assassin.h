@@ -76,7 +76,7 @@ public:
 	void		Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
 	void		Weapon_EquipHolstered( CBaseCombatWeapon *pWeapon );
 	void		Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
-	void		Weapon_Equip( CBaseCombatWeapon *pWeapon );
+	bool		Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon );
 	Vector		GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget = NULL );
 	float		GetSpreadBias( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget );
 

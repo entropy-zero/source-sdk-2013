@@ -2476,6 +2476,14 @@ void CBaseCombatCharacter::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 				if (pWeapon->GetSlot() == m_hMyWeapons[i]->GetSlot() &&
 					pWeapon->GetPosition() == m_hMyWeapons[i]->GetPosition())
 				{
+#ifdef EZ2
+					if (Weapon_EquipDual( pWeapon, m_hMyWeapons[i] ))
+					{
+						// Weapon has been merged with the existing weapon
+						return;
+					}
+#endif
+
 					// Replace our existing weapon in this slot
 					Weapon_Drop(m_hMyWeapons[i]);
 					{

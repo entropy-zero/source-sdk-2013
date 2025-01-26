@@ -7151,8 +7151,16 @@ bool CBasePlayer::BumpWeapon( CBaseCombatWeapon *pWeapon )
 	// ----------------------------------------
 	// If I already have it just take the ammo
 	// ----------------------------------------
-	if (Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType())) 
+	if (CBaseCombatWeapon *pOwnsThisType = Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType())) 
 	{
+#ifdef EZ2
+		if ( Weapon_EquipDual( pWeapon, pOwnsThisType ) )
+		{
+			// Weapon has been merged with the existing weapon
+			return true;
+		}
+		else
+#endif
 		if( Weapon_EquipAmmoOnly( pWeapon ) )
 		{
 			// Only remove me if I have no ammo left

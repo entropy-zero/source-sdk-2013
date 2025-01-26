@@ -51,6 +51,7 @@ BEGIN_DATADESC( CBaseHLCombatWeapon )
 
 #ifdef EZ2
 	DEFINE_INPUTFUNC( FIELD_VOID, "CreateLeftHandGun", InputCreateLeftHandGun ),
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "SetLeftHandGun", InputSetLeftHandGun ),
 #endif
 
 END_DATADESC()
@@ -581,6 +582,21 @@ CBaseAnimating *CBaseHLCombatWeapon::CreateLeftHandGun()
 void CBaseHLCombatWeapon::InputCreateLeftHandGun( inputdata_t &inputdata )
 {
 	CreateLeftHandGun();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::InputSetLeftHandGun( inputdata_t &inputdata )
+{
+	CBaseEntity *pGun = inputdata.value.Entity();
+	if (!pGun || !pGun->GetBaseAnimating())
+	{
+		SetLeftHandGun( NULL );
+		return;
+	}
+
+	SetLeftHandGun( pGun->GetBaseAnimating() );
 }
 #endif
 #endif

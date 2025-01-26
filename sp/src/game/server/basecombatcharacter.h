@@ -239,6 +239,10 @@ public:
 	virtual void		Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
 	virtual void		Weapon_EquipHolstered( CBaseCombatWeapon *pWeapon );	// Pretty much only useful for NPCs
 	virtual void		Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
+#ifdef EZ2
+	// Used by CEZ2_Player and CNPC_Assassin
+	virtual bool		Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon ) { return false; }
+#endif
 #else
 	virtual void		Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
 #endif
