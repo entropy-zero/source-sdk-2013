@@ -100,10 +100,6 @@ private:
 	QAngle				m_angAnimRender;
 #endif
 
-#ifdef EZ2
-	float				m_flNextKickAttack;
-#endif
-
 friend class CHL2GameMovement;
 };
 

@@ -11,10 +11,6 @@
 #include "c_ai_basenpc.h"
 #include "in_buttons.h"
 #include "collisionutils.h"
-#ifdef EZ2
-#include "view_scene.h"
-#include "viewrender.h"
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -38,9 +34,6 @@ IMPLEMENT_CLIENTCLASS_DT(C_BaseHLPlayer, DT_HL2_Player, CHL2_Player)
 #ifdef SP_ANIM_STATE
 	RecvPropFloat( RECVINFO( m_flAnimRenderYaw ) ),
 	RecvPropFloat( RECVINFO( m_flAnimRenderZ ) ),
-#endif
-#ifdef EZ2
-	RecvPropFloat( RECVINFO( m_flNextKickAttack ) ),
 #endif
 END_RECV_TABLE()
 
@@ -693,64 +686,6 @@ void C_BaseHLPlayer::BuildTransformations( CStudioHdr *hdr, Vector *pos, Quatern
 	if (!DrawingLegs() || !InPerspectiveView() || !InFirstPersonView())
 #endif*/
 	BuildFirstPersonMeathookTransformations( hdr, pos, q, cameraTransform, boneMask, boneComputed, "ValveBiped.Bip01_Head1" );
-
-#ifdef EZ2
-	// While kicking or admiring gloves, retract the playermodel in a 0-1 parabola
-	if (InPerspectiveView() && InFirstPersonView() && DrawingLegs())
-	{
-		if (m_flNextKickAttack > gpGlobals->curtime)
-		{
-			float flPerc = sin( (m_flNextKickAttack - gpGlobals->curtime) * M_PI_F );
-
-			Vector vDeltaToAdd;
-			GetVectors( &vDeltaToAdd, NULL, NULL );
-
-			vDeltaToAdd *= -(64.0f * flPerc);
-
-			for (int i = 0; i < hdr->numbones(); i++)
-			{
-				// Only update bones reference by the bone mask.
-				if (!(hdr->boneFlags( i ) & boneMask))
-				{
-					continue;
-				}
-				matrix3x4_t &bone = GetBoneForWrite( i );
-				Vector vBonePos;
-				MatrixGetTranslation( bone, vBonePos );
-				vBonePos += vDeltaToAdd;
-				MatrixSetTranslation( vBonePos, bone );
-			}
-		}
-		else if (C_BaseViewModel *pVM = GetViewModel( 0 ))
-		{
-			if (!pVM->GetOwningWeapon() && pVM->GetCycle() < 1.0f)
-			{
-				float flPerc = sin( pVM->GetCycle() * M_PI_F );
-
-				Vector vDeltaToAdd;
-				GetVectors( &vDeltaToAdd, NULL, NULL );
-
-				vDeltaToAdd *= -(32.0f * flPerc);
-
-				FOR_EACH_MAP_FAST( GetFirstPersonArmScales(), i )
-				{
-					int nBone = GetFirstPersonArmScales().Key( i );
-					if (nBone == -1)
-						continue;
-
-					if (!(hdr->boneFlags( nBone ) & boneMask))
-						continue;
-
-					matrix3x4_t &bone = GetBoneForWrite( nBone );
-					Vector vBonePos;
-					MatrixGetTranslation( bone, vBonePos );
-					vBonePos += vDeltaToAdd;
-					MatrixSetTranslation( vBonePos, bone );
-				}
-			}
-		}
-	}
-#endif
 }
 
 
