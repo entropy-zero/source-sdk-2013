@@ -320,9 +320,25 @@ int CNPC_FlyingPredator::RangeAttack1Conditions( float flDot, float flDist )
 			if (flDist <= InnateRange1MinRange())
 				return COND_TOO_CLOSE_TO_ATTACK;
 
-			// Trace hull to enemy
 			if (GetEnemy())
 			{
+				// If the enemy isn't facing me, delegate attacks to squadmates which the enemy does see
+				// If the enemy isn't facing any squadmate, this doesn't matter
+				if (GetSquad() && !HasCondition( COND_ENEMY_FACING_ME ))
+				{
+					AISquadIter_t iter;
+					for ( CAI_BaseNPC *pNPC = m_pSquad->GetFirstMember(&iter); pNPC; pNPC = m_pSquad->GetNextMember(&iter) )
+					{
+						// UNDONE: Classname check
+						//if (GetClassname() == pNPC->GetClassname())
+						{
+							if (pNPC->GetEnemy() == GetEnemy() && pNPC->HasCondition( COND_ENEMY_FACING_ME ))
+								return COND_NONE;
+						}
+					}
+				}
+
+				// Trace hull to enemy
 				trace_t tr;
 				AI_TraceHull( GetAbsOrigin(), GetEnemyLKP(), GetHullMins(), GetHullMaxs(), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr);
 
@@ -1158,6 +1174,10 @@ void CNPC_FlyingPredator::DiveBombAttack()
 		// Fly towards my enemy
 		Vector vEnemyPos = GetEnemyLKP();
 		m_vecDiveBombDirection = vEnemyPos - GetLocalOrigin();
+
+		// Roughly guess how long the dive will be
+		float flSoundDuration = m_vecDiveBombDirection.Length() / 300.0f;
+		CSoundEnt::InsertSound( SOUND_DANGER, vEnemyPos, 64.0f, flSoundDuration, this, 0, GetEnemy() );
 	}
 	else
 	{
@@ -1629,6 +1649,19 @@ void CNPC_FlyingPredator::StartTouch( CBaseEntity *pOther )
 		if ( IRelationType( pOther ) != D_LI )
 		{
 			CTakeDamageInfo info( this, this, m_bIsBaby ? sk_flyingpredator_dmg_dive.GetFloat() / 3.0f : sk_flyingpredator_dmg_dive.GetFloat(), DMG_CLUB | DMG_ALWAYSGIB );
+
+			Vector vecForce = GetAbsVelocity();
+
+			// Push based on how much mass the object has. Don't boost if it's lower than ours
+			if (pOther->VPhysicsGetObject() && VPhysicsGetObject())
+				vecForce *= MIN( (VPhysicsGetObject()->GetMass() / pOther->VPhysicsGetObject()->GetMass()), 1.0f );
+
+			info.SetDamageForce( vecForce );
+			if (ShouldApplyHitVelocityToTarget( pOther ))
+			{
+				pOther->ApplyAbsVelocityImpulse( vecForce );
+			}
+
 			pOther->TakeDamage( info );
 
 			if ( m_tFlyState == FlyState_Falling )
@@ -1639,6 +1672,7 @@ void CNPC_FlyingPredator::StartTouch( CBaseEntity *pOther )
 			else
 			{
 				EmitSound( "NPC_FlyingPredator.Bite" );
+				VacateStrategySlot();
 			}
 		}
 
