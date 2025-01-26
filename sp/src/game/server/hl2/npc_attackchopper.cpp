@@ -170,6 +170,15 @@ ConVar	g_helicopter_bullrush_mega_bomb_health( "g_helicopter_bullrush_mega_bomb_
 
 ConVar	g_helicopter_bomb_danger_radius( "g_helicopter_bomb_danger_radius", "120" );
 
+#ifdef MAPBASE
+ConVar	g_helicopter_crashpoint_nearest( "g_helicopter_crashpoint_nearest", "1", 0, "Selects the nearest crash point instead of just the first in the entity list." );
+
+#ifdef HL2_EPISODIC
+ConVar	g_helicopter_phys_follow_while_crashing( "g_helicopter_phys_follow_while_crashing", "0", 0, "Allows the phys_bone_followers to follow the helicopter while flying to crash point" );
+#endif
+
+#endif
+
 Activity ACT_HELICOPTER_DROP_BOMB;
 Activity ACT_HELICOPTER_CRASHING;
 
@@ -197,7 +206,60 @@ enum
 
 #define GRENADE_HELICOPTER_MODEL "models/combine_helicopter/helicopter_bomb01.mdl"
 
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+class CTargetHelicopterCrash : public CPointEntity
+{
+	DECLARE_CLASS( CTargetHelicopterCrash, CPointEntity );
+public:
+	DECLARE_DATADESC();	
+
+	void	InputEnable( inputdata_t &inputdata )
+	{
+		m_bDisabled = false;
+	}
+	void	InputDisable( inputdata_t &inputdata )
+	{
+		m_bDisabled = true;
+	}
+	bool	IsDisabled( void )
+	{
+		return m_bDisabled;
+	}
+	void	HelicopterCrashedOnTarget( CBaseHelicopter *pChopper )
+	{
+		m_OnCrashed.FireOutput( pChopper, this );
+	}
+	void	HelicopterAcquiredCrashTarget( CBaseHelicopter *pChopper )
+	{
+		m_OnBeginCrash.FireOutput( pChopper, this );
+	}
+
+private:
+	bool			m_bDisabled;
+
+	COutputEvent	m_OnCrashed;
+	COutputEvent	m_OnBeginCrash;
+};
+
+LINK_ENTITY_TO_CLASS( info_target_helicopter_crash, CTargetHelicopterCrash );
+
+BEGIN_DATADESC( CTargetHelicopterCrash )
+	DEFINE_FIELD( m_bDisabled, FIELD_BOOLEAN ),
+
+	// Inputs
+	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
+
+	// Outputs
+	DEFINE_OUTPUT( m_OnCrashed,			"OnCrashed" ),
+	DEFINE_OUTPUT( m_OnBeginCrash,			"OnBeginCrash" ),
+END_DATADESC()
+#else
 LINK_ENTITY_TO_CLASS( info_target_helicopter_crash, CPointEntity );
+#endif
 
 
 //------------------------------------------------------------------------------
@@ -662,6 +724,8 @@ private:
 #ifdef EZ2
 protected:
 #endif
+
+	CBaseEntity *FindCrashPoint();
 
 	CBaseEntity *GetCrashPoint()	{ return m_hCrashPoint.Get(); }
 
@@ -3807,6 +3871,46 @@ void Chopper_BecomeChunks( CBaseEntity *pChopper )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Find a valid crash point
+//-----------------------------------------------------------------------------
+CBaseEntity *CNPC_AttackHelicopter::FindCrashPoint()
+{
+#ifdef MAPBASE
+	float flNearest = MAX_TRACE_LENGTH * MAX_TRACE_LENGTH;
+	CTargetHelicopterCrash *pNearest = NULL;
+	CBaseEntity *pEnt = NULL;
+	while( (pEnt = gEntList.FindEntityByClassname(pEnt, "info_target_helicopter_crash")) != NULL )
+	{
+		CTargetHelicopterCrash *pCrashTarget = assert_cast<CTargetHelicopterCrash*>(pEnt);
+		if ( pCrashTarget->IsDisabled() )
+			continue;
+
+		if (g_helicopter_crashpoint_nearest.GetBool())
+		{
+			float flDist = ( pEnt->WorldSpaceCenter() - WorldSpaceCenter() ).LengthSqr();
+			if( flDist < flNearest )
+			{
+				pNearest = pCrashTarget;
+				flNearest = flDist;
+			}
+		}
+		else
+		{
+			pNearest = pCrashTarget;
+			break;
+		}
+	}
+
+	if (pNearest)
+		pNearest->HelicopterAcquiredCrashTarget( this );
+
+	return pNearest;
+#else
+	return gEntList.FindEntityByClassname( NULL, "info_target_helicopter_crash" );
+#endif
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Start us crashing
 //-----------------------------------------------------------------------------
 void CNPC_AttackHelicopter::Event_Killed( const CTakeDamageInfo &info )
@@ -3823,7 +3927,7 @@ void CNPC_AttackHelicopter::Event_Killed( const CTakeDamageInfo &info )
 
 	if( GetCrashPoint() == NULL )
 	{
-		CBaseEntity *pCrashPoint = gEntList.FindEntityByClassname( NULL, "info_target_helicopter_crash" );
+		CBaseEntity *pCrashPoint = FindCrashPoint();
 		if( pCrashPoint != NULL )
 		{
 			m_hCrashPoint.Set( pCrashPoint );
@@ -3844,6 +3948,12 @@ void CNPC_AttackHelicopter::Event_Killed( const CTakeDamageInfo &info )
 			return;
 		}
 	}
+#ifdef MAPBASE
+	else
+	{
+		assert_cast<CTargetHelicopterCrash*>( GetCrashPoint() )->HelicopterCrashedOnTarget( this );
+	}
+#endif
 
 	Chopper_BecomeChunks( this );
 	StopLoopingSounds();
@@ -4853,6 +4963,15 @@ void CNPC_AttackHelicopter::Hunt( void )
 	{
 		Flight();
 		UpdatePlayerDopplerShift( );
+
+#if defined(MAPBASE) && defined(HL2_EPISODIC)
+		if (g_helicopter_phys_follow_while_crashing.GetBool())
+		{
+			// Update our bone followers
+			m_BoneFollowerManager.UpdateBoneFollowers( this );
+		}
+#endif // HL2_EPISODIC
+
 		return;
 	}
 
