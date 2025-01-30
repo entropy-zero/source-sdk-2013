@@ -294,6 +294,10 @@ public:
 	virtual bool			IsHolstered(){ return false; }
 	virtual void			Detach() {}
 
+#ifdef EZ
+	virtual bool			CanSwitchToWhileEmpty() { return false; }
+#endif
+
 	// Weapon behaviour
 	virtual void			ItemPreFrame( void );					// called each frame by the player PreThink
 	virtual void			ItemPostFrame( void );					// called each frame by the player PostThink
