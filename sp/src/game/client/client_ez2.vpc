@@ -50,6 +50,7 @@ $Project "Client (Entropy Zero 2)"
 			$File	"ezu\hud_healthvialstatus.cpp"
 
 			$File	"workshop_publish.cpp" [!$NO_STEAM]
+			$File	"$SRCDIR\game\shared\workshop_mount.cpp" [!$NO_STEAM]
 		}
 		$Folder	"HL2 DLL"
 		{

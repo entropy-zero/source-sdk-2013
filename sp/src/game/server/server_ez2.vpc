@@ -92,6 +92,8 @@ $Project "Server (Entropy Zero 2)"
 			$File	"ez2\weapon_oicw.cpp"
 			$File	"ez2\weapon_displacer_pistol.h"
 			$File	"ez2\weapon_displacer_pistol.cpp"
+
+			$File	"$SRCDIR\game\shared\workshop_mount.cpp" [!$NO_STEAM]
 		}
 		$File	"ai_eventresponse.cpp"
 		$File	"ai_eventresponse.h"
