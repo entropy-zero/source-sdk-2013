@@ -42,8 +42,6 @@
 #define SF_COMBINE_COMMANDABLE ( 1 << 19 ) // Added by 1upD - soldier commandable spawnflag
 #define SF_COMBINE_REGENERATE ( 1 << 20 ) // Added by 1upD - soldier health regen spawnflag
 #define SF_COMBINE_NO_MANHACK_DEPLOY ( 1 << 21 ) // Blixibon -- Manhack toss spawnflag
-#define SF_COMBINE_MEDIC ( 1 << 22 ) // Citizen-like medic
-#define SF_COMBINE_AMMORESUPPLIER ( 1 << 23 ) // Citizen-like ammo resupplier
 #endif
 
 //=========================================================
@@ -211,8 +209,8 @@ public:
 	virtual void	StartPlayerGive( CBasePlayer *pPlayer ) {}
 	virtual void	OnCantBeGivenObject( CBaseEntity *pItem ) {}
 
-	bool 			IsMedic() 			{ return HasSpawnFlags( SF_COMBINE_MEDIC ); }
-	bool 			IsAmmoResupplier() 	{ return HasSpawnFlags( SF_COMBINE_AMMORESUPPLIER ); }
+	bool 			IsMedic() 			{ return m_bIsMedic; }
+	bool 			IsAmmoResupplier() 	{ return m_bIsAmmoResupplier; }
 	
 	bool 			CanHeal();
 	bool 			ShouldHealTarget( CBaseEntity *pTarget, bool bActiveUse = false );
@@ -600,6 +598,9 @@ protected:
 private:
 	EHANDLE			m_hObstructor;
 	float			m_flTimeSinceObstructed;
+
+	bool			m_bIsMedic;
+	bool			m_bIsAmmoResupplier;
 	
 	float			m_flPlayerHealTime;
 	float			m_flAllyHealTime;

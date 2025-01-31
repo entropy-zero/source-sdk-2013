@@ -315,6 +315,8 @@ DEFINE_FIELD( m_flTimePlayerStare, FIELD_TIME ),
 DEFINE_FIELD( m_bTemporarilyNeedWeapon, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flNextHealthSearchTime, FIELD_TIME ),
 DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
+DEFINE_KEYFIELD( m_bIsMedic, FIELD_BOOLEAN, "IsMedic" ),
+DEFINE_KEYFIELD( m_bIsAmmoResupplier, FIELD_BOOLEAN, "IsAmmoResupplier" ),
 DEFINE_FIELD( m_flPlayerHealTime, FIELD_TIME ),
 DEFINE_FIELD( m_flAllyHealTime, FIELD_TIME ),
 DEFINE_FIELD( m_flPlayerGiveAmmoTime, FIELD_TIME ),
@@ -1987,7 +1989,7 @@ void CNPC_Combine::InputDisablePlayerGive( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputSetMedicOn( inputdata_t &inputdata )
 {
-	AddSpawnFlags( SF_COMBINE_MEDIC );
+	m_bIsMedic = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1996,7 +1998,7 @@ void CNPC_Combine::InputSetMedicOn( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputSetMedicOff( inputdata_t &inputdata )
 {
-	RemoveSpawnFlags( SF_COMBINE_MEDIC );
+	m_bIsMedic = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -2005,7 +2007,7 @@ void CNPC_Combine::InputSetMedicOff( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputSetAmmoResupplierOn( inputdata_t &inputdata )
 {
-	AddSpawnFlags( SF_COMBINE_AMMORESUPPLIER );
+	m_bIsAmmoResupplier = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -2014,7 +2016,7 @@ void CNPC_Combine::InputSetAmmoResupplierOn( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_Combine::InputSetAmmoResupplierOff( inputdata_t &inputdata )
 {
-	RemoveSpawnFlags( SF_COMBINE_AMMORESUPPLIER );
+	m_bIsAmmoResupplier = false;
 }
 #endif
 
