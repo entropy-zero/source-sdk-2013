@@ -88,6 +88,9 @@ void CNPC_HuskCrabSynth::Precache()
 		}
 	}
 
+	PrecacheScriptSound( "NPC_HuskCrabSynth.Suspicious" );
+	PrecacheScriptSound( "NPC_HuskCrabSynth.Startled" );
+
 	BaseClass::Precache();
 }
 
@@ -217,6 +220,9 @@ void CNPC_HuskMortarSynth::Precache()
 				break;
 		}
 	}
+
+	PrecacheScriptSound( "NPC_HuskMortarSynth.Suspicious" );
+	PrecacheScriptSound( "NPC_HuskMortarSynth.Startled" );
 
 	BaseClass::Precache();
 }

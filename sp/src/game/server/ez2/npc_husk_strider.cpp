@@ -69,6 +69,9 @@ void CNPC_HuskStrider::Precache()
 		SetModelName( MAKE_STRING( "models/husks/husk_strider.mdl" ) );
 	}
 
+	PrecacheScriptSound( "NPC_HuskStrider.Suspicious" );
+	PrecacheScriptSound( "NPC_HuskStrider.Startled" );
+
 	BaseClass::Precache();
 }
 
