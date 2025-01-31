@@ -11,6 +11,9 @@
 #include "weapon_parse.h"
 #include "filesystem.h"
 #include "hl2_player_shared.h"
+#ifdef EZ2
+#include "basehlcombatweapon_shared.h"
+#endif
 
 CProtagonistSystem g_ProtagonistSystem;
 
@@ -159,6 +162,31 @@ void CProtagonistSystem::LoadProtagonistFile( const char *pszFile )
 					}
 				}
 
+#ifdef EZ2
+				//----------------------------------------------------------------------------
+				// Leg
+				//----------------------------------------------------------------------------
+				else if (V_strnicmp( pszSubKeyName, "leg", 3 ) == 0)
+				{
+					pszSubKeyName += 3;
+					if (!pszSubKeyName[0])
+					{
+						// Model
+						pProtag->pszLegModel = AllocateString( pSubKey->GetString() );
+					}
+					else if (FStrEq( pszSubKeyName, "_skin" ))
+					{
+						// Skin
+						pProtag->nLegSkin = pSubKey->GetInt();
+					}
+					else if (FStrEq( pszSubKeyName, "_body" ))
+					{
+						// Bodygroup
+						pProtag->nLegBody = pSubKey->GetInt();
+					}
+				}
+#endif
+
 				//----------------------------------------------------------------------------
 				// Responses
 				//----------------------------------------------------------------------------
@@ -196,6 +224,12 @@ void CProtagonistSystem::LoadProtagonistFile( const char *pszFile )
 						const char *pszVM = pWeaponKey->GetString( "viewmodel", NULL );
 						if (pszVM)
 							pProtag->dictWpnData[i].pszVM = AllocateString( pszVM );
+
+#ifdef EZ2
+						pszVM = pWeaponKey->GetString( "viewmodel_dual", NULL );
+						if (pszVM)
+							pProtag->dictWpnData[i].pszDualVM = AllocateString( pszVM );
+#endif
 
 						const char *pszHandRig = pWeaponKey->GetString( "hand_rig", NULL );
 						if (pszHandRig)
@@ -361,6 +395,23 @@ int CProtagonistSystem::GetProtagonist_HandModelBody( const CBasePlayer *pPlayer
 	GetProtagonistParam( DoGetProtagonist_HandModelBody, pWeapon )
 }
 
+#ifdef EZ2
+const char *CProtagonistSystem::GetProtagonist_LegModel( const CBasePlayer *pPlayer )
+{
+	GetProtagonistParam( DoGetProtagonist_LegModel )
+}
+
+int CProtagonistSystem::GetProtagonist_LegModelSkin( const CBasePlayer *pPlayer )
+{
+	GetProtagonistParam( DoGetProtagonist_LegModelSkin )
+}
+
+int CProtagonistSystem::GetProtagonist_LegModelBody( const CBasePlayer *pPlayer )
+{
+	GetProtagonistParam( DoGetProtagonist_LegModelBody )
+}
+#endif
+
 const char *CProtagonistSystem::GetProtagonist_ResponseContexts( const CBasePlayer *pPlayer )
 {
 	ProtagonistData_t *pProtag = g_ProtagonistSystem.GetPlayerProtagonist( pPlayer );
@@ -494,6 +545,41 @@ int CProtagonistSystem::DoGetProtagonist_HandModelBody( ProtagonistData_t &pProt
 	return NULL;
 }
 
+#ifdef EZ2
+const char *CProtagonistSystem::DoGetProtagonist_LegModel( ProtagonistData_t &pProtag )
+{
+	if (pProtag.pszLegModel != NULL)
+		return pProtag.pszLegModel;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModel )
+
+	return NULL;
+}
+
+int CProtagonistSystem::DoGetProtagonist_LegModelSkin( ProtagonistData_t &pProtag )
+{
+	if (pProtag.nLegSkin >= 0)
+		return pProtag.nLegSkin;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModelSkin )
+
+	return NULL;
+}
+
+int CProtagonistSystem::DoGetProtagonist_LegModelBody( ProtagonistData_t &pProtag )
+{
+	if (pProtag.nLegBody >= 0)
+		return pProtag.nLegBody;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModelBody )
+
+	return NULL;
+}
+#endif
+
 void CProtagonistSystem::DoGetProtagonist_ResponseContexts( ProtagonistData_t &pProtag, char *pszContexts, int nContextsSize )
 {
 	if (pProtag.pszResponseContexts)
@@ -514,6 +600,14 @@ const char *CProtagonistSystem::DoGetProtagonist_ViewModel( ProtagonistData_t &p
 		// HACKHACK: GetClassname is not const
 		if (!FStrEq( pProtag.dictWpnData.GetElementName( i ), const_cast<CBaseCombatWeapon*>(pWeapon)->GetClassname() ))
 			continue;
+
+#ifdef EZ2
+		// Protagonist override code is currently handled in CBaseHLCombatWeapon, so a static cast is safe.
+		// Please change this if protagonist overrides are extended to other classes.
+		const CBaseHLCombatWeapon *pHLWeapon = assert_cast<const CBaseHLCombatWeapon*>(pWeapon);
+		if (pHLWeapon && pHLWeapon->GetLeftHandGun() && pProtag.dictWpnData[i].pszDualVM)
+			return pProtag.dictWpnData[i].pszDualVM;
+#endif
 
 		if (pProtag.dictWpnData[i].pszVM)
 			return pProtag.dictWpnData[i].pszVM;

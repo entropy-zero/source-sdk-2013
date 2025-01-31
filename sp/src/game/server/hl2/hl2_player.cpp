@@ -632,6 +632,8 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_FIELD( m_flNextKickAttack , FIELD_TIME ),
 	DEFINE_FIELD( m_bKickWeaponLowered, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_LegModelName, FIELD_STRING ),
+	DEFINE_FIELD( m_nLegSkin, FIELD_INTEGER ),
+	DEFINE_FIELD( m_nLegBody, FIELD_INTEGER ),
 #endif
 
 	DEFINE_FIELD( m_flTimeIgnoreFallDamage, FIELD_TIME ),
@@ -5007,6 +5009,8 @@ void CHL2_Player::StartKickAnimation( void )
 	if ( vm )
 	{
 		vm->SetWeaponModel( STRING( m_LegModelName ), NULL );
+		vm->m_nSkin = m_nLegSkin;
+		vm->m_nBody = m_nLegBody;
 
 		int	idealSequence = vm->SelectWeightedSequence( ACT_VM_PRIMARYATTACK );
 
@@ -5329,6 +5333,12 @@ void CHL2_Player::ResetProtagonist()
 		vm->m_nBody = 0;
 	}
 
+#ifdef EZ2
+	m_LegModelName = AllocPooledString( sv_player_kick_default_modelname.GetString() );
+	m_nLegSkin = 0;
+	m_nLegBody = 0;
+#endif
+
 	// RemoveContext will automatically remove contexts by name, regardless of how values are specified
 	const char *pszProtagContexts = g_ProtagonistSystem.GetProtagonist_ResponseContexts( this );
 	if (pszProtagContexts)
@@ -5354,6 +5364,15 @@ void CHL2_Player::RefreshProtagonistData()
 
 	m_nSkin = g_ProtagonistSystem.GetProtagonist_PlayerModelSkin( this );
 	m_nBody = g_ProtagonistSystem.GetProtagonist_PlayerModelBody( this );
+
+#ifdef EZ2
+	const char *pszLegModel = g_ProtagonistSystem.GetProtagonist_LegModel( this );
+	if (pszLegModel)
+		m_LegModelName = MAKE_STRING( pszLegModel );
+
+	m_nLegSkin = g_ProtagonistSystem.GetProtagonist_LegModelSkin( this );
+	m_nLegBody = g_ProtagonistSystem.GetProtagonist_LegModelBody( this );
+#endif
 
 	const char *pszProtagContexts = g_ProtagonistSystem.GetProtagonist_ResponseContexts( this );
 	if (pszProtagContexts)

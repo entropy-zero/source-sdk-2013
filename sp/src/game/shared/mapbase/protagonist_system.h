@@ -54,6 +54,11 @@ public:
 	const char *GetProtagonist_HandModel( const CBasePlayer *pPlayer, const CBaseCombatWeapon *pWeapon );
 	int GetProtagonist_HandModelSkin( const CBasePlayer *pPlayer, const CBaseCombatWeapon *pWeapon );
 	int GetProtagonist_HandModelBody( const CBasePlayer *pPlayer, const CBaseCombatWeapon *pWeapon );
+#ifdef EZ2
+	const char *GetProtagonist_LegModel( const CBasePlayer *pPlayer );
+	int GetProtagonist_LegModelSkin( const CBasePlayer *pPlayer );
+	int GetProtagonist_LegModelBody( const CBasePlayer *pPlayer );
+#endif
 	const char *GetProtagonist_ResponseContexts( const CBasePlayer *pPlayer );
 #endif
 
@@ -94,6 +99,13 @@ private:
 		int nHandSkin = -1;
 		int nHandBody = -1;
 
+#ifdef EZ2
+		// Leg
+		const char *pszLegModel = NULL;
+		int nLegSkin = -1;
+		int nLegBody = -1;
+#endif
+
 		// Responses
 		const char *pszResponseContexts = NULL;
 #endif
@@ -102,6 +114,9 @@ private:
 		struct WeaponDataOverride_t
 		{
 			const char *pszVM = NULL;
+#ifdef EZ2
+			const char *pszDualVM = NULL;
+#endif
 			bool bUsesHands = false;
 			int nHandRig = 0;
 			float flVMFOV = 0.0f;
@@ -123,6 +138,11 @@ private:
 	const char *DoGetProtagonist_HandModel( ProtagonistData_t &pProtag, const CBaseCombatWeapon *pWeapon );
 	int DoGetProtagonist_HandModelSkin( ProtagonistData_t &pProtag, const CBaseCombatWeapon *pWeapon );
 	int DoGetProtagonist_HandModelBody( ProtagonistData_t &pProtag, const CBaseCombatWeapon *pWeapon );
+#ifdef EZ2
+	const char *DoGetProtagonist_LegModel( ProtagonistData_t &pProtag );
+	int DoGetProtagonist_LegModelSkin( ProtagonistData_t &pProtag );
+	int DoGetProtagonist_LegModelBody( ProtagonistData_t &pProtag );
+#endif
 	void DoGetProtagonist_ResponseContexts( ProtagonistData_t &pProtag, char *pszContexts, int nContextsSize );
 #endif
 

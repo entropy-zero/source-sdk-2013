@@ -305,17 +305,6 @@ void CBaseHLCombatWeapon::ItemPostFrame( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-const char *CBaseHLCombatWeapon::GetViewModel( int viewmodelindex ) const
-{
-	if (GetLeftHandGun() && GetWpnData().szViewModelDual[0])
-		return GetWpnData().szViewModelDual;
-
-	return BaseClass::GetViewModel( viewmodelindex );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
 CHudTexture const *CBaseHLCombatWeapon::GetSpriteActive( void ) const
 {
 	if (GetLeftHandGun() && GetWpnData().iconActiveDual)
@@ -865,6 +854,11 @@ const char *CBaseHLCombatWeapon::GetViewModel( int viewmodelindex ) const
 		if (pszProtagVM)
 			return pszProtagVM;
 	}
+
+#ifdef EZ2
+	if (GetLeftHandGun() && GetWpnData().szViewModelDual[0])
+		return GetWpnData().szViewModelDual;
+#endif
 
 	return BaseClass::GetViewModel( viewmodelindex );
 }

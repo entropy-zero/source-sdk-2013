@@ -65,7 +65,6 @@ public:
 	// Dual wielding
 	//
 	virtual void		ItemPostFrame( void );
-	virtual const char *GetViewModel( int viewmodelindex = 0 ) const;
 	
 	virtual CHudTexture const	*GetSpriteActive( void ) const;
 	virtual CHudTexture const	*GetSpriteInactive( void ) const;
