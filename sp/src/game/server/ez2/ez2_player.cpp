@@ -514,8 +514,6 @@ void CEZ2_Player::Spawn( void )
 
 	BaseClass::Spawn();
 
-	SetModel( "models/bad_cop.mdl" );
-
 	Activate();
 
 	if (GetBonusChallenge() != EZ_CHALLENGE_NONE)
