@@ -523,6 +523,11 @@ bool CBaseCombatWeapon::UsesHands() const
 {
 	return GetWpnData().m_bUsesHands;
 }
+
+int CBaseCombatWeapon::GetHandRig() const
+{
+	return GetWpnData().m_nHandRig;
+}
 #endif
 
 #ifdef EZ2
@@ -3247,6 +3252,9 @@ BEGIN_ENT_SCRIPTDESC( CBaseCombatWeapon, CBaseAnimating, "The base class for all
 	DEFINE_SCRIPTFUNC( GetWorldModel, "Get the weapon's world model." )
 	DEFINE_SCRIPTFUNC( GetViewModel, "Get the weapon's view model." )
 	DEFINE_SCRIPTFUNC( GetDroppedModel, "Get the weapon's unique dropped model if it has one." )
+
+	DEFINE_SCRIPTFUNC( UsesHands, "" )
+	DEFINE_SCRIPTFUNC( GetHandRig, "" )
 
 	DEFINE_SCRIPTFUNC( GetWeight, "Get the weapon's weight." )
 	DEFINE_SCRIPTFUNC( GetPrintName, "" )

@@ -420,12 +420,13 @@ public:
 	virtual bool			UsesClipsForAmmo2( void ) const;
 	bool					IsMeleeWeapon() const;
 #ifdef MAPBASE
-	float					GetViewmodelFOVOverride() const;
+	virtual float			GetViewmodelFOVOverride() const;
 	float					GetBobScale() const;
 	float					GetSwayScale() const;
 	float					GetSwaySpeedScale() const;
 	virtual const char		*GetDroppedModel( void ) const;
-	bool					UsesHands( void ) const;
+	virtual bool			UsesHands( void ) const;
+	virtual int				GetHandRig( void ) const;
 #endif
 #ifdef EZ2
 	float					GetDynamicScopeFOV( void ) const;

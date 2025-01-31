@@ -62,6 +62,10 @@ public:
 
 	bool				IsWeaponLowered( void ) { return m_HL2Local.m_bWeaponLowered; }
 
+#ifdef MAPBASE
+	int				GetProtagonistIndex() const { return m_nProtagonistIndex; }
+#endif
+
 #ifdef SP_ANIM_STATE
 	virtual const QAngle&	GetRenderAngles( void );
 #endif
@@ -86,6 +90,10 @@ private:
 	bool				m_bPlayUseDenySound;		// Signaled by PlayerUse, but can be unset by HL2 ladder code...
 	float				m_flSpeedMod;
 	float				m_flExitSpeedMod;
+
+#ifdef MAPBASE
+	int					m_nProtagonistIndex;
+#endif
 	
 #ifdef SP_ANIM_STATE
 	// At the moment, we network the render angles since almost none of the player anim stuff is done on the client in SP.

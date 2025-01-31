@@ -389,6 +389,15 @@ public:
 	void AddCustomSuitDevice( int iDeviceID );
 	void RemoveCustomSuitDevice( int iDeviceID );
 	bool IsCustomSuitDeviceActive( int iDeviceID );
+
+	// Protagonist system
+	const char *GetProtagonistName() const;
+	int GetProtagonistIndex() const;
+	void InputSetProtagonist( inputdata_t &inputdata );
+	void SetProtagonist( const char *pszProtagonist );
+	void ResetProtagonist();
+	void RefreshProtagonistData();
+	void RefreshProtagonistWeaponData( CBaseCombatWeapon *pWeapon );
 #endif
 
 	CSoundPatch *m_sndLeeches;
@@ -512,6 +521,12 @@ private:
 	float				m_flTimeNextLadderHint;	// Next time we're eligible to display a HUD hint about a ladder.
 	
 	friend class CHL2GameMovement;
+
+#ifdef MAPBASE
+	// Protagonist used by protagonist_system.h
+	string_t			m_iszProtagonistName;
+	CNetworkVar( int, m_nProtagonistIndex );
+#endif
 
 #ifdef SP_ANIM_STATE
 	CSinglePlayerAnimState* m_pPlayerAnimState;

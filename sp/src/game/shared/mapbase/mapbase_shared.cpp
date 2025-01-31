@@ -30,6 +30,9 @@
 #include "mapbase/SystemConvarMod.h"
 #include "gameinterface.h"
 #endif
+#if defined(HL2_DLL) || defined(HL2_CLIENT_DLL)
+#include "protagonist_system.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -100,6 +103,11 @@ bool g_bDefaultPlayerDrawExternally;
 char g_szDefaultHandsModel[MAX_PATH];
 int g_iDefaultHandsSkin;
 int g_iDefaultHandsBody;
+
+#ifdef HL2_DLL
+// See protagonist_system.h
+char g_szDefaultProtagonist[MAX_PROTAGONIST_NAME];
+#endif
 #endif
 
 enum
@@ -125,6 +133,9 @@ enum
 #endif
 #ifdef MAPBASE_VSCRIPT
 	MANIFEST_VSCRIPT,
+#endif
+#if defined(HL2_DLL) || defined(HL2_CLIENT_DLL)
+	MANIFEST_PROTAGONISTS,	// See protagonist_system.h
 #endif
 
 	// Must always be kept below
@@ -168,6 +179,9 @@ static const ManifestType_t gm_szManifestFileStrings[MANIFEST_NUM_TYPES] = {
 #endif
 #ifdef MAPBASE_VSCRIPT
 	{ "vscript",		"mapbase_load_vscript",			"Should we load map-specific VScript map spawn files? e.g. \"maps/<mapname>_mapspawn.nut\"" },
+#endif
+#if defined(HL2_DLL) || defined(HL2_CLIENT_DLL)
+	{ "protagonists",	"mapbase_load_protagonists",	"Should we load map-specific protagonist files? e.g. \"maps/<mapname>_protagonists.txt\"" },
 #endif
 };
 
@@ -260,6 +274,10 @@ public:
 			Q_strncpy( g_szDefaultHandsModel, gameinfo->GetString( "player_default_hands", "models/weapons/v_hands.mdl" ), sizeof( g_szDefaultHandsModel ) );
 			g_iDefaultHandsSkin = gameinfo->GetInt( "player_default_hands_skin", 0 );
 			g_iDefaultHandsBody = gameinfo->GetInt( "player_default_hands_body", 0 );
+
+#ifdef HL2_DLL
+			Q_strncpy( g_szDefaultProtagonist, gameinfo->GetString( "player_default_protagonist", "" ), sizeof( g_szDefaultProtagonist ) );
+#endif
 #endif
 
 #ifdef EZ2
@@ -509,6 +527,9 @@ public:
 #endif
 #ifdef MAPBASE_VSCRIPT
 			case MANIFEST_VSCRIPT:		{ VScriptRunScript(value, false); } break;
+#endif
+#if defined(HL2_DLL) || defined(HL2_CLIENT_DLL)
+			case MANIFEST_PROTAGONISTS: { g_ProtagonistSystem.LoadProtagonistFile( value ); } break;
 #endif
 		}
 	}

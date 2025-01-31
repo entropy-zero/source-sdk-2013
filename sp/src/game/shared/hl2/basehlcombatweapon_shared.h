@@ -53,6 +53,13 @@ public:
 
 	virtual void	ItemHolsterFrame( void );
 
+#ifdef MAPBASE
+	virtual const char *GetViewModel( int viewmodelindex = 0 ) const;
+	virtual float	GetViewmodelFOVOverride() const;
+	virtual bool	UsesHands( void ) const;
+	virtual int		GetHandRig( void ) const;
+#endif
+
 #ifdef EZ2
 	//
 	// Dual wielding

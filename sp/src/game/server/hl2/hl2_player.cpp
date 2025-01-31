@@ -58,6 +58,7 @@
 #ifdef MAPBASE
 #include "triggers.h"
 #include "mapbase/variant_tools.h"
+#include "mapbase/protagonist_system.h"
 #endif
 
 #ifdef EZ2
@@ -685,6 +686,8 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableGeigerCounter", InputDisableGeigerCounter ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "ShowSquadHUD", InputShowSquadHUD ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "HideSquadHUD", InputHideSquadHUD ),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetProtagonist", InputSetProtagonist ),
 #endif
 
 	DEFINE_SOUNDPATCH( m_sndLeeches ),
@@ -698,6 +701,10 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_FIELD( m_hLocatorTargetEntity, FIELD_EHANDLE ),
 
 	DEFINE_FIELD( m_flTimeNextLadderHint, FIELD_TIME ),
+
+#ifdef MAPBASE
+	DEFINE_KEYFIELD( m_iszProtagonistName, FIELD_STRING, "ProtagonistName" ),
+#endif
 
 	//DEFINE_FIELD( m_hPlayerProxy, FIELD_EHANDLE ), //Shut up class check!
 
@@ -726,6 +733,9 @@ BEGIN_ENT_SCRIPTDESC( CHL2_Player, CBasePlayer, "The HL2 player entity." )
 	DEFINE_SCRIPTFUNC( RemoveCustomSuitDevice, "Removes a custom suit device ID. (1-3)" )
 	DEFINE_SCRIPTFUNC( IsCustomSuitDeviceActive, "Checks if a custom suit device is active." )
 
+	DEFINE_SCRIPTFUNC( GetProtagonistName, "Gets the player's protagonist name." )
+	DEFINE_SCRIPTFUNC( SetProtagonist, "Sets the player's protagonist entry." )
+
 #ifdef SP_ANIM_STATE
 	DEFINE_SCRIPTFUNC( AddAnimStateLayer, "Adds a custom sequence index as a misc. layer for the singleplayer anim state, wtih parameters for blending in/out, setting the playback rate, holding the animation at the end, and only playing when the player is still." )
 #endif
@@ -741,6 +751,10 @@ CHL2_Player::CHL2_Player()
 
 	m_flArmorReductionTime = 0.0f;
 	m_iArmorReductionFrom = 0;
+
+#ifdef MAPBASE
+	m_nProtagonistIndex = -1;
+#endif
 }
 
 //
@@ -775,6 +789,9 @@ CSuitPowerDevice SuitDeviceCustom[] =
 IMPLEMENT_SERVERCLASS_ST(CHL2_Player, DT_HL2_Player)
 	SendPropDataTable(SENDINFO_DT(m_HL2Local), &REFERENCE_SEND_TABLE(DT_HL2Local), SendProxy_SendLocalDataTable),
 	SendPropBool( SENDINFO(m_fIsSprinting) ),
+#ifdef MAPBASE
+	SendPropInt( SENDINFO( m_nProtagonistIndex ), 8, SPROP_UNSIGNED ),
+#endif
 #ifdef SP_ANIM_STATE
 	SendPropFloat( SENDINFO(m_flAnimRenderYaw), 0, SPROP_NOSCALE ),
 #endif
@@ -1418,6 +1435,11 @@ void CHL2_Player::Activate( void )
 #endif
 
 	GetPlayerProxy();
+
+#ifdef MAPBASE
+	if (m_iszProtagonistName != NULL_STRING)
+		SetProtagonist( STRING( m_iszProtagonistName ) );
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -1658,6 +1680,8 @@ CStudioHdr *CHL2_Player::OnNewModel()
 
 extern char g_szDefaultPlayerModel[MAX_PATH];
 extern bool g_bDefaultPlayerDrawExternally;
+
+extern char g_szDefaultProtagonist[MAX_PROTAGONIST_NAME];
 #endif
 
 //-----------------------------------------------------------------------------
@@ -1690,6 +1714,9 @@ void CHL2_Player::Spawn(void)
 	}
 
 	SetDrawPlayerModelExternally( g_bDefaultPlayerDrawExternally );
+
+	if (m_iszProtagonistName == NULL_STRING && *g_szDefaultProtagonist)
+		m_iszProtagonistName = MAKE_STRING( g_szDefaultProtagonist );
 #endif
 
 	//
@@ -4441,6 +4468,10 @@ bool CHL2_Player::Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex 
 		StopZooming();
 	}
 
+#ifdef MAPBASE
+	RefreshProtagonistWeaponData( pWeapon );
+#endif
+
 	return BaseClass::Weapon_Switch( pWeapon, viewmodelindex );
 }
 
@@ -5223,6 +5254,142 @@ bool CHL2_Player::IsCustomSuitDeviceActive( int iDeviceID )
 	}
 
 	return SuitPower_IsDeviceActive( SuitDeviceCustom[iDeviceID] );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Gets our protagonist name, if we have one
+//-----------------------------------------------------------------------------
+const char *CHL2_Player::GetProtagonistName() const
+{
+	return STRING( m_iszProtagonistName );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Gets our protagonist index, if we have one
+//-----------------------------------------------------------------------------
+int CHL2_Player::GetProtagonistIndex() const
+{
+	return m_nProtagonistIndex;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sets our protagonist to the specified entry
+//-----------------------------------------------------------------------------
+void CHL2_Player::InputSetProtagonist( inputdata_t &inputdata )
+{
+	SetProtagonist( inputdata.value.String() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sets our protagonist to the specified entry
+//-----------------------------------------------------------------------------
+void CHL2_Player::SetProtagonist( const char *pszProtagonist )
+{
+	if (!pszProtagonist || !*pszProtagonist)
+	{
+		ResetProtagonist();
+		return;
+	}
+
+	int nIndex = g_ProtagonistSystem.FindProtagonistIndex( pszProtagonist );
+	if (nIndex == -1)
+	{
+		Warning( "\"%s\" is not a valid protagonist\n", pszProtagonist );
+		return;
+	}
+
+	if (m_nProtagonistIndex != -1)
+	{
+		// Flush any pre-existing data
+		ResetProtagonist();
+	}
+	
+	m_nProtagonistIndex = nIndex;
+	m_iszProtagonistName = AllocPooledString( pszProtagonist );
+
+	RefreshProtagonistData();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Resets protagonist data
+//-----------------------------------------------------------------------------
+void CHL2_Player::ResetProtagonist()
+{
+	SetModel( g_szDefaultPlayerModel );
+	m_nSkin = 0;
+	m_nBody = 0;
+
+	CBaseViewModel *vm = GetViewModel( 1 );
+	if (vm)
+	{
+		extern char g_szDefaultHandsModel[MAX_PATH];
+		vm->SetWeaponModel( g_szDefaultHandsModel, NULL );
+
+		vm->m_nSkin = 0;
+		vm->m_nBody = 0;
+	}
+
+	// RemoveContext will automatically remove contexts by name, regardless of how values are specified
+	const char *pszProtagContexts = g_ProtagonistSystem.GetProtagonist_ResponseContexts( this );
+	if (pszProtagContexts)
+		RemoveContext( pszProtagContexts );
+
+	m_iszProtagonistName = NULL_STRING;
+	m_nProtagonistIndex = -1;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Refreshes protagonist data
+//-----------------------------------------------------------------------------
+void CHL2_Player::RefreshProtagonistData()
+{
+	if (m_nProtagonistIndex == -1)
+		return;
+
+	g_ProtagonistSystem.PrecacheProtagonist( this, m_nProtagonistIndex );
+
+	const char *pszProtagModel = g_ProtagonistSystem.GetProtagonist_PlayerModel( this );
+	if (pszProtagModel)
+		SetModel( pszProtagModel );
+
+	m_nSkin = g_ProtagonistSystem.GetProtagonist_PlayerModelSkin( this );
+	m_nBody = g_ProtagonistSystem.GetProtagonist_PlayerModelBody( this );
+
+	const char *pszProtagContexts = g_ProtagonistSystem.GetProtagonist_ResponseContexts( this );
+	if (pszProtagContexts)
+		AddContext( pszProtagContexts );
+
+	RefreshProtagonistWeaponData( GetActiveWeapon() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Refreshes protagonist data
+//-----------------------------------------------------------------------------
+void CHL2_Player::RefreshProtagonistWeaponData( CBaseCombatWeapon *pWeapon )
+{
+	if (m_nProtagonistIndex == -1)
+		return;
+
+	CBaseViewModel *vm = GetViewModel( 1 );
+	if (vm)
+	{
+		const char *pszHandModel = g_ProtagonistSystem.GetProtagonist_HandModel( this, pWeapon );
+		if (pszHandModel)
+		{
+			vm->SetWeaponModel( pszHandModel, NULL );
+
+			vm->m_nSkin = g_ProtagonistSystem.GetProtagonist_HandModelSkin( this, pWeapon );
+			vm->m_nBody = g_ProtagonistSystem.GetProtagonist_HandModelBody( this, pWeapon );
+		}
+		else
+		{
+			extern char g_szDefaultHandsModel[MAX_PATH];
+			vm->SetWeaponModel( g_szDefaultHandsModel, NULL );
+
+			vm->m_nSkin = 0;
+			vm->m_nBody = 0;
+		}
+	}
 }
 #endif
 

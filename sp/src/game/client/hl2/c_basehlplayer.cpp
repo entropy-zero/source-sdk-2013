@@ -31,6 +31,9 @@ ConVar cl_npc_speedmod_outtime( "cl_npc_speedmod_outtime", "1.5", FCVAR_CLIENTDL
 IMPLEMENT_CLIENTCLASS_DT(C_BaseHLPlayer, DT_HL2_Player, CHL2_Player)
 	RecvPropDataTable( RECVINFO_DT(m_HL2Local),0, &REFERENCE_RECV_TABLE(DT_HL2Local) ),
 	RecvPropBool( RECVINFO( m_fIsSprinting ) ),
+#ifdef MAPBASE
+	RecvPropInt( RECVINFO( m_nProtagonistIndex ) ),
+#endif
 #ifdef SP_ANIM_STATE
 	RecvPropFloat( RECVINFO( m_flAnimRenderYaw ) ),
 #endif

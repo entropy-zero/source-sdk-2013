@@ -4494,6 +4494,11 @@ void CBasePlayer::SetSuitUpdate(const char *name, int fgroup, int iNoRepeatTime)
 		return;
 	}
 
+#ifdef MAPBASE
+	if ( HasContext("silent_suit", "1") )
+		return;
+#endif
+
 	// if name == NULL, then clear out the queue
 
 	if (!name)
