@@ -26,6 +26,10 @@ extern ConVar    sk_plr_dmg_smg1_grenade;
 extern ConVar    sk_npc_dmg_smg1_grenade;
 #endif
 
+#ifdef EZ2
+ConVar	weapon_smg1_use_ez1_accuracy( "weapon_smg1_use_ez1_accuracy", "0" );
+#endif
+
 class CWeaponSMG1 : public CHLSelectFireMachineGun
 {
 	DECLARE_DATADESC();
@@ -59,10 +63,12 @@ public:
 	{
 #ifdef EZ1
 		static const Vector cone = VECTOR_CONE_2DEGREES;
-#else
-		static const Vector cone = VECTOR_CONE_5DEGREES;
-#endif
 		return cone;
+#else
+		static const Vector coneEZ1 = VECTOR_CONE_2DEGREES;
+		static const Vector cone = VECTOR_CONE_5DEGREES;
+		return weapon_smg1_use_ez1_accuracy.GetBool() ? coneEZ1 : cone;
+#endif
 	}
 
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
