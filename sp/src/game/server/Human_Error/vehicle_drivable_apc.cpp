@@ -842,11 +842,15 @@ void CPropDrivableAPC::AimGunAt( Vector *endPos, float flInterval )
 
 	//DevMsg("newTargetPitch: %f\n", newTargetPitch);
 
+	// EZ2: Invalid check, this always resolves to true
+	// m_bUnableToFire is unused, ignore block
+#if 0
 	// If the angles have been clamped, we're looking outside of our valid range
 	if ( fabs(newTargetYaw-targetYaw) > 1e-4 || fabs(newTargetPitch-targetPitch) > 1e-4 )
 	{
 		m_bUnableToFire = true;
 	}
+#endif
 
 	targetYaw = newTargetYaw;
 	targetPitch = newTargetPitch;
