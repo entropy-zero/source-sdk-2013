@@ -489,7 +489,7 @@ void CWeaponStunStick::Hit( trace_t &traceHit, Activity nHitActivity, bool bIsSe
 
 		// If the hit object is an NPC, and that NPC is now dead - become a server ragdoll and electrify!
 		CAI_BaseNPC * pNPC = pHitEntity->MyNPCPointer();
-		if ( flDamage > flBaseDamage && pHitEntity->IsNPC() && pNPC != NULL && pNPC->CanBecomeServerRagdoll() && !pNPC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pNPC->m_iHealth - info.GetDamage() <= 0.0f)
+		if ( flDamage > flBaseDamage && pHitEntity->IsNPC() && pNPC != NULL && pNPC->CanBecomeServerRagdoll() && pNPC->PassesDamageFilter(info) && !pNPC->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pNPC->m_iHealth - info.GetDamage() <= 0.0f && pNPC->Classify() != CLASS_BARNACLE)
 		{
 			pNPC->BecomeRagdollBoogie( GetOwner(), info.GetDamageForce(), 5.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL );
 		}
