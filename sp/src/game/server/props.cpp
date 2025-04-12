@@ -839,14 +839,18 @@ bool CBreakableProp::HandleInteraction( int interactionType, void *data, CBaseCo
 
 		// If we're an explosive barrel, DON'T explode violently!
 		if (
-				HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
+			// If the prop can't be picked up, it's probably not actually an explosive barrel
+			CBasePlayer::CanPickupObject( this, 35, 128 ) && (
+					HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
 #ifdef EZ2
-				HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
+					HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
 #endif
-				HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) ||
-				HasInteraction( PROPINTER_FIRE_FLAMMABLE ) ||
-				HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) ||
-				HasInteraction( PROPINTER_FIRE_EXPLOSIVE_RESIST ) )
+					HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) ||
+					HasInteraction( PROPINTER_FIRE_FLAMMABLE ) ||
+					HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) ||
+					HasInteraction( PROPINTER_FIRE_EXPLOSIVE_RESIST ) 
+				)
+			)
 		{
 			// If we have directional information, PUNT!
 			trace_t * pTr = info->tr;
