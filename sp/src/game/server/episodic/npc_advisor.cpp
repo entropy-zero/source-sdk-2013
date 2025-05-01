@@ -616,6 +616,8 @@ public:
 
 #ifdef EZ2
 	virtual void		SetModel( const char *szModelName );
+
+	void				GetDefaultSpriteColor(int &r, int &g, int &b);
 	
 	virtual CSprite		*GetGlowSpritePtr( int i );
 	virtual void		SetGlowSpritePtr( int i, CSprite *sprite );
@@ -1243,6 +1245,28 @@ void CNPC_Advisor::SetModel( const char *szModelName )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: The advisor's default sprite color
+//-----------------------------------------------------------------------------
+void CNPC_Advisor::GetDefaultSpriteColor( int &r, int &g, int &b )
+{
+	EZ_VARIANT EZvar = GetEZVariant();
+	switch (EZvar)
+	{
+		case EZ_VARIANT_ATHENAEUM:
+			r = 160;
+			g = 48;
+			b = 255;
+			break;
+
+		default:
+			r = 0;
+			g = 255;
+			b = 255;
+			break;
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Return the pointer for a given sprite given an index
 //-----------------------------------------------------------------------------
 CSprite	*CNPC_Advisor::GetGlowSpritePtr( int index )
@@ -1291,9 +1315,7 @@ EyeGlow_t *CNPC_Advisor::GetEyeGlowData( int index )
 		eyeGlow->alpha = 255;
 		eyeGlow->brightness = 224;
 
-		eyeGlow->red = 0;
-		eyeGlow->green = 255;
-		eyeGlow->blue = 255;
+		GetDefaultSpriteColor( eyeGlow->red, eyeGlow->green, eyeGlow->blue );
 
 		eyeGlow->renderMode = kRenderWorldGlow;
 		eyeGlow->scale = 0.1f;
@@ -1307,9 +1329,7 @@ EyeGlow_t *CNPC_Advisor::GetEyeGlowData( int index )
 		eyeGlow->alpha = 255;
 		eyeGlow->brightness = 224;
 
-		eyeGlow->red = 0;
-		eyeGlow->green = 255;
-		eyeGlow->blue = 255;
+		GetDefaultSpriteColor( eyeGlow->red, eyeGlow->green, eyeGlow->blue );
 
 		eyeGlow->renderMode = kRenderWorldGlow;
 		eyeGlow->scale = 0.1f;
@@ -1343,8 +1363,11 @@ void CNPC_Advisor::SetEyeState( AdvisorEyeState_t state )
 				}
 				else
 				{
-					m_pEyeGlow->SetRenderColor( 0, 255, 255 );
-					m_pCameraGlow2->SetRenderColor( 0, 255, 255 );
+					int r, g, b;
+					GetDefaultSpriteColor( r, g, b );
+
+					m_pEyeGlow->SetRenderColor( r, g, b );
+					m_pCameraGlow2->SetRenderColor( r, g, b );
 
 					m_pEyeGlow->SetScale( 0.1 );
 					m_pCameraGlow2->SetScale( 0.1 );

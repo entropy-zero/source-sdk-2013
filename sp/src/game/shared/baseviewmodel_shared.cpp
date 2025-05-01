@@ -581,6 +581,15 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		angles = vOriginalAngles;
 	}
 
+#ifdef EZ2
+	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
+	if (pWeapon && pWeapon->GetDynamicScopeFOV() != 0.0f && pWeapon->IsDynamicScopeZoomed())
+	{
+		// Ignore the below
+		return;
+	}
+#endif
+
 	//FIXME: These are the old settings that caused too many exposed polys on some models
 	VectorMA( origin, -pitch * 0.035f,	forward,	origin );
 	VectorMA( origin, -pitch * 0.03f,		right,	origin );

@@ -106,6 +106,7 @@ int g_interactionXenGrenadeHop			= 0;
 int g_interactionXenGrenadeRagdoll      = 0;
 
 int	g_interactionStasisGrenadeFreeze	= 0;
+int	g_interactionStasisGrenadeUnfreeze  = 0;
 #endif
 
 #ifdef EZ2
@@ -2366,6 +2367,7 @@ void CGrenadeHopwire::Precache( void )
 		g_interactionXenGrenadeRagdoll = CBaseCombatCharacter::GetInteractionID();
 
 		g_interactionStasisGrenadeFreeze = CBaseCombatCharacter::GetInteractionID();
+		g_interactionStasisGrenadeUnfreeze = CBaseCombatCharacter::GetInteractionID();
 	}
 
 	if (GetHopwireStyle() == HOPWIRE_XEN)
@@ -3010,42 +3012,36 @@ void CStasisVortexController::PullThink( void )
 		// Reset ragdoll
 		pRagdoll = NULL;
 
-		// Freeze NPCs by stopping their think function
-		if (pEnts[i]->MyCombatCharacterPointer())
+		// Freeze NPCs
+		if (pEnts[i]->MyNPCPointer())
 		{
-			// If this NPC has already been frozen, don't refreeze
-			if (pEnts[i]->GetNextThink() == TICK_NEVER_THINK)
+			// If this NPC is in the freeze schedule, set it's think to the end of the vortex
+			if (pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false))
 			{
+				pEnts[i]->SetNextThink(MAX(pEnts[i]->GetNextThink(), m_flEndTime - TICK_INTERVAL));
+				pEnts[i]->SetAbsVelocity(vec3_origin);
 				continue;
 			}
 
-			if (pEnts[i]->MyNPCPointer())
-			{			
-				pEnts[i]->MyNPCPointer()->SetCondition( COND_NPC_FREEZE );
-				pEnts[i]->MyNPCPointer()->TaskInterrupt();
-			}
+			pEnts[i]->MyNPCPointer()->SetCondition(COND_NPC_FREEZE);
+			pEnts[i]->MyNPCPointer()->TaskInterrupt();
 
-			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezeNPCThink, m_flEndTime, "StasisGrenadeUnfreeze" );
-
-			// Don't cancel the think function until the NPC picks up SCHED_NPC_FREEZE
-			if (pEnts[i]->MyNPCPointer() && !(pEnts[i]->MyNPCPointer()->IsCurSchedule(SCHED_NPC_FREEZE, false)))
-				continue;
-
-			pEnts[i]->SetNextThink( TICK_NEVER_THINK );
-			DevMsg( "NPC '%s' caught in stasis field! Thinking stopped\n", pEnts[i]->GetDebugName() );
+			// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+			pEnts[i]->SetContextThink(&CStasisVortexController::UnfreezeNPCThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze");
 
 			continue;
 		}
 
 		if (FClassnameIs( pEnts[i], "prop_ragdoll" ))
 		{
-			pRagdoll = dynamic_cast< CRagdollProp* >(this);
+			pRagdoll = dynamic_cast< CRagdollProp* >(pEnts[i]);
 		}
 
-		if (pRagdoll)
+		if (pRagdoll && pRagdoll->IsMotionEnabled())
 		{
 			pRagdoll->DisableMotion();
-			pRagdoll->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
+			// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+			pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze" );
 			continue;
 		}
 
@@ -3065,7 +3061,8 @@ void CStasisVortexController::PullThink( void )
 
 		pPhysObject->EnableMotion(false);
 		pPhysObject->EnableGravity( false );
-		pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime, "StasisGrenadeUnfreeze" );
+		// Add tick interval to the unfreeze time to make sure that the unfreeze is after the end time
+		pEnts[i]->SetContextThink( &CStasisVortexController::UnfreezePhysicsObjectThink, m_flEndTime + TICK_INTERVAL, "StasisGrenadeUnfreeze" );
 	}
 
 	// Keep going if need-be
@@ -3109,11 +3106,14 @@ void CStasisVortexController::UnfreezeNPCThink( void )
 	if (MyNPCPointer() == NULL)
 		return;
 
-	MyNPCPointer()->TaskInterrupt();
+	// Dispatch interaction. Skip unfreezing if it returns true
+	if (MyNPCPointer()->DispatchInteraction(g_interactionStasisGrenadeUnfreeze, NULL, GetThrower()))
+	{
+		return;
+	}
+
 	MyNPCPointer()->ClearCondition( COND_NPC_FREEZE );
 	MyNPCPointer()->SetCondition( COND_NPC_UNFREEZE );
-	MyNPCPointer()->Think();
-	SetNextThink( gpGlobals->curtime );
 }
 
 //-----------------------------------------------------------------------------
@@ -3125,15 +3125,17 @@ void CStasisVortexController::UnfreezePhysicsObjectThink( void )
 
 	SetContextThink( NULL, TICK_NEVER_THINK, "StasisGrenadeUnfreeze" );
 
-	if (FClassnameIs( this, "prop_ragdoll" ))
+	if (FClassnameIs( GetBaseEntity(), "prop_ragdoll"))
 	{
-		pRagdoll = dynamic_cast< CRagdollProp* >(this);
+		pRagdoll = dynamic_cast< CRagdollProp* >(GetBaseEntity());
 	}
 
 	if (pRagdoll)
 	{
-		inputdata_t dummy;
-		pRagdoll->InputEnableMotion( dummy );
+		inputdata_t ragdollData;
+		ragdollData.value.SetFloat(0.1f);
+		pRagdoll->InputEnableMotion(ragdollData);
+		pRagdoll->InputStartRadgollBoogie(ragdollData);
 		return;
 	}
 
@@ -3159,7 +3161,7 @@ void CStasisVortexController::StartPull( const Vector &origin, float radius, flo
 	m_flStrength= strength;
 
 	// Play a danger sound throughout the duration of the vortex so that NPCs run away
-	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius, duration, this );
+	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius * 1.25f, duration * 1.25f, this );
 
 	SetDefLessFunc( m_SpawnList );
 	m_SpawnList.EnsureCapacity( 16 );

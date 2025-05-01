@@ -555,6 +555,16 @@ void CNPC_HuskSoldier::StartPlayerGive( CBasePlayer *pPlayer )
 
 	// We like this person now
 	AddPassiveTarget( pPlayer );
+
+	m_OnGiftAccept.FireOutput( GetTarget(), this );
+
+	AI_CriteriaSet modifiers;
+	modifiers.AppendCriteria( "gift", GetTarget()->GetClassname() );
+	modifiers.AppendCriteria( "gift_name", STRING( GetTarget()->GetEntityName() ) );
+	GetTarget()->AppendContextToCriteria( modifiers, "gift_" );
+
+	// TODO: Add to CAI_PlayerAlly concept manager?
+	SpeakIfAllowed( "TLK_GIFT_ACCEPT", modifiers, SENTENCE_PRIORITY_NORMAL, SENTENCE_CRITERIA_NORMAL );
 }
 
 //-----------------------------------------------------------------------------
@@ -568,6 +578,15 @@ void CNPC_HuskSoldier::OnCantBeGivenObject( CBaseEntity *pItem )
 		SetSchedule( SCHED_HUSK_SOLDIER_REJECT_GIFT );
 
 		m_OnGiftReject.FireOutput( pItem, this );
+
+		AI_CriteriaSet modifiers;
+
+		modifiers.AppendCriteria( "gift", pItem->GetClassname() );
+		modifiers.AppendCriteria( "gift_name", STRING( pItem->GetEntityName() ) );
+		pItem->AppendContextToCriteria( modifiers, "gift_" );
+
+		// TODO: Add to CAI_PlayerAlly concept manager?
+		SpeakIfAllowed( "TLK_GIFT_REJECT", modifiers, SENTENCE_PRIORITY_NORMAL, SENTENCE_CRITERIA_NORMAL );
 	}
 }
 

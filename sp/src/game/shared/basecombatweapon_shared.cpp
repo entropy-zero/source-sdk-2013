@@ -525,6 +525,18 @@ bool CBaseCombatWeapon::UsesHands() const
 }
 #endif
 
+#ifdef EZ2
+float CBaseCombatWeapon::GetDynamicScopeFOV() const
+{
+	return GetWpnData().m_flDynamicScopeFOV;
+}
+
+float CBaseCombatWeapon::GetDynamicScopeSuitFOV() const
+{
+	return GetWpnData().m_flDynamicScopeSuitFOV;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "tier3/tier3.h"
 #include "vgui/ILocalize.h"
+#include "achievementmgr.h"
 #include "npc_wilson.h"
 
 //=============================================================================
@@ -83,6 +84,13 @@ public:
 			if (CNPC_Wilson *pWilson = CNPC_Wilson::GetWilson())
 			{
 				pCustomSaveMetadata->SetBool("wilson", true );
+			}
+
+			// Cheated
+			CAchievementMgr *pAchievementMgr = dynamic_cast<CAchievementMgr *>(engine->GetAchievementMgr());
+			if (pAchievementMgr)
+			{
+				pCustomSaveMetadata->SetBool( "cheated", pAchievementMgr->WereCheatsEverOn() );
 			}
 
 			Msg( "Saving custom metadata to %s\n", name );

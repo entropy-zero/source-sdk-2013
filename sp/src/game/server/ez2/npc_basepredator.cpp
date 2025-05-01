@@ -485,8 +485,8 @@ bool CNPC_BasePredator::ShouldAttackObstruction( CBaseEntity *pEntity )
 	if ( !pEntity->MyCombatCharacterPointer() && pEntity->GetMoveType() != MOVETYPE_VPHYSICS )
 		return false;
 
-	// Don't attack props which don't have motion enabled
-	if ( pEntity->VPhysicsGetObject() && !pEntity->VPhysicsGetObject()->IsMotionEnabled() )
+	// Don't attack props which don't have motion enabled or have more than 2x mass than us
+	if ( pEntity->VPhysicsGetObject() && (!pEntity->VPhysicsGetObject()->IsMotionEnabled() || pEntity->VPhysicsGetObject()->GetMass()*2 > GetMass()) )
 		return false;
 
 	// Don't attack NPCs in the same squad

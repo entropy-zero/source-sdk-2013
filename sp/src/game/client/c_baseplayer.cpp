@@ -1136,6 +1136,9 @@ void C_BasePlayer::DetermineVguiInputMode( CUserCmd *pCmd )
 
 		// Kill all attack inputs if we're in vgui screen mode
 		pCmd->buttons &= ~(IN_ATTACK | IN_ATTACK2 | IN_VALIDVGUIINPUT);
+#ifdef MAPBASE
+		pCmd->buttons |= IN_VGUIMODE;
+#endif // MAPBASE
 		return;
 	}
 #else
@@ -1145,6 +1148,10 @@ void C_BasePlayer::DetermineVguiInputMode( CUserCmd *pCmd )
 
 		// Kill all attack inputs if we're in vgui screen mode
 		pCmd->buttons &= ~(IN_ATTACK | IN_ATTACK2);
+#ifdef MAPBASE
+		pCmd->buttons &= ~(IN_USE | IN_ATTACK3);
+		pCmd->buttons |= IN_VGUIMODE;
+#endif // MAPBASE
 		return;
 	}
 #endif
@@ -1209,6 +1216,10 @@ void C_BasePlayer::DetermineVguiInputMode( CUserCmd *pCmd )
 
 		// Kill all attack inputs if we're in vgui screen mode
 		pCmd->buttons &= ~(IN_ATTACK | IN_ATTACK2);
+#ifdef MAPBASE
+		pCmd->buttons &= ~(IN_USE | IN_ATTACK3);
+		pCmd->buttons |= IN_VGUIMODE;
+#endif // MAPBASE
 	}
 }
 

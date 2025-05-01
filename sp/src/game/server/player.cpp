@@ -505,6 +505,7 @@ END_DATADESC()
 #ifdef MAPBASE_VSCRIPT
 // TODO: Better placement?
 ScriptHook_t	g_Hook_PlayerRunCommand;
+ScriptHook_t	g_Hook_FindUseEntity;
 
 BEGIN_ENT_SCRIPTDESC( CBasePlayer, CBaseCombatCharacter, "The player entity." )
 
@@ -559,6 +560,9 @@ BEGIN_ENT_SCRIPTDESC( CBasePlayer, CBaseCombatCharacter, "The player entity." )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetEyeUp, "GetEyeUp", "Gets the player's up eye vector." )
 
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetViewModel, "GetViewModel", "Returns the viewmodel of the specified index." )
+	
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetUseEntity, "GetUseEntity", "Gets the player's current use entity." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetHeldObject, "GetHeldObject", "Gets the player's currently held object IF it is being held by a gravity gun. To check for the player's held +USE object, use the standalone GetPlayerHeldEntity function." )
 
 	DEFINE_SCRIPTFUNC( GetBonusProgress, "Returns the player's bonus progress." )
 	DEFINE_SCRIPTFUNC( GetBonusChallenge, "Returns the player's bonus challenge." )
@@ -570,6 +574,11 @@ BEGIN_ENT_SCRIPTDESC( CBasePlayer, CBaseCombatCharacter, "The player entity." )
 	// 
 	BEGIN_SCRIPTHOOK( g_Hook_PlayerRunCommand, "PlayerRunCommand", FIELD_VOID, "Called when running a player command on the server." )
 		DEFINE_SCRIPTHOOK_PARAM( "command", FIELD_HSCRIPT )
+	END_SCRIPTHOOK()
+	
+	BEGIN_SCRIPTHOOK( g_Hook_FindUseEntity, "FindUseEntity", FIELD_HSCRIPT, "Called when finding an entity to use. The 'entity' parameter is for the entity found by the default function. If 'is_radius' is true, then this entity was found by searching in a radius around the cursor, rather than being directly used. Return a different entity to use something else." )
+		DEFINE_SCRIPTHOOK_PARAM( "entity", FIELD_HSCRIPT )
+		DEFINE_SCRIPTHOOK_PARAM( "is_radius", FIELD_BOOLEAN )
 	END_SCRIPTHOOK()
 
 END_SCRIPTDESC();
@@ -7142,8 +7151,16 @@ bool CBasePlayer::BumpWeapon( CBaseCombatWeapon *pWeapon )
 	// ----------------------------------------
 	// If I already have it just take the ammo
 	// ----------------------------------------
-	if (Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType())) 
+	if (CBaseCombatWeapon *pOwnsThisType = Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType())) 
 	{
+#ifdef EZ2
+		if ( Weapon_EquipDual( pWeapon, pOwnsThisType ) )
+		{
+			// Weapon has been merged with the existing weapon
+			return true;
+		}
+		else
+#endif
 		if( Weapon_EquipAmmoOnly( pWeapon ) )
 		{
 			// Only remove me if I have no ammo left

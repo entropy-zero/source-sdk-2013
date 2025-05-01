@@ -99,7 +99,7 @@ public:
 
 #ifdef GLOWS_ENABLE
 	CGlowObject			*GetGlowObject( void ){ return m_pGlowEffect; }
-	virtual void		GetGlowEffectColor( float *r, float *g, float *b, float *a );
+	virtual void		GetGlowEffectColor( float *r, float *g, float *b, float *a = NULL );
 #endif // GLOWS_ENABLE
 
 #ifdef MAPBASE_VSCRIPT

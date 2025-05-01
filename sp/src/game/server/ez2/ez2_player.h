@@ -126,6 +126,8 @@ public:
 	virtual CAI_Expresser * CreateExpresser(void);
 	virtual CAI_Expresser * GetExpresser() { return m_pExpresser;  }
 
+	bool			IsAllowedToSpeakFollowup( AIConcept_t concept ) { return IsAllowedToSpeak( concept ); }
+
 	bool			GetGameTextSpeechParams( hudtextparms_t &params );
 
 	void			ModifyOrAppendDamageCriteria(AI_CriteriaSet & set, const CTakeDamageInfo & info, bool bPlayer = true);
@@ -184,6 +186,7 @@ public:
 	bool			HandleRemoveFromPlayerSquad( CAI_BaseNPC *pNPC );
 
 	void			Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
+	bool			Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon );
 
 	void			Event_FirstDrawWeapon( CBaseCombatWeapon *pWeapon );
 	void			Event_ThrewGrenade( CBaseCombatWeapon *pWeapon );
@@ -209,6 +212,9 @@ public:
 	inline void			SetInAScript( bool bScript ) { m_bInAScript = bScript; }
 	void				InputStartScripting( inputdata_t &inputdata );
 	void				InputStopScripting( inputdata_t &inputdata );
+
+	void				InputEnableDualWield( inputdata_t &inputdata ) { m_bCanDualWield = true; }
+	void				InputDisableDualWield( inputdata_t &inputdata ) { m_bCanDualWield = false; }
 
 	// Blixibon - Speech thinking implementation
 	void				DoSpeechAI();
@@ -301,6 +307,8 @@ private:
 	CEZ2_PlayerMemory	m_MemoryComponent;
 
 	EHANDLE			m_hSpeechTarget;
+
+	bool			m_bCanDualWield;
 
 	int				m_iVisibleEnemies;
 	int				m_iCloseEnemies;

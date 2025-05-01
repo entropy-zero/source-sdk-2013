@@ -50,6 +50,8 @@
 #ifdef EZ2
 #include "ez2/ez2_player.h"
 #include "eventqueue.h"
+#include "RagdollBoogie.h"
+#include "particle_parse.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -107,6 +109,9 @@ ConVar mapbase_prop_consistency_noremove("mapbase_prop_consistency_noremove", "1
 
 #ifdef EZ2
 	#define PROP_PHYSICS_KICK_MULTIPLIER 3
+
+	// Unique vort barrel boogie color
+	static const Vector g_vecVortBarrelBoogieColor( 0.1675, 0.90, 0.1675 );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -279,6 +284,10 @@ void CBaseProp::Spawn( void )
 		}
 #endif
 	}
+
+#ifdef EZ2
+	PostPropDataPrecache();
+#endif
 
 	SetMoveType( MOVETYPE_PUSH );
 	m_takedamage = DAMAGE_NO;
@@ -831,6 +840,9 @@ bool CBreakableProp::HandleInteraction( int interactionType, void *data, CBaseCo
 		// If we're an explosive barrel, DON'T explode violently!
 		if (
 				HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
+#ifdef EZ2
+				HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
+#endif
 				HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) ||
 				HasInteraction( PROPINTER_FIRE_FLAMMABLE ) ||
 				HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) ||
@@ -1034,6 +1046,9 @@ void CBreakableProp::Spawn()
 	if ( ( m_iHealth == 0 ) ||
         ( !m_iNumBreakableChunks && 
 		    !HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) &&
+#ifdef EZ2
+			!HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) &&
+#endif
 		    !HasInteraction( PROPINTER_PHYSGUN_FIRST_BREAK ) &&
 		    !HasInteraction( PROPINTER_FIRE_FLAMMABLE ) &&
 		    !HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) &&
@@ -1049,6 +1064,9 @@ void CBreakableProp::Spawn()
 		if( g_pGameRules->GetAutoAimMode() == AUTOAIM_ON_CONSOLE )
 		{
 			if ( HasInteraction( PROPINTER_PHYSGUN_BREAK_EXPLODE ) ||
+#ifdef EZ2
+				HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ) ||
+#endif
 				HasInteraction( PROPINTER_FIRE_IGNITE_HALFHEALTH ) )
 			{
 				// Exploding barrels, exploding gas cans
@@ -1400,6 +1418,12 @@ int CBreakableProp::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 //-----------------------------------------------------------------------------
 void CBreakableProp::Event_Killed( const CTakeDamageInfo &info )
 {
+#ifdef MAPBASE_VSCRIPT
+	// False = Cheat death
+	if (ScriptDeathHook( const_cast<CTakeDamageInfo *>(&info) ) == false)
+		return;
+#endif
+
 	IPhysicsObject *pPhysics = VPhysicsGetObject();
 	if ( pPhysics && !pPhysics->IsMoveable() )
 	{
@@ -1842,8 +1866,29 @@ void CBreakableProp::Precache()
 		PrecacheScriptSound( STRING(m_iszPuntSound) );
 	}
 
+#ifdef EZ2
+	// Prop data isn't initialized until spawn, but this is needed for save/restore
+	PostPropDataPrecache();
+#endif
+
 	BaseClass::Precache();
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBreakableProp::PostPropDataPrecache( void )
+{
+	if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+	{
+		PrecacheScriptSound( "VortBarrel.Burst" );
+		PrecacheParticleSystem( "vortbarrel_explode" );
+	}
+
+	BaseClass::PostPropDataPrecache();
+}
+#endif
 
 // Get the root physics object from which all broken pieces will
 // derive their positions and velocities
@@ -1953,6 +1998,17 @@ void CBreakableProp::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info )
 				0.0f, this );
 			EmitSound("PropaneTank.Burst");
 		}
+#ifdef EZ2
+		else if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+		{
+			ExplosionCreate( origin, angles, pAttacker, m_explodeDamage, m_explodeRadius,
+				SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOFIREBALL | SF_ENVEXPLOSION_NOPARTICLES | SF_ENVEXPLOSION_NOSOUND,
+				0.0f, this, DMG_SHOCK | DMG_BLAST );
+
+			DispatchParticleEffect( "vortbarrel_explode", GetAbsOrigin(), GetAbsAngles() );
+			EmitSound( "VortBarrel.Burst" );
+		}
+#endif
 		else
 		{
 			float flScale = GetModelScale();
@@ -2052,6 +2108,31 @@ void CBreakableProp::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info )
 			}
 		}
 	}
+#ifdef EZ2
+	else if (HasInteraction( PROPINTER_PHYSGUN_BREAK_ZAP ))
+	{
+		if ( bExploded == false )
+		{
+			ExplosionCreate( origin, angles, pAttacker, m_explodeDamage, m_explodeRadius,
+				SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOFIREBALL | SF_ENVEXPLOSION_NOPARTICLES | SF_ENVEXPLOSION_NOSOUND,
+				0.0f, this, DMG_SHOCK | DMG_BLAST );
+
+			DispatchParticleEffect( "vortbarrel_explode", GetAbsOrigin(), GetAbsAngles() );
+			EmitSound( "VortBarrel.Burst" );
+		}
+
+		// Find and boogie all dead NPCs within the radius
+		// TODO: Boogie ragdolls directly? That means ragdolls already on the ground would boogie
+		CBaseEntity *pEntity = NULL;
+		for ( CEntitySphereQuery sphere( origin, m_explodeRadius ); ( pEntity = sphere.GetCurrentEntity() ) != NULL; sphere.NextEntity() )
+		{
+			if( pEntity && !pEntity->IsEFlagSet( EFL_NO_MEGAPHYSCANNON_RAGDOLL ) && pEntity->MyCombatCharacterPointer() && pEntity->MyCombatCharacterPointer()->m_hDeathRagdoll )
+			{
+				CRagdollBoogie::Create( pEntity->MyCombatCharacterPointer()->m_hDeathRagdoll, 200, gpGlobals->curtime, 4.0f, SF_RAGDOLL_BOOGIE_ELECTRICAL, &g_vecVortBarrelBoogieColor );
+			}
+		}
+	}
+#endif
 
 #ifndef HL2MP
 	UTIL_Remove( this );
@@ -3083,6 +3164,7 @@ BEGIN_DATADESC( CPhysicsProp )
 	DEFINE_OUTPUT( m_MotionEnabled, "OnMotionEnabled" ),
 	DEFINE_OUTPUT( m_OnPhysGunPickup, "OnPhysGunPickup" ),
 	DEFINE_OUTPUT( m_OnPhysGunOnlyPickup, "OnPhysGunOnlyPickup" ),
+	DEFINE_OUTPUT( m_OnPhysGunPull, "OnPhysGunPull" ),
 	DEFINE_OUTPUT( m_OnPhysGunPunt, "OnPhysGunPunt" ),
 	DEFINE_OUTPUT( m_OnPhysGunDrop, "OnPhysGunDrop" ),
 	DEFINE_OUTPUT( m_OnPlayerUse, "OnPlayerUse" ),
@@ -3451,6 +3533,13 @@ void CPhysicsProp::OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_t r
 	}
 
 	CheckRemoveRagdolls();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPhysicsProp::OnPhysGunPull( CBasePlayer* pPhysGunUser ) {
+	m_OnPhysGunPull.FireOutput(pPhysGunUser, this);
 }
 
 //-----------------------------------------------------------------------------
@@ -4269,6 +4358,12 @@ BEGIN_DATADESC(CBasePropDoor)
 #ifdef MAPBASE
 	DEFINE_INPUTFUNC(FIELD_VOID, "AllowPlayerUse", InputAllowPlayerUse),
 	DEFINE_INPUTFUNC(FIELD_VOID, "DisallowPlayerUse", InputDisallowPlayerUse),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetFullyOpenSound", InputSetFullyOpenSound ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetFullyClosedSound", InputSetFullyClosedSound ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetMovingSound", InputSetMovingSound ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetLockedSound", InputSetLockedSound ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetUnlockedSound", InputSetUnlockedSound ),
 #endif
 
 	DEFINE_OUTPUT(m_OnBlockedOpening, "OnBlockedOpening"),
@@ -4295,6 +4390,34 @@ END_DATADESC()
 
 IMPLEMENT_SERVERCLASS_ST(CBasePropDoor, DT_BasePropDoor)
 END_SEND_TABLE()
+
+#ifdef MAPBASE_VSCRIPT
+BEGIN_ENT_SCRIPTDESC( CBasePropDoor, CBaseAnimating, "The base class used by prop doors, such as prop_door_rotating." )
+
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorOpen, "IsDoorOpen", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorAjar, "IsDoorAjar", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorOpening, "IsDoorOpening", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorClosed, "IsDoorClosed", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorClosing, "IsDoorClosing", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorLocked, "IsDoorLocked", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsDoorBlocked, "IsDoorBlocked", "" )
+
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetActivator, "GetActivator", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetDoorList, "GetDoorList", "Get connected door entity by index." )
+	DEFINE_SCRIPTFUNC( GetDoorListCount, "Get number of connected doors." )
+
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetFullyOpenSound, "GetFullyOpenSound", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetFullyClosedSound, "GetFullyClosedSound", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetMovingSound, "GetMovingSound", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetLockedSound, "GetLockedSound", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetUnlockedSound, "GetUnlockedSound", "" )
+
+	DEFINE_SCRIPTFUNC( DoorCanClose, "Return true if the door has room to close. Boolean is for whether or not this is an automatic close and not manually triggered by someone." )
+	DEFINE_SCRIPTFUNC( DoorCanOpen, "Return true if there are other doors connected to this one." )
+	DEFINE_SCRIPTFUNC( HasSlaves, "" )
+
+END_SCRIPTDESC();
+#endif
 
 CBasePropDoor::CBasePropDoor( void )
 {
@@ -4767,6 +4890,54 @@ void CBasePropDoor::InputOpenAwayFrom(inputdata_t &inputdata)
 	CBaseEntity *pOpenAwayFrom = gEntList.FindEntityByName( NULL, inputdata.value.String(), NULL, inputdata.pActivator, inputdata.pCaller );
 	OpenIfUnlocked(inputdata.pActivator, pOpenAwayFrom);
 }
+
+
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePropDoor::InputSetFullyOpenSound( inputdata_t &inputdata )
+{
+	m_SoundOpen = inputdata.value.StringID();
+	PrecacheScriptSound( STRING( m_SoundOpen ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePropDoor::InputSetFullyClosedSound( inputdata_t &inputdata )
+{
+	m_SoundClose = inputdata.value.StringID();
+	PrecacheScriptSound( STRING( m_SoundClose ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePropDoor::InputSetMovingSound( inputdata_t &inputdata )
+{
+	m_SoundMoving = inputdata.value.StringID();
+	PrecacheScriptSound( STRING( m_SoundMoving ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePropDoor::InputSetLockedSound( inputdata_t &inputdata )
+{
+	m_ls.sLockedSound = inputdata.value.StringID();
+	PrecacheScriptSound( STRING( m_ls.sLockedSound ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePropDoor::InputSetUnlockedSound( inputdata_t &inputdata )
+{
+	m_ls.sUnlockedSound = inputdata.value.StringID();
+	PrecacheScriptSound( STRING( m_ls.sUnlockedSound ) );
+}
+#endif
 
 
 //-----------------------------------------------------------------------------

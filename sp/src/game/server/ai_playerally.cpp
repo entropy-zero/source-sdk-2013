@@ -14,10 +14,12 @@
 #include "gameinterface.h"
 #ifdef MAPBASE
 #include "mapbase/matchers.h"
+#include "ai_memory.h"
 #endif
 #ifdef EZ2
 #include "ez2/ai_concept_response.h"
 #include "ez2/ez2_player.h"
+#include "ai_interactions.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -137,6 +139,8 @@ ConceptInfo_t g_ConceptInfos[] =
 	{ 	TLK_TAKING_FIRE,		SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
 	{ 	TLK_NEW_ENEMY,			SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
 	{ 	TLK_COMBAT_IDLE,		SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
+	{ 	TLK_LOSTENEMY,			SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
+	{ 	TLK_REFINDENEMY,		SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
 #endif
 
 #ifdef EZ
@@ -477,9 +481,17 @@ void CAI_PlayerAlly::GatherConditions( void )
 	{
 				
 		bool bPlayerIsLooking = false;
+#ifdef EZ2
+		if ( ( pLocalPlayer->GetAbsOrigin() - GetAbsOriginForSpeech( pLocalPlayer ) ).Length2DSqr() < Square(TALKER_STARE_DIST) )
+#else
 		if ( ( pLocalPlayer->GetAbsOrigin() - GetAbsOrigin() ).Length2DSqr() < Square(TALKER_STARE_DIST) )
+#endif
 		{
+#ifdef EZ2
+			if ( pLocalPlayer->FInViewCone( GetEyePositionForSpeech( pLocalPlayer ) ) )
+#else
 			if ( pLocalPlayer->FInViewCone( EyePosition() ) )
+#endif
 			{
 				if ( pLocalPlayer->GetSmoothedVelocity().LengthSqr() < Square( 100 ) )
 					bPlayerIsLooking = true;
@@ -780,7 +792,7 @@ bool CAI_PlayerAlly::SelectAlertSpeech( AISpeechSelection_t *pSelection )
 	// NPCs can comment on smells in EZ2
 	if ( pSmellTarget && HasCondition( COND_SMELL ) && GetBestScent() && GetExpresser() && GetExpresser()->CanSpeakConcept( TLK_SMELL ) )
 	{
-		if( SelectSpeechResponse( TLK_SMELL, UTIL_VarArgs("distancetosmell:%f", GetAbsOrigin().DistTo( GetBestScent()->GetSoundReactOrigin() ) ), pSmellTarget, pSelection ) )
+		if( SelectSpeechResponse( TLK_SMELL, UTIL_VarArgs("distancetosmell:%f", GetAbsOriginForSpeech( pSmellTarget ).DistTo( GetBestScent()->GetSoundReactOrigin() ) ), pSmellTarget, pSelection ) )
 			return true;
 	}
 #endif
@@ -1342,6 +1354,37 @@ bool CAI_PlayerAlly::CanFlinch( void )
 }
 #endif
 
+#ifdef EZ2
+extern int g_interactionStasisGrenadeFreeze;
+extern int g_interactionStasisGrenadeUnfreeze;
+
+//-----------------------------------------------------------------------------
+// Purpose:  This is a generic function (to be implemented by sub-classes) to
+//			 handle specific interactions between different types of characters
+//			 (For example the barnacle grabbing an NPC)
+// Input  :  Constant for the type of interaction
+// Output :	 true  - if sub-class has a response for the interaction
+//			 false - if sub-class has no response
+//-----------------------------------------------------------------------------
+bool CAI_PlayerAlly::HandleInteraction(int interactionType, void* data, CBaseCombatCharacter* sourceEnt)
+{
+	if (interactionType == g_interactionStasisGrenadeFreeze)
+	{
+		CapabilitiesRemove(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+	else if (interactionType == g_interactionStasisGrenadeUnfreeze)
+	{
+		CapabilitiesAdd(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+
+	return BaseClass::HandleInteraction(interactionType, data, sourceEnt);
+}
+#endif
+
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 void CAI_PlayerAlly::OnKilledNPC( CBaseCombatCharacter *pKilled )
@@ -1373,7 +1416,11 @@ void CAI_PlayerAlly::OnEnemyRangeAttackedMe( CBaseEntity *pEnemy, const Vector &
 		AI_CriteriaSet modifiers;
 		ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
 
+#ifdef EZ2
+		Vector vecEntDir = (pEnemy->EyePosition() - GetEyePositionForSpeech(pEnemy));
+#else
 		Vector vecEntDir = (pEnemy->EyePosition() - EyePosition());
+#endif
 		float flDot = DotProduct( vecEntDir.Normalized(), vecDir );
 		modifiers.AppendCriteria( "shot_dot", CNumStr( flDot ) );
 
@@ -1522,6 +1569,28 @@ void CAI_PlayerAlly::PainSound( const CTakeDamageInfo &info )
 	SpeakIfAllowed( TLK_WOUND );
 }
 
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+void CAI_PlayerAlly::LostEnemySound( CBaseEntity *pEnemy )
+{
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	modifiers.AppendCriteria( "lastseenenemy", gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy ) );
+
+	SpeakIfAllowed( TLK_LOSTENEMY, modifiers );
+}
+
+//-----------------------------------------------------------------------------
+void CAI_PlayerAlly::FoundEnemySound( CBaseEntity *pEnemy )
+{
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	SpeakIfAllowed( TLK_REFINDENEMY, modifiers );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Implemented to look at talk target
 //-----------------------------------------------------------------------------
@@ -1619,7 +1688,11 @@ bool CAI_PlayerAlly::IsValidSpeechTarget( int flags, CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 CBaseEntity *CAI_PlayerAlly::FindSpeechTarget( int flags )
 {
+#ifdef EZ2
+	const Vector &	vAbsOrigin 		= GetSpeechTargetSearchOrigin();
+#else
 	const Vector &	vAbsOrigin 		= GetAbsOrigin();
+#endif
 	float 			closestDistSq 	= FLT_MAX;
 	CBaseEntity *	pNearest 		= NULL;
 	float			distSq;

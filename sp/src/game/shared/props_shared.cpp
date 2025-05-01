@@ -172,6 +172,14 @@ propdata_interaction_s sPropdataInteractionSections[PROPINTER_NUM_INTERACTIONS] 
 	{ "physgun_interactions", "allow_overhead", "yes" },	// 	PROPINTER_PHYSGUN_ALLOW_OVERHEAD,
 
 	{ "world_interactions", "onworldimpact", "bloodsplat" },	// PROPINTER_WORLD_BLOODSPLAT,
+
+#ifdef EZ2
+	// HACKHACK: This interaction didn't have an entry in this array and is needed for subsequent interactions to work.
+	// TODO: This change would be more fitting for Mapbase since it's needed to add any new interactions.
+	{ "physgun_interactions", "onfirstimpact", "notify_children" }, // PROPINTER_PHYSGUN_NOTIFY_CHILDREN,
+
+	{ "physgun_interactions", "onbreak", "explode_zap" },		// PROPINTER_PHYSGUN_BREAK_ZAP,
+#endif
 };
 #else
 extern propdata_interaction_s sPropdataInteractionSections[PROPINTER_NUM_INTERACTIONS];

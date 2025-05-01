@@ -163,6 +163,10 @@ protected:
 	// Don't do death poses while crouching
 	bool		ShouldPickADeathPose( void ) { return (GetPosture() != AIP_CROUCHING && GetPosture() != AIP_PEEKING) && BaseClass::ShouldPickADeathPose(); }
 #endif
+
+#ifdef EZ2
+	const AI_StandoffParams_t &GetParams() { return m_params; }
+#endif
 	
 private:
 	

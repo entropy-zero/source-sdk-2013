@@ -107,6 +107,10 @@ int g_interactionMetrocopIdleChatter = 0;
 int g_interactionMetrocopClearSentenceQueues = 0;
 
 extern int g_interactionHitByPlayerThrownPhysObj;
+#ifdef EZ2
+extern int g_interactionStasisGrenadeFreeze;
+extern int g_interactionStasisGrenadeUnfreeze;
+#endif
 
 ConVar	sk_metropolice_stitch_reaction( "sk_metropolice_stitch_reaction","1.0");
 ConVar	sk_metropolice_stitch_tight_hitcount( "sk_metropolice_stitch_tight_hitcount","2");
@@ -550,10 +554,12 @@ void CNPC_MetroPolice::OnScheduleChange()
 {
 	BaseClass::OnScheduleChange();
 
+#ifndef MAPBASE // Moved to Event_KilledOther()
 	if ( GetEnemy() && HasCondition( COND_ENEMY_DEAD ) )
 	{
 		AnnounceEnemyKill( GetEnemy() );
 	}
+#endif
 }
 
 
@@ -3135,7 +3141,11 @@ void CNPC_MetroPolice::DeathSound( const CTakeDamageInfo &info )
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
+#ifdef MAPBASE
+void CNPC_MetroPolice::LostEnemySound( CBaseEntity *pEnemy )
+#else
 void CNPC_MetroPolice::LostEnemySound( void)
+#endif
 {
 	// Don't announce enemies when the player isn't a criminal
 	if ( !PlayerIsCriminal() )
@@ -3145,7 +3155,12 @@ void CNPC_MetroPolice::LostEnemySound( void)
 		return;
 
 #ifdef METROPOLICE_USES_RESPONSE_SYSTEM
-	if (SpeakIfAllowed(TLK_COP_LOSTENEMY))
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	modifiers.AppendCriteria( "lastseenenemy", gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy ) );
+
+	if (SpeakIfAllowed(TLK_COP_LOSTENEMY, modifiers ))
 	{
 		m_flNextLostSoundTime = gpGlobals->curtime + random->RandomFloat(5.0,15.0);
 	}
@@ -3174,14 +3189,21 @@ void CNPC_MetroPolice::LostEnemySound( void)
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
+#ifdef MAPBASE
+void CNPC_MetroPolice::FoundEnemySound( CBaseEntity *pEnemy )
+#else
 void CNPC_MetroPolice::FoundEnemySound( void)
+#endif
 {
 	// Don't announce enemies when I'm in arrest behavior
 	if ( HasSpawnFlags( SF_METROPOLICE_ARREST_ENEMY ) )
 		return;
 
 #ifdef METROPOLICE_USES_RESPONSE_SYSTEM
-	SpeakIfAllowed( TLK_COP_REFINDENEMY, SENTENCE_PRIORITY_HIGH );
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	SpeakIfAllowed( TLK_COP_REFINDENEMY, modifiers, SENTENCE_PRIORITY_HIGH );
 #else
 	m_Sentences.Speak( "METROPOLICE_REFIND_ENEMY", SENTENCE_PRIORITY_HIGH );
 #endif
@@ -3729,6 +3751,21 @@ bool CNPC_MetroPolice::HandleInteraction(int interactionType, void *data, CBaseC
 		return true;
 	}
 
+#ifdef EZ2
+	if (interactionType == g_interactionStasisGrenadeFreeze)
+	{
+		CapabilitiesRemove(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+	else if (interactionType == g_interactionStasisGrenadeUnfreeze)
+	{
+		CapabilitiesAdd(bits_CAP_TURN_HEAD);
+		// Handle unfreeze normally
+		return false;
+	}
+#endif
+
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }
 
@@ -3901,6 +3938,21 @@ void CNPC_MetroPolice::Event_Killed( const CTakeDamageInfo &info )
 	}
 
 	BaseClass::Event_Killed( info );
+}
+
+//-----------------------------------------------------------------------------
+// 
+//-----------------------------------------------------------------------------
+void CNPC_MetroPolice::Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info )
+{
+	BaseClass::Event_KilledOther( pVictim, info );
+
+#ifdef MAPBASE // Moved from OnScheduleChange()
+	if ( pVictim && (pVictim->IsPlayer() || pVictim->IsNPC()) )
+	{
+		AnnounceEnemyKill( pVictim );
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------

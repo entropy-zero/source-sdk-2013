@@ -149,6 +149,12 @@ public:
 #ifdef EZ2
 	bool					m_bAlwaysFirstDraw;			// This weapon defaults to playing the first draw animation, even if dropped by an enemy 
 	bool					m_bPreventPlayerSwap;		// If the player is holding another weapon in the same slot as this weapon, prevent picking up this weapon 
+
+	char					szWorldModelDual[MAX_WEAPON_STRING];	// World model when dual wielding
+	char					szViewModelDual[MAX_WEAPON_STRING];		// View model when dual wielding
+
+	float					m_flDynamicScopeFOV;		// Dynamic scope FOV. 0 = No dynamic scope
+	float					m_flDynamicScopeSuitFOV;	// If overridden, makes the suit zoom use this FOV (complements dynamic scope)
 #endif
 
 // CLIENT DLL
@@ -163,6 +169,11 @@ public:
 	CHudTexture 					*iconZoomedCrosshair;
 	CHudTexture 					*iconZoomedAutoaim;
 	CHudTexture						*iconSmall;
+#ifdef EZ2
+	// For dual wielding
+	CHudTexture						*iconActiveDual;
+	CHudTexture	 					*iconInactiveDual;
+#endif
 
 // TF2 specific
 	bool					bShowUsageHint;							// if true, then when you receive the weapon, show a hint about it

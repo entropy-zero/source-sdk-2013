@@ -239,6 +239,10 @@ public:
 	virtual void		Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
 	virtual void		Weapon_EquipHolstered( CBaseCombatWeapon *pWeapon );	// Pretty much only useful for NPCs
 	virtual void		Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
+#ifdef EZ2
+	// Used by CEZ2_Player and CNPC_Assassin
+	virtual bool		Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon ) { return false; }
+#endif
 #else
 	virtual void		Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
 #endif
@@ -350,6 +354,8 @@ public:
 	// A version of BecomeRagdollBoogie() that allows the color to change and returns the entity itself instead.
 	// In order to avoid breaking anything, it doesn't change the original function.
 	virtual CBaseEntity		*BecomeRagdollBoogie( CBaseEntity *pKiller, const Vector &forceVector, float duration, int flags, const Vector *vecColor );
+
+	bool					ShouldFadeServerRagdolls() const;
 #endif
 
 	CBaseEntity				*FindHealthItem( const Vector &vecPosition, const Vector &range );

@@ -1881,9 +1881,11 @@ void CBaseHeadcrab::Event_Killed( const CTakeDamageInfo &info )
 #ifdef EZ
 	// Create a little decal underneath the headcrab
 	if (
-		sk_headcrab_carcass_smell.GetBool() ||
+		(sk_headcrab_carcass_smell.GetBool() ||
 		// This type of damage combination happens from dynamic scripted sequences
-		info.GetDamageType() & (DMG_GENERIC | DMG_PREVENT_PHYSICS_FORCE)
+		info.GetDamageType() & (DMG_GENERIC | DMG_PREVENT_PHYSICS_FORCE))
+		// Don't do this if there was no carcass
+		&& !(info.GetDamageType() & DMG_REMOVENORAGDOLL)
 		)
 	{
 		trace_t	tr;

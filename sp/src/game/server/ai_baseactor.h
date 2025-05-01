@@ -129,6 +129,9 @@ public:
 	virtual bool 			PickRandomLookTarget( AILookTargetArgs_t *pArgs );
 	virtual void			MakeRandomLookTarget( AILookTargetArgs_t *pArgs, float minTime, float maxTime );
 	virtual bool			HasActiveLookTargets( void );
+#ifdef EZ2
+	virtual bool			HasActiveRandomLookTargets( void );
+#endif
 	virtual void 			OnSelectedLookTarget( AILookTargetArgs_t *pArgs ) { return; }
 	virtual void 			ClearLookTarget( CBaseEntity *pTarget );
 	virtual void			ExpireCurrentRandomLookTarget() { m_flNextRandomLookTime = gpGlobals->curtime - 0.1f; }
@@ -153,6 +156,11 @@ public:
 	virtual bool			ValidEyeTarget(const Vector &lookTargetPos);
 	virtual bool			ValidHeadTarget(const Vector &lookTargetPos);
 	virtual float			HeadTargetValidity(const Vector &lookTargetPos);
+#ifdef EZ2
+	// Used by Wilson for looking from cameras
+	virtual bool			HeadTargetPosOverride( const Vector &vecTargetPos, Vector &vecDir, float &flDist ) { return false; }
+	virtual bool			HeadAngleOverride( QAngle &vTargetAngles ) { return false; }
+#endif
 
 	virtual bool			ShouldBruteForceFailedNav()	{ return true; }
 

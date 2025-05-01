@@ -117,7 +117,8 @@ void C_BaseCombatCharacter::GetGlowEffectColor( float *r, float *g, float *b, fl
 	*r = m_GlowColor.x;
 	*g = m_GlowColor.y;
 	*b = m_GlowColor.z;
-	*a = m_GlowAlpha;
+	if (a)
+		*a = m_GlowAlpha;
 }
 
 //-----------------------------------------------------------------------------

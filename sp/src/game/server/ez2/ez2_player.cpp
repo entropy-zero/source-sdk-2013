@@ -69,6 +69,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD(m_hSpeechTarget, FIELD_EHANDLE),
 
+	DEFINE_KEYFIELD( m_bCanDualWield, FIELD_BOOLEAN, "CanDualWield" ),
+
 	// These don't need to be saved
 	//DEFINE_FIELD(m_iVisibleEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCloseEnemies, FIELD_INTEGER),
@@ -80,9 +82,12 @@ BEGIN_DATADESC(CEZ2_Player)
 	DEFINE_INPUTFUNC(FIELD_VOID, "StopScripting", InputStopScripting),
 	
 	DEFINE_INPUTFUNC(FIELD_VOID, "__FinishBonusChallenge", InputFinishBonusChallenge),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableDualWield", InputEnableDualWield ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableDualWield", InputDisableDualWield ),
 END_DATADESC()
 
-BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CBasePlayer, "E:Z2's player entity." )
+BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetNPCComponent, "GetNPCComponent", "Gets the player's NPC component." )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptGetStaringEntity, "GetStaringEntity", "Gets the player's staring entity." )
@@ -508,8 +513,6 @@ void CEZ2_Player::Spawn( void )
 	}
 
 	BaseClass::Spawn();
-
-	SetModel( "models/bad_cop.mdl" );
 
 	Activate();
 
@@ -1601,7 +1604,7 @@ bool CEZ2_Player::GetGameTextSpeechParams( hudtextparms_t &params )
 //-----------------------------------------------------------------------------
 CAI_Expresser *CEZ2_Player::CreateExpresser(void)
 {
-	m_pExpresser = new CAI_Expresser(this);
+	m_pExpresser = new CAI_ExpresserWithFollowup(this);
 	if (!m_pExpresser)
 		return NULL;
 
@@ -1991,6 +1994,48 @@ void CEZ2_Player::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 	{
 		AddContext( "displacer_used", "1", 1200.0f );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:	Equips a dual weapon
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon )
+{
+	if (!m_bCanDualWield)
+		return false;
+
+	// For now, only identical weapons can be dual wielded
+	if (pWeapon->GetClassname() != pExistingWeapon->GetClassname())
+		return false;
+
+	CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+	if (pHLWeapon && pHLWeapon->CanDualWield() && pHLWeapon->GetWpnData().szViewModelDual[0])
+	{
+		CBaseHLCombatWeapon *pHLExistingWeapon = static_cast<CBaseHLCombatWeapon*>(pExistingWeapon);
+		Assert( pHLExistingWeapon );
+
+		if (pHLExistingWeapon && !pHLExistingWeapon->GetLeftHandGun())
+		{
+			pHLExistingWeapon->CreateLeftHandGun();
+
+			// Combine the ammo
+			pHLExistingWeapon->m_iClip1 += pWeapon->m_iClip1;
+			pHLExistingWeapon->m_iClip2 += pWeapon->m_iClip2;
+
+			// Switch to the new dual weapon
+			Weapon_Switch( pExistingWeapon );
+
+			// Remove the weapon on the ground
+			UTIL_Remove( pWeapon );
+
+			// Emit a pickup sound
+			EmitSound( "BaseCombatCharacter.AmmoPickup" );
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------

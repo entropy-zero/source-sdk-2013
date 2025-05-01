@@ -5025,13 +5025,22 @@ void CNPC_Combine::RegenSound()
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
+#ifdef MAPBASE
+void CNPC_Combine::LostEnemySound( CBaseEntity *pEnemy )
+#else
 void CNPC_Combine::LostEnemySound( void)
+#endif
 {
 	if ( gpGlobals->curtime <= m_flNextLostSoundTime )
 		return;
 
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
-	if (SpeakIfAllowed( TLK_CMB_LOSTENEMY, UTIL_VarArgs("lastseenenemy:%d", GetEnemyLastTimeSeen()) ))
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	modifiers.AppendCriteria( "lastseenenemy", gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy ) );
+
+	if (SpeakIfAllowed( TLK_CMB_LOSTENEMY, modifiers ))
 	{
 		m_flNextLostSoundTime = gpGlobals->curtime + random->RandomFloat(5.0,15.0);
 	}
@@ -5059,10 +5068,17 @@ void CNPC_Combine::LostEnemySound( void)
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
+#ifdef MAPBASE
+void CNPC_Combine::FoundEnemySound( CBaseEntity *pEnemy )
+#else
 void CNPC_Combine::FoundEnemySound( void)
+#endif
 {
 #ifdef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
-	SpeakIfAllowed( TLK_CMB_REFINDENEMY, SENTENCE_PRIORITY_HIGH );
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	SpeakIfAllowed( TLK_CMB_REFINDENEMY, modifiers, SENTENCE_PRIORITY_HIGH );
 #else
 	m_Sentences.Speak( "COMBINE_REFIND_ENEMY", SENTENCE_PRIORITY_HIGH );
 #endif
@@ -5875,10 +5891,10 @@ void CNPC_Combine::OnEndMoveAndShoot()
 //-----------------------------------------------------------------------------
 bool CNPC_Combine::PickTacticalLookTarget( AILookTargetArgs_t *pArgs )
 {
-	if( GetState() == NPC_STATE_COMBAT )
+	if ( HasCondition( COND_SEE_ENEMY ) )
 	{
 		CBaseEntity *pEnemy = GetEnemy();
-		if ( pEnemy && FVisible( pEnemy ) && ValidHeadTarget(pEnemy->EyePosition()) )
+		if ( pEnemy && ValidHeadTarget( pEnemy->EyePosition() ) )
 		{
 			// Look at the enemy if possible.
 			pArgs->hTarget = pEnemy;
@@ -5887,8 +5903,12 @@ bool CNPC_Combine::PickTacticalLookTarget( AILookTargetArgs_t *pArgs )
 		}
 		else
 		{
-			// Look at yourself instead. We can't be looking in random directions.
-			pArgs->hTarget = this;
+			// Look ahead instead. We can't be looking in random directions.
+			Vector vecForward;
+			GetVectors( &vecForward, NULL, NULL );
+
+			pArgs->vTarget = EyePosition() + (vecForward * 16.0f);
+			pArgs->hTarget = NULL;
 			pArgs->flInfluence = random->RandomFloat( 0.8, 1.0 );
 			pArgs->flRamp = 0;
 		}

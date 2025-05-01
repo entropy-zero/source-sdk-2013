@@ -103,6 +103,9 @@ public:
 
 	void	SetSpawner( CFuncCombineBallSpawner *pSpawner ) { m_hSpawner = pSpawner; }
 	void	NotifySpawnerOfRemoval( void );
+#ifdef MAPBASE
+	void	SpawnerDestroyed( CBaseEntity *pActivator, bool *bSeekEnemy );
+#endif
 
 
 	float	LastCaptureTime() const;
@@ -248,6 +251,9 @@ private:
 	// Input
 	void	InputEnable( inputdata_t &inputdata );
 	void	InputDisable( inputdata_t &inputdata );
+#ifdef MAPBASE
+	void	InputDestroy( inputdata_t &inputdata );
+#endif
 
 	// Fire ball grabbed output
 	void	GrabBallTouch( CBaseEntity *pOther );

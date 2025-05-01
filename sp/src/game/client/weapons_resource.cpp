@@ -176,6 +176,28 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 			}
 		}
 
+#ifdef EZ2
+		p = FindHudTextureInDict( tempList, "weapon_dual" );
+		if ( p )
+		{
+			pWeaponInfo->iconInactiveDual = gHUD.AddUnsearchableHudIconToList( *p );
+			if ( pWeaponInfo->iconInactiveDual)
+			{
+				pWeaponInfo->iconInactiveDual->Precache();
+			}
+		}
+
+		p = FindHudTextureInDict( tempList, "weapon_dual_s" );
+		if ( p )
+		{
+			pWeaponInfo->iconActiveDual = gHUD.AddUnsearchableHudIconToList( *p );
+			if ( pWeaponInfo->iconActiveDual)
+			{
+				pWeaponInfo->iconActiveDual->Precache();
+			}
+		}
+#endif
+
 		p = FindHudTextureInDict( tempList, "weapon_small" );
 		if ( p )
 		{

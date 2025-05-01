@@ -1880,26 +1880,7 @@ void CNPC_Assassin::AddLeftHandGun( CBaseCombatWeapon *pWeapon )
 		return;
 	}
 
-	// Create a fake second pistol
-	CBaseEntity *pEnt = CBaseEntity::CreateNoSpawn( "prop_dynamic_override", this->GetLocalOrigin(), this->GetLocalAngles(), this );
-	if (pEnt)
-	{
-		// HACKHACK: Just add "_left" to the end of the model name
-		char szLeftModel[MAX_PATH];
-		V_StripExtension( pWeapon->GetWorldModel(), szLeftModel, sizeof( szLeftModel ) );
-		V_strncat( szLeftModel, "_left.mdl", sizeof( szLeftModel ) );
-
-		pEnt->SetModelName( MAKE_STRING( szLeftModel ) );
-		pEnt->SetRenderMode( kRenderTransColor );
-		DispatchSpawn( pEnt );
-		pEnt->FollowEntity( this, true );
-		pEnt->SetOwnerEntity( pWeapon );
-
-		m_hLeftHandGun = static_cast<CBaseAnimating *>(pEnt);
-
-		// Make it dual-wielded
-		assert_cast<CBaseHLCombatWeapon*>(pWeapon)->SetLeftHandGun( m_hLeftHandGun );
-	}
+	m_hLeftHandGun = assert_cast<CBaseHLCombatWeapon*>(pWeapon)->CreateLeftHandGun();
 }
 
 //-----------------------------------------------------------------------------
@@ -2018,24 +1999,28 @@ void CNPC_Assassin::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecT
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:	
+// Purpose:	Equips a dual weapon
 //-----------------------------------------------------------------------------
-void CNPC_Assassin::Weapon_Equip( CBaseCombatWeapon *pWeapon )
+bool CNPC_Assassin::Weapon_EquipDual( CBaseCombatWeapon *pWeapon, CBaseCombatWeapon *pExistingWeapon )
 {
-	if ( GetActiveWeapon() && GetActiveWeapon()->GetClassname() == pWeapon->GetClassname() )
+	if (GetActiveWeapon() != pExistingWeapon)
+		return false;
+
+	// For now, only identical weapons can be dual wielded
+	if (pWeapon->GetClassname() != pExistingWeapon->GetClassname())
+		return false;
+
+	CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+	if (pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons)
 	{
-		CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
-		if ( pHLWeapon && pHLWeapon->CanDualWield() && !m_bDualWeapons )
-		{
-			// Add left hand gun for weapon that already exists
-			AddLeftHandGun( GetActiveWeapon() );
-			m_bDualWeapons = true;
-			UTIL_Remove( pWeapon );
-			return;
-		}
+		// Add left hand gun for weapon that already exists
+		AddLeftHandGun( GetActiveWeapon() );
+		m_bDualWeapons = true;
+		UTIL_Remove( pWeapon );
+		return true;
 	}
 
-	BaseClass::Weapon_Equip( pWeapon );
+	return false;
 }
 
 //-----------------------------------------------------------------------------

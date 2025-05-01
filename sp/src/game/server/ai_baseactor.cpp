@@ -1145,6 +1145,10 @@ void CAI_BaseActor::UpdateHeadControl( const Vector &vHeadTarget, float flHeadIn
 	ConcatTransforms( worldToForward, targetXform, headXform );
 	MatrixAngles( headXform, vTargetAngles );
 
+#ifdef EZ2
+	HeadAngleOverride( vTargetAngles );
+#endif
+
 #ifdef MAPBASE
 	// This is here to cover an edge case where pose parameters set to NaN invalidate the model.
 	if (!vTargetAngles.IsValid())
@@ -1272,6 +1276,16 @@ bool CAI_BaseActor::HasActiveLookTargets( void )
 {
 	return m_lookQueue.Count() != 0;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CAI_BaseActor::HasActiveRandomLookTargets( void )
+{
+	return m_randomLookQueue.Count() != 0;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Clear any active look targets for the specified entity
@@ -1755,6 +1769,12 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 				dir = HeadDirection3D();
 			}
 		}
+#ifdef EZ2
+		else if ( HeadTargetPosOverride( active[i]->GetPosition(), dir, flDist ) )
+		{
+			flInterest = flInterest * HeadTargetValidity( active[i]->GetPosition() );
+		}
+#endif
 		else
 		{
 			dir = active[i]->GetPosition() - vEyePosition;

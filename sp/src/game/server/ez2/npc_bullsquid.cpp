@@ -157,6 +157,9 @@ void CNPC_Bullsquid::Precache()
 	{
 		m_AdultModelName = GetModelName();
 	}
+	else
+		PrecacheModel( STRING( m_AdultModelName ) );
+
 	// If there is no baby model name, use the same model as regular
 	if ( m_BabyModelName == NULL_STRING )
 	{
@@ -192,6 +195,8 @@ void CNPC_Bullsquid::Precache()
 	}
 
 	PrecacheModel( STRING( GetModelName() ) );
+	PrecacheModel( STRING( m_BabyModelName ) );
+	PrecacheModel( STRING( m_EggModelName ) );
 
 	m_nSquidSpitSprite = PrecacheModel("sprites/greenspit1.vmt");// client side spittle.
 

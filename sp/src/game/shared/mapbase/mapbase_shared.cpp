@@ -254,10 +254,19 @@ public:
 			}
 
 #ifdef GAME_DLL
+#ifdef EZ2
+			Q_strncpy( g_szDefaultPlayerModel, gameinfo->GetString( "player_default_model", "models/bad_cop.mdl" ), sizeof( g_szDefaultPlayerModel ) );
+#else
 			Q_strncpy( g_szDefaultPlayerModel, gameinfo->GetString( "player_default_model", "models/player.mdl" ), sizeof( g_szDefaultPlayerModel ) );
+#endif
 			g_bDefaultPlayerDrawExternally = gameinfo->GetBool( "player_default_draw_externally", false );
 
+#ifdef EZ2
+			extern ConVar sv_player_hands_modelname;
+			Q_strncpy( g_szDefaultHandsModel, gameinfo->GetString( "player_default_hands", sv_player_hands_modelname.GetString() ), sizeof( g_szDefaultHandsModel ) );
+#else
 			Q_strncpy( g_szDefaultHandsModel, gameinfo->GetString( "player_default_hands", "models/weapons/v_hands.mdl" ), sizeof( g_szDefaultHandsModel ) );
+#endif
 			g_iDefaultHandsSkin = gameinfo->GetInt( "player_default_hands_skin", 0 );
 			g_iDefaultHandsBody = gameinfo->GetInt( "player_default_hands_body", 0 );
 #endif

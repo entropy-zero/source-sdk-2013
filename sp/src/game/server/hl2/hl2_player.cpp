@@ -147,7 +147,15 @@ ConVar autoaim_unlock_target( "autoaim_unlock_target", "0.8666" );
 
 ConVar sv_stickysprint("sv_stickysprint", "0", FCVAR_ARCHIVE | FCVAR_ARCHIVE_XBOX);
 #ifdef EZ2
+enum
+{
+	INFINITE_SPRINT_OFF,
+	INFINITE_SPRINT_DEFAULT,	// Aux power itself is infinite
+	INFINITE_SPRINT_TRUE,		// Only sprinting is affected, other suit devices continue to drain power
+};
+
 ConVar sv_infinite_sprint_power( "sv_infinite_sprint_power", "1", FCVAR_CHEAT );
+
 ConVar sv_infinite_flashlight_power( "sv_infinite_flashlight_power", "0", FCVAR_CHEAT );
 ConVar sv_player_death_smell( "sv_player_death_smell", "1", FCVAR_REPLICATED );
 ConVar sv_player_kick_attack_enabled( "sv_player_kick_attack_enabled", "1", FCVAR_REPLICATED );
@@ -806,18 +814,18 @@ void CHL2_Player::Precache( void )
 	// Interactions
 	if ( g_interactionBadCopKick == 0 )
 	{
-		g_interactionBadCopKick = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopKick, "g_interactionBadCopKick" );
 	}
 	
 	if ( g_interactionBadCopKickWarn == 0 )
 	{
-		g_interactionBadCopKickWarn = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopKickWarn, "g_interactionBadCopKickWarn" );
 	}
 
 	// Interactions
 	if (g_interactionBadCopOrderSurrender == 0)
 	{
-		g_interactionBadCopOrderSurrender = CBaseCombatCharacter::GetInteractionID();
+		CBaseCombatCharacter::AddInteractionWithString( g_interactionBadCopOrderSurrender, "g_interactionBadCopOrderSurrender" );
 	}
 
 #endif
@@ -1760,7 +1768,12 @@ void CHL2_Player::StartAutoSprint()
 //-----------------------------------------------------------------------------
 void CHL2_Player::StartSprinting( void )
 {
+#ifdef EZ2
+	// Ignore when infinite sprint is active
+	if( sv_infinite_sprint_power.GetInt() != INFINITE_SPRINT_TRUE && m_HL2Local.m_flSuitPower < 10 )
+#else
 	if( m_HL2Local.m_flSuitPower < 10 )
+#endif
 	{
 		// Don't sprint unless there's a reasonable
 		// amount of suit power.
@@ -1775,7 +1788,12 @@ void CHL2_Player::StartSprinting( void )
 		return;
 	}
 
+#ifdef EZ2
+	// "True" infinite sprinting: Aux power continues to drain, but sprinting device is not added
+	if( sv_infinite_sprint_power.GetInt() != INFINITE_SPRINT_TRUE && !SuitPower_AddDevice( SuitDeviceSprint ) )
+#else
 	if( !SuitPower_AddDevice( SuitDeviceSprint ) )
+#endif
 		return;
 
 	CPASAttenuationFilter filter( this );
@@ -1881,6 +1899,14 @@ void CHL2_Player::StartZooming( void )
 {
 #ifdef MAPBASE
 	int iFOV = GetPlayerProxy() ? GetPlayerProxy()->m_SuitZoomFOV : 25;
+	
+#ifdef EZ2
+	if (GetActiveWeapon() && GetActiveWeapon()->GetDynamicScopeSuitFOV() != 0.0f)
+	{
+		// The weapon has its own suit zoom FOV
+		iFOV = GetActiveWeapon()->GetDynamicScopeSuitFOV();
+	}
+#endif
 #else
 	int iFOV = 25;
 #endif
@@ -2659,7 +2685,7 @@ bool CHL2_Player::SuitPower_Drain( float flPower )
 #ifdef EZ2
 	// Sprint cheat on?
 	// Why is this separate from sv_infinite_aux_power? So that we can toggle sprint and flashlight separately.
-	if (sv_infinite_sprint_power.GetBool())
+	if (sv_infinite_sprint_power.GetInt() == INFINITE_SPRINT_DEFAULT)
 		return true;
 #endif
 
@@ -3920,6 +3946,20 @@ void CHL2_Player::UpdateWeaponPosture( void )
 	{
 		m_LowerWeaponTimer.Set( .3 );
 		VPROF( "CHL2_Player::UpdateWeaponPosture-CheckLower" );
+
+#ifdef MAPBASE
+		if (m_nButtons & IN_VGUIMODE)
+		{
+			//We're over a friendly, drop our weapon
+			if (Weapon_Lower() == false)
+			{
+				//FIXME: We couldn't lower our weapon!
+			}
+
+			return;
+		}
+#endif // MAPBASE
+
 		Vector vecAim = BaseClass::GetAutoaimVector( AUTOAIM_SCALE_DIRECT_ONLY );
 
 		const float CHECK_FRIENDLY_RANGE = 50 * 12;

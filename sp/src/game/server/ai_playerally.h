@@ -142,6 +142,8 @@
 #define TLK_TAKING_FIRE	"TLK_TAKING_FIRE"	// Someone fired at me (regardless of whether I was hit)
 #define TLK_NEW_ENEMY	"TLK_NEW_ENEMY"		// A new enemy appeared while combat was already in progress
 #define TLK_COMBAT_IDLE	"TLK_COMBAT_IDLE"	// Similar to TLK_ATTACKING, but specifically for when *not* currently attacking (e.g. when in cover or reloading)
+#define TLK_LOSTENEMY	"TLK_LOSTENEMY"		// Current enemy has eluded squad
+#define TLK_REFINDENEMY	"TLK_REFINDENEMY"	// Found a previously eluded enemy
 #endif
 
 #ifdef EZ
@@ -349,6 +351,10 @@ public:
 	virtual bool		CanFlinch( void );
 #endif
 
+#ifdef EZ2
+	bool		HandleInteraction(int interactionType, void* data, CBaseCombatCharacter* sourceEnt);
+#endif
+
 	//---------------------------------
 	// Combat
 	//---------------------------------
@@ -371,6 +377,11 @@ public:
 
 	virtual void PainSound( const CTakeDamageInfo &info );
 
+#ifdef MAPBASE
+	virtual void		LostEnemySound( CBaseEntity *pEnemy );
+	virtual void		FoundEnemySound( CBaseEntity *pEnemy );
+#endif
+
 	//---------------------------------
 	// Speech & Acting
 	//---------------------------------
@@ -379,6 +390,14 @@ public:
 
 	CBaseEntity *FindSpeechTarget( int flags );
 	virtual bool IsValidSpeechTarget( int flags, CBaseEntity *pEntity );
+
+#ifdef EZ2
+	// Used by Wilson camera targets
+	virtual const Vector &GetSpeechTargetSearchOrigin() { return GetAbsOrigin(); }
+	virtual const Vector GetEyePositionForSpeech( CBaseEntity *pSpeechTarget ) { return EyePosition(); }
+	virtual const Vector &GetWorldSpaceCenterForSpeech( CBaseEntity *pSpeechTarget ) { return WorldSpaceCenter(); }
+	virtual const Vector &GetAbsOriginForSpeech( CBaseEntity *pSpeechTarget ) { return GetAbsOrigin(); }
+#endif
 	
 	CBaseEntity *GetSpeechTarget()								{ return m_hTalkTarget.Get(); }
 	void		SetSpeechTarget( CBaseEntity *pSpeechTarget ) 	{ m_hTalkTarget = pSpeechTarget; }
@@ -404,6 +423,8 @@ public:
 	// So Will-E can override idle speech stuff
 	virtual void HandlePrescheduleIdleSpeech();
 	inline void SetNextIdleSpeechTime( float flTime ) { m_flNextIdleSpeechTime = flTime; }
+
+	bool		Remark( AI_CriteriaSet &modifiers, CBaseEntity *pRemarkable ) { return SpeakIfAllowed( TLK_REMARK, modifiers ); }
 #endif
 
 	//---------------------------------

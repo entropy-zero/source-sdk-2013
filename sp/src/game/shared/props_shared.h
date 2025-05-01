@@ -72,6 +72,10 @@ enum propdata_interactions_t
 	
 	PROPINTER_PHYSGUN_NOTIFY_CHILDREN,	// "onfirstimpact" cause attached flechettes to explode
 
+#ifdef EZ2
+	PROPINTER_PHYSGUN_BREAK_ZAP,		// "onbreak"		"explode_zap"
+#endif
+
 	// If we get more than 32 of these, we'll need a different system
 
 	PROPINTER_NUM_INTERACTIONS,
