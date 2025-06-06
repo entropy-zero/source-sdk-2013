@@ -840,6 +840,17 @@ void CFastZombie::Spawn( void )
 		CapabilitiesRemove( bits_CAP_MOVE_JUMP | bits_CAP_INNATE_RANGE_ATTACK1 );
 	}
 
+#ifdef EZ1
+	// Hackhack
+	// For az_c3_2 only, disable the leap attack.
+	// The darkness in the map makes the leap very unfair as players often have no way to react.
+	// This should be done with the Mapbase input "RemoveCapabilities"
+	if (FStrEq(STRING(gpGlobals->mapname), "az_c3_2"))
+	{
+		CapabilitiesRemove(bits_CAP_INNATE_RANGE_ATTACK1);
+	}
+#endif
+
 	m_flNextAttack = gpGlobals->curtime;
 
 	m_pLayer2 = NULL;
