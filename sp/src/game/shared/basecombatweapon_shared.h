@@ -596,11 +596,8 @@ public:
 	float					m_fFireDuration;		// The amount of time that the weapon has sustained firing
 	int						m_iSubType;
 
-#ifdef EZ2
-	bool					m_bShouldFirstDraw;
-#endif
-
 #ifdef EZ
+	bool					m_bShouldFirstDraw;
 	bool					m_bFirstDraw;
 #endif
 

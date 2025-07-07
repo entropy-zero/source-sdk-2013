@@ -1468,17 +1468,7 @@ bool CBaseCombatWeapon::Deploy( )
 
 Activity CBaseCombatWeapon::GetDrawActivity( void )
 {
-#ifdef EZ1
-	if ( m_bFirstDraw )
-	{
-		// Check if this model has a sequence for ACT_VM_FIRSTDRAW
-		m_bFirstDraw = false;
-		int	firstDrawSequence = SelectWeightedSequence( ACT_VM_FIRSTDRAW );
-
-		// If the sequence exists, use ACT_VM_FIRSTRDAW instead of ACT_VM_DRAW
-		if (firstDrawSequence != -1)
-			return ACT_VM_FIRSTDRAW;
-#elif EZ2
+#ifdef EZ
 	Activity result;
 
 	if (m_bFirstDraw)
@@ -1487,12 +1477,14 @@ Activity CBaseCombatWeapon::GetDrawActivity( void )
 
 		if ( m_bShouldFirstDraw || GetWpnData().m_bAlwaysFirstDraw)
 		{
+#ifdef EZ2
 #if !defined( CLIENT_DLL )
 			CEZ2_Player *pEZ2Player = assert_cast<CEZ2_Player*>(GetOwner());
 			if (pEZ2Player)
 			{
 				pEZ2Player->Event_FirstDrawWeapon( this );
 			}
+#endif
 #endif
 
 			if ( UsesClipsForAmmo1() && m_iClip1 == 0 && SelectWeightedSequence( ACT_VM_FIRSTDRAW_EMPTY ) != -1)
