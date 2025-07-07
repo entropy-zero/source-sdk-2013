@@ -6645,7 +6645,7 @@ bool CBasePlayer::BumpWeapon( CBaseCombatWeapon *pWeapon )
 	// -------------------------
 	else 
 	{
-#ifdef EZ2
+#ifdef EZ
 		// If this weapon is set to "PreventPlayerSwap", check if there's another weapon in the same slot.
 		// If there is, do not pick up the weapon.
 		if (pWeapon->GetWpnData().m_bPreventPlayerSwap)
