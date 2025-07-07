@@ -2686,11 +2686,8 @@ BEGIN_DATADESC( CBaseCombatWeapon )
 	DEFINE_FIELD( m_flUnlockTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_hLocker,			FIELD_EHANDLE ),
 
-#ifdef EZ2
-	DEFINE_KEYFIELD( m_bShouldFirstDraw, FIELD_BOOLEAN, "ShouldFirstDraw" ),
-#endif
-
 #ifdef EZ
+	DEFINE_KEYFIELD( m_bShouldFirstDraw, FIELD_BOOLEAN, "ShouldFirstDraw" ),
 	DEFINE_FIELD( m_bFirstDraw,			FIELD_BOOLEAN ),
 #endif
 
