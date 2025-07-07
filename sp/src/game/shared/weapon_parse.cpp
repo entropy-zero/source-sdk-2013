@@ -17,7 +17,7 @@
 // The sound categories found in the weapon classname.txt files
 // This needs to match the WeaponSound_t enum in weapon_parse.h
 #if !defined(_STATIC_LINKED) || defined(CLIENT_DLL)
-const char* pWeaponSoundCategories[NUM_SHOOT_SOUND_TYPES] =
+const char *pWeaponSoundCategories[ NUM_SHOOT_SOUND_TYPES ] = 
 {
 	"empty",
 	"single_shot",
@@ -37,14 +37,14 @@ const char* pWeaponSoundCategories[NUM_SHOOT_SOUND_TYPES] =
 	"deploy"
 };
 #else
-extern const char* pWeaponSoundCategories[NUM_SHOOT_SOUND_TYPES];
+extern const char *pWeaponSoundCategories[ NUM_SHOOT_SOUND_TYPES ];
 #endif
 
-int GetWeaponSoundFromString(const char* pszString)
+int GetWeaponSoundFromString( const char *pszString )
 {
-	for (int i = EMPTY; i < NUM_SHOOT_SOUND_TYPES; i++)
+	for ( int i = EMPTY; i < NUM_SHOOT_SOUND_TYPES; i++ )
 	{
-		if (!Q_stricmp(pszString, pWeaponSoundCategories[i]))
+		if ( !Q_stricmp(pszString,pWeaponSoundCategories[i]) )
 			return (WeaponSound_t)i;
 	}
 	return -1;
@@ -54,7 +54,7 @@ int GetWeaponSoundFromString(const char* pszString)
 // Item flags that we parse out of the file.
 typedef struct
 {
-	const char* m_pFlagName;
+	const char *m_pFlagName;
 	int m_iFlagValue;
 } itemFlags_t;
 #if !defined(_STATIC_LINKED) || defined(CLIENT_DLL)
@@ -87,26 +87,26 @@ bool g_bUsedWeaponSlots[MAX_WEAPON_SLOTS][MAX_WEAPON_POSITIONS] = { 0 };
 // Input  : *name - 
 // Output : FileWeaponInfo_t
 //-----------------------------------------------------------------------------
-static WEAPON_FILE_INFO_HANDLE FindWeaponInfoSlot(const char* name)
+static WEAPON_FILE_INFO_HANDLE FindWeaponInfoSlot( const char *name )
 {
 	// Complain about duplicately defined metaclass names...
-	unsigned short lookup = m_WeaponInfoDatabase.Find(name);
-	if (lookup != m_WeaponInfoDatabase.InvalidIndex())
+	unsigned short lookup = m_WeaponInfoDatabase.Find( name );
+	if ( lookup != m_WeaponInfoDatabase.InvalidIndex() )
 	{
 		return lookup;
 	}
 
-	FileWeaponInfo_t* insert = CreateWeaponInfo();
+	FileWeaponInfo_t *insert = CreateWeaponInfo();
 
-	lookup = m_WeaponInfoDatabase.Insert(name, insert);
-	Assert(lookup != m_WeaponInfoDatabase.InvalidIndex());
+	lookup = m_WeaponInfoDatabase.Insert( name, insert );
+	Assert( lookup != m_WeaponInfoDatabase.InvalidIndex() );
 	return lookup;
 }
 
 // Find a weapon slot, assuming the weapon's data has already been loaded.
-WEAPON_FILE_INFO_HANDLE LookupWeaponInfoSlot(const char* name)
+WEAPON_FILE_INFO_HANDLE LookupWeaponInfoSlot( const char *name )
 {
-	return m_WeaponInfoDatabase.Find(name);
+	return m_WeaponInfoDatabase.Find( name );
 }
 
 
@@ -120,37 +120,37 @@ static FileWeaponInfo_t gNullWeaponInfo;
 // Input  : handle - 
 // Output : FileWeaponInfo_t
 //-----------------------------------------------------------------------------
-FileWeaponInfo_t* GetFileWeaponInfoFromHandle(WEAPON_FILE_INFO_HANDLE handle)
+FileWeaponInfo_t *GetFileWeaponInfoFromHandle( WEAPON_FILE_INFO_HANDLE handle )
 {
-	if (handle < 0 || handle >= m_WeaponInfoDatabase.Count())
+	if ( handle < 0 || handle >= m_WeaponInfoDatabase.Count() )
 	{
 		return &gNullWeaponInfo;
 	}
 
-	if (handle == m_WeaponInfoDatabase.InvalidIndex())
+	if ( handle == m_WeaponInfoDatabase.InvalidIndex() )
 	{
 		return &gNullWeaponInfo;
 	}
 
-	return m_WeaponInfoDatabase[handle];
+	return m_WeaponInfoDatabase[ handle ];
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Output : WEAPON_FILE_INFO_HANDLE
 //-----------------------------------------------------------------------------
-WEAPON_FILE_INFO_HANDLE GetInvalidWeaponInfoHandle(void)
+WEAPON_FILE_INFO_HANDLE GetInvalidWeaponInfoHandle( void )
 {
 	return (WEAPON_FILE_INFO_HANDLE)m_WeaponInfoDatabase.InvalidIndex();
 }
 
 #if 0
-void ResetFileWeaponInfoDatabase(void)
+void ResetFileWeaponInfoDatabase( void )
 {
-	int c = m_WeaponInfoDatabase.Count();
-	for (int i = 0; i < c; ++i)
+	int c = m_WeaponInfoDatabase.Count(); 
+	for ( int i = 0; i < c; ++i )
 	{
-		delete m_WeaponInfoDatabase[i];
+		delete m_WeaponInfoDatabase[ i ];
 	}
 	m_WeaponInfoDatabase.RemoveAll();
 
@@ -160,64 +160,64 @@ void ResetFileWeaponInfoDatabase(void)
 }
 #endif
 
-void PrecacheFileWeaponInfoDatabase(IFileSystem* filesystem, const unsigned char* pICEKey)
+void PrecacheFileWeaponInfoDatabase( IFileSystem *filesystem, const unsigned char *pICEKey )
 {
-	if (m_WeaponInfoDatabase.Count())
+	if ( m_WeaponInfoDatabase.Count() )
 		return;
 
-	KeyValues* manifest = new KeyValues("weaponscripts");
-	if (manifest->LoadFromFile(filesystem, "scripts/weapon_manifest.txt", "GAME"))
+	KeyValues *manifest = new KeyValues( "weaponscripts" );
+	if ( manifest->LoadFromFile( filesystem, "scripts/weapon_manifest.txt", "GAME" ) )
 	{
-		for (KeyValues* sub = manifest->GetFirstSubKey(); sub != NULL; sub = sub->GetNextKey())
+		for ( KeyValues *sub = manifest->GetFirstSubKey(); sub != NULL ; sub = sub->GetNextKey() )
 		{
-			if (!Q_stricmp(sub->GetName(), "file"))
+			if ( !Q_stricmp( sub->GetName(), "file" ) )
 			{
 				char fileBase[512];
-				Q_FileBase(sub->GetString(), fileBase, sizeof(fileBase));
+				Q_FileBase( sub->GetString(), fileBase, sizeof(fileBase) );
 				WEAPON_FILE_INFO_HANDLE tmp;
 #ifdef CLIENT_DLL
-				if (ReadWeaponDataFromFileForSlot(filesystem, fileBase, &tmp, pICEKey))
+				if ( ReadWeaponDataFromFileForSlot( filesystem, fileBase, &tmp, pICEKey ) )
 				{
-					gWR.LoadWeaponSprites(tmp);
+					gWR.LoadWeaponSprites( tmp );
 				}
 #else
-				ReadWeaponDataFromFileForSlot(filesystem, fileBase, &tmp, pICEKey);
+				ReadWeaponDataFromFileForSlot( filesystem, fileBase, &tmp, pICEKey );
 #endif
 			}
 			else
 			{
-				Error("Expecting 'file', got %s\n", sub->GetName());
+				Error( "Expecting 'file', got %s\n", sub->GetName() );
 			}
 		}
 	}
 	manifest->deleteThis();
 }
 
-KeyValues* ReadEncryptedKVFile(IFileSystem* filesystem, const char* szFilenameWithoutExtension, const unsigned char* pICEKey, bool bForceReadEncryptedFile /*= false*/)
+KeyValues* ReadEncryptedKVFile( IFileSystem *filesystem, const char *szFilenameWithoutExtension, const unsigned char *pICEKey, bool bForceReadEncryptedFile /*= false*/ )
 {
-	Assert(strchr(szFilenameWithoutExtension, '.') == NULL);
+	Assert( strchr( szFilenameWithoutExtension, '.' ) == NULL );
 	char szFullName[512];
 
-	const char* pSearchPath = "MOD";
+	const char *pSearchPath = "MOD";
 
-	if (pICEKey == NULL)
+	if ( pICEKey == NULL )
 	{
 		pSearchPath = "GAME";
 	}
 
 	// Open the weapon data file, and abort if we can't
-	KeyValues* pKV = new KeyValues("WeaponDatafile");
+	KeyValues *pKV = new KeyValues( "WeaponDatafile" );
 
-	Q_snprintf(szFullName, sizeof(szFullName), "%s.txt", szFilenameWithoutExtension);
+	Q_snprintf(szFullName,sizeof(szFullName), "%s.txt", szFilenameWithoutExtension);
 
-	if (bForceReadEncryptedFile || !pKV->LoadFromFile(filesystem, szFullName, pSearchPath)) // try to load the normal .txt file first
+	if ( bForceReadEncryptedFile || !pKV->LoadFromFile( filesystem, szFullName, pSearchPath ) ) // try to load the normal .txt file first
 	{
 #ifndef _XBOX
-		if (pICEKey)
+		if ( pICEKey )
 		{
-			Q_snprintf(szFullName, sizeof(szFullName), "%s.ctx", szFilenameWithoutExtension); // fall back to the .ctx file
+			Q_snprintf(szFullName,sizeof(szFullName), "%s.ctx", szFilenameWithoutExtension); // fall back to the .ctx file
 
-			FileHandle_t f = filesystem->Open(szFullName, "rb", pSearchPath);
+			FileHandle_t f = filesystem->Open( szFullName, "rb", pSearchPath );
 
 			if (!f)
 			{
@@ -226,21 +226,21 @@ KeyValues* ReadEncryptedKVFile(IFileSystem* filesystem, const char* szFilenameWi
 			}
 			// load file into a null-terminated buffer
 			int fileSize = filesystem->Size(f);
-			char* buffer = (char*)MemAllocScratch(fileSize + 1);
-
+			char *buffer = (char*)MemAllocScratch(fileSize + 1);
+		
 			Assert(buffer);
-
+		
 			filesystem->Read(buffer, fileSize, f); // read into local buffer
 			buffer[fileSize] = 0; // null terminate file as EOF
-			filesystem->Close(f);	// close file after reading
+			filesystem->Close( f );	// close file after reading
 
-			UTIL_DecodeICE((unsigned char*)buffer, fileSize, pICEKey);
+			UTIL_DecodeICE( (unsigned char*)buffer, fileSize, pICEKey );
 
-			bool retOK = pKV->LoadFromBuffer(szFullName, buffer, filesystem);
+			bool retOK = pKV->LoadFromBuffer( szFullName, buffer, filesystem );
 
 			MemFreeScratch();
 
-			if (!retOK)
+			if ( !retOK )
 			{
 				pKV->deleteThis();
 				return NULL;
@@ -267,36 +267,36 @@ KeyValues* ReadEncryptedKVFile(IFileSystem* filesystem, const char* szFilenameWi
 //			false - if data load fails
 //-----------------------------------------------------------------------------
 
-bool ReadWeaponDataFromFileForSlot(IFileSystem* filesystem, const char* szWeaponName, WEAPON_FILE_INFO_HANDLE* phandle, const unsigned char* pICEKey)
+bool ReadWeaponDataFromFileForSlot( IFileSystem* filesystem, const char *szWeaponName, WEAPON_FILE_INFO_HANDLE *phandle, const unsigned char *pICEKey )
 {
-	if (!phandle)
+	if ( !phandle )
 	{
-		Assert(0);
+		Assert( 0 );
 		return false;
 	}
+	
+	*phandle = FindWeaponInfoSlot( szWeaponName );
+	FileWeaponInfo_t *pFileInfo = GetFileWeaponInfoFromHandle( *phandle );
+	Assert( pFileInfo );
 
-	*phandle = FindWeaponInfoSlot(szWeaponName);
-	FileWeaponInfo_t* pFileInfo = GetFileWeaponInfoFromHandle(*phandle);
-	Assert(pFileInfo);
-
-	if (pFileInfo->bParsedScript)
+	if ( pFileInfo->bParsedScript )
 		return true;
 
 	char sz[128];
-	Q_snprintf(sz, sizeof(sz), "scripts/%s", szWeaponName);
+	Q_snprintf( sz, sizeof( sz ), "scripts/%s", szWeaponName );
 
-	KeyValues* pKV = ReadEncryptedKVFile(filesystem, sz, pICEKey,
+	KeyValues *pKV = ReadEncryptedKVFile( filesystem, sz, pICEKey,
 #if defined( DOD_DLL )
 		true			// Only read .ctx files!
 #else
 		false
 #endif
-	);
+		);
 
-	if (!pKV)
+	if ( !pKV )
 		return false;
 
-	pFileInfo->Parse(pKV, szWeaponName);
+	pFileInfo->Parse( pKV, szWeaponName );
 
 	pKV->deleteThis();
 
@@ -331,7 +331,7 @@ FileWeaponInfo_t::FileWeaponInfo_t()
 	iFlags = 0;
 	szAmmo1[0] = 0;
 	szAmmo2[0] = 0;
-	memset(aShootSounds, 0, sizeof(aShootSounds));
+	memset( aShootSounds, 0, sizeof( aShootSounds ) );
 	iAmmoType = 0;
 	iAmmo2Type = 0;
 	m_bMeleeWeapon = false;
@@ -353,117 +353,118 @@ FileWeaponInfo_t::FileWeaponInfo_t()
 extern ConVar hud_fastswitch;
 #endif
 
-void FileWeaponInfo_t::Parse(KeyValues* pKeyValuesData, const char* szWeaponName)
+void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponName )
 {
 	// Okay, we tried at least once to look this up...
 	bParsedScript = true;
 
 	// Classname
-	Q_strncpy(szClassName, szWeaponName, MAX_WEAPON_STRING);
+	Q_strncpy( szClassName, szWeaponName, MAX_WEAPON_STRING );
 	// Printable name
-	Q_strncpy(szPrintName, pKeyValuesData->GetString("printname", WEAPON_PRINTNAME_MISSING), MAX_WEAPON_STRING);
+	Q_strncpy( szPrintName, pKeyValuesData->GetString( "printname", WEAPON_PRINTNAME_MISSING ), MAX_WEAPON_STRING );
 	// View model & world model
-	Q_strncpy(szViewModel, pKeyValuesData->GetString("viewmodel"), MAX_WEAPON_STRING);
-	Q_strncpy(szWorldModel, pKeyValuesData->GetString("playermodel"), MAX_WEAPON_STRING);
-	Q_strncpy(szWorldModel2, pKeyValuesData->GetString("secondarymodel"), MAX_WEAPON_STRING);
-	Q_strncpy(szAnimationPrefix, pKeyValuesData->GetString("anim_prefix"), MAX_WEAPON_PREFIX);
-	iSlot = pKeyValuesData->GetInt("bucket", 0);
-	iPosition = pKeyValuesData->GetInt("bucket_position", 0);
-
+	Q_strncpy( szViewModel, pKeyValuesData->GetString( "viewmodel" ), MAX_WEAPON_STRING );
+	Q_strncpy( szWorldModel, pKeyValuesData->GetString( "playermodel" ), MAX_WEAPON_STRING );
+	Q_strncpy( szWorldModel2, pKeyValuesData->GetString("secondarymodel"), MAX_WEAPON_STRING);
+	Q_strncpy( szAnimationPrefix, pKeyValuesData->GetString( "anim_prefix" ), MAX_WEAPON_PREFIX );
+	iSlot = pKeyValuesData->GetInt( "bucket", 0 );
+	iPosition = pKeyValuesData->GetInt( "bucket_position", 0 );
+	
 	// Use the console (X360) buckets if hud_fastswitch is set to 2.
 #ifdef CLIENT_DLL
-	if (hud_fastswitch.GetInt() == 2)
+	if ( hud_fastswitch.GetInt() == 2 )
 #else
-	if (IsX360())
+	if ( IsX360() )
 #endif
 	{
-		iSlot = pKeyValuesData->GetInt("bucket_360", iSlot);
-		iPosition = pKeyValuesData->GetInt("bucket_position_360", iPosition);
+		iSlot = pKeyValuesData->GetInt( "bucket_360", iSlot );
+		iPosition = pKeyValuesData->GetInt( "bucket_position_360", iPosition );
 	}
-	iMaxClip1 = pKeyValuesData->GetInt("clip_size", WEAPON_NOCLIP);					// Max primary clips gun can hold (assume they don't use clips by default)
-	iMaxClip2 = pKeyValuesData->GetInt("clip2_size", WEAPON_NOCLIP);					// Max secondary clips gun can hold (assume they don't use clips by default)
-	iDefaultClip1 = pKeyValuesData->GetInt("default_clip", iMaxClip1);		// amount of primary ammo placed in the primary clip when it's picked up
-	iDefaultClip2 = pKeyValuesData->GetInt("default_clip2", iMaxClip2);		// amount of secondary ammo placed in the secondary clip when it's picked up
-	iWeight = pKeyValuesData->GetInt("weight", 0);
+	iMaxClip1 = pKeyValuesData->GetInt( "clip_size", WEAPON_NOCLIP );					// Max primary clips gun can hold (assume they don't use clips by default)
+	iMaxClip2 = pKeyValuesData->GetInt( "clip2_size", WEAPON_NOCLIP );					// Max secondary clips gun can hold (assume they don't use clips by default)
+	iDefaultClip1 = pKeyValuesData->GetInt( "default_clip", iMaxClip1 );		// amount of primary ammo placed in the primary clip when it's picked up
+	iDefaultClip2 = pKeyValuesData->GetInt( "default_clip2", iMaxClip2 );		// amount of secondary ammo placed in the secondary clip when it's picked up
+	iWeight = pKeyValuesData->GetInt( "weight", 0 );
 
-	iRumbleEffect = pKeyValuesData->GetInt("rumble", -1);
-
+	iRumbleEffect = pKeyValuesData->GetInt( "rumble", -1 );
+	
 	// LAME old way to specify item flags.
 	// Weapon scripts should use the flag names.
-	iFlags = pKeyValuesData->GetInt("item_flags", ITEM_FLAG_LIMITINWORLD);
+	iFlags = pKeyValuesData->GetInt( "item_flags", ITEM_FLAG_LIMITINWORLD );
 
-	for (int i = 0; i < ARRAYSIZE(g_ItemFlags); i++)
+	for ( int i=0; i < ARRAYSIZE( g_ItemFlags ); i++ )
 	{
-		int iVal = pKeyValuesData->GetInt(g_ItemFlags[i].m_pFlagName, -1);
-		if (iVal == 0)
+		int iVal = pKeyValuesData->GetInt( g_ItemFlags[i].m_pFlagName, -1 );
+		if ( iVal == 0 )
 		{
 			iFlags &= ~g_ItemFlags[i].m_iFlagValue;
 		}
-		else if (iVal == 1)
+		else if ( iVal == 1 )
 		{
 			iFlags |= g_ItemFlags[i].m_iFlagValue;
 		}
 	}
 
 
-	bShowUsageHint = (pKeyValuesData->GetInt("showusagehint", 0) != 0) ? true : false;
-	bAutoSwitchTo = (pKeyValuesData->GetInt("autoswitchto", 1) != 0) ? true : false;
-	bAutoSwitchFrom = (pKeyValuesData->GetInt("autoswitchfrom", 1) != 0) ? true : false;
-	m_bBuiltRightHanded = (pKeyValuesData->GetInt("BuiltRightHanded", 1) != 0) ? true : false;
-	m_bAllowFlipping = (pKeyValuesData->GetInt("AllowFlipping", 1) != 0) ? true : false;
-	m_bMeleeWeapon = (pKeyValuesData->GetInt("MeleeWeapon", 0) != 0) ? true : false;
+	bShowUsageHint = ( pKeyValuesData->GetInt( "showusagehint", 0 ) != 0 ) ? true : false;
+	bAutoSwitchTo = ( pKeyValuesData->GetInt( "autoswitchto", 1 ) != 0 ) ? true : false;
+	bAutoSwitchFrom = ( pKeyValuesData->GetInt( "autoswitchfrom", 1 ) != 0 ) ? true : false;
+	m_bBuiltRightHanded = ( pKeyValuesData->GetInt( "BuiltRightHanded", 1 ) != 0 ) ? true : false;
+	m_bAllowFlipping = ( pKeyValuesData->GetInt( "AllowFlipping", 1 ) != 0 ) ? true : false;
+	m_bMeleeWeapon = ( pKeyValuesData->GetInt( "MeleeWeapon", 0 ) != 0 ) ? true : false;
 
-#ifdef EZ
-	m_bAlwaysFirstDraw = (pKeyValuesData->GetInt("AlwaysFirstDraw", 0) != 0) ? true : false;
-	m_bPreventPlayerSwap = (pKeyValuesData->GetInt("PreventPlayerSwap", 0) != 0) ? true : false;
+#ifdef EZ2
+	m_bAlwaysFirstDraw = (pKeyValuesData->GetInt( "AlwaysFirstDraw", 0 ) != 0) ? true : false;
+	m_bPreventPlayerSwap = (pKeyValuesData->GetInt( "PreventPlayerSwap", 0 ) != 0) ? true : false;
 #endif
 
 #if defined(_DEBUG) && defined(HL2_CLIENT_DLL)
 	// make sure two weapons aren't in the same slot & position
-	if (iSlot >= MAX_WEAPON_SLOTS ||
-		iPosition >= MAX_WEAPON_POSITIONS)
+	if ( iSlot >= MAX_WEAPON_SLOTS ||
+		iPosition >= MAX_WEAPON_POSITIONS )
 	{
-		Warning("Invalid weapon slot or position [slot %d/%d max], pos[%d/%d max]\n",
-			iSlot, MAX_WEAPON_SLOTS - 1, iPosition, MAX_WEAPON_POSITIONS - 1);
+		Warning( "Invalid weapon slot or position [slot %d/%d max], pos[%d/%d max]\n",
+			iSlot, MAX_WEAPON_SLOTS - 1, iPosition, MAX_WEAPON_POSITIONS - 1 );
 	}
 	else
 	{
 		if (g_bUsedWeaponSlots[iSlot][iPosition])
 		{
-			Warning("Duplicately assigned weapon slots in selection hud:  %s (%d, %d)\n", szPrintName, iSlot, iPosition);
+			Warning( "Duplicately assigned weapon slots in selection hud:  %s (%d, %d)\n", szPrintName, iSlot, iPosition );
 		}
 		g_bUsedWeaponSlots[iSlot][iPosition] = true;
 	}
 #endif
 
 	// Primary ammo used
-	const char* pAmmo = pKeyValuesData->GetString("primary_ammo", "None");
-	if (strcmp("None", pAmmo) == 0)
-		Q_strncpy(szAmmo1, "", sizeof(szAmmo1));
+	const char *pAmmo = pKeyValuesData->GetString( "primary_ammo", "None" );
+	if ( strcmp("None", pAmmo) == 0 )
+		Q_strncpy( szAmmo1, "", sizeof( szAmmo1 ) );
 	else
-		Q_strncpy(szAmmo1, pAmmo, sizeof(szAmmo1));
-	iAmmoType = GetAmmoDef()->Index(szAmmo1);
-
+		Q_strncpy( szAmmo1, pAmmo, sizeof( szAmmo1 )  );
+	iAmmoType = GetAmmoDef()->Index( szAmmo1 );
+	
 	// Secondary ammo used
-	pAmmo = pKeyValuesData->GetString("secondary_ammo", "None");
-	if (strcmp("None", pAmmo) == 0)
-		Q_strncpy(szAmmo2, "", sizeof(szAmmo2));
+	pAmmo = pKeyValuesData->GetString( "secondary_ammo", "None" );
+	if ( strcmp("None", pAmmo) == 0)
+		Q_strncpy( szAmmo2, "", sizeof( szAmmo2 ) );
 	else
-		Q_strncpy(szAmmo2, pAmmo, sizeof(szAmmo2));
-	iAmmo2Type = GetAmmoDef()->Index(szAmmo2);
+		Q_strncpy( szAmmo2, pAmmo, sizeof( szAmmo2 )  );
+	iAmmo2Type = GetAmmoDef()->Index( szAmmo2 );
 
 	// Now read the weapon sounds
-	memset(aShootSounds, 0, sizeof(aShootSounds));
-	KeyValues* pSoundData = pKeyValuesData->FindKey("SoundData");
-	if (pSoundData)
+	memset( aShootSounds, 0, sizeof( aShootSounds ) );
+	KeyValues *pSoundData = pKeyValuesData->FindKey( "SoundData" );
+	if ( pSoundData )
 	{
-		for (int i = EMPTY; i < NUM_SHOOT_SOUND_TYPES; i++)
+		for ( int i = EMPTY; i < NUM_SHOOT_SOUND_TYPES; i++ )
 		{
-			const char* soundname = pSoundData->GetString(pWeaponSoundCategories[i]);
-			if (soundname && soundname[0])
+			const char *soundname = pSoundData->GetString( pWeaponSoundCategories[i] );
+			if ( soundname && soundname[0] )
 			{
-				Q_strncpy(aShootSounds[i], soundname, MAX_WEAPON_STRING);
+				Q_strncpy( aShootSounds[i], soundname, MAX_WEAPON_STRING );
 			}
 		}
 	}
 }
+
