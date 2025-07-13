@@ -108,7 +108,16 @@ void CNPC_Zombigaunt::Precache()
 		SetModelName( AllocPooledString( pModelNames[m_tEzVariant % EZ_VARIANT_COUNT] ) );
 	}
 
-	PrecacheParticleSystem( "blood_drip_zombigaunt_01" );
+	if (m_tEzVariant == EZ_VARIANT_RAD)
+	{
+		PrecacheParticleSystem( "blood_drip_glowbigaunt_01" );
+	}
+	else
+	{
+		PrecacheParticleSystem( "blood_drip_zombigaunt_01" );
+	}
+
+
 
 	BaseClass::Precache();
 }
@@ -295,6 +304,26 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 	// Blixibon - Make weird motions while charging
 	if (scheduleType == SCHED_CHASE_ENEMY)
 	{
+#ifdef NEW_RESPONSE_SYSTEM
+		// We need to do this hacky stuff so the response doesn't interrupt sounds
+		AI_Response response;
+		bool result = SpeakFindResponse( response, TLK_VORT_CHARGE );
+		if ( result )
+		{
+			if ( response.GetType() == ResponseRules::RESPONSE_SCENE )
+			{
+				char scene[256];
+				response.GetResponse( scene, sizeof( scene ) );
+
+				m_flChargeResponseEnd = PlayScene( scene, response.GetDelay(), &response );
+				m_iszChargeResponse = AllocPooledString( scene );
+			}
+			else
+			{
+				SpeakDispatchResponse( TLK_VORT_CHARGE, &response );
+			}
+		}
+#else
 		// We need to do this hacky stuff so the response doesn't interrupt sounds
 		AI_Response *result = GetExpresser()->SpeakFindResponse( TLK_VORT_CHARGE );
 		if ( result )
@@ -312,6 +341,7 @@ void CNPC_Zombigaunt::OnStartSchedule( int scheduleType )
 				SpeakDispatchResponse( TLK_VORT_CHARGE, result );
 			}
 		}
+#endif
 	}
 	else
 	{
@@ -353,7 +383,15 @@ void CNPC_Zombigaunt::StartEye( void )
 	// Start blood drip particle
 	if ( GetSleepState() == AISS_AWAKE )
 	{
-		DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true);
+		if (m_tEzVariant == EZ_VARIANT_RAD)
+		{
+			DispatchParticleEffect( "blood_drip_glowbigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+		}
+		else
+		{
+			DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+		}
+
 		SetContextThink( &CNPC_Zombigaunt::BleedThink, gpGlobals->curtime + 0.1, ZOMBIGAUNT_BLEED_THINK );
 	}
 }
@@ -381,7 +419,15 @@ void CNPC_Zombigaunt::Wake( CBaseEntity * pActivator )
 //-----------------------------------------------------------------------------
 void CNPC_Zombigaunt::BleedThink()
 {
-	DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+	if (m_tEzVariant == EZ_VARIANT_RAD)
+	{
+		DispatchParticleEffect( "blood_drip_glowbigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+	}
+	else
+	{
+		DispatchParticleEffect( "blood_drip_zombigaunt_01", PATTACH_POINT_FOLLOW, this, LookupAttachment( "mouth" ), true );
+	}
+
 	SetNextThink( gpGlobals->curtime + random->RandomFloat( 1.0, 1.5 ), ZOMBIGAUNT_BLEED_THINK );
 }
 
