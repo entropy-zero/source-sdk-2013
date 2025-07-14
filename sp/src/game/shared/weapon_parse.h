@@ -113,6 +113,11 @@ public:
 	bool					m_bAllowFlipping;	// False to disallow flipping the model, regardless of whether
 												// it is built left or right handed.
 
+#ifdef EZ
+	bool					m_bAlwaysFirstDraw;			// This weapon defaults to playing the first draw animation, even if dropped by an enemy 
+	bool					m_bPreventPlayerSwap;		// If the player is holding another weapon in the same slot as this weapon, prevent picking up this weapon 
+#endif
+
 // CLIENT DLL
 	// Sprite data, read from the data file
 	int						iSpriteCount;

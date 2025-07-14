@@ -596,6 +596,11 @@ public:
 	float					m_fFireDuration;		// The amount of time that the weapon has sustained firing
 	int						m_iSubType;
 
+#ifdef EZ
+	bool					m_bShouldFirstDraw;
+	bool					m_bFirstDraw;
+#endif
+
 	float					m_flUnlockTime;
 	EHANDLE					m_hLocker;				// Who locked this weapon.
 

@@ -1003,6 +1003,10 @@ void CBaseCombatWeapon::Equip( CBaseCombatCharacter *pOwner )
 	if ( pOwner->IsPlayer() )
 	{
 		SetModel( GetViewModel() );
+#ifdef EZ
+		// Play the first draw animation
+		m_bFirstDraw = true;
+#endif
 	}
 	else
 	{
@@ -1397,8 +1401,15 @@ bool CBaseCombatWeapon::DefaultDeploy( char *szViewModel, char *szWeaponModel, i
 
 	// Weapons that don't autoswitch away when they run out of ammo 
 	// can still be deployed when they have no ammo.
+#ifndef EZ
 	if ( !HasAnyAmmo() && AllowsAutoSwitchFrom() )
 		return false;
+#else
+	bool bNoAmmo = false;
+
+	if ( !HasAnyAmmo() && AllowsAutoSwitchFrom() )
+		bNoAmmo = true;
+#endif
 
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 	if ( pOwner )
@@ -1414,6 +1425,12 @@ bool CBaseCombatWeapon::DefaultDeploy( char *szViewModel, char *szWeaponModel, i
 
 		pOwner->SetNextAttack( gpGlobals->curtime + SequenceDuration() );
 	}
+#ifdef EZ
+	else if ( bNoAmmo )
+	{
+		return false;
+	}
+#endif
 
 	// Can't shoot again until we've finished deploying
 	m_flNextPrimaryAttack	= gpGlobals->curtime + SequenceDuration();
@@ -1451,6 +1468,48 @@ bool CBaseCombatWeapon::Deploy( )
 
 Activity CBaseCombatWeapon::GetDrawActivity( void )
 {
+#ifdef EZ
+	Activity result;
+
+	if (m_bFirstDraw)
+	{
+		m_bFirstDraw = false;
+
+		if ( m_bShouldFirstDraw || GetWpnData().m_bAlwaysFirstDraw)
+		{
+#ifdef EZ2
+#if !defined( CLIENT_DLL )
+			CEZ2_Player *pEZ2Player = assert_cast<CEZ2_Player*>(GetOwner());
+			if (pEZ2Player)
+			{
+				pEZ2Player->Event_FirstDrawWeapon( this );
+			}
+#endif
+#endif
+
+			if ( UsesClipsForAmmo1() && m_iClip1 == 0 && SelectWeightedSequence( ACT_VM_FIRSTDRAW_EMPTY ) != -1)
+			{
+				return ACT_VM_FIRSTDRAW_EMPTY;
+			}
+			else
+			{
+				result = ACT_VM_FIRSTDRAW;
+			}
+		}
+		else
+		{
+			result = ACT_VM_FIRSTDRAW_QUICK;
+		}
+
+		// Check if this model has a sequence for ACT_VM_FIRSTDRAW
+		int	firstDrawSequence = SelectWeightedSequence( result );
+
+		// If the sequence exists, use ACT_VM_FIRSTRDAW instead of ACT_VM_DRAW
+		if (firstDrawSequence != -1)
+			return result;
+
+	}
+#endif
 	return ACT_VM_DRAW;
 }
 
@@ -2626,6 +2685,11 @@ BEGIN_DATADESC( CBaseCombatWeapon )
 
 	DEFINE_FIELD( m_flUnlockTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_hLocker,			FIELD_EHANDLE ),
+
+#ifdef EZ
+	DEFINE_KEYFIELD( m_bShouldFirstDraw, FIELD_BOOLEAN, "ShouldFirstDraw" ),
+	DEFINE_FIELD( m_bFirstDraw,			FIELD_BOOLEAN ),
+#endif
 
 	//	DEFINE_FIELD( m_iViewModelIndex, FIELD_INTEGER ),
 	//	DEFINE_FIELD( m_iWorldModelIndex, FIELD_INTEGER ),

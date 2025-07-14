@@ -2280,6 +2280,9 @@ void ActivityList_RegisterSharedActivities( void )
 	REGISTER_SHARED_ACTIVITY( ACT_VM_COMMAND_SEND )
 
 	REGISTER_SHARED_ACTIVITY( ACT_VM_FIRSTDRAW )
+	REGISTER_SHARED_ACTIVITY( ACT_VM_FIRSTDRAW_EMPTY )
+	REGISTER_SHARED_ACTIVITY( ACT_VM_FIRSTDRAW_QUICK )
+	REGISTER_SHARED_ACTIVITY( ACT_VM_FIRSTDRAW_PUMP )
 
 	AssertMsg( g_HighestActivity == LAST_SHARED_ACTIVITY - 1, "Not all activities from ai_activity.h registered in activitylist.cpp" ); 
 } 
