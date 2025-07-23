@@ -1434,6 +1434,14 @@ Activity CNPC_Vortigaunt::NPC_TranslateActivity( Activity eNewActivity )
 	
 	if ( eNewActivity == ACT_RANGE_ATTACK2 )
 	{
+#ifdef EZ2
+#ifdef MAPBASE
+		// If we're capable of using grenades, use ACT_COMBINE_THROW_GRENADE
+		if (IsGrenadeCapable())
+			return ACT_COMBINE_THROW_GRENADE;
+		else
+#endif
+#endif
 		return (Activity) ACT_VORTIGAUNT_DISPEL;
 	}
 
