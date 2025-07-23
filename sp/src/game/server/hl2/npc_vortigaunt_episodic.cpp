@@ -75,7 +75,7 @@ static const char *VORT_EXTRACT_FINISH = "VORT_EXTRACT_FINISH";
 #define	HEAL_RANGE			(40*12) //ft
 #define	HEAL_SEARCH_RANGE	(40*12) //ft
 
-#ifdef EZ2
+#ifdef EZ
 
 #define VORTIGAUNT_DRAIN_HEAL_MODIFIER 3.0f
 
@@ -90,7 +90,7 @@ ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_tok
 ConVar sk_vortigaunt_armor_charge_per_token( "sk_vortigaunt_armor_charge_per_token", "48" );
 #endif
 
-#ifdef EZ2
+#ifdef EZ
 ConVar sk_vortigaunt_npc_health_charge_per_token( "sk_vortigaunt_npc_health_charge_per_token", "50" );
 ConVar sk_vortigaunt_health_drain_per_token( "sk_vortigaunt_health_drain_per_token", "5" );
 ConVar sk_vortigaunt_health_drain_time( "sk_vortigaunt_health_drain_time", "15" );
@@ -170,7 +170,7 @@ int AE_VORTIGAUNT_STOP_HEAL_GLOW;	// '
 enum SquadSlot_T
 {	
 	SQUAD_SLOT_HEAL_PLAYER = LAST_SHARED_SQUADSLOT,
-#ifdef EZ2
+#ifdef EZ
 	SQUAD_SLOT_DISPEL
 #endif
 };
@@ -208,7 +208,7 @@ BEGIN_DATADESC( CNPC_Vortigaunt )
 	DEFINE_FIELD( m_bCarryingNPC,			FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_bRegenerateHealth,	FIELD_BOOLEAN, "HealthRegenerateEnabled" ),
 
-#ifdef EZ2
+#ifdef EZ
 	DEFINE_KEYFIELD( m_flZapRange,			FIELD_FLOAT,   "OverrideZapRange" ),
 	DEFINE_FIELD( m_flNextDrainHealthTime, FIELD_TIME ),
 #endif
@@ -262,7 +262,7 @@ m_bPlayerRequestedHeal( false ),
 m_flNextHealTime( 3.0f ), // Let the player settle before we decide to do this
 m_nNumTokensToSpawn( 0 ),
 m_flAimDelay( 0.0f ),
-#ifdef EZ2
+#ifdef EZ
 m_flZapRange( -1.0f ),
 #endif
 m_eHealState( HEAL_STATE_NONE )
@@ -554,7 +554,7 @@ void CNPC_Vortigaunt::RunTask( const Task_t *pTask )
 	{
 		if ( IsSequenceFinished() )
 		{
-#ifdef EZ2
+#ifdef EZ
 			VacateStrategySlot();
 #endif
 			TaskComplete();
@@ -733,14 +733,14 @@ int CNPC_Vortigaunt::RangeAttack1Conditions( float flDot, float flDist )
 		return( COND_TOO_CLOSE_TO_ATTACK );
 	}
 	else
-#elif EZ2
+#elif EZ
 	if ( flDist < 32.0f && m_flZapRange >= 32.0f )
 		return COND_TOO_CLOSE_TO_ATTACK;
 #else
 	if ( flDist < 32.0f )
 		return COND_TOO_CLOSE_TO_ATTACK;
 #endif // HL2_EPISODIC
-#ifndef EZ2
+#ifndef EZ
 	if ( flDist > InnateRange1MaxRange() )
 #else
 	if ( ( flDist > m_flZapRange && !HasCondition( COND_ENEMY_UNREACHABLE ) ) || flDist > InnateRange1MaxRange()  )
@@ -777,7 +777,7 @@ int CNPC_Vortigaunt::RangeAttack1Conditions( float flDot, float flDist )
 	return COND_CAN_RANGE_ATTACK1;
 }
 
-#ifdef EZ2
+#ifdef EZ
 //------------------------------------------------------------------------------
 // Purpose : For vortigaunt energy drain attack
 //------------------------------------------------------------------------------
@@ -861,13 +861,13 @@ int CNPC_Vortigaunt::MeleeAttack1Conditions( float flDot, float flDist )
 #else
 	// Vortigaunts in EZ should use their melee attack!
 	int condition = BaseClass::MeleeAttack1Conditions( flDot, flDist );
-#ifdef EZ2
+#ifdef EZ
 	// In EZ2, Vortigaunts can use their 'dispel' attack against more than just antlions
 	if (condition == COND_NONE && !IsStrategySlotRangeOccupied( SQUAD_SLOT_DISPEL, SQUAD_SLOT_DISPEL ) && m_flDispelTestTime <= gpGlobals->curtime)
 	{
 		m_flDispelTestTime = gpGlobals->curtime + 1.0f;
 
-#ifndef EZ2
+#ifndef EZ
 		if ( flDist < 128 )
 #else
 		if ( flDist < GetDispelAttackRange() )
@@ -882,7 +882,7 @@ int CNPC_Vortigaunt::MeleeAttack1Conditions( float flDot, float flDist )
 #endif
 }
 
-#ifdef EZ2
+#ifdef EZ
 //-----------------------------------------------------------------------------
 // Purpose: How far away will this vortigaunt attempt a dispel attack
 //-----------------------------------------------------------------------------
@@ -914,7 +914,7 @@ int CNPC_Vortigaunt::NumAntlionsInRadius( float flRadius )
 	return nNumAntlions;
 }
 
-#ifndef EZ2
+#ifndef EZ
 //-----------------------------------------------------------------------------
 // Purpose: Used for a more powerful, concussive blast
 //-----------------------------------------------------------------------------
@@ -1262,7 +1262,6 @@ void CNPC_Vortigaunt::HandleAnimEvent( animevent_t *pEvent )
 		return sk_vortigaunt_dispel_time.GetFloat();
 	}
 
-#ifdef EZ2
 	//-----------------------------------------------------------------------------
 	//		Next Vortigaunt health drain time
 	//-----------------------------------------------------------------------------
@@ -1270,7 +1269,6 @@ void CNPC_Vortigaunt::HandleAnimEvent( animevent_t *pEvent )
 	{
 		return sk_vortigaunt_health_drain_time.GetFloat();
 	}
-#endif
 
 	//-----------------------------------------------------------------------------
 	//		Copied directly from BaseZombie for now.
@@ -1436,12 +1434,6 @@ Activity CNPC_Vortigaunt::NPC_TranslateActivity( Activity eNewActivity )
 	
 	if ( eNewActivity == ACT_RANGE_ATTACK2 )
 	{
-#ifdef MAPBASE
-		// If we're capable of using grenades, use ACT_COMBINE_THROW_GRENADE
-		if (IsGrenadeCapable())
-			return ACT_COMBINE_THROW_GRENADE;
-		else
-#endif
 		return (Activity) ACT_VORTIGAUNT_DISPEL;
 	}
 
@@ -1505,7 +1497,7 @@ void CNPC_Vortigaunt::Spawn( void )
 	CapabilitiesAdd( bits_CAP_INNATE_MELEE_ATTACK1 | bits_CAP_INNATE_RANGE_ATTACK1 );
 	CapabilitiesRemove( bits_CAP_USE_SHOT_REGULATOR );
 
-#ifdef EZ2
+#ifdef EZ
 	CapabilitiesAdd( bits_CAP_INNATE_RANGE_ATTACK2 );
 #endif
 
@@ -1529,7 +1521,7 @@ void CNPC_Vortigaunt::Spawn( void )
 	GetShotRegulator()->SetBurstShotCountRange( 1, 1 );
 	GetShotRegulator()->SetRestInterval( 2.0f, 2.0f );
 
-#ifdef EZ2
+#ifdef EZ
 	// If the zap range keyvalue has not been set, default to the convar
 	if ( m_flZapRange == -1 )
 	{
@@ -1740,7 +1732,7 @@ int CNPC_Vortigaunt::TranslateSchedule( int scheduleType )
 		// Otherwise we use our own schedule to attack
 		return SCHED_VORTIGAUNT_RANGE_ATTACK;
 		break;
-#ifdef EZ2
+#ifdef EZ
 	// Range attack 2 - Vortigaunt vampirism
 	// The conditions for vort health drain set COND_VORTIGAUNT_CAN_HEAL, not COND_RANGE_ATTACK2, so consider this an extreme edge case or futureproofing
 	case SCHED_RANGE_ATTACK2:
@@ -1868,7 +1860,7 @@ bool CNPC_Vortigaunt::HealBehaviorAvailable( void )
 	if ( IsCurSchedule( SCHED_VORTIGAUNT_EXTRACT_BUGBAIT ) )
 		return false;
 
-#ifndef EZ2
+#ifndef EZ
 	// Don't bother while we're under attack
 	if ( GetEnemy() != NULL )
 		return false;
@@ -1920,21 +1912,9 @@ bool CNPC_Vortigaunt::ShouldHealTarget( CBaseEntity *pTarget )
 		if (pPlayer->GetFlags() & FL_NOTARGET)
 			return false;
 
-#ifndef EZ1
 		// See if the player needs armor
 		if (pPlayer->ArmorValue() >= (sk_vortigaunt_armor_charge.GetFloat()*0.66f))
 			return false;
-// Pre-EZ2, we checked vortigaunt drain by seeing if the heal target player had armor.
-// I don't think that implementation of the drain attack really worked, but we're going to leave it be. -1upD
-#else
-		// See if friendly players needs armor
-		if ( IRelationType( pPlayer) == D_LI && pPlayer->ArmorValue() >= ( sk_vortigaunt_armor_charge.GetFloat() * 0.66f ) ) 
-			return false;
-
-		// See if hostile players have armor
-		if ( IRelationType( pPlayer ) <= D_FR && pPlayer->ArmorValue() <= 0 )
-			return false;
-#endif
 
 		// Must be alive!
 		if (pPlayer->IsAlive() == false)
@@ -2010,7 +1990,7 @@ int CNPC_Vortigaunt::SelectHealSchedule( void )
 	// Cannot already be healing the player
 	if ( m_hHealTarget != NULL )
 	{
-#ifndef EZ2
+#ifndef EZ
 		// For now, just grab the global, single player
 		CBasePlayer *pPlayer = ToBasePlayer( m_hHealTarget );
 
@@ -2097,7 +2077,7 @@ int CNPC_Vortigaunt::SelectSchedule( void )
 	if ( HasCondition(COND_VORTIGAUNT_DISPEL_ANTLIONS ) )
 	{
 		ClearCondition( COND_VORTIGAUNT_DISPEL_ANTLIONS );
-#ifdef EZ2
+#ifdef EZ
 		OccupyStrategySlot( SQUAD_SLOT_DISPEL );
 #endif
 		return SCHED_VORTIGAUNT_DISPEL_ANTLIONS;
@@ -2170,7 +2150,7 @@ void CNPC_Vortigaunt::StartHealing( void )
 	int nLayer = FindGestureLayer( (Activity) ACT_VORTIGAUNT_HEAL );
 	SetLayerPlaybackRate( nLayer, 0.0f );
 
-#ifdef EZ2
+#ifdef EZ
 	// Reset cooldown on health drain attack
 	m_flNextDrainHealthTime = gpGlobals->curtime + GetNextHealthDrainTime();
 #endif
@@ -2208,7 +2188,7 @@ void CNPC_Vortigaunt::StopHealing( bool bInterrupt )
 		m_OnFinishedChargingTarget.FireOutput( this, this );
 	}
 
-#ifdef EZ2
+#ifdef EZ
 	// Reset cooldown on health drain attack
 	m_flNextDrainHealthTime = gpGlobals->curtime + GetNextHealthDrainTime();
 #endif
@@ -2290,7 +2270,7 @@ void CNPC_Vortigaunt::MaintainHealSchedule( void )
 				QAngle vecHandAngles;
 				GetAttachment( m_iRightHandAttachment, vecHandPos, vecHandAngles );
 				CVortigauntChargeToken::CreateChargeToken( vecHandPos, this, m_hHealTarget );
-#ifdef EZ2
+#ifdef EZ
 				m_flNextHealTokenTime = gpGlobals->curtime + random->RandomFloat( 0.1f, 0.3f );
 #else
 				m_flNextHealTokenTime = gpGlobals->curtime + random->RandomFloat( 0.5f, 1.0f );
@@ -2380,8 +2360,8 @@ EyeGlow_t * CNPC_Vortigaunt::GetEyeGlowData(int i)
 
 	eyeGlow = new EyeGlow_t();
 
-	eyeGlow->spriteName = AllocPooledString("sprites/light_glow02.vmt");
-	eyeGlow->attachment = AllocPooledString("eyes");
+	eyeGlow->spriteName = "sprites/light_glow02.vmt";
+	eyeGlow->attachment = "eyes";
 
 	string_t iszModel_BlueVortigaunt = AllocPooledString( "models/vortigaunt_blue.mdl" );
 	if (iszModel_BlueVortigaunt == GetModelName())
@@ -2391,7 +2371,6 @@ EyeGlow_t * CNPC_Vortigaunt::GetEyeGlowData(int i)
 		eyeGlow->green = 255;
 		eyeGlow->blue = 0;
 	}
-#ifdef EZ2
 	else
 	{
 		eyeGlow->alpha = 150;
@@ -2399,7 +2378,6 @@ EyeGlow_t * CNPC_Vortigaunt::GetEyeGlowData(int i)
 		eyeGlow->green = 0;
 		eyeGlow->blue = 0;
 	}
-#endif
 	
 	eyeGlow->scale = 0.3f;
 	eyeGlow->proxyScale = 3.0f;
@@ -2413,12 +2391,6 @@ EyeGlow_t * CNPC_Vortigaunt::GetEyeGlowData(int i)
 //-----------------------------------------------------------------------------
 int CNPC_Vortigaunt::GetNumGlows()
 {
-#ifdef EZ1
-	string_t iszModel_BlueVortigaunt = AllocPooledString("models/vortigaunt_blue.mdl");
-	if (iszModel_BlueVortigaunt == GetModelName())
-		return 1;
-	return 0;
-#endif
 	return 1;
 }
 #endif
@@ -2666,7 +2638,7 @@ Vector CNPC_Vortigaunt::GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy
 {
 	Vector vecBase = BaseClass::GetShootEnemyDir( shootOrigin, bNoisy );
 
-#ifdef EZ2
+#ifdef EZ
 	CBaseEntity *pEnemy = GetEnemy();
 	if ( IsPlayerAlly() && pEnemy )
 	{
@@ -3063,7 +3035,7 @@ void CNPC_Vortigaunt::GatherHealConditions( void )
 
 	// We stop if there are enemies around
 	if ( m_bArmorRechargeEnabled == false ||
-#ifndef EZ2
+#ifndef EZ
 		 HasCondition( COND_NEW_ENEMY ) || 
 		 HasCondition( COND_HEAR_DANGER ) ||
 		 HasCondition( COND_HEAVY_DAMAGE ) )
@@ -3082,7 +3054,7 @@ void CNPC_Vortigaunt::GatherHealConditions( void )
 	if ( m_bForceArmorRecharge )
 		return;
 
-#ifndef EZ2
+#ifndef EZ
 	// For now we only act on the player
 	CBasePlayer *pPlayer = ToBasePlayer( m_hHealTarget );
 	if ( pPlayer != NULL )
@@ -3150,7 +3122,7 @@ void CNPC_Vortigaunt::GatherHealConditions( void )
 			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
 		}
 
-#ifdef EZ2
+#ifdef EZ
 		// Hostile vorts need more interrupt conditions for draining
 		if ( IRelationType( m_hHealTarget ) < D_LI && HasCondition( COND_CAN_MELEE_ATTACK1 ) )
 		{
@@ -3193,7 +3165,7 @@ void CNPC_Vortigaunt::GatherConditions( void )
 		m_flNextHealTime = gpGlobals->curtime + 2.0f;
 	}
 
-#ifdef EZ2
+#ifdef EZ
 	// Frequently, vortigaunt heal targets die mid-heal. Let's try to find the next best heal target in that case.
 	if ( m_eHealState != HEAL_STATE_NONE && ( m_hHealTarget == NULL || !m_hHealTarget->IsAlive() ) && m_nNumTokensToSpawn > 0 )
 	{
@@ -3218,7 +3190,7 @@ void CNPC_Vortigaunt::GatherConditions( void )
 	GatherHealConditions();
 }
 
-#ifdef EZ2
+#ifdef EZ
 #define SF_PHYSEXPLOSION_NODAMAGE			0x0001
 #define SF_PHYSEXPLOSION_PUSH_PLAYER		0x0002
 #define SF_PHYSEXPLOSION_RADIAL				0x0004
@@ -3283,7 +3255,7 @@ void CNPC_Vortigaunt::DispelAntlions( const Vector &vecOrigin, float flRadius, b
 		DispatchEffect( "VortDispel", data );
 	}
 
-#ifndef EZ2
+#ifndef EZ
 	// Make antlions flip all around us!
 	trace_t tr;
 	CBaseEntity *pEnemySearch[32];
@@ -3604,6 +3576,7 @@ void CNPC_Vortigaunt::OnSquishedGrub( const CBaseEntity *pGrub )
 //-----------------------------------------------------------------------------
 void CNPC_Vortigaunt::AimGun( void )
 {
+#ifdef EZ2
 #ifdef MAPBASE
 	// Use base for func_tank
 	if (m_FuncTankBehavior.IsRunning())
@@ -3611,6 +3584,7 @@ void CNPC_Vortigaunt::AimGun( void )
 		BaseClass::AimGun();
 		return;
 	}
+#endif
 #endif
 
 	// If our aim lock is on, don't bother
@@ -3761,7 +3735,7 @@ AI_BEGIN_CUSTOM_NPC( npc_vortigaunt, CNPC_Vortigaunt )
 	DECLARE_CONDITION( COND_VORTIGAUNT_DISPEL_ANTLIONS )
 
 	DECLARE_SQUADSLOT( SQUAD_SLOT_HEAL_PLAYER )
-#ifdef EZ2
+#ifdef EZ
 	DECLARE_SQUADSLOT( SQUAD_SLOT_DISPEL )
 #endif
 
@@ -3809,7 +3783,7 @@ AI_BEGIN_CUSTOM_NPC( npc_vortigaunt, CNPC_Vortigaunt )
 	//=========================================================
 	// > SCHED_VORTIGAUNT_HEAL
 	//=========================================================
-#ifndef EZ2
+#ifndef EZ
 	DEFINE_SCHEDULE
 	(
 		SCHED_VORTIGAUNT_HEAL,
@@ -4033,7 +4007,7 @@ AI_BEGIN_CUSTOM_NPC( npc_vortigaunt, CNPC_Vortigaunt )
 AI_END_CUSTOM_NPC()
 
 
-#ifdef EZ2
+#ifdef EZ
 //=============================================================================
 // 
 //  Vortigaunt Standoff Behavior 
@@ -4218,7 +4192,7 @@ Vector CVortigauntChargeToken::GetSteerVector( const Vector &vecForward )
 	return vecSteer;
 }
 
-#ifdef EZ2
+#ifdef EZ
 #define VTOKEN_MAX_SPEED	1024.0f	// U/sec
 #define VTOKEN_ACCEL_SPEED	320.0f	// '
 #else
@@ -4335,7 +4309,7 @@ void CVortigauntChargeToken::SeekTouch( CBaseEntity	*pOther )
 			{
 				pPlayer->DecrementArmorValue( chargeAmount );
 			}
-#ifdef EZ2
+#ifdef EZ
 			// Drain the player's health
 			else
 			{
@@ -4349,7 +4323,7 @@ void CVortigauntChargeToken::SeekTouch( CBaseEntity	*pOther )
 			// Vortigaunt vampirism!
 			GetOwnerEntity()->m_iHealth = MIN( GetOwnerEntity()->m_iMaxHealth, GetOwnerEntity()->m_iHealth + chargeAmount );
 
-#ifdef EZ2
+#ifdef EZ
 			// TODO Display EZ2 healing visual effects
 #endif
 		}
@@ -4369,7 +4343,7 @@ void CVortigauntChargeToken::SeekTouch( CBaseEntity	*pOther )
 				// Only overheal to a max of 1.5x the NPC's maximum health
 				pNPC->m_iHealth = MAX( pNPC->m_iHealth + sk_vortigaunt_npc_health_charge_per_token.GetInt()+random->RandomInt( -1, 1 ), pNPC->m_iMaxHealth * 1.5 );
 			}
-#ifdef EZ2
+#ifdef EZ
 			// Drain the NPC
 			else
 			{

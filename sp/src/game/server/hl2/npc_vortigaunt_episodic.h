@@ -65,7 +65,7 @@ public:
 	virtual bool	InnateWeaponLOSCondition( const Vector &ownerPos, const Vector &targetPos, bool bSetConditions );
 	virtual int		MeleeAttack1Conditions( float flDot, float flDist );	// Dispel
 	virtual float	InnateRange1MinRange( void ) { return 0.0f; }
-#ifndef EZ2
+#ifndef EZ
 	virtual float	InnateRange1MaxRange( void ) { return sk_vortigaunt_zap_range.GetFloat()*12; }
 #else
 	virtual float	InnateRange1MaxRange( void ) { return MAX( sk_vortigaunt_zap_range.GetFloat()*12, m_flZapRange ); }
@@ -146,7 +146,7 @@ public:
 
 #ifdef MAPBASE
 	// Use the vortigaunts' default subtitle color (188,241,174)
-	bool	GetGameTextSpeechParams( hudtextparms_t &params ) { params.r1 = 188; params.g1 = 241; params.b1 = 174; return BaseClass::GetGameTextSpeechParams( params ); }
+	// bool	GetGameTextSpeechParams( hudtextparms_t &params ) { params.r1 = 188; params.g1 = 241; params.b1 = 174; return BaseClass::GetGameTextSpeechParams( params ); }
 	
 	const char*		GetGrenadeAttachment() { return "rightclaw"; }
 #endif
@@ -154,10 +154,8 @@ public:
 #ifdef EZ
 	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
 	virtual float GetNextDispelTime( void );
-#ifdef EZ2
-	virtual float GetNextHealthDrainTime( void );
-#endif
 
+	virtual float GetNextHealthDrainTime( void );
 
 	// Copied from BaseZombie for now
 	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
@@ -299,7 +297,7 @@ private:
 	bool			IsCarryingNPC( void ) const { return m_bCarryingNPC; }
 	bool			m_bCarryingNPC;
 
-#ifdef EZ2
+#ifdef EZ
 	float			m_flNextDrainHealthTime;
 #endif
 
@@ -307,7 +305,7 @@ private:
 	COutputEvent	m_OnFinishedChargingTarget;
 	COutputEvent	m_OnPlayerUse;
 
-#ifdef EZ2
+#ifdef EZ
 	class CVortigauntStandoffBehavior : public CAI_StandoffBehavior
 	{
 		typedef CAI_StandoffBehavior BaseClass;
@@ -316,7 +314,11 @@ private:
 		virtual int SelectScheduleUpdateWeapon();
 		virtual int SelectScheduleAttack()
 		{
+#ifdef EZ2
 			int result = GetOuterVort()->SelectRangeAttack2Schedule();
+#else
+			int result = SCHED_NONE; // No grenades for now - TODO - remove this preprocessor
+#endif
 			if ( result == SCHED_NONE )
 				result = BaseClass::SelectScheduleAttack();
 			return result;

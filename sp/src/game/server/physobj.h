@@ -133,7 +133,7 @@ private:
 	
 	COutputEvent	m_OnPushedPlayer;	
 
-#ifdef EZ2
+#ifdef EZ
 	CBaseEntity *	pOwner; // Currently, this field is not a saved field because it is only used by vortigaunts
 	bool			m_bDispel;
 public:

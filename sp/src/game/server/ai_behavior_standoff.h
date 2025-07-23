@@ -160,11 +160,17 @@ protected:
 	// Standoff overrides base cover activity translation
 	bool		CanTranslateCrouchActivity( void ) { return false; }
 
+#ifdef EZ2
 	// Don't do death poses while crouching
 	bool		ShouldPickADeathPose( void ) { return (GetPosture() != AIP_CROUCHING && GetPosture() != AIP_PEEKING) && BaseClass::ShouldPickADeathPose(); }
+#else
+	// Don't do death poses while crouching
+	bool		ShouldPickADeathPose(void) { return (GetPosture() != AIP_CROUCHING && GetPosture() != AIP_PEEKING); }
 #endif
 
-#ifdef EZ2
+#endif
+
+#ifdef EZ
 	const AI_StandoffParams_t &GetParams() { return m_params; }
 #endif
 	

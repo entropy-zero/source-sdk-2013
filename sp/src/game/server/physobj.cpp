@@ -1091,7 +1091,7 @@ int CPhysExplosion::DrawDebugTextOverlays( void )
 	return text_offset;
 }
 
-#ifdef EZ2
+#ifdef EZ
 //-----------------------------------------------------------------------------
 // Purpose: Create a physics explosion
 // Input: 
