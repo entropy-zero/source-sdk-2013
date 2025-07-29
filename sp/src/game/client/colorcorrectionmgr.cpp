@@ -157,6 +157,22 @@ void CColorCorrectionMgr::CommitColorCorrectionWeights()
 	}
 	m_colorCorrectionWeights.RemoveAll();
 }
+
+void CColorCorrectionMgr::LevelShutdownPreEntity()
+{
+	//Clean up the vectors when shuting down a level
+	//will keep dangling pointers inside of the vector causing a nullptr crash
+	if (g_ColorCorrectionVolumeList.Base())
+	{
+		g_ColorCorrectionVolumeList.Purge();
+	}
+
+	if (g_ColorCorrectionList.Base())
+	{
+		g_ColorCorrectionList.Purge();
+	}
+}
+
 #else
 void CColorCorrectionMgr::SetColorCorrectionWeight( ClientCCHandle_t h, float flWeight )
 {

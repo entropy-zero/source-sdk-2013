@@ -1031,7 +1031,7 @@ void CScriptSurface::DrawColoredTextRect( int font, int x, int y, int w, int h, 
 #define __base() this->_base
 
 #define BEGIN_SCRIPTDESC_VGUI( panelClass )\
-	BEGIN_SCRIPTDESC_NAMED( CScript_##panelClass##_Helper, IScriptVGUIObject, #panelClass, "" )\
+	BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( CScript_##panelClass##_Helper, IScriptVGUIObject, #panelClass, "", VGUI_SCRIPT_INSTANCE_HELPER )\
 		DEFINE_VGUI_SCRIPTFUNC_##panelClass()
 
 //
@@ -1235,9 +1235,9 @@ class CScriptVGUIScriptInstanceHelper : public IScriptInstanceHelper
 
 static CScriptVGUIScriptInstanceHelper g_ScriptVGUIScriptInstanceHelper;
 
-#define DEFINE_VGUI_SCRIPT_INSTANCE_HELPER() DEFINE_SCRIPT_INSTANCE_HELPER( &g_ScriptVGUIScriptInstanceHelper )
+#define VGUI_SCRIPT_INSTANCE_HELPER &g_ScriptVGUIScriptInstanceHelper
 #else
-#define DEFINE_VGUI_SCRIPT_INSTANCE_HELPER()
+#define VGUI_SCRIPT_INSTANCE_HELPER NULL
 #endif
 
 
@@ -1866,8 +1866,6 @@ public:
 };
 
 #define DEFINE_VGUI_SCRIPTFUNC_Panel()\
-	DEFINE_VGUI_SCRIPT_INSTANCE_HELPER()\
-\
 	DEFINE_SCRIPTFUNC( Destroy, "" )\
 	DEFINE_SCRIPTFUNC( MakeReadyForUse, "" )\
 	DEFINE_SCRIPTFUNC( GetName, "" )\
@@ -2612,9 +2610,17 @@ public:
 
 static inline void SetHScript( HSCRIPT &var, HSCRIPT val )
 {
-	if ( var && g_pScriptVM )
-		g_pScriptVM->ReleaseScript( var );
-	var = val;
+	if ( g_pScriptVM )
+	{
+		if ( var )
+			g_pScriptVM->ReleaseScript( var );
+
+		var = g_pScriptVM->CopyObject( val );
+	}
+	else
+	{
+		var = NULL;
+	}
 }
 
 #define CheckCallback(s)\

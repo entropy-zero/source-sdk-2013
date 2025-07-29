@@ -600,7 +600,7 @@ void CFastZombie::Precache( void )
 
 	BaseClass::Precache();
 #else
-	PrecacheModel( "models/zombie/fast.mdl" );
+	PrecacheModel( DefaultOrCustomModel( "models/zombie/fast.mdl" ) );
 
 #ifdef HL2_EPISODIC
 	PrecacheModel( "models/zombie/Fast_torso.mdl" );
@@ -1024,7 +1024,7 @@ void CFastZombie::SetZombieModel( void )
 	else
 	{
 #ifndef EZ
-		SetModel( "models/zombie/fast.mdl" );
+		SetModel( DefaultOrCustomModel( "models/zombie/fast.mdl" ) );
 #else
 		SetModel( STRING ( GetModelName() ) );
 #endif

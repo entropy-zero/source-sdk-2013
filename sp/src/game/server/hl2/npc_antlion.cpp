@@ -532,8 +532,8 @@ void CNPC_Antlion::Precache( void )
 		PrecacheModel( STRING(GetModelName()) );
 		PropBreakablePrecacheAll( GetModelName() );
 #else
-		PrecacheModel( ANTLION_WORKER_MODEL );
-		PropBreakablePrecacheAll( MAKE_STRING( ANTLION_WORKER_MODEL ) );
+		PrecacheModel( DefaultOrCustomModel( ANTLION_WORKER_MODEL ) );
+		PropBreakablePrecacheAll( MAKE_STRING( DefaultOrCustomModel( ANTLION_WORKE
 #endif
 		UTIL_PrecacheOther( "grenade_spit" );
 		PrecacheParticleSystem( "blood_impact_antlion_worker_01" );
@@ -575,8 +575,8 @@ void CNPC_Antlion::Precache( void )
 	}
 #else
 	{
-		PrecacheModel( ANTLION_MODEL );
-		PropBreakablePrecacheAll( MAKE_STRING( ANTLION_MODEL ) );
+		PrecacheModel( DefaultOrCustomModel( ANTLION_MODEL ) );
+		PropBreakablePrecacheAll( MAKE_STRING( DefaultOrCustomModel( ANTLION_MODEL ) ) );
 		PrecacheParticleSystem( "blood_impact_antlion_01" );
 		PrecacheParticleSystem( "AntlionGib" );
 	}
