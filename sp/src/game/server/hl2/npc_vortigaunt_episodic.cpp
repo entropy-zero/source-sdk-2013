@@ -264,6 +264,7 @@ m_nNumTokensToSpawn( 0 ),
 m_flAimDelay( 0.0f ),
 #ifdef EZ
 m_flZapRange( -1.0f ),
+m_flNextDrainHealthTime( 3.0f ),
 #endif
 m_eHealState( HEAL_STATE_NONE )
 {
@@ -787,6 +788,10 @@ int CNPC_Vortigaunt::RangeAttack2Conditions( float flDot, float flDist )
 	if ( m_eHealState == HEAL_STATE_NONE && m_hHealTarget == GetEnemy() )
 		m_hHealTarget = NULL;
 
+	// Must be allowed to do this behavior
+	if ( m_bArmorRechargeEnabled == false )
+		return false;
+
 	if ( GetEnemy() == NULL )
 		return COND_NONE;
 
@@ -799,7 +804,7 @@ int CNPC_Vortigaunt::RangeAttack2Conditions( float flDot, float flDist )
 		return COND_NONE;
 
 	// Don't use this attack unless a ranged attack is not an option
-	if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 && HasCondition( COND_CAN_RANGE_ATTACK1 ) && ( !IsInSquad() || !IsStrategySlotRangeOccupied( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) ) )
+	if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 && HasCondition( COND_CAN_RANGE_ATTACK1 ) && ( !IsInSquad() || !IsStrategySlotRangeOccupied( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) ) && GetNextAttack() < gpGlobals->curtime )
 		return COND_NONE;
 
 	// Don't use vampirism if we're at full health
@@ -821,6 +826,11 @@ int CNPC_Vortigaunt::RangeAttack2Conditions( float flDot, float flDist )
 	}
 
 	// Last but not least, do not attempt to use the drain attack if a squadmate is healing or draining
+	if ( IsInSquad() && IsStrategySlotRangeOccupied( SQUAD_SLOT_HEAL_PLAYER, SQUAD_SLOT_HEAL_PLAYER ) )
+	{
+		return COND_NONE;
+	}
+
 	if ( IsInSquad() && !OccupyStrategySlot( SQUAD_SLOT_HEAL_PLAYER ) )
 	{
 		return COND_NONE;
@@ -2161,6 +2171,10 @@ void CNPC_Vortigaunt::StartHealing( void )
 #ifdef EZ
 	// Reset cooldown on health drain attack
 	m_flNextDrainHealthTime = gpGlobals->curtime + GetNextHealthDrainTime();
+
+	// Don't let us shoot while we're healing
+	GetShotRegulator()->FireNoEarlierThan( gpGlobals->curtime + 2.0f );
+	SetNextAttack( gpGlobals->curtime + 2.0f );
 #endif
 
 	// We're now in the healing loop
@@ -2233,6 +2247,10 @@ void CNPC_Vortigaunt::MaintainHealSchedule( void )
 
 	// Don't let us shoot while we're healing
 	GetShotRegulator()->FireNoEarlierThan( gpGlobals->curtime + 0.5f );
+
+#ifdef EZ
+	SetNextAttack( gpGlobals->curtime + 0.5f );
+#endif
 
 	// If we're in the healing phase, heal our target (if able)
 	if ( m_eHealState == HEAL_STATE_HEALING )
@@ -3041,19 +3059,24 @@ void CNPC_Vortigaunt::GatherHealConditions( void )
 	ClearCondition( COND_VORTIGAUNT_HEAL_TARGET_BLOCKED );
 	ClearCondition( COND_VORTIGAUNT_HEAL_TARGET_BEHIND_US );
 
+#ifndef EZ
 	// We stop if there are enemies around
 	if ( m_bArmorRechargeEnabled == false ||
-#ifndef EZ
 		 HasCondition( COND_NEW_ENEMY ) || 
 		 HasCondition( COND_HEAR_DANGER ) ||
-		 HasCondition( COND_HEAVY_DAMAGE ) )
-#else
-		HasCondition( COND_HEAR_DANGER ))
-#endif
+		 HasCondition( COND_HEAVY_DAMAGE ) ||
+		 HasCondition( COND_HEAR_DANGER ))
 	{
 		ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
 		return;
 	}
+#else
+	if ( m_bArmorRechargeEnabled == false )
+		{
+			ClearCondition(COND_VORTIGAUNT_HEAL_VALID);
+			return;
+	}
+#endif
 
 	// Start by assuming that we'll succeed
 	SetCondition( COND_VORTIGAUNT_HEAL_VALID );
@@ -3120,29 +3143,35 @@ void CNPC_Vortigaunt::GatherHealConditions( void )
 		if ( DotProduct( vecToTarget, facingDir ) < VIEW_FIELD_NARROW )
 		{
 			SetCondition( COND_VORTIGAUNT_HEAL_TARGET_BEHIND_US );
+#ifndef EZ
 			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
+#endif
 		}
 
 		// Now ensure he's not blocked
 		if ( HealGestureHasLOS() == false )
 		{
 			SetCondition( COND_VORTIGAUNT_HEAL_TARGET_BLOCKED );
+#ifndef EZ
 			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
-		}
-
-#ifdef EZ
-		// Hostile vorts need more interrupt conditions for draining
-		if ( IRelationType( m_hHealTarget ) < D_LI && HasCondition( COND_CAN_MELEE_ATTACK1 ) )
-		{
-			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
-		}
-
-		// If we're draining and at full health, interrupt
-		if ( IRelationType( m_hHealTarget ) < D_LI && m_iHealth >= m_iMaxHealth )
-		{
-			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
-		}
 #endif
+		}
+
+//#ifdef EZ2
+//		// Hostile vorts need more interrupt conditions for draining
+//		if ( IRelationType( m_hHealTarget ) < D_LI && HasCondition( COND_CAN_MELEE_ATTACK1 ) )
+//		{
+//			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
+//		}
+//#endif
+//#ifdef EZ
+//		// If we're draining and at full health, interrupt
+//		if ( IRelationType( m_hHealTarget ) < D_LI && m_iHealth >= m_iMaxHealth )
+//		{
+//			DevMsg("%s::GatherHealConditions - Trying to drain at max health\n", GetDebugName());
+//			ClearCondition( COND_VORTIGAUNT_HEAL_VALID );
+//		}
+//#endif
 	}
 	else
 	{
