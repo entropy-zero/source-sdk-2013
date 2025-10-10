@@ -56,6 +56,13 @@ private:
 		int nHandSkin = -1;
 		int nHandBody = -1;
 
+#ifdef EZ2
+		// Leg
+		const char *pszLegModel = NULL;
+		int nLegSkin = -1;
+		int nLegBody = -1;
+#endif
+
 		// Responses
 		const char *pszResponseContexts = NULL;
 
@@ -70,6 +77,9 @@ private:
 		struct WeaponDataOverride_t
 		{
 			const char *pszVM = NULL;
+#ifdef EZ2
+			const char *pszDualVM = NULL;
+#endif
 			bool bUsesHands = false;
 			int nHandRig = 0;
 			float flVMFOV = 0.0f;
@@ -114,6 +124,11 @@ public:
 	DeclareProtagonistFunc( const char*,	HandModel, const CBaseCombatWeapon *pWeapon )
 	DeclareProtagonistFunc( int,			HandModelSkin, const CBaseCombatWeapon *pWeapon )
 	DeclareProtagonistFunc( int,			HandModelBody, const CBaseCombatWeapon *pWeapon )
+#ifdef EZ2
+	DeclareProtagonistFunc( const char*,	LegModel )
+	DeclareProtagonistFunc( int,			LegModelSkin )
+	DeclareProtagonistFunc( int,			LegModelBody )
+#endif
 	DeclareProtagonistFunc( bool,			ResponseContexts, char *pszContexts, int nContextsSize )
 	DeclareProtagonistFunc( int,			Team )
 #endif

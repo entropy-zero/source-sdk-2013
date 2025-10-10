@@ -860,6 +860,11 @@ const char *CBaseHLCombatWeapon::GetViewModel( int viewmodelindex ) const
 		return GetWpnData().szViewModelDual;
 #endif
 
+#ifdef EZ2
+	if (GetLeftHandGun() && GetWpnData().szViewModelDual[0])
+		return GetWpnData().szViewModelDual;
+#endif
+
 	return BaseClass::GetViewModel( viewmodelindex );
 }
 
