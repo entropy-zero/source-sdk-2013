@@ -6731,6 +6731,10 @@ private:
 	bool		m_bDoorsOpen;
 	float		m_flDoorTransitionTime;
 
+	// Crashing
+	string_t	m_iszBodyGibModel;
+	string_t	m_iszTailGibModel;
+
 	// Attachments
 	int			m_nGunnerAttachments[ ARBEIT_HELI_MAX_GUNNERS ];
 	int			m_nGunnerJumpAttachments[ ARBEIT_HELI_MAX_GUNNERS ];
@@ -6764,6 +6768,9 @@ BEGIN_DATADESC( CNPC_ArbeitHelicopter )
 
 	DEFINE_KEYFIELD( m_bDoorsOpen, FIELD_BOOLEAN,	"DoorsOpen" ),
 	DEFINE_FIELD( m_flDoorTransitionTime, FIELD_TIME ),
+
+	DEFINE_KEYFIELD( m_iszBodyGibModel, FIELD_STRING, "BodyGibModel" ),
+	DEFINE_KEYFIELD( m_iszTailGibModel, FIELD_STRING, "TailGibModel" ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "RespawnAllGunners", InputRespawnAllGunners ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "RespawnRightGunner", InputRespawnRightGunner ),
@@ -6856,7 +6863,13 @@ void CNPC_ArbeitHelicopter::Precache( void )
 
 	if (!m_bNonCombat)
 	{
-		PrecacheModel( "models/props_vehicles/arbeit_heli_stationary.mdl" );
+		if (m_iszBodyGibModel == NULL_STRING)
+			m_iszBodyGibModel = MAKE_STRING( "models/props_vehicles/arbeit_heli_stationary.mdl" ); // TODO: Unique crash model
+
+		PrecacheModel( STRING( m_iszBodyGibModel ) );
+
+		if (m_iszTailGibModel != NULL_STRING)
+			PrecacheModel( STRING( m_iszTailGibModel ) );
 	}
 
 	PrecacheScriptSound( "NPC_ArbeitHelicopter.RotorBlast" );
@@ -7065,9 +7078,9 @@ void CNPC_ArbeitHelicopter::PrescheduleThink( void )
 	RefreshGunnerState();
 
 	// TODO
-	if (m_hGunners[0])
+	if (m_hGunners[0] && m_hGunners[0]->IsAlive())
 		m_iSideFacing = GUNNER_RIGHT_ONLY;
-	else if (m_hGunners[1])
+	else if (m_hGunners[1] && m_hGunners[1]->IsAlive())
 		m_iSideFacing = GUNNER_LEFT_ONLY;
 	else
 		m_iSideFacing = GUNNER_NONE;
@@ -7125,7 +7138,7 @@ void CNPC_ArbeitHelicopter::Event_Killed( const CTakeDamageInfo &info )
 
 	if( GetCrashPoint() == NULL )
 	{
-		CBaseEntity *pCrashPoint = gEntList.FindEntityByClassname( NULL, "info_target_helicopter_crash" );
+		CBaseEntity *pCrashPoint = FindCrashPoint();
 		if( pCrashPoint != NULL )
 		{
 			m_hCrashPoint.Set( pCrashPoint );
@@ -7149,6 +7162,10 @@ void CNPC_ArbeitHelicopter::Event_Killed( const CTakeDamageInfo &info )
 			return;
 		}
 	}
+	else
+	{
+		assert_cast<CTargetHelicopterCrash*>( GetCrashPoint() )->HelicopterCrashedOnTarget( this );
+	}
 
 	// Kill our gunners
 	for (int i = 0; i < ARBEIT_HELI_MAX_GUNNERS; i++)
@@ -7162,12 +7179,71 @@ void CNPC_ArbeitHelicopter::Event_Killed( const CTakeDamageInfo &info )
 		m_hGunners[i] = NULL;
 	}
 
+	Vector vecChunkPos, vecChunkVelocity, vecForward, vecRight, vecUp;
+	QAngle vecChunkAngles;
+
+	int nBodyAttachment = LookupAttachment( "damage0" );
+	if (nBodyAttachment > 0)
+	{
+		//GetAttachment( nBodyAttachment, vecChunkPos, vecChunkAngles );
+
+		matrix3x4_t attachmentToWorld;
+		GetAttachment( nBodyAttachment, attachmentToWorld );
+		MatrixAngles( attachmentToWorld, vecChunkAngles, vecChunkPos );
+		MatrixGetColumn( attachmentToWorld, 0, vecForward );
+		//MatrixGetColumn( attachmentToWorld, 1, vecRight );
+		MatrixGetColumn( attachmentToWorld, 2, vecUp );
+	}
+	else
+	{
+		vecChunkPos = GetAbsOrigin();
+		vecChunkAngles = GetAbsAngles();
+		vecChunkVelocity = GetAbsVelocity();
+	}
+
+	// We need to get a right hand vector to toss the cockpit and tail pieces
+	// so their motion looks like a continuation of the tailspin animation
+	// that the chopper plays before crashing.
+	GetVectors( NULL, &vecRight, NULL );
+
 	// For now, create a charred stationary version of ourselves
-	// TODO: Unique crash model
-	CHelicopterChunk *pBodyChunk = CHelicopterChunk::CreateHelicopterChunk( GetAbsOrigin(), GetAbsAngles(), GetAbsVelocity(), "models/props_vehicles/arbeit_heli_stationary.mdl", CHUNK_BODY );
+	CHelicopterChunk *pBodyChunk = CHelicopterChunk::CreateHelicopterChunk( vecChunkPos, vecChunkAngles, vecChunkVelocity, STRING( m_iszBodyGibModel ), CHUNK_BODY );
 	if (pBodyChunk)
 	{
 		pBodyChunk->SetRenderColor( 64, 64, 64 );
+	}
+
+	CHelicopterChunk *pTailChunk = NULL;
+	if ( m_iszTailGibModel != NULL_STRING )
+	{
+		// Tail
+		vecChunkPos += (vecForward * -175.0f) + (vecUp * 75.0f);
+		pTailChunk = CHelicopterChunk::CreateHelicopterChunk( vecChunkPos, vecChunkAngles, vecChunkVelocity + (vecRight * -600.0f), STRING( m_iszTailGibModel ), CHUNK_TAIL );
+		if (pTailChunk)
+		{
+			pTailChunk->SetRenderColor( 64, 64, 64 );
+			pTailChunk->m_hMaster = pBodyChunk;
+		}
+	}
+
+	if (pBodyChunk && pTailChunk)
+	{
+		// Constrain all the pieces together loosely
+		IPhysicsObject *pBodyObject = pBodyChunk->VPhysicsGetObject();
+		Assert( pBodyObject );
+
+		IPhysicsObject *pTailObject = pTailChunk->VPhysicsGetObject();
+		Assert( pTailObject );
+
+		IPhysicsConstraintGroup *pGroup = NULL;
+	
+		// Create the constraint
+		constraint_fixedparams_t fixed;
+		fixed.Defaults();
+		fixed.InitWithCurrentObjectState( pBodyObject, pTailObject );
+		fixed.constraint.Defaults();
+
+		pBodyChunk->m_pTailConstraint = physenv->CreateFixedConstraint( pBodyObject, pTailObject, pGroup, fixed );
 	}
 
 	StopLoopingSounds();
@@ -7405,7 +7481,7 @@ void CNPC_ArbeitHelicopter::InputOpenDoors( inputdata_t &inputdata )
 {
 	m_bDoorsOpen = true;
 
-	if (m_flDoorTransitionTime != -1.0f && m_iGunnerSpawnState == GUNNER_NONE)
+	if (m_flDoorTransitionTime == -1.0f /*&& m_iGunnerSpawnState == GUNNER_NONE*/)
 	{
 		m_flDoorTransitionTime = gpGlobals->curtime + ARBEIT_HELI_DOOR_TIME;
 		SetContextThink( &CNPC_ArbeitHelicopter::OpenDoorsThink, gpGlobals->curtime + TICK_INTERVAL, g_pszGunnerSpawnContext );
@@ -7418,7 +7494,7 @@ void CNPC_ArbeitHelicopter::InputCloseDoors( inputdata_t &inputdata )
 {
 	m_bDoorsOpen = false;
 
-	if (m_flDoorTransitionTime != -1.0f && m_iGunnerSpawnState == GUNNER_NONE)
+	if (m_flDoorTransitionTime == -1.0f /*&& m_iGunnerSpawnState == GUNNER_NONE*/)
 	{
 		m_flDoorTransitionTime = gpGlobals->curtime + ARBEIT_HELI_DOOR_TIME;
 		SetContextThink( &CNPC_ArbeitHelicopter::CloseDoorsThink, gpGlobals->curtime + TICK_INTERVAL, g_pszGunnerSpawnContext );
