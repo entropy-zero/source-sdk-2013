@@ -741,11 +741,11 @@ private:
 	void SpotlightStartup();
 	void SpotlightShutdown();
 
-	CBaseEntity *FindCrashPoint();
-
 #ifdef EZ2
 protected:
 #endif
+
+	CBaseEntity *FindCrashPoint();
 
 	CBaseEntity *GetCrashPoint()	{ return m_hCrashPoint.Get(); }
 
