@@ -33,6 +33,10 @@
 #define	PISTOL_ACCURACY_SHOT_PENALTY_TIME		0.2f	// Applied amount of time each shot adds to the time we must recover from
 #define	PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME	1.5f	// Maximum penalty to deal out
 
+#ifdef EZ2
+#define SOUNDENT_VOLUME_PISTOL_SILENCED		750.0
+#endif
+
 ConVar	pistol_use_new_accuracy( "pistol_use_new_accuracy", "1" );
 
 //-----------------------------------------------------------------------------
@@ -405,7 +409,7 @@ void CWeaponPistol::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCh
 //-----------------------------------------------------------------------------
 void CWeaponPistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
 {
-	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy());
 
 	WeaponSound( SINGLE_NPC );
 
@@ -468,10 +472,11 @@ void CWeaponPistol::PrimaryAttack( void )
 	m_flLastAttackTime = gpGlobals->curtime;
 #ifdef EZ2
 	m_flSoonestPrimaryAttack = gpGlobals->curtime + (IsDualWielding() ? PISTOL_FASTEST_REFIRE_TIME * 0.5f : PISTOL_FASTEST_REFIRE_TIME);
+	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), IsSilenced() ? SOUNDENT_VOLUME_PISTOL_SILENCED : SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner() );
 #else
 	m_flSoonestPrimaryAttack = gpGlobals->curtime + PISTOL_FASTEST_REFIRE_TIME;
-#endif
 	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner() );
+#endif
 
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 
@@ -617,6 +622,82 @@ void CWeaponPistol::AddViewKick( void )
 }
 
 #ifdef EZ2
+ConVar sk_plr_dmg_pistol_silenced_scale( "sk_plr_dmg_pistol_silenced_scale", "0.75" );
+ConVar sk_npc_dmg_pistol_silenced_scale( "sk_npc_dmg_pistol_silenced_scale", "0.75" );
+
+//-----------------------------------------------------------------------------
+// Silenced variant of the pistol.
+// 
+// This could theoretically be a variable on CWeaponPistol like it is on the CS:S weapons,
+// but that would require a lot of changes (including a unique client class) to handle the different world model.
+//-----------------------------------------------------------------------------
+class CWeaponSilencedPistol : public CWeaponPistol
+{
+	//DECLARE_DATADESC();
+public:
+	DECLARE_CLASS( CWeaponSilencedPistol, CWeaponPistol );
+	DECLARE_SERVERCLASS();
+
+	void	FireBullets( const FireBulletsInfo_t &info );
+	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+
+	virtual bool IsSilenced() const { return true; }
+};
+
+IMPLEMENT_SERVERCLASS_ST( CWeaponSilencedPistol, DT_WeaponSilencedPistol )
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_pistol_silenced, CWeaponSilencedPistol );
+//PRECACHE_WEAPON_REGISTER( weapon_pistol_silenced ); // No need to always precache
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+//-----------------------------------------------------------------------------
+void CWeaponSilencedPistol::FireBullets( const FireBulletsInfo_t &info )
+{
+	FireBulletsInfo_t *newInfo = const_cast<FireBulletsInfo_t *>(&info);
+
+	if ( newInfo )
+	{
+		newInfo->m_flDamage = ((float)GetAmmoDef()->PlrDamage( info.m_iAmmoType )) * sk_plr_dmg_pistol_silenced_scale.GetFloat();
+		newInfo->m_nFlags |= FIRE_BULLETS_NO_AUTO_GIB_TYPE;
+
+		BaseClass::FireBullets( *newInfo );
+		return;
+	}
+
+	BaseClass::FireBullets( info );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponSilencedPistol::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
+{
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL_SILENCED, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy());
+
+	WeaponSound( SINGLE_NPC );
+
+	FireBulletsInfo_t info;
+	info.m_iShots = 1;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_PRECALCULATED;
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 2;
+
+	info.m_flDamage = ((float)GetAmmoDef()->NPCDamage( info.m_iAmmoType )) * sk_npc_dmg_pistol_silenced_scale.GetFloat();
+	info.m_nFlags |= FIRE_BULLETS_NO_AUTO_GIB_TYPE;
+
+	pOperator->FireBullets( info );
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = m_iClip1 - 1;
+}
+
+//-----------------------------------------------------------------------------
+
 #define	PULSE_PISTOL_FASTEST_REFIRE_TIME		0.4f
 #define	PULSE_PISTOL_FASTEST_DRY_REFIRE_TIME	1.5f
 #define	PULSE_PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME	10.0f
