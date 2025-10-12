@@ -167,6 +167,8 @@ private:
 
 #ifdef EZ2
 	virtual bool FPlayerCanRespawn( CBasePlayer *pPlayer );
+
+	virtual float FlPlayerFallDamage( CBasePlayer *pPlayer );
 #endif
 
 #endif

@@ -2600,6 +2600,21 @@ bool CHalfLife2::FPlayerCanRespawn( CBasePlayer *pPlayer )
 {
 	return gpGlobals->curtime - pPlayer->GetDeathTime() > sv_player_death_time.GetFloat();
 }
+
+float CHalfLife2::FlPlayerFallDamage( CBasePlayer *pPlayer )
+{
+	float flFallDamage = BaseClass::FlPlayerFallDamage( pPlayer );
+	if ( flFallDamage > 0 )
+	{
+		CHL2_Player *pHL2Player = assert_cast<CHL2_Player *>(pPlayer);
+		if ( pHL2Player )
+		{
+			pHL2Player->ModifyFallDamage( flFallDamage );
+		}
+	}
+
+	return flFallDamage;
+}
 #endif
 
 #endif//CLIENT_DLL

@@ -173,6 +173,14 @@ ConVar sv_player_kick_default_modelname( "sv_player_kick_default_modelname", "mo
 ConVar sv_pulsepistol_battery_pickup( "sv_pulsepistol_battery_pickup", "1", FCVAR_REPLICATED, "Picks up extra pulse pistols as armor batteries" );
 ConVar sv_pulsepistol_battery_pickup_amount( "sv_pulsepistol_battery_pickup_amount", "0.4", FCVAR_REPLICATED, "What percentage of sk_battery should be provided by extra pulse pistols" );
 ConVar sv_zoom_always_toggles( "sv_zoom_always_toggles", "0", FCVAR_ARCHIVE, "Zoom key toggles zooming" );
+
+ConVar player_longjump_debug( "player_longjump_debug", "0", FCVAR_NONE );
+ConVar player_longjump_max_wait( "player_longjump_max_wait", "1.5", FCVAR_NONE );
+ConVar player_longjump_cooldown_time( "player_longjump_cooldown_time", "0.5", FCVAR_NONE );
+ConVar player_longjump_speed( "player_longjump_speed", "512", FCVAR_NONE );
+ConVar player_longjump_min_height_frac( "player_longjump_min_height_frac", "0.5", FCVAR_NONE );
+ConVar player_longjump_dir_mult( "player_longjump_dir_mult", "0.4", FCVAR_NONE );
+ConVar player_longjump_fall_dmg_floor( "player_longjump_fall_dmg_floor", "35", FCVAR_NONE );
 #else
 ConVar sv_command_viewmodel_anims("sv_command_viewmodel_anims", "0", FCVAR_REPLICATED);
 ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "1", FCVAR_REPLICATED);
@@ -354,6 +362,10 @@ public:
 
 #ifdef EZ2
 	void InputSetLegModel( inputdata_t &inputdata );
+
+	void InputEnableLongJump( inputdata_t &inputdata );
+	void InputDisableLongJump( inputdata_t &inputdata );
+	void InputSetLongJumpSound( inputdata_t &inputdata );
 #endif
 
 	void Activate ( void );
@@ -636,6 +648,18 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_FIELD( m_LegModelName, FIELD_STRING ),
 	DEFINE_FIELD( m_nLegSkin, FIELD_INTEGER ),
 	DEFINE_FIELD( m_nLegBody, FIELD_INTEGER ),
+
+	DEFINE_KEYFIELD( m_bLongJumpEnabled, FIELD_BOOLEAN, "LongJumpEnabled" ),
+	DEFINE_KEYFIELD( m_iszLongJumpSound, FIELD_STRING, "LongJumpSound" ),
+	DEFINE_FIELD( m_flMaxLongJumpTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flLastLongJumpTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flNextLongJumpTime, FIELD_TIME ),
+	DEFINE_FIELD( m_bInLongJump, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_bWasOnGround, FIELD_BOOLEAN ),
+
+	DEFINE_FIELD( m_flFallDamageScale, FIELD_FLOAT ),
+
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFallDamageScale", InputSetFallDamageScale ),
 #endif
 
 	DEFINE_FIELD( m_flTimeIgnoreFallDamage, FIELD_TIME ),
@@ -744,6 +768,14 @@ BEGIN_ENT_SCRIPTDESC( CHL2_Player, CBasePlayer, "The HL2 player entity." )
 	DEFINE_SCRIPTFUNC( AddAnimStateLayer, "Adds a custom sequence index as a misc. layer for the singleplayer anim state, wtih parameters for blending in/out, setting the playback rate, holding the animation at the end, and only playing when the player is still." )
 #endif
 
+#ifdef EZ2
+	DEFINE_SCRIPTFUNC( IsLongJumpEnabled, "Returns true if long jump is enabled." )
+	DEFINE_SCRIPTFUNC( SetLongJumpEnabled, "Sets whether long jump is enabled." )
+	DEFINE_SCRIPTFUNC_NAMED( SetLongJumpSoundAsCStr, "SetLongJumpSound", "Sets the long jump sound." )
+	DEFINE_SCRIPTFUNC( IsInLongJump, "Returns true if the player is currently in a long jump." )
+	DEFINE_SCRIPTFUNC( GetLastLongJumpTime, "Gets the player's last long jump time." )
+#endif
+
 END_SCRIPTDESC();
 #endif
 
@@ -758,6 +790,11 @@ CHL2_Player::CHL2_Player()
 
 #ifdef MAPBASE
 	m_nProtagonistIndex = -1;
+#endif
+
+#ifdef EZ2
+	m_iszLongJumpSound = MAKE_STRING( "NPC_Assassin.Jump" );
+	m_flFallDamageScale = 1.0f;
 #endif
 }
 
@@ -835,6 +872,12 @@ void CHL2_Player::Precache( void )
 	}
 
 	PrecacheModel( STRING( m_LegModelName ) );
+
+	if ( m_bLongJumpEnabled )
+	{
+		PrecacheScriptSound( "EZ2Player.LongJump_HardLanding" );
+		PrecacheScriptSound( STRING( m_iszLongJumpSound ) );
+	}
 
 	// Interactions
 	if ( g_interactionBadCopKick == 0 )
@@ -1585,6 +1628,110 @@ void CHL2_Player::PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper)
 	}
 
 	//Msg("Player time: [ACTIVE: %f]\t[IDLE: %f]\n", m_flMoveTime, m_flIdleTime );
+
+#ifdef EZ2
+	if ( IsLongJumpEnabled() )
+	{
+		// UNDONE: Crouch-based
+		//if (ucmd->buttons & IN.DUCK && m_afButtonPressed & IN_JUMP)
+		if (m_afButtonPressed & IN_JUMP)
+		{
+			if (m_flMaxLongJumpTime > gpGlobals->curtime && m_flNextLongJumpTime < gpGlobals->curtime && !m_bInLongJump && !m_bWasOnGround)
+			{
+				// Make sure there's enough room
+				Vector vecCurVelocity = GetAbsVelocity();
+			
+				Vector vecCur2DVelocity = vecCurVelocity;
+				vecCur2DVelocity.z = 0;
+				Vector vecTraceOrigin = GetAbsOrigin() + vecCur2DVelocity;
+			
+				// Trace from the space in front of us as well as the space we're in now, and pick the largest one
+				trace_t tr;
+				UTIL_TraceLine( vecTraceOrigin, vecTraceOrigin + Vector(0,0,player_longjump_speed.GetFloat()), MASK_PLAYERSOLID, this, COLLISION_GROUP_NONE, &tr );
+				float frac = tr.fraction;
+				if (frac < 1.0 || tr.startsolid)
+				{
+					trace_t tr2;
+					UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + Vector( 0, 0, player_longjump_speed.GetFloat() ), MASK_PLAYERSOLID, this, COLLISION_GROUP_NONE, &tr2 );
+					if (tr2.fraction > frac || tr.startsolid)
+						frac = tr2.fraction;
+					
+					if (player_longjump_debug.GetBool())
+					{
+						if (tr.startsolid)
+							Msg( "Forward trace starts solid\n" );
+
+						NDebugOverlay::VertArrow( tr2.startpos, tr2.endpos, 16.0, 0, 255, 255, 255, true, 5.0 );
+					}
+				}
+				//else
+				{
+					if (player_longjump_debug.GetBool())
+					{
+						NDebugOverlay::HorzArrow( GetAbsOrigin(), vecTraceOrigin, 8.0, 255, 255, 255, 255, true, 5.0 );
+						NDebugOverlay::VertArrow( tr.startpos, tr.endpos, 16.0, 0, 255, 0, 255, true, 5.0 );
+					}
+				}			
+			
+				if (frac < 1.0)
+				{
+					frac *= (2.5 - frac);
+				
+					if (frac > 1.0)
+						frac = 1.0;
+				}
+			
+				// Always allow jumping if we're moving in a certain direction
+				if (frac > player_longjump_min_height_frac.GetFloat() || (frac > 0.1 && (ucmd->forwardmove > 0 || ucmd->sidemove > 0)))
+				{
+					// Do a boost
+					Vector vecAddedVelocity( 0, 0, player_longjump_speed.GetFloat() * frac );
+
+					Vector forward, right;
+					GetVectors( &forward, &right, NULL );
+				
+					// Also add movement
+					if (ucmd->forwardmove > 0)
+					{
+						forward.z = 0;
+						vecAddedVelocity += (forward * ucmd->forwardmove * player_longjump_dir_mult.GetFloat());
+					}
+				
+					if (ucmd->sidemove > 0)
+					{
+						vecAddedVelocity += (right * ucmd->sidemove * player_longjump_dir_mult.GetFloat());
+					}
+
+					if (player_longjump_debug.GetBool())
+						Msg( "BOOST!!! (frac %f, added velocity %.2f %.2f %.2f)\n", frac, vecAddedVelocity.x, vecAddedVelocity.y, vecAddedVelocity.z );
+
+					vecCurVelocity.x += vecAddedVelocity.x;
+					vecCurVelocity.y += vecAddedVelocity.y;
+					vecCurVelocity.z = vecAddedVelocity.z;
+
+					SetAbsVelocity( vecCurVelocity );
+
+					EmitSound( STRING( m_iszLongJumpSound ) );
+				
+					m_flNextLongJumpTime = gpGlobals->curtime + player_longjump_cooldown_time.GetFloat();
+					m_flLastLongJumpTime = gpGlobals->curtime;
+				
+					m_bInLongJump = true;
+				}
+			}
+		
+			if (m_bWasOnGround)
+				m_flMaxLongJumpTime = gpGlobals->curtime + player_longjump_max_wait.GetFloat();
+		}
+	
+		m_bWasOnGround = (GetFlags() & FL_ONGROUND || GetWaterLevel() == WL_Waist);
+	
+		if (m_bWasOnGround && m_bInLongJump)
+		{
+			m_bInLongJump = false;
+		}
+	}
+#endif
 
 	BaseClass::PlayerRunCommand( ucmd, moveHelper );
 }
@@ -3129,6 +3276,16 @@ void CHL2_Player::InputIgnoreFallDamageWithoutReset( inputdata_t &inputdata )
 	m_flTimeIgnoreFallDamage = gpGlobals->curtime + timeToIgnore;
 	m_bIgnoreFallDamageResetAfterImpact = false;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CHL2_Player::InputSetFallDamageScale( inputdata_t &inputdata )
+{
+	m_flFallDamageScale = inputdata.value.Float();
+}
+#endif
 
 #ifdef MAPBASE
 //-----------------------------------------------------------------------------
@@ -5502,6 +5659,13 @@ void CHL2_Player::ModifyOrAppendPlayerCriteria( AI_CriteriaSet& set )
 	{
 		set.AppendCriteria( "gordon_precriminal", "0" );
 	}
+
+#ifdef EZ2
+	if ( IsLongJumpEnabled() )
+	{
+		set.AppendCriteria( "player_long_jumping", m_bInLongJump ? "1" : "0" );
+	}
+#endif
 }
 
 #ifdef MAPBASE
@@ -5642,6 +5806,10 @@ BEGIN_DATADESC( CLogicPlayerProxy )
 
 #ifdef EZ2
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetLegModel", InputSetLegModel ),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "EnableLongJump", InputEnableLongJump ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "DisableLongJump", InputDisableLongJump ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetLongJumpSound", InputSetLongJumpSound ),
 #endif
 
 	DEFINE_FIELD( m_hPlayer, FIELD_EHANDLE ),
@@ -5912,6 +6080,44 @@ void CHL2_Player::ApplyFlashlightColorCorrection( bool bColorCorrectionEnabled )
 void CHL2_Player::SetLegModel( string_t iszModel )
 {
 	m_LegModelName = iszModel;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CHL2_Player::SetLongJumpEnabled( bool bEnabled )
+{
+	m_bLongJumpEnabled = bEnabled;
+
+	if ( m_bLongJumpEnabled )
+	{
+		PrecacheScriptSound( "EZ2Player.LongJump_HardLanding" );
+		PrecacheScriptSound( STRING( m_iszLongJumpSound ) );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CHL2_Player::ModifyFallDamage( float &flFallDamage )
+{
+	if ( m_flFallDamageScale != 1.0 )
+		flFallDamage *= m_flFallDamageScale;
+
+	if ( IsLongJumpEnabled() )
+	{
+		flFallDamage -= player_longjump_fall_dmg_floor.GetFloat();
+		if ( flFallDamage < 1.0f ) // Need to clamp at 0 or else fall damage sound plays with no fall damage
+			flFallDamage = 0;
+
+		if ( flFallDamage == 0 && GetGroundEntity() )
+		{
+			// Emit a hard landing sound to indicate the player would've taken fall damage.
+			// This isn't the best way to do this since CHalfLife2::FlPlayerFallDamage() (which calls this function) is technically only meant to get the fall damage value,
+			// but it's only used by CMoveHelperServer::PlayerFallingDamage by default. The ground entity check is an extra safeguard
+			EmitSound( "EZ2Player.LongJump_HardLanding" );
+		}
+	}
 }
 #endif
 
@@ -6202,5 +6408,37 @@ void CLogicPlayerProxy::InputSetLegModel( inputdata_t &inputdata )
 
 	CHL2_Player *pPlayer = dynamic_cast<CHL2_Player*>(m_hPlayer.Get());
 	pPlayer->SetLegModel( iszModel );
+}
+
+void CLogicPlayerProxy::InputEnableLongJump( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetLongJumpEnabled( true );
+}
+
+void CLogicPlayerProxy::InputDisableLongJump( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetLongJumpEnabled( false );
+}
+
+void CLogicPlayerProxy::InputSetLongJumpSound( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+
+	string_t iszSound = inputdata.value.StringID();
+
+	if (iszSound != NULL_STRING)
+		PrecacheScriptSound( STRING( iszSound ) );
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetLongJumpSound( iszSound );
 }
 #endif

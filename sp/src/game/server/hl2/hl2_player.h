@@ -196,6 +196,15 @@ public:
 
 	virtual void SetLegModel( string_t iszModel );
 
+	bool		IsLongJumpEnabled() const { return m_bLongJumpEnabled; }
+	void		SetLongJumpEnabled( bool bEnabled );
+	void		SetLongJumpSound( string_t iszSound ) { m_iszLongJumpSound = iszSound; }
+	void		SetLongJumpSoundAsCStr( const char *pszSound ) { m_iszLongJumpSound = AllocPooledString( pszSound ); }
+	bool		IsInLongJump() const { return m_bInLongJump; }
+	float		GetLastLongJumpTime() const { return m_flLastLongJumpTime; }
+
+	void		ModifyFallDamage( float &flFallDamage );
+
 	void		OnDropSatchel( CBaseEntity *pSatchel );
 	void		OnSetupTripmine( CBaseEntity *pTripmine );
 	void		OnSetupDetonatable( CBaseEntity *pDetonatable );
@@ -277,6 +286,9 @@ public:
 	virtual bool		PassesDamageFilter( const CTakeDamageInfo &info );
 	void				InputIgnoreFallDamage( inputdata_t &inputdata );
 	void				InputIgnoreFallDamageWithoutReset( inputdata_t &inputdata );
+#ifdef EZ2
+	void				InputSetFallDamageScale( inputdata_t &inputdata );
+#endif
 	void				InputEnableFlashlight( inputdata_t &inputdata );
 	void				InputDisableFlashlight( inputdata_t &inputdata );
 
@@ -495,6 +507,17 @@ private:
 	string_t		    m_LegModelName;
 	int					m_nLegSkin;
 	int					m_nLegBody;
+
+	// Long Jump
+	bool				m_bLongJumpEnabled;
+	string_t			m_iszLongJumpSound;
+	float				m_flMaxLongJumpTime;		// When this time passes after jumping, the player can no longer long jump
+	float				m_flLastLongJumpTime;
+	float				m_flNextLongJumpTime;
+	bool				m_bInLongJump;
+	bool				m_bWasOnGround;
+
+	float				m_flFallDamageScale;
 #endif
 
 	// Aiming heuristics code
