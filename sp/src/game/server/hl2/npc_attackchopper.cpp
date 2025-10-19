@@ -42,6 +42,7 @@
 #include "mapentities.h"
 #include "ai_pathfinder.h"
 #include "ai_route.h"
+#include "ez2/ai_stealth_senses.h"
 #endif
 
 #ifdef HL2_EPISODIC
@@ -507,6 +508,38 @@ private:
 		GUN_STATE_CHARGING,
 		GUN_STATE_FIRING,
 	};
+
+#ifdef EZ2
+	//-----------------------------------------------------------------------------
+	// Helicopter stealth sense type.
+	//-----------------------------------------------------------------------------
+	class CAI_HeliStealthSenses : public CAI_StealthSenses
+	{
+	public:
+		DECLARE_CLASS( CAI_HeliStealthSenses, CAI_StealthSenses );
+
+		CAI_HeliStealthSenses( CAI_BaseNPC *pOuter )
+			: CAI_StealthSenses( pOuter )
+		{
+		}
+
+		//-----------------------------------------------
+
+		virtual int		GetAlertSourceType() const { return ALERT_SOURCE_TYPE_HELICOPTER; }
+
+		virtual void GetStealthLookVectors( Vector &vecPos, Vector &vecDir )
+		{
+			// Use the spotlight as eyes
+			Vector vecForward;
+			Vector vecOrigin;
+			GetOuter()->GetAttachment( static_cast<CNPC_AttackHelicopter*>(GetOuter())->m_nSpotlightAttachment, vecPos, &vecDir );
+		}
+	};
+
+	friend class CAI_HeliStealthSenses;
+
+	virtual CAI_StealthSenses *CreateStealthSenses() { return new CAI_HeliStealthSenses( this ); }
+#endif
 
 	// Gets the max speed of the helicopter
 	virtual float GetMaxSpeed();

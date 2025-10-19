@@ -33,6 +33,8 @@ public:
 	C_EZ2_Player();
 	~C_EZ2_Player();
 
+	void Precache();
+
 	void OnDataChanged( DataUpdateType_t updateType );
 
 	void BonusChallengeUpdate( );

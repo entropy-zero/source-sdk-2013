@@ -17,6 +17,9 @@
 #include "entitylist.h"
 #include "ai_hint.h"
 #include "IEffects.h"
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -199,6 +202,13 @@ void CAI_BaseNPC::SetSquad( CAI_Squad *pSquad )
 		VacateStrategySlot();
 	}
 
+#ifdef EZ2
+	if ( g_hStealthManager && m_pSquad && IsAlive() )
+	{
+		g_hStealthManager->RemoveSquadMemberInfo( m_pSquad, this );
+	}
+#endif
+
 	m_pSquad = pSquad; 	
 }
 
@@ -208,6 +218,13 @@ void CAI_BaseNPC::RemoveFromSquad()
 {
 	if ( m_pSquad )
 	{
+#ifdef EZ2
+		if ( g_hStealthManager && IsAlive() )
+		{
+			g_hStealthManager->RemoveSquadMemberInfo( m_pSquad, this );
+		}
+#endif
+
 		m_pSquad->RemoveFromSquad( this, false );
 		m_pSquad = NULL;
 	}

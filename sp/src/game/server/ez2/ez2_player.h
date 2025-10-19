@@ -21,6 +21,7 @@
 
 class CAI_PlayerNPCDummy;
 class CEZ2_Player;
+class CTriggerStealthArea;
 struct SightEvent_t;
 
 #define GLOBAL_PLAYER_ORDER_SURRENDER "player_ordered_surrenders"
@@ -150,6 +151,7 @@ public:
 	
 	bool			CanAutoSwitchToNextBestWeapon( CBaseCombatWeapon *pWeapon );
 
+	void			Touch( CBaseEntity *pOther );
 	void			OnUseEntity( CBaseEntity *pEntity );
 	bool			HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
 
@@ -231,6 +233,14 @@ public:
 	void				SetSpeechFilter( CAI_SpeechFilter *pFilter )	{ m_hSpeechFilter = pFilter; }
 	CAI_SpeechFilter	*GetSpeechFilter( void )						{ return m_hSpeechFilter; }
 
+	// Stealth system
+	void				AlertLevelUpdate( CAI_BaseNPC *pNPC, float flLevel, int iType );
+	void				AlertLevelEngageEnemy( CAI_BaseNPC *pNPC );
+	bool				ShouldMoveDoorStealthily( CBasePropDoor *pDoor );
+	void				OnEnterStealthArea( CTriggerStealthArea *pArea );
+	void				OnExitStealthArea( CTriggerStealthArea *pArea );
+	float				GetTimeEnteredStealthArea() { return m_flTimeEnteredStealthArea; }
+
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();
 	void				RemoveNPCComponent();
@@ -299,6 +309,9 @@ private:
 
 	// For speech purposes
 	Vector			m_vecLastCommandGoal;
+
+	// Stealth system
+	float			m_flTimeEnteredStealthArea;
 
 	CHandle<CAI_PlayerNPCDummy> m_hNPCComponent;
 	float			m_flNextSpeechTime;

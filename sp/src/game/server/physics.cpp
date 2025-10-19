@@ -53,6 +53,12 @@
 void PortalPhysFrame( float deltaTime ); //small wrapper for PhysFrame that simulates all 3 environments at once
 #endif
 
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#include "ez2/ai_stealth_senses.h"
+#include "soundent.h"
+#endif
+
 void PrecachePhysicsSounds( void );
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -2582,6 +2588,18 @@ bool PhysGetTriggerEvent( triggerevent_t *pEvent, CBaseEntity *pTriggerEntity )
 void PhysicsImpactSound( CBaseEntity *pEntity, IPhysicsObject *pPhysObject, int channel, int surfaceProps, int surfacePropsHit, float volume, float impactSpeed )
 {
 	physicssound::AddImpactSound( g_PhysicsHook.m_impactSounds, pEntity, pEntity->entindex(), channel, pPhysObject, surfaceProps, surfacePropsHit, volume, impactSpeed );
+
+#ifdef EZ2
+	if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) && volume > 0.5f )
+	{
+		// Make a sound on impact. Needs to be slightly above so that it's considered visible
+		int iSoundVol = 500 * volume * ( impactSpeed / 480.0f );
+		if ( iSoundVol > 25 )
+		{
+			InsertStealthSound( SOUND_WORLD, pEntity->WorldSpaceCenter(), iSoundVol, 0.5f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_IMPACT, NULL );
+		}
+	}
+#endif
 }
 
 void PhysCollisionSound( CBaseEntity *pEntity, IPhysicsObject *pPhysObject, int channel, int surfaceProps, int surfacePropsHit, float deltaTime, float speed )
@@ -2602,6 +2620,22 @@ void PhysBreakSound( CBaseEntity *pEntity, IPhysicsObject *pPhysObject, Vector v
 		return;
 
 	physicssound::AddBreakSound( g_PhysicsHook.m_breakSounds, vecOrigin, pPhysObject->GetMaterialIndex() );
+
+#ifdef EZ2
+	if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) )
+	{
+		// Make a sound when we break
+		int nSoundChannel = SOUNDENT_CHANNEL_STEALTH_PROP_BREAK;
+		int iVolume = 800;
+		if ( pPhysObject && pPhysObject->GetMass() < 32 )
+		{
+			nSoundChannel = SOUNDENT_CHANNEL_STEALTH_PROP_SMALL_BREAK;
+			iVolume = 500;
+		}
+
+		InsertStealthSound( SOUND_COMBAT, pEntity->WorldSpaceCenter(), iVolume, 2.0f, NULL, nSoundChannel, NULL );
+	}
+#endif
 }
 
 ConVar collision_shake_amp("collision_shake_amp", "0.2");

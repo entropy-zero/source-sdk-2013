@@ -171,6 +171,28 @@
 
 // Remarkable!
 #define TLK_REMARK "TLK_REMARK"
+
+// Stealth
+#define TLK_HEAR					"TLK_HEAR"
+#define TLK_SEE_SUSPICIOUS			"TLK_SEE_SUSPICIOUS"
+#define TLK_SEE_ALLY				"TLK_SEE_ALLY"
+#define TLK_FOUND_BODY				"TLK_FOUND_BODY"
+#define TLK_FOUND_PROP				"TLK_FOUND_PROP"
+#define TLK_FOUND_DOOR				"TLK_FOUND_DOOR"
+#define TLK_INSPECT_OBJECT			"TLK_INSPECT_OBJECT"	// Have walked up to a suspicious object
+#define TLK_ATTACKED				"TLK_ATTACKED"			// Someone attacked me but I don't know who
+
+#define TLK_ALARM_RAISE				"TLK_ALARM_RAISE"		// Moving to raise the alarm
+#define TLK_ALARM_DISABLED			"TLK_ALARM_DISABLED"	// Found the alarm disabled
+
+#define TLK_SQUAD_CHECK				"TLK_SQUAD_CHECK"
+#define TLK_SQUAD_REPORT			"TLK_SQUAD_REPORT"
+#define TLK_SQUAD_CALL				"TLK_SQUAD_CALL"
+#define TLK_SQUAD_ORDER				"TLK_SQUAD_ORDER"
+#define TLK_SEARCH_AREA_START		"TLK_SEARCH_AREA_START"
+#define TLK_SEARCH_AREA_FINISH		"TLK_SEARCH_AREA_FINISH"
+#define TLK_SWEEP_START				"TLK_SWEEP_START"
+#define TLK_SWEEP_FINISH			"TLK_SWEEP_FINISH"
 #endif
 
 //-----------------------------------------------------------------------------
@@ -510,6 +532,8 @@ public:
 
 #ifdef EZ2
 	void			InputAnswerConcept( inputdata_t &inputdata );
+
+	bool			SpeakStealthConcept( const AIConcept_t &concept, AI_CriteriaSet *modifiers = NULL, bool bForce = false );
 #endif
 	
 	void			AnswerQuestion( CAI_PlayerAlly *pQuestioner, int iQARandomNum, bool bAnsweringHello );

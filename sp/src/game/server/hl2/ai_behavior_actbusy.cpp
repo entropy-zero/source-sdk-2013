@@ -1769,6 +1769,13 @@ bool CAI_ActBusyBehavior::IsHuskActBusy()
 
 	return false;
 }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CAI_ActBusyBehavior::IsStartBusying()
+{
+	return IsCurSchedule( SCHED_ACTBUSY_START_BUSYING );
+}
 #endif
 
 //-----------------------------------------------------------------------------

@@ -110,6 +110,12 @@
 #include "items.h"
 #endif
 
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#include "ez2/ai_stealth_manager.h"
+#include "ez2/ai_stealth_utils.h"
+#endif
+
 #include "env_debughistory.h"
 #include "collisionutils.h"
 
@@ -241,6 +247,10 @@ ConVar	ai_onchangeweapon_start_shooting( "ai_onchangeweapon_start_shooting",
 	"0",
 #endif
 	FCVAR_NONE, "Set whether or not NPCs can shoot immediately after changing to a new weapon." );
+
+#ifdef EZ2
+ConVar	ai_stealth_force( "ai_stealth_force", "0", FCVAR_CHEAT, "Forces stealth senses to be enabled for all NPCs." );
+#endif
 
 //-----------------------------------------------------------------------------
 //
@@ -1304,6 +1314,13 @@ int CAI_BaseNPC::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 	// If the attacker was an NPC or client update my position memory
 	if ( info.GetAttacker()->GetFlags() & (FL_NPC | FL_CLIENT) )
 	{
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			GetStealthSenses()->OnDamagedByAttacker( info );
+		}
+#endif
+
 		// ------------------------------------------------------------------
 		//				DO NOT CHANGE THIS CODE W/O CONSULTING
 		// Only update information about my attacker I don't see my attacker
@@ -1493,6 +1510,10 @@ void CAI_BaseNPC::NotifyFriendsOfDamage( CBaseEntity *pAttackerEntity )
 				{
 					if ( (originNpc.AsVector2D() - origin.AsVector2D()).LengthSqr() < NEAR_XY_SQ )
 					{
+#ifdef EZ2
+						if ( pNpc->IsUsingStealthSenses() && !pNpc->FVisible( this ) )
+							continue;
+#endif
 						//Tony; add a check to make sure this doesn't get called if the npc isn't in a squad
 						if ( ( pNpc->GetSquad() == GetSquad() && !( pNpc->GetSquad() == NULL || GetSquad() == NULL ) ) || IRelationType( pNpc ) == D_LI )
 							pNpc->OnFriendDamaged( this, pAttacker );
@@ -2761,6 +2782,20 @@ bool CAI_BaseNPC::QueryHearSound( CSound *pSound )
 	}
 #endif
 
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		if ( !GetStealthSenses()->QueryHearSound( pSound ) )
+			return false;
+	}
+	else
+	{
+		// Ignore stealth sounds if we're not using stealth senses
+		if ( CAI_StealthSenses::IsStealthSound( pSound ) )
+			return false;
+	}
+#endif
+
 	return true;
 }
 
@@ -3002,6 +3037,13 @@ void CAI_BaseNPC::OnListened()
 		g_Hook_OnListened.Call( m_ScriptScope, &functionReturn, NULL );
 	}
 #endif
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		GetStealthSenses()->OnListened();
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -3215,6 +3257,25 @@ bool CAI_BaseNPC::SoundIsVisible( CSound *pSound )
 
 		return false;
 	}
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: If true, this NPC will investigate sounds instead of facing them.
+//-----------------------------------------------------------------------------
+bool CAI_BaseNPC::ShouldInvestigateSounds()
+{
+	if ( !m_bInvestigateSounds )
+		return false;
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		if ( !GetStealthSenses()->ShouldInvestigateSounds() )
+			return false;
+	}
+#endif
+
 	return true;
 }
 
@@ -3547,6 +3608,18 @@ void CAI_BaseNPC::AimGun()
 
 		vecShootOrigin = Weapon_ShootPosition();
 		Vector vecShootDir = GetShootEnemyDir( vecShootOrigin, false );
+
+#ifdef EZ2
+		if ( IsUsingStealthSenses() && !HasCondition( COND_SEE_ENEMY ) )
+		{
+			// If we're close enough, do not aim
+			if ( (GetAbsOrigin() - GetEnemyLKP()).LengthSqr() < Square(32.0f) )
+			{
+				RelaxAim();
+				return;
+			}
+		}
+#endif
 
 		SetAim( vecShootDir );
 	}
@@ -5298,6 +5371,13 @@ void CAI_BaseNPC::SetState( NPC_STATE State )
 		m_OnStateChange.Set(m_NPCState, pActivator, this);
 #endif
 
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			GetStealthSenses()->OnStateChange( State );
+		}
+#endif
+
 		OnStateChange( OldState, m_NPCState );
 	}
 }
@@ -5848,6 +5928,13 @@ void CAI_BaseNPC::RunAI( void )
 	PostscheduleThink();
 				  
 	ClearTransientConditions();
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		GetStealthSenses()->RunStealthSenses();
+	}
+#endif
 
 	g_AIRunTimer.End();
 }
@@ -6549,6 +6636,14 @@ bool CAI_BaseNPC::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position
 		}
 #endif
 
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			if ( !GetStealthSenses()->UpdateEnemyMemory( pEnemy, position, pInformer ) )
+				return false;
+		}
+#endif
+
 		// If the was eluding me and allow the NPC to play a sound
 		if (GetEnemies()->HasEludedMe(pEnemy))
 		{
@@ -6624,7 +6719,11 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 
 		bool bSensesDidSee = GetSenses()->DidSeeEntity( pEnemy );
 
-		if ( !bSensesDidSee && ( ( EnemyDistance( pEnemy ) >= GetSenses()->GetDistLook() ) || !FVisible( pEnemy, MASK_BLOCKLOS, &pBlocker ) ) )
+		if ( !bSensesDidSee && ( ( EnemyDistance( pEnemy ) >= GetSenses()->GetDistLook() ) || !FVisible( pEnemy, MASK_BLOCKLOS, &pBlocker )
+#ifdef EZ2
+			|| IsUsingStealthSenses()
+#endif
+			 ) )
 		{
 			// No LOS to enemy
 			SetEnemyOccluder(pBlocker);
@@ -6656,6 +6755,19 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 			else
 			{
 				ClearCondition( COND_SEE_ENEMY );
+
+#ifdef EZ2
+				// COND_ENEMY_OCCLUDED is problematic in stealth because the FVisible check above ignores senses.
+				// This condition is used in a lot of AI to determine whether to actually pursue LKP since the lack of COND_ENEMY_OCCLUDED suggests
+				// the enemy is actually just right there out of our viewcone, and therefore pursuit isn't needed.
+				// This is intentional behavior, but it's undesirable in stealth, and there's too many instances of this condition to cover specific cases.
+				// Since NPCs in stealth wouldn't technically know if the enemy is occluded or not anyway, and it is normal for the occluder to be null,
+				// I have decided to just always set this condition. While it isn't an ideal solution, I don't consider it to be a problem.
+				/*if ( IsUsingStealthSenses() )
+				{
+					SetCondition( COND_ENEMY_OCCLUDED );
+				}*/
+#endif
 			}
 
 			if (!HasMemory( bits_MEMORY_HAD_LOS ))
@@ -6727,7 +6839,11 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 			SetCondition ( COND_BEHIND_ENEMY );
 		}
 	}
-	else if ( (!HasCondition(COND_ENEMY_OCCLUDED) && !HasCondition(COND_SEE_ENEMY)) && ( flDistToEnemy <= 256 ) )
+	else if ( (!HasCondition(COND_ENEMY_OCCLUDED) && !HasCondition(COND_SEE_ENEMY)) && ( flDistToEnemy <= 256 )
+#ifdef EZ2
+		&& !IsUsingStealthSenses()
+#endif
+		 )
 	{
 		// if the enemy is not occluded, and unseen, that means it is behind or beside the npc.
 		// if the enemy is near enough the npc, we go ahead and let the npc know where the
@@ -6735,6 +6851,37 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 		// secondhand so that the NPC doesn't 
 		UpdateEnemyMemory( pEnemy, pEnemy->GetAbsOrigin(), pEnemy );
 	}
+#ifdef EZ2
+	else if ( IsUsingStealthSenses() && pEnemy->IsPlayer() && !EnemyHasEludedMe() )
+	{
+		if ( HasCondition( COND_HEAR_PLAYER ) )
+		{
+			CSound *pPlayerSound = GetBestSound( SOUND_PLAYER );
+			if ( pPlayerSound )
+			{
+				if ( pPlayerSound->m_hOwner == pEnemy || !pPlayerSound->m_hOwner )
+				{
+					// Follow the footsteps
+					UpdateEnemyMemory( pEnemy, pPlayerSound->GetSoundReactOrigin(), pEnemy );
+				}
+				else if ( CBasePropDoor *pDoor = dynamic_cast<CBasePropDoor*>( pPlayerSound->m_hOwner.Get() ) )
+				{
+					// Follow through the door, if possible
+					const Vector *pInteriorPosition = g_hStealthManager->GetInteriorPositionThroughDoor( this, pDoor );
+					if ( pInteriorPosition )
+						UpdateEnemyMemory( pEnemy, *pInteriorPosition, pEnemy );
+				}
+			}
+		}
+		else
+		{
+			// Try to predict where the enemy would be at this point
+			Vector vecUpdatePos = GetEnemyLKP();
+			if ( /*( vecUpdatePos - GetAbsOrigin() ).LengthSqr() < Square( 32 ) ||*/ FindPredictedEnemyPos( this, GetEnemy(), vecUpdatePos ) )
+				UpdateEnemyMemory( pEnemy, vecUpdatePos, pEnemy );
+		}
+	}
+#endif
 
 	AI_PROFILE_SCOPE_END();
 
@@ -7050,9 +7197,24 @@ Activity CAI_BaseNPC::TranslateCrouchActivity( Activity eNewActivity )
 				// Untranslated ACT_COVER should revert to ACT_IDLE
 				eNewActivity = ACT_IDLE;
 			}
-		}
+		}:
 		*/
 	}
+
+#ifdef EZ2
+	// This placement is a little awkward since this isn't related to crouching, but it's here because
+	// TranslateCrouchActivity() is done before all other translation and has the same functionality we need.
+	if ( IsUsingStealthSenses() && GetState() == NPC_STATE_IDLE && eNewActivity == ACT_RUN )
+	{
+		// When picking up an item or investigating a stealth sound, walk instead of run
+		CSound *pBestSound = GetBestSound( SOUND_COMBAT );
+		if ( IsCurSchedule( SCHED_GET_HEALTHKIT, false ) ||
+			( IsCurSchedule( SCHED_INVESTIGATE_SOUND, false ) && pBestSound && CAI_StealthSenses::IsCalmStealthSound( pBestSound ) ) )
+		{
+			eNewActivity = ACT_WALK;
+		}
+	}
+#endif
 
 	return eNewActivity;
 }
@@ -8223,6 +8385,13 @@ void CAI_BaseNPC::NPCInit ( void )
 	}
 #endif
 
+#ifdef EZ2
+	if ( m_bUsesStealthSenses )
+	{
+		GetStealthSenses()->InitStealthSenses();
+	}
+#endif
+
 	// Set fields common to all npcs
 	AddFlag( FL_AIMTARGET | FL_NPC );
 	AddSolidFlags( FSOLID_NOT_STANDABLE );
@@ -9213,6 +9382,13 @@ bool CAI_BaseNPC::InitSquad( void )
 		{
 			m_pSquad = g_AI_SquadManager.FindCreateSquad(this, m_SquadName);
 		}
+
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			GetStealthSenses()->InitSquad( m_pSquad );
+		}
+#endif
 	}
 
 	return ( m_pSquad != NULL );
@@ -11148,6 +11324,49 @@ int CAI_BaseNPC::DrawDebugTextOverlays(void)
 			EntityText(text_offset, tempstr, 0);
 			text_offset++;
 		}
+
+#ifdef EZ2
+		// --------------
+		// Stealth Senses
+		// --------------
+		if ( IsUsingStealthSenses() )
+		{
+			NPC_STATE eNPCState = GetState();
+			if (eNPCState == NPC_STATE_IDLE || eNPCState == NPC_STATE_ALERT)
+			{
+				CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+				if ( pPlayer )
+				{
+					EntityText( text_offset, "Stealth Senses", 0, 224, 255, 224 );
+					text_offset++;
+
+					Vector vecDelta = pPlayer->EyePosition() - EyePosition();
+					VectorNormalize( vecDelta );
+			
+					float flDot = vecDelta.Dot( HeadDirection3D() );
+					float flTargetDot = GetStealthSenses()->GetDotToSee( eNPCState );
+
+					CFmtStr msg;
+					EntityText( text_offset, msg.sprintf( "\tDot: %.2f", flDot ), 0, 224, 255, 224 );
+					text_offset++;
+
+					EntityText( text_offset, msg.sprintf( "\tDot to see: %.2f (%s)", flTargetDot, eNPCState == NPC_STATE_IDLE ? "Idle" : "Alert" ), 0, 224, 255, 224 );
+					text_offset++;
+
+					EntityText( text_offset, flDot > flTargetDot ? "\tY - In viewcone" : "\tN - NOT in viewcone", 0, 224, 255, 224 );
+					text_offset++;
+			
+					//text += ("\tAlert Level: " + m_flAlertLevel.tostring() + "\n")
+				}
+			}
+			else
+			{
+				Q_strncpy(tempstr, "\tNot in idle state", sizeof(tempstr));
+				EntityText(text_offset, tempstr, 0);
+				text_offset++;
+			}
+		}
+#endif
 	}
 	return text_offset;
 }
@@ -12019,6 +12238,13 @@ void CAI_BaseNPC::MarkEnemyAsEluded()
 	if (m_pSquad)
 	{
 		m_pSquad->MarkEnemyAsEluded( this, GetEnemy() );
+
+#ifdef EZ2
+		if ( g_hStealthManager && GetEnemy()->IsPlayer() )
+		{
+			g_hStealthManager->SquadLostPlayer( this, m_pSquad );
+		}
+#endif
 	}
 #endif
 }
@@ -12383,6 +12609,113 @@ bool CAI_BaseNPC::ShouldFadeOnDeath( void )
 	}
 }
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_BaseNPC::IsUsingStealthSenses() const
+{
+	if ( m_bUsesStealthSenses )
+		return true;
+
+	if ( ai_stealth_force.GetBool() )
+	{
+		// Only force stealth senses for physical/drawing NPCs
+		if ( !(GetEffects() & EF_NODRAW) || m_lifeState == LIFE_DYING )
+			return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_BaseNPC::SetUsingStealthSenses( bool bEnabled )
+{
+	if ( m_bUsesStealthSenses == bEnabled )
+		return;
+
+	m_bUsesStealthSenses = bEnabled;
+
+	if ( m_bUsesStealthSenses )
+	{
+		GetStealthSenses()->InitStealthSenses();
+	}
+	else
+	{
+		GetStealthSenses()->StopStealthSenses();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_BaseNPC::IsUsingHighFrequencyLook()
+{
+	// This is currently safe since SENSING_FLAGS_DONT_LOOK is only used by stealth sensing code and npc_furniture,
+	// and npc_furniture should never run into this.
+	// This could be stored a separate/additional sensing or stealth flag if this becomes a problem.
+	return GetSenses()->HasSensingFlags( SENSING_FLAGS_DONT_LOOK );
+	//return GetNextThink( "HighFrequencyLookThink" ) != TICK_NEVER_THINK;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_BaseNPC::SetUsingHighFrequencyLook( bool bEnabled )
+{
+	if ( bEnabled )
+	{
+		if ( IsUsingHighFrequencyLook() )
+			return;
+
+		// Prevents PerformSensing() from calling Look() on its own while we're in high frequency mode.
+		GetSenses()->AddSensingFlags( SENSING_FLAGS_DONT_LOOK );
+
+		SetContextThink( &CAI_BaseNPC::HighFrequencyLookThink, gpGlobals->curtime, "HighFrequencyLookThink" );
+	}
+	else
+	{
+		// We could potentially store this to ensure NPCs that already had the flag don't get it re-enabled,
+		// but npc_furniture is the only NPC that uses it.
+		GetSenses()->RemoveSensingFlags( SENSING_FLAGS_DONT_LOOK );
+
+		SetContextThink( NULL, TICK_NEVER_THINK, "HighFrequencyLookThink" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_BaseNPC::HighFrequencyLookThink()
+{
+	GetSenses()->ResetLastPlayerUpdateTime();
+	GetSenses()->Look( GetSenses()->GetDistLook() );
+
+	SetContextThink( &CAI_BaseNPC::HighFrequencyLookThink, gpGlobals->curtime + TICK_INTERVAL, "HighFrequencyLookThink" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_BaseNPC::InputUpdateInformedStealthMemory( inputdata_t &inputdata )
+{
+	if (inputdata.pActivator && inputdata.pActivator->IsAlive())
+	{
+		Vector vecPosition;
+		inputdata.value.Vector3D( vecPosition );
+		UpdateEnemyMemory( inputdata.pActivator->GetEnemy(), vecPosition, inputdata.pActivator );
+		
+		if (GetSquad() && inputdata.pActivator->GetEnemy() && inputdata.pActivator->GetEnemy()->IsPlayer())
+		{
+			if (g_hStealthManager)
+				g_hStealthManager->SquadSawPlayer( this, GetSquad() );
+		}
+	}
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Indicates whether or not this npc should play an idle sound now.
 //
@@ -12688,6 +13021,18 @@ BEGIN_DATADESC( CAI_BaseNPC )
 
 	DEFINE_KEYFIELD( m_flSpeedModifier, FIELD_FLOAT, "BaseSpeedModifier" ),
 	DEFINE_FIELD( m_FakeSequenceGestureLayer,	FIELD_INTEGER ),
+#endif
+
+#ifdef EZ2
+	DEFINE_KEYFIELD( m_bUsesStealthSenses, FIELD_BOOLEAN, "UsesStealthSenses" ),
+	DEFINE_INPUT( m_iStealthFlags, FIELD_INTEGER, "SetStealthFlags" ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableStealthSenses", InputEnableStealthSenses ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableStealthSenses", InputDisableStealthSenses ),
+	DEFINE_INPUTFUNC( FIELD_VECTOR, "UpdateInformedStealthMemory", InputUpdateInformedStealthMemory ),
+
+	DEFINE_EMBEDDEDBYREF( m_pStealthSenses ),
+	DEFINE_THINKFUNC( HighFrequencyLookThink ),
 #endif
 
 	// Satisfy classcheck
@@ -13263,6 +13608,12 @@ int CAI_BaseNPC::Save( ISave &save )
 	GetNavigator()->Save( save );
 	save.EndBlock();
 
+#ifdef EZ2
+	save.StartBlock();
+	save.WriteAll( GetStealthSenses(), GetStealthSenses()->GetDataDescMap() );
+	save.EndBlock();
+#endif
+
 	return BaseClass::Save(save);
 }
 
@@ -13301,6 +13652,13 @@ void CAI_BaseNPC::DiscardScheduleState()
 
 void CAI_BaseNPC::OnRestore()
 {
+#ifdef EZ2
+	if ( m_bUsesStealthSenses )
+	{
+		GetStealthSenses()->InitStealthSenses();
+	}
+#endif
+
 	gm_iszPlayerSquad = AllocPooledString( PLAYER_SQUADNAME ); // cache for fast IsPlayerSquad calls
 
 	if ( m_bDoPostRestoreRefindPath  && CAI_NetworkManager::NetworksLoaded() )
@@ -13343,6 +13701,12 @@ int CAI_BaseNPC::Restore( IRestore &restore )
 		GetNavigator()->Restore( restore );
 		restore.EndBlock();
 	}
+
+#ifdef EZ2
+	restore.StartBlock();
+	restore.ReadAll( GetStealthSenses(), GetStealthSenses()->GetDataDescMap() );
+	restore.EndBlock();
+#endif
 	
 	// do a normal restore
 	int status = BaseClass::Restore(restore);
@@ -13669,6 +14033,9 @@ CAI_BaseNPC::~CAI_BaseNPC(void)
 	delete m_pMoveProbe;
 	delete m_pSenses;
 	delete m_pTacticalServices;
+#ifdef EZ2
+	delete m_pStealthSenses;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -13735,6 +14102,12 @@ bool CAI_BaseNPC::CreateComponents()
 	m_pTacticalServices = CreateTacticalServices();
 	if ( !m_pTacticalServices )
 		return false;
+
+#ifdef EZ2
+	m_pStealthSenses = CreateStealthSenses();
+	if ( !m_pStealthSenses)
+		return false; 
+#endif
 		
 	m_MoveAndShootOverlay.SetOuter( this );
 
@@ -13797,6 +14170,15 @@ CAI_Pathfinder *CAI_BaseNPC::CreatePathfinder()
 {
 	return new CAI_Pathfinder( this );
 }
+
+//-----------------------------------------------------------------------------
+
+#ifdef EZ2
+CAI_StealthSenses *CAI_BaseNPC::CreateStealthSenses()
+{
+	return new CAI_StealthSenses( this );
+}
+#endif
 
 #ifndef MAPBASE
 //-----------------------------------------------------------------------------
@@ -14130,6 +14512,13 @@ bool CAI_BaseNPC::HandleInteraction(int interactionType, void *data, CBaseCombat
 
 		pFinder->SetContextThink( &CBaseEntity::SUB_Remove, gpGlobals->curtime + 1.0f, "SUB_Remove" );
 
+		return true;
+	}
+
+	if ( IsUsingStealthSenses() && interactionType == g_interactionHitByPlayerThrownPhysObj )
+	{
+		CBaseEntity *pProp = (CBaseEntity *)data;
+		CSoundEnt::InsertSound( SOUND_COMBAT, pProp->GetAbsOrigin(), 128, 1.0f, sourceEnt, SOUNDENT_CHANNEL_STEALTH_HIT_BY_OBJECT, this );
 		return true;
 	}
 #endif
@@ -14768,6 +15157,11 @@ void CAI_BaseNPC::OpenPropDoorNow( CBasePropDoor *pDoor )
 		GetNavigator()->GetPath()->GetCurWaypoint()->ModifyFlags( bits_WP_TO_DOOR, false );
 		GetNavigator()->GetPath()->GetCurWaypoint()->m_hData = NULL;
 	}
+#endif
+
+#ifdef EZ2
+	if ( g_hStealthManager )
+		g_hStealthManager->NPCOpenDoor( this, pDoor );
 #endif
 }
 
@@ -17194,6 +17588,13 @@ void CAI_BaseNPC::ModifyOrAppendCriteria( AI_CriteriaSet& set )
 	if (m_tEzVariant != EZ_VARIANT_DEFAULT)
 	{
 		set.AppendCriteria( "ezvariant", UTIL_VarArgs( "%i", m_tEzVariant ) );
+	}
+#endif
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		GetStealthSenses()->ModifyOrAppendCriteria( set );
 	}
 #endif
 }

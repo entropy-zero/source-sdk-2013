@@ -35,6 +35,10 @@
 #include "tier0/vcrmode.h"
 #include "env_debughistory.h"
 
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -286,6 +290,13 @@ void CAI_BaseNPC::BuildScheduleTestBits( void )
 	{
 		ScriptVariant_t functionReturn;
 		g_Hook_BuildScheduleTestBits.Call( m_ScriptScope, &functionReturn, NULL );
+	}
+#endif
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		GetStealthSenses()->BuildScheduleTestBits();
 	}
 #endif
 }
@@ -1880,7 +1891,12 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 				return;
 			}
 
+#ifdef EZ2
+			// With stealth senses, NPCs always chase last known
+			if ( ( pEnemy->GetAbsOrigin() - GetEnemyLKP() ).LengthSqr() < Square(pTask->flTaskData) && !IsUsingStealthSenses() )
+#else
 			if ( ( pEnemy->GetAbsOrigin() - GetEnemyLKP() ).LengthSqr() < Square(pTask->flTaskData) )
+#endif
 			{
 				ChainStartTask( TASK_GET_PATH_TO_ENEMY );
 			}
@@ -2016,6 +2032,12 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			{
 				flMaxRange = m_flDistTooFar;
 			}
+
+#ifdef EZ2
+			// With stealth senses, NPCs always chase last known
+			if ( IsUsingStealthSenses() && task == TASK_GET_PATH_TO_ENEMY_LOS )
+				task = TASK_GET_PATH_TO_ENEMY_LKP_LOS;
+#endif
 
 #ifdef MAPBASE
 			// By default, TASK_GET_PATH_TO_ENEMY_LKP_LOS acts identical to TASK_GET_PATH_TO_ENEMY_LOS.
@@ -3848,7 +3870,12 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 			{
 				ClearTaskInterrupt();
 
+#ifdef EZ2
+				// With stealth senses, NPCs always chase last known
+				Vector vecEnemy = ( pTask->iTask == TASK_GET_PATH_TO_ENEMY_LOS && !IsUsingStealthSenses() ) ? GetEnemy()->GetAbsOrigin() : GetEnemyLKP();
+#else
 				Vector vecEnemy = ( pTask->iTask == TASK_GET_PATH_TO_ENEMY_LOS ) ? GetEnemy()->GetAbsOrigin() : GetEnemyLKP();
+#endif
 				AI_NavGoal_t goal( m_vInterruptSavePosition, ACT_RUN, AIN_HULL_TOLERANCE );
 
 				GetNavigator()->SetGoal( goal, AIN_CLEAR_TARGET );

@@ -164,6 +164,30 @@ ConceptInfo_t g_ConceptInfos[] =
 	{ TLK_GOODBYE,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		80,		120,	AICF_DEFAULT, },
 
 	{ TLK_CONCEPT_ANSWER,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+
+	// Stealth
+	{ TLK_HEAR,					SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SEE_SUSPICIOUS,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SEE_ALLY,				SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_FOUND_BODY,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_FOUND_PROP,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_FOUND_DOOR,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_INSPECT_OBJECT,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_ATTACKED,				SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT | AICF_SPEAK_ONCE, },
+
+	{ TLK_ALARM_RAISE,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_ALARM_DISABLED,		SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+
+	// Squad checks and reports use the existing ally Q&A system
+	// Reports are simultaneously questions and answers so that the checking NPC can take action based on what's reported
+	{ TLK_SQUAD_CHECK,			SPEECH_IDLE, 		-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT | AICF_QUESTION, },
+	{ TLK_SQUAD_REPORT,			SPEECH_IMPORTANT,	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT | AICF_QUESTION | AICF_ANSWER, },
+	{ TLK_SQUAD_CALL,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SQUAD_ORDER,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SEARCH_AREA_START,	SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SEARCH_AREA_FINISH,	SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SWEEP_START,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SWEEP_FINISH,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 #endif
 };
 
@@ -921,6 +945,13 @@ void CAI_PlayerAlly::PostSpeakDispatchResponse( AIConcept_t concept, AI_Response
 		{
 			pszInput = "AnswerQuestionHello";
 		}
+#ifdef EZ2
+		else if ( !Q_strncmp(concept, "TLK_SQUAD_", 10) )
+		{
+			// Stealth squad checking/reporting. Handled in CNPC_PlayerCompanion for now
+			pszInput = FStrEq( concept+10, "CHECK" ) ? "AnswerSquadCheck" : "AnswerSquadReport";
+		}
+#endif
 		else
 		{
 			pszInput = "AnswerQuestion";
@@ -1539,11 +1570,16 @@ void CAI_PlayerAlly::Event_Killed( const CTakeDamageInfo &info )
 	CAI_PlayerAlly *pMourner = dynamic_cast<CAI_PlayerAlly *>(FindSpeechTarget( AIST_NPCS ));
 	if ( pMourner )
 	{
-#ifdef MAPBASE
-		pMourner->m_hPotentialSpeechTarget = this;
-		pMourner->SetSpeechTarget(this);
+#ifdef EZ2
+		if ( !IsUsingStealthSenses() || pMourner->GetState() == NPC_STATE_COMBAT || ( pMourner->FInViewCone( this ) && pMourner->FVisible( this ) ) )
 #endif
-		pMourner->SpeakIfAllowed( TLK_ALLY_KILLED );
+		{
+#ifdef MAPBASE
+			pMourner->m_hPotentialSpeechTarget = this;
+			pMourner->SetSpeechTarget(this);
+#endif
+			pMourner->SpeakIfAllowed( TLK_ALLY_KILLED );
+		}
 	}
 
 	SetTarget( NULL );
@@ -2142,6 +2178,29 @@ void CAI_PlayerAlly::InputAnswerConcept( inputdata_t &inputdata )
 {
 	// Complex Q&A
 	ConceptResponseAnswer_PlayerAlly( inputdata.pActivator, inputdata.value.String() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_PlayerAlly::SpeakStealthConcept( const AIConcept_t &concept, AI_CriteriaSet *modifiers, bool bForce )
+{
+	if (bForce)
+	{
+		// Technically not completely forcing it, but still overrides most of the checks
+		if (!IsOkToSpeak( SPEECH_PRIORITY, true ))
+			return false;
+	}
+	else
+	{
+		if (!IsAllowedToSpeak( concept, true ))
+			return false;
+	}
+
+	if (modifiers)
+		return Speak( concept, *modifiers );
+
+	return Speak( concept );
 }
 #endif
 

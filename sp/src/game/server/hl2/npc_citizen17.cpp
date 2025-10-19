@@ -1880,6 +1880,18 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		SetCustomInterruptCondition( COND_CIT_COMMANDHEAL );
 	}
 #endif
+	
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		if ( IsCurSchedule( SCHED_CITIZEN_PATROL, false ) )
+		{
+			// Allow combat to break patrol in stealth senses
+			SetCustomInterruptCondition( COND_HEAR_COMBAT );
+			SetCustomInterruptCondition( COND_HEAR_BULLET_IMPACT );
+		}
+	}
+#endif
 }
 
 
@@ -2227,7 +2239,21 @@ int CNPC_Citizen::SelectScheduleNonCombat()
 	ClearCondition( COND_CIT_START_INSPECTION );
 
 	if ( m_bShouldPatrol )
+	{
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			// Go to combat sounds instead of patrolling
+			CSound *pSound = GetBestSound( SOUND_COMBAT );
+			if ( pSound )
+			{
+				return SCHED_INVESTIGATE_SOUND;
+			}
+		}
+#endif
+
 		return SCHED_CITIZEN_PATROL;
+	}
 	
 	return SCHED_NONE;
 }
@@ -2311,6 +2337,14 @@ int CNPC_Citizen::TranslateSchedule( int scheduleType )
 				return SCHED_CITIZEN_MOURN_PLAYER;
 			}
 		}
+#ifdef EZ2
+		if ( IsUsingStealthSenses() && scheduleType == SCHED_ALERT_STAND )
+		{
+			// Always patrol when alert (need to translate to base for behaviors)
+			m_bShouldPatrol = true;
+			return BaseClass::TranslateSchedule( SCHED_PATROL_WALK );
+		}
+#endif
 		break;
 
 	case SCHED_ESTABLISH_LINE_OF_FIRE:
@@ -2320,6 +2354,24 @@ int CNPC_Citizen::TranslateSchedule( int scheduleType )
 		{
 			return SCHED_CHASE_ENEMY;
 		}
+
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			if ( m_StealthAlarmBehavior.ShouldRaiseAlarm() )
+			{
+				// Defer to alarm behavior
+				DeferSchedulingToBehavior( &m_StealthAlarmBehavior );
+				return BaseClass::TranslateSchedule( scheduleType );
+			}
+
+			if ( FVisible( GetEnemyLKP() ) )
+			{
+				// If we already see where the enemy's supposed to be, run to it
+				return SCHED_CHASE_ENEMY;
+			}
+		}
+#endif
 
 		// Per Breadman's changes to ai_basenpc_schedule, fire at where you think the enemy will be instead of advancing
 		if ( !HasCondition(COND_SEE_ENEMY) && !HasCondition(COND_TOO_CLOSE_TO_ATTACK)) // We don't want this to use Attack squad slots because it could 'steal' a slot from a squadmate who might need it. 
@@ -3455,7 +3507,16 @@ void CNPC_Citizen::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDi
 		subInfo.SetInflictor( info.GetAttacker() );
 	}
 
-	AddMultiDamage( subInfo, this );
+	if ( IsUsingStealthSenses() )
+	{
+		// Base class call to TraceAttack() is needed for sneak attacks to function
+		// TODO: Figure out if there's any reason why this doesn't call base class already
+		BaseClass::TraceAttack( subInfo, vecDir, ptr, pAccumulator );
+	}
+	else
+	{
+		AddMultiDamage( subInfo, this );
+	}
 }
 
 //-----------------------------------------------------------------------------

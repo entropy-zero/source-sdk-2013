@@ -54,6 +54,8 @@ void RegisterUserMessages( void )
 
 #ifdef EZ2
 	usermessages->Register( "SLAMExploded", 1 );
+	usermessages->Register( "AlertTargetUpdate", 7 );
+	usermessages->Register( "AlertTargetEntersCombat", 3 );
 #endif
 
 #ifdef EZ

@@ -9,6 +9,9 @@
 #include "soundent.h"
 #include "game.h"
 #include "world.h"
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -311,6 +314,13 @@ void CSoundEnt::Think ( void )
 			{
 				Msg("  Removed Danger Sound: %d (time:%f)\n", m_SoundPool[ iSound ].SoundType(), gpGlobals->curtime );
 			}
+#ifdef EZ2
+			if( displaysoundlist.GetInt() == 3 && CAI_StealthSenses::IsStealthSound( m_SoundPool[ iSound ].SoundChannel() ) )
+			{
+				Msg("  Removed Stealth Sound: %d (time:%f) [%s]\n", m_SoundPool[ iSound ].SoundType(), gpGlobals->curtime,
+					CAI_StealthSenses::GetStealthSoundChannelName( m_SoundPool[ iSound ].SoundChannel() ) );
+			}
+#endif
 
 			// move this sound back into the free list
 			FreeSound( iSound, iPreviousSound );
@@ -339,8 +349,34 @@ void CSoundEnt::Think ( void )
 					b = 0;
 				}
 
-				if( displaysoundlist.GetInt() == 1 || (displaysoundlist.GetInt() == 2 && pSound->IsSoundType( SOUND_DANGER ) ) )
+				if( displaysoundlist.GetInt() == 1 || ( displaysoundlist.GetInt() == 2 && pSound->IsSoundType( SOUND_DANGER ) )
+#ifdef EZ2
+					|| ( displaysoundlist.GetInt() == 3 && CAI_StealthSenses::IsStealthSound( pSound->SoundChannel() ) )
+#endif
+					)
 				{
+#ifdef EZ2
+					if ( CAI_StealthSenses::IsStealthSound( pSound->SoundChannel() ) )
+					{
+						if ( CAI_StealthSenses::IsCalmStealthSound( pSound->SoundChannel() ) )
+						{
+							r = 192;
+							g = 224;
+							b = 255;
+						}
+						else
+						{
+							r = 128;
+							g = 224;
+							b = 255;
+						}
+
+						NDebugOverlay::EntityTextAtPosition( pSound->GetSoundOrigin(), 0, CAI_StealthSenses::GetStealthSoundChannelName( pSound->SoundChannel() ), 0.1, r,g,b );
+						if ( pSound->m_hOwner )
+							NDebugOverlay::EntityTextAtPosition( pSound->GetSoundOrigin(), 1, pSound->m_hOwner->GetDebugName(), 0.1, r,g,b );
+					}
+#endif
+
 					NDebugOverlay::Line( pSound->GetSoundOrigin(), pSound->GetSoundOrigin() + forward * pSound->Volume(), r,g,b, false, 0.1 );
 					NDebugOverlay::Line( pSound->GetSoundOrigin(), pSound->GetSoundOrigin() - forward * pSound->Volume(), r,g,b, false, 0.1 );
 
@@ -511,6 +547,13 @@ void CSoundEnt::InsertSound ( int iType, const Vector &vecOrigin, int iVolume, f
 	{
 		Msg("  Added Danger Sound! Duration:%f (Time:%f)\n", flDuration, gpGlobals->curtime );
 	}
+#ifdef EZ2
+	if( displaysoundlist.GetInt() == 3 && CAI_StealthSenses::IsStealthSound( soundChannelIndex ) )
+	{
+		Msg("  Added Stealth Sound! Duration:%f (Time:%f) [%s]\n", flDuration, gpGlobals->curtime,
+			CAI_StealthSenses::GetStealthSoundChannelName( soundChannelIndex ) );
+	}
+#endif
 }
 
 //---------------------------------------------------------

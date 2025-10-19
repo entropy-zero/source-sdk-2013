@@ -69,6 +69,9 @@ struct AI_Waypoint_t;
 class AI_Response;
 #endif
 class CBaseFilter;
+#ifdef EZ2
+class CAI_StealthSenses;
+#endif
 
 typedef CBitVec<MAX_CONDITIONS> CAI_ScheduleBits;
 
@@ -1160,7 +1163,7 @@ public:
 	virtual float		HearingSensitivity( void )		{ return 1.0;	}
 	virtual bool		ShouldIgnoreSound( CSound * )	{ return false; }
 	bool				SoundIsVisible( CSound *pSound );
-	virtual bool		ShouldInvestigateSounds(void)	{ return m_bInvestigateSounds; }; // If true, this NPC will investigate sounds instead of facing them
+	virtual bool		ShouldInvestigateSounds(void); // If true, this NPC will investigate sounds instead of facing them
 
 protected:
 	virtual void		ClearSenseConditions( void );
@@ -2191,6 +2194,41 @@ public:
 	virtual void	PickupItem( CBaseEntity *pItem ) { };
 #endif
 	CBaseEntity*	DropItem( const char *pszItemName, Vector vecPos, QAngle vecAng );// drop an item.
+
+#ifdef EZ2
+	//---------------------------------
+	//  Stealth Senses
+	//---------------------------------
+
+	bool			IsUsingStealthSenses() const;
+	void			SetUsingStealthSenses( bool bEnabled );
+	int				GetStealthFlags() const { return m_iStealthFlags; }
+
+	// Runs look senses as its own parallel think function, doing so every tick rather than every NPC think.
+	// This is used with NPCs that have begun to notice the player so that their alertness behaves more smoothly.
+	// Note that this is specifically designed for seeing players. Further changes will be needed to accommodate NPCs or objects.
+	bool			IsUsingHighFrequencyLook();
+	void			SetUsingHighFrequencyLook( bool bEnabled );
+	void			HighFrequencyLookThink();
+
+	void			InputEnableStealthSenses( inputdata_t &inputdata ) { SetUsingStealthSenses( true ); }
+	void			InputDisableStealthSenses( inputdata_t &inputdata ) { SetUsingStealthSenses( false ); }
+	void			InputUpdateInformedStealthMemory( inputdata_t &inputdata );
+
+	CAI_StealthSenses *GetStealthSenses()				{ return m_pStealthSenses; }
+	const CAI_StealthSenses *GetStealthSenses() const	{ return m_pStealthSenses; }
+
+private:
+
+	bool			m_bUsesStealthSenses;
+	int				m_iStealthFlags;
+
+	virtual CAI_StealthSenses *CreateStealthSenses();
+
+	CAI_StealthSenses *m_pStealthSenses;
+
+public:
+#endif
 
 
 	//---------------------------------

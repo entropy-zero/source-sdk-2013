@@ -64,6 +64,7 @@
 #ifdef EZ2
 #include "ez2/ez2_player.h"
 #include "CRagdollMagnet.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -5122,6 +5123,25 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 				}
 
 				pKickedEntity->AddContext( "kicked", CNumStr( iNumKicks ) );
+
+				if ( g_hStealthManager )
+				{
+					// Check if we should make this perceivable by NPCs since we're moving it
+					switch (g_hStealthManager->GetStealthObjectType( pKickedEntity ))
+					{
+						case STEALTH_OBJ_PROP:
+							g_hStealthManager->MakePropPerceivable( pKickedEntity );	// Extra step for props
+							break;
+						case STEALTH_OBJ_RAGDOLL:
+							g_AI_SensedObjectsManager.AddEntity( pKickedEntity );
+							break;
+						case STEALTH_OBJ_DOOR:
+							// Unfortunately, we can't do this directly because the door doesn't open right away.
+							// See CBasePropDoor::DoorOpen()
+							//g_AI_SensedObjectsManager.AddEntity( pEntity );
+							break;
+					}
+				}
 			}
 		}
 

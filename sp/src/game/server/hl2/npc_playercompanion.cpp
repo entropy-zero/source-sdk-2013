@@ -38,6 +38,10 @@
 #include "npc_headcrab.h"
 #include "npc_BaseZombie.h"
 #endif
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#include "ez2/ai_stealth_manager.h"
+#endif
 
 ConVar ai_debug_readiness("ai_debug_readiness", "0" );
 ConVar ai_use_readiness("ai_use_readiness", "1" ); // 0 = off, 1 = on, 2 = on for player squad only
@@ -171,6 +175,11 @@ BEGIN_DATADESC( CNPC_PlayerCompanion )
 	DEFINE_FIELD( m_nMeleeDamage, FIELD_INTEGER ),
 #endif
 
+#ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadCheck", InputAnswerSquadCheck ),
+	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadReport", InputAnswerSquadReport ),
+#endif
+
 END_DATADESC()
 
 //-----------------------------------------------------------------------------
@@ -238,10 +247,24 @@ bool CNPC_PlayerCompanion::CreateBehaviors()
 #ifdef EZ2
 	// Citizens are the only surrendering NPCs at the moment and they have their own version of the behavior, so this one doesn't need to be added.
 	//AddBehavior( &m_SurrenderBehavior );
+
+	AddBehavior( &GetStealthAlarmBehavior() );
+	AddBehavior( &GetStealthSearchBehavior() );
+	AddBehavior( &GetStealthCuriousBehavior() );	// It's important for this to be the last
 #endif
 	
 	return BaseClass::CreateBehaviors();
 }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+#ifdef EZ2
+CAI_StealthSenses *CNPC_PlayerCompanion::CreateStealthSenses()
+{
+	return new CAI_CuriousStealthSenses( this );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -729,6 +752,129 @@ void CNPC_PlayerCompanion::DoCustomSpeechAI( void )
 		}
 	}
 #endif
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		if ( GetLastPlayerDamageTime() != 0.0f && gpGlobals->curtime - GetLastPlayerDamageTime() > 1.0f
+			&& gpGlobals->curtime - GetLastPlayerDamageTime() < 15.0f && GetLastEnemyTime() == 0.0f )
+		{
+			// Someone attacked me, but I don't know who
+			AI_CriteriaSet modifiers;
+			modifiers.AppendCriteria( "damage_type", UTIL_VarArgs( "%i", GetStealthSenses()->GetLastDamageType() ) );
+
+			if ( SpeakIfAllowed( TLK_ATTACKED, modifiers ) )
+			{
+				InsertStealthSound( SOUND_COMBAT, GetAbsOrigin(), 1024, 1.0, NULL, SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ATTACKED, this );
+			}
+		}
+	}
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::SelectQuestionAndAnswerSpeech( AISpeechSelection_t *pSelection )
+{
+#ifdef EZ2
+	// Check in with the squad if we're not already regrouping
+	if ( IsUsingStealthSenses() && g_hStealthManager && (!GetStealthSearchBehavior().HasRegroupPoint() || GetStealthSearchBehavior().HasActiveOrder()) )
+	{
+		if ( !IsOkToSpeak( SPEECH_IDLE ) )
+			return false;
+
+		// Randomly decide based on stealth level
+		switch ( g_hStealthManager->GetStealthLevel() )
+		{
+			default:
+			case STEALTH_LEVEL_QUIET:
+				{
+					// Little reason to check in
+					if ( RandomInt(0,4) != 0 ) // 20%
+						return BaseClass::SelectQuestionAndAnswerSpeech( pSelection );
+				}
+				break;
+			case STEALTH_LEVEL_GUARD:
+				{
+					// Some reason to check in
+					if ( RandomInt(0,2) != 0 ) // 33%
+						return BaseClass::SelectQuestionAndAnswerSpeech( pSelection );
+				}
+				break;
+			case STEALTH_LEVEL_TENSE:
+				{
+					// Good reason to check in
+					if ( RandomInt(0,1) != 0 ) // 50%
+						return BaseClass::SelectQuestionAndAnswerSpeech( pSelection );
+				}
+				break;
+		}
+
+		StealthSquadInfo_t *stealthSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
+		if ( g_hStealthManager->GetDistanceFromSquad( GetAbsOrigin(), stealthSquadInfo, this ) < 1000.0f ) // TODO: new cvar?
+		{
+			if ( SpeakIfAllowed( TLK_SQUAD_CHECK ) )
+				return true;
+		}
+	}
+#endif
+
+	return BaseClass::SelectQuestionAndAnswerSpeech( pSelection );
+}
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::InputAnswerSquadCheck( inputdata_t &inputdata )
+{
+	// The activator is the person we're responding to
+	SetSpeechTarget( inputdata.pActivator );
+ 	if ( SpeakIfAllowed( TLK_SQUAD_REPORT ) )
+	{
+		// Prevent idle speech for a while
+		DeferAllIdleSpeech( random->RandomFloat( TALKER_DEFER_IDLE_SPEAK_MIN, TALKER_DEFER_IDLE_SPEAK_MAX ), GetSpeechTarget()->MyNPCPointer() );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::InputAnswerSquadReport( inputdata_t &inputdata )
+{
+	if ( !inputdata.pActivator || !inputdata.pActivator->IsNPC() )
+		return;
+
+	CUtlVector<AIHANDLE>		vecRelevantSquad;
+	vecRelevantSquad.AddToTail( this );
+	vecRelevantSquad.AddToTail( inputdata.pActivator->MyNPCPointer() );
+
+	variant_t var;
+	StealthSquadOrder_t iSquadOrder = m_StealthSearchBehavior.SelectBestOrder( &vecRelevantSquad, &var );
+	AI_CriteriaSet modifiers;
+
+	if ( iSquadOrder != STEALTH_SQUAD_ORDER_NONE && m_StealthSearchBehavior.ShoutSquadOrder( iSquadOrder, modifiers, var ) )
+	{
+		// TODO: Initiate regroup if needed?
+		m_StealthSearchBehavior.GiveSquadOrder( this, &vecRelevantSquad, iSquadOrder, &var );
+	}
+}
+#endif
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::PostSpeakDispatchResponse( AIConcept_t concept, AI_Response *response )
+{
+	BaseClass::PostSpeakDispatchResponse( concept, response );
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && g_hStealthManager )
+	{
+		g_hStealthManager->NPCStartedSpeaking( this, concept, response );
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -852,6 +998,22 @@ bool CNPC_PlayerCompanion::QuerySeeEntity( CBaseEntity *pEntity, bool bOnlyHateO
 	return BaseClass::QuerySeeEntity( pEntity, bOnlyHateOrFearIfNPC );
 }
 
+//-----------------------------------------------------------------------------
+
+void CNPC_PlayerCompanion::OnSeeEntity( CBaseEntity *pEntity )
+{
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		// Allow curious stealth to see entities while not running
+		if ( !GetStealthCuriousBehavior().IsRunning() )
+			GetStealthCuriousBehavior().OnSeeEntity( pEntity );
+	}
+#endif
+
+	BaseClass::OnSeeEntity( pEntity );
+}
+
 
 
 //-----------------------------------------------------------------------------
@@ -875,6 +1037,57 @@ bool CNPC_PlayerCompanion::ShouldIgnoreSound( CSound *pSound )
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::OnListened()
+{
+	BaseClass::OnListened();
+
+#ifdef EZ2
+	if ( HasCondition( COND_HEAR_COMBAT ) || HasCondition( COND_HEAR_PLAYER ) || HasCondition( COND_HEAR_WORLD ) )
+	{
+		CSound *pBestSound = GetBestSound( SOUND_COMBAT | SOUND_PLAYER | SOUND_WORLD );
+		if ( pBestSound )
+		{
+			AI_CriteriaSet modifiers;
+
+			if ( pBestSound->m_hOwner )
+			{
+				SetPotentialSpeechTarget( pBestSound->m_hOwner );
+				SetSpeechTarget( pBestSound->m_hOwner );
+			}
+
+			if ( pBestSound->SoundChannel() == SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS )
+			{
+				SpeakIfAllowed( TLK_SEE_SUSPICIOUS, modifiers );
+			}
+			else
+			{
+				modifiers.AppendCriteria( "sound_channel", pBestSound->SoundChannel() );
+
+				const char *pszSoundType = "";
+				switch ( pBestSound->SoundTypeNoContext() )
+				{
+					case SOUND_COMBAT:
+						pszSoundType = "combat";
+						break;
+					case SOUND_PLAYER:
+						pszSoundType = "player";
+						break;
+					case SOUND_WORLD:
+						pszSoundType = "world";
+						break;
+				}
+
+				modifiers.AppendCriteria( "sound_type", pszSoundType );
+
+				SpeakIfAllowed( TLK_HEAR, modifiers );
+			}
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -973,6 +1186,17 @@ int CNPC_PlayerCompanion::SelectSchedule()
 	schedule = SelectSchedulePriorityAction();
 	if ( schedule != SCHED_NONE )
 		return schedule;
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && ( HasCondition( COND_HEAR_COMBAT ) || HasCondition( COND_HEAR_PLAYER ) || HasCondition( COND_HEAR_WORLD ) ) )
+	{
+		// Let curious behavior act on stealth sounds
+		CSound *pSound = GetBestSound();
+		if ( pSound && CAI_StealthSenses::IsStealthSound( pSound ) )
+			DeferSchedulingToBehavior( &(GetStealthCuriousBehavior()) );
+	}
+	else
+#endif
 
 	if ( ShouldDeferToFollowBehavior() )
 	{
@@ -1786,6 +2010,17 @@ Activity CNPC_PlayerCompanion::TranslateActivityReadiness( Activity activity )
 	if ( m_ActBusyBehavior.IsActive() )
 		return activity;
 
+	int nReadinessLevel = GetReadinessLevel();
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		// Use stimulated activities when investigating sounds while relaxed
+		if ( nReadinessLevel == AIRL_RELAXED && IsCurSchedule( SCHED_INVESTIGATE_SOUND, false ) )
+			nReadinessLevel = AIRL_STIMULATED;
+	}
+#endif
+
 	if ( m_bReadinessCapable && 
 		 ( GetReadinessUse() == AIRU_ALWAYS || 
 		   ( GetReadinessUse() == AIRU_ONLY_PLAYER_SQUADMATES && (IsInPlayerSquad()||Classify()==CLASS_PLAYER_ALLY_VITAL) ) ) )
@@ -1802,7 +2037,7 @@ Activity CNPC_PlayerCompanion::TranslateActivityReadiness( Activity activity )
 				continue;
 
 			// Readiness must match
-			if ( ( actremap.m_fUsageBits & bits_REMAP_READINESS ) && GetReadinessLevel() != actremap.m_readiness )
+			if ( ( actremap.m_fUsageBits & bits_REMAP_READINESS ) && nReadinessLevel != actremap.m_readiness )
 				continue;
 
 			// Deal with weapon state
@@ -2074,6 +2309,13 @@ bool CNPC_PlayerCompanion::HandleInteraction(int interactionType, void *data, CB
 			}
 		}
 		return true;
+	}
+	// Behaviors lack bridges for interactions, so we have to handle this here.
+	// (May also need to be handled whlie the behavior isn't running)
+	if (interactionType == g_interactionStealthOrder || interactionType == g_interactionStealthRegroup)
+	{
+		if (m_StealthSearchBehavior.HandleInteraction( interactionType, data, sourceEnt ))
+			return true;
 	}
 #endif
 
@@ -2529,6 +2771,19 @@ bool CNPC_PlayerCompanion::PickTacticalLookTarget( AILookTargetArgs_t *pArgs )
 	flMaxLookTime = flMinLookTime + random->RandomFloat( 0.0f, 0.5f );
 	pArgs->flDuration = random->RandomFloat( flMinLookTime, flMaxLookTime );
 
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && ( m_StealthCuriousBehavior.IsInvestigatingSound() || IsCurSchedule( SCHED_ALERT_FACE_BESTSOUND, false ) ) )
+	{
+		// Look towards our sound
+		CSound *pSound = GetBestSound();
+		if ( pSound )
+		{
+			pArgs->vTarget = pSound->GetSoundReactOrigin();
+			return true;
+		}
+	}
+#endif
+
 	if( HasCondition(COND_SEE_PLAYER) && hl2_episodic.GetBool() )
 	{
 		// 1/3rd chance to authoritatively look at player
@@ -2595,6 +2850,42 @@ bool CNPC_PlayerCompanion::FindNewAimTarget()
 	CAI_Hint *pHint;
 	CHintCriteria hintCriteria;
 	CBaseEntity *pPriorAimTarget = GetAimTarget();
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		if ( m_StealthCuriousBehavior.IsInvestigatingSound() )
+		{
+			// See if the sound's owner can be investigated
+			CSound *pSound = GetBestSound();
+			if ( pSound && pSound->SoundContext() & SOUND_CONTEXT_REACT_TO_SOURCE && pSound->m_hOwner && pSound->SoundChannel() != SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY )
+			{
+				if( (pSound->m_hOwner->GetAbsOrigin() - GetAbsOrigin()).Length2D() >= COMPANION_AIMTARGET_NEAREST &&
+					HasAimLOS( pSound->m_hOwner ) )
+				{
+					if( pSound->m_hOwner != pPriorAimTarget )
+					{
+						// Notify of the change.
+						SetAimTarget( pSound->m_hOwner );
+						return true;
+					}
+
+					// We're already the target.
+					return false;
+				}
+			}
+		
+			// Otherwise, the hint must be behind the sound
+			hintCriteria.SetFilterFunc( AimTargetSoundHintFilter, this );
+		}
+		else if ( m_StealthSearchBehavior.IsRunning() && m_StealthSearchBehavior.GetSearchArea() != NULL )
+		{
+			// Restrict to hints within the search area
+			CAI_StealthSearchBehavior::m_pHintSearchArea = m_StealthSearchBehavior.GetSearchArea();
+			hintCriteria.SetFilterFunc( CAI_StealthSearchBehavior::SearchPointHintFilter_OnlyAreaDirect, this );
+		}
+	}
+#endif
 
 	hintCriteria.SetHintType( HINT_WORLD_VISUALLY_INTERESTING );
 	hintCriteria.SetFlag( bits_HINT_NODE_VISIBLE | bits_HINT_NODE_IN_VIEWCONE | bits_HINT_NPC_IN_NODE_FOV );
@@ -2744,11 +3035,39 @@ bool CNPC_PlayerCompanion::IsAllowedToAim()
 //-----------------------------------------------------------------------------
 bool CNPC_PlayerCompanion::HasAimLOS( CBaseEntity *pAimTarget )
 {
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && m_StealthCuriousBehavior.IsInvestigatingSound() )
+	{
+		// If investigating a sound, the hint must be behind the sound
+		CSound *pSound = GetBestSound();
+		if ( pSound && pSound->m_hOwner != pAimTarget )
+		{
+			Vector vecToTarget = ( pAimTarget->GetAbsOrigin() - GetAbsOrigin() );
+			Vector vecToSound = ( pSound->GetSoundReactOrigin() - GetAbsOrigin() );
+
+			float flDistToTarget = VectorNormalize( vecToTarget );
+			float flDistToSound = VectorNormalize( vecToSound );
+
+			// Sound must be closer
+			if( flDistToTarget < flDistToSound )
+				return false;
+
+			// Must be roughly 40 degrees of each other
+			if (vecToTarget.Dot( vecToSound ) < 0.75f)
+				return false;
+		}
+	}
+#endif
+
 	trace_t tr;
 	UTIL_TraceLine( Weapon_ShootPosition(), pAimTarget->WorldSpaceCenter(), MASK_SHOT, this, COLLISION_GROUP_NONE, &tr );
 
 	if( tr.fraction < 0.5 || (tr.m_pEnt && (tr.m_pEnt->IsNPC()||tr.m_pEnt->IsPlayer())) )
 	{
+#ifdef EZ2
+		// Don't know LOS is broken if we don't see them
+		if ( !IsUsingStealthSenses() || !tr.m_pEnt->IsPlayer() || GetSenses()->ShouldSeeEntity( tr.m_pEnt ) )
+#endif
 		return false;
 	}
 
@@ -2851,6 +3170,34 @@ CBaseEntity *CNPC_PlayerCompanion::GetAlternateMoveShootTarget()
 
 	return BaseClass::GetAlternateMoveShootTarget();
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::AimTargetSoundHintFilter( void *pContext, CAI_Hint *pHint )
+{
+	CAI_BaseNPC *pNPC = (CAI_BaseNPC *)pContext;
+	CSound *pSound = pNPC->GetBestSound();
+	if ( !pSound )
+		return true;
+
+	Vector vecToHint = ( pHint->GetAbsOrigin() - pNPC->GetAbsOrigin() );
+	Vector vecToSound = ( pSound->GetSoundReactOrigin() - pNPC->GetAbsOrigin() );
+
+	float flDistToHint = VectorNormalize( vecToHint );
+	float flDistToSound = VectorNormalize( vecToSound );
+
+	// Sound must be closer
+	if( flDistToHint < flDistToSound )
+		return false;
+
+	// Must be roughly 40 degrees of each other
+	if (vecToHint.Dot( vecToSound ) < 0.75f)
+		return false;
+
+	return true;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -4639,6 +4986,19 @@ void CNPC_PlayerCompanion::Event_Killed( const CTakeDamageInfo &info )
 		// Drop grenades if we should
 		DropGrenadeItemsOnDeath( info, pPlayer );
 	}
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && g_hStealthManager )
+	{
+		// This is a little awkward because serverside ragdolls immediately delete the NPC, causing us to go null
+		// before we can get our squad info. So we have to get it ahead of time
+		StealthSquadInfo_t *pSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
+		StealthSquadMemberInfo_t *pSquadMemberInfo = GetStealthSenses()->GetStealthSquadMemberInfo();
+		BaseClass::Event_Killed( info );
+		g_hStealthManager->NPCKilled( info, this, m_hDeathRagdoll, pSquadInfo, pSquadMemberInfo );
+		return;
+	}
+#endif
 
 	BaseClass::Event_Killed( info );
 }

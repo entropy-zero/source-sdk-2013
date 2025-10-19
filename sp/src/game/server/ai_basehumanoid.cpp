@@ -17,6 +17,10 @@
 #include "ai_interactions.h"
 #endif
 
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -171,7 +175,11 @@ void CAI_BaseHumanoid::TraceAttack( const CTakeDamageInfo &info, const Vector &v
 {
 	bool bSneakAttacked = false;
 
+#ifdef EZ2
+	if( ( ptr->hitgroup == HITGROUP_HEAD || IsUsingStealthSenses() ) && CanBeSneakAttacked( info, vecDir, ptr ) )
+#else
 	if( ptr->hitgroup == HITGROUP_HEAD && CanBeSneakAttacked( info, vecDir, ptr ) )
+#endif
 	{
 		if ( info.GetAttacker() && info.GetAttacker()->IsPlayer() && info.GetAttacker() != GetEnemy() && !IsInAScript() )
 		{
@@ -189,6 +197,44 @@ void CAI_BaseHumanoid::TraceAttack( const CTakeDamageInfo &info, const Vector &v
 				}
 			}
 
+#ifdef EZ2
+			if ( bSneakAttacked && IsUsingStealthSenses() && ptr->hitgroup != HITGROUP_HEAD )
+			{
+				if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( /*STEALTH_LEVEL_TENSE,*/ STEALTH_LEVEL_LOUD ) )
+				{
+					// Already on guard
+					bSneakAttacked = false;
+				}
+				else if ( gpGlobals->curtime - GetLastPlayerDamageTime() < 5.0f )
+				{
+					// Player missed their chance
+					bSneakAttacked = false;
+				}
+
+				// In stealth senses, if this wasn't a headshot, only allow if it was a melee attack from behind us
+				else if ( info.GetDamageType() & DMG_CLUB )
+				{
+					if ((info.GetAttacker()->EyePosition() - EyePosition()).Dot( HeadDirection2D() ) > 0.1)
+					{
+						bSneakAttacked = false;
+
+						/*else
+						{
+							// Otherwise, it's just 3x damage
+							CTakeDamageInfo newInfo = info;
+							newInfo.ScaleDamage( 3.0f );
+							newInfo.SetDamageForce( Vector() );
+							return BaseClass::OnTakeDamage_Alive( newInfo );
+						}*/
+					}
+				}
+				else
+				{
+					bSneakAttacked = false;
+				}
+			}
+#endif
+
 			float flDist;
 
 			flDist = (info.GetAttacker()->GetAbsOrigin() - GetAbsOrigin()).Length();
@@ -203,6 +249,15 @@ void CAI_BaseHumanoid::TraceAttack( const CTakeDamageInfo &info, const Vector &v
 	if( bSneakAttacked )
 	{
 		CTakeDamageInfo newInfo = info;
+
+#ifdef EZ2
+		if ( IsUsingStealthSenses() && info.GetDamageType() & DMG_CLUB )
+		{
+			// Don't get launched into the open
+			newInfo.ScaleDamageForce( 0.15f );
+			newInfo.AddDamageType( DMG_PREVENT_PHYSICS_FORCE );
+		}
+#endif
 
 		newInfo.SetDamage( GetHealth() );
 		BaseClass::TraceAttack( newInfo, vecDir, ptr, pAccumulator );

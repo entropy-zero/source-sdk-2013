@@ -28,6 +28,14 @@ C_EZ2_Player::~C_EZ2_Player()
 	DestroySLAMGlowEffect();
 }
 
+void C_EZ2_Player::Precache()
+{
+	BaseClass::Precache();
+
+	PrecacheScriptSound( "EZ2Player.AlertTarget_Begin" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget_Spot" );
+}
+
 void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnDataChanged( updateType );

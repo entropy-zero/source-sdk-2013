@@ -95,6 +95,9 @@ public:
 	//---------------------------------
 	
 	float			GetTimeLastUpdate( CBaseEntity *pEntity );
+#ifdef EZ2
+	void			ResetLastPlayerUpdateTime();
+#endif
 
 	//---------------------------------
 

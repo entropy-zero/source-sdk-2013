@@ -69,6 +69,9 @@
 #ifdef NEW_RESPONSE_SYSTEM
 #include "ai_speech.h"
 #endif
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#endif
 
 #if defined( TF_DLL )
 #include "tf_gamerules.h"
@@ -7596,6 +7599,39 @@ void CBaseEntity::ModifyOrAppendCriteria( AI_CriteriaSet& set )
 	// Append base stuff
 	set.AppendCriteria("spawnflags", UTIL_VarArgs("%i", GetSpawnFlags()));
 	set.AppendCriteria("flags", UTIL_VarArgs("%i", GetFlags()));
+#endif
+
+#ifdef EZ2
+	if ( g_hStealthManager )
+	{
+		g_hStealthManager->ModifyOrAppendCriteria( this, set );
+	}
+	else if ( IsNPC() )
+	{
+		// Responses that utilize the stealth level criteria can still be used outside of the stealth system.
+		// Determine a local stealth level based on NPC state
+		StealthLevel_t nStealthLevel = STEALTH_LEVEL_NONE;
+		switch ( MyNPCPointer()->GetState() )
+		{
+			case NPC_STATE_ALERT:
+				if ( MyNPCPointer()->GetLastEnemyTime() != 0.0 )
+				{
+					nStealthLevel = STEALTH_LEVEL_TENSE;
+					break;
+				}
+			case NPC_STATE_IDLE:
+				if ( MyNPCPointer()->GetLastEnemyTime() != 0.0 )
+					nStealthLevel = STEALTH_LEVEL_GUARD;
+				else
+					nStealthLevel = STEALTH_LEVEL_QUIET;
+				break;
+			case NPC_STATE_COMBAT:
+				nStealthLevel = STEALTH_LEVEL_LOUD;
+				break;
+
+		}
+		set.AppendCriteria( "stealth_level", UTIL_VarArgs( "%i", nStealthLevel ) );
+	}
 #endif
 	
 #ifdef MAPBASE_VSCRIPT

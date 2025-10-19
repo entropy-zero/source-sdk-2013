@@ -1824,6 +1824,10 @@ hinttypedescs_t g_pszHintDescriptions[] =
 	{	HINT_BEAST_FRUSTRATION, "EZ2: Beast Frustration"	},
 	{	HINT_SURRENDER_IDLE_DEST, "EZ2: Surrender Idle Destination"	},
 	{	HINT_TACTICAL_VANTAGE_POINT, "Tactical: Vantage Point"	},
+
+	{	HINT_STEALTH_ALARM, "Stealth: Alarm"	},
+	{	HINT_STEALTH_SEARCH_POINT, "Stealth: Search Point"	},
+	{	HINT_STEALTH_REGROUP_POINT, "Stealth: Regroup Point"	},
 #endif
 
 #ifdef MAPBASE

@@ -3606,6 +3606,16 @@ void CNPC_Combine::BuildScheduleTestBits( void )
 
 		SetCustomInterruptCondition( COND_COMBINE_OBSTRUCTED );
 	}
+	
+	if ( IsUsingStealthSenses() )
+	{
+		if ( IsCurSchedule( SCHED_COMBINE_PATROL, false ) )
+		{
+			// Allow combat to break patrol in stealth senses
+			SetCustomInterruptCondition( COND_HEAR_COMBAT );
+			SetCustomInterruptCondition( COND_HEAR_BULLET_IMPACT );
+		}
+	}
 #endif
 
 	if (gpGlobals->curtime < m_flNextAttack)

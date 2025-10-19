@@ -212,6 +212,10 @@ public:
 #ifdef MAPBASE
 	float GetTimeSpeechCompleteWithoutDelay() const	{ return m_flStopTalkTimeWithoutDelay; }
 #endif
+#ifdef EZ2
+	// TODO: Consider adding to Mapbase
+	float GetLastTimeAcceptedSpeak() const { return m_flLastTimeAcceptedSpeak; }
+#endif
 	void  BlockSpeechUntil( float time );
 
 	// --------------------------------

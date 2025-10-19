@@ -29,6 +29,7 @@
 
 #ifdef EZ2
 #include "ez2/ai_behavior_surrender.h"
+#include "ez2/ai_stealth_behavior_companion.h"
 #endif
 
 #if defined( _WIN32 )
@@ -126,6 +127,9 @@ public:
 	virtual int		Restore( IRestore &restore );
 	virtual void	DoCustomSpeechAI( void );
 
+	virtual bool	SelectQuestionAndAnswerSpeech( AISpeechSelection_t *pSelection );
+	virtual void	PostSpeakDispatchResponse( AIConcept_t concept, AI_Response *response );
+
 	//---------------------------------
 	int 			ObjectCaps();
 	bool 			ShouldAlwaysThink();
@@ -144,7 +148,9 @@ public:
 	CSound			*GetBestSound( int validTypes = ALL_SOUNDS );
 	bool			QueryHearSound( CSound *pSound );
 	bool			QuerySeeEntity( CBaseEntity *pEntity, bool bOnlyHateOrFearIfNPC = false );
+	void			OnSeeEntity( CBaseEntity *pEntity );
 	bool			ShouldIgnoreSound( CSound * );
+	void			OnListened();
 	
 	int 			SelectSchedule();
 
@@ -272,6 +278,16 @@ public:
 	bool			HasAimLOS( CBaseEntity *pAimTarget );
 	void			AimGun();
 	CBaseEntity		*GetAlternateMoveShootTarget();
+
+#ifdef EZ2
+	//---------------------------------
+	// Stealth
+	//---------------------------------
+	static bool		AimTargetSoundHintFilter( void *pContext, CAI_Hint *pHint );
+
+	void			InputAnswerSquadCheck( inputdata_t &inputdata );
+	void			InputAnswerSquadReport( inputdata_t &inputdata );
+#endif
 
 	//---------------------------------
 	// Combat
@@ -455,6 +471,11 @@ protected:
 	virtual CAI_StandoffBehavior &GetStandoffBehavior( void ) { return m_StandoffBehavior; } // Blixibon - Added because soldiers have their own special standoff behavior
 #ifdef EZ2
 	virtual CAI_SurrenderBehavior &GetSurrenderBehavior( void ) { return m_SurrenderBehavior; }
+
+	virtual CAI_StealthAlarmBehavior &GetStealthAlarmBehavior( void ) { return m_StealthAlarmBehavior; }
+	virtual CAI_StealthCuriousBehavior &GetStealthCuriousBehavior( void ) { return m_StealthCuriousBehavior; }
+	virtual CAI_StealthSearchBehavior &GetStealthSearchBehavior( void ) { return m_StealthSearchBehavior; }
+	virtual CAI_StealthSenses *CreateStealthSenses();
 #endif
 
 	CAI_AssaultBehavior				m_AssaultBehavior;
@@ -472,6 +493,15 @@ protected:
 #endif
 #ifdef EZ2
 	CAI_SurrenderBehavior			m_SurrenderBehavior;
+
+	//-----------------------------------------------------
+	
+	CAI_StealthAlarmBehavior				m_StealthAlarmBehavior;
+	CAI_Companion_StealthCuriousBehavior	m_StealthCuriousBehavior;
+	CAI_Companion_StealthSearchBehavior		m_StealthSearchBehavior;
+
+	// To access schedules
+	friend class CAI_Companion_StealthCuriousBehavior;
 #endif
 	//-----------------------------------------------------
 

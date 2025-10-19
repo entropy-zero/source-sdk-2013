@@ -18,6 +18,10 @@
 	#include "portal_util_shared.h"
 #endif
 
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -163,6 +167,14 @@ bool CAI_Senses::ShouldSeeEntity( CBaseEntity *pSightEnt )
 	
 	if ( !GetOuter()->QuerySeeEntity( pSightEnt, true ) )
 		return false;
+
+#ifdef EZ2
+	if ( GetOuter()->IsUsingStealthSenses() )
+	{
+		if ( !GetOuter()->GetStealthSenses()->QuerySeeEntity( pSightEnt ) )
+			return false;
+	}
+#endif
 
 	return true;
 }
@@ -598,6 +610,13 @@ float CAI_Senses::GetTimeLastUpdate( CBaseEntity *pEntity )
 		return m_TimeLastLookNPCs;
 	return m_TimeLastLookMisc;
 }
+
+#ifdef EZ2
+void CAI_Senses::ResetLastPlayerUpdateTime()
+{
+	m_TimeLastLookHighPriority = 0.0f;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 

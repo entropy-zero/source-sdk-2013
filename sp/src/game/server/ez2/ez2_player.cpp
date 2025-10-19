@@ -32,6 +32,8 @@
 #include "achievementmgr.h"
 #include "npc_husk_base.h"
 #include "ammodef.h"
+#include "ai_stealth_manager.h"
+#include "ai_stealth_area.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -60,6 +62,8 @@ BEGIN_DATADESC(CEZ2_Player)
 	//DEFINE_UTLVECTOR( m_SightEvents, FIELD_EMBEDDED ),
 
 	DEFINE_FIELD( m_vecLastCommandGoal, FIELD_VECTOR ),
+
+	DEFINE_FIELD( m_flTimeEnteredStealthArea, FIELD_TIME ),
 
 	DEFINE_FIELD(m_hNPCComponent, FIELD_EHANDLE),
 	DEFINE_FIELD(m_flNextSpeechTime, FIELD_TIME),
@@ -584,6 +588,34 @@ bool CEZ2_Player::CanAutoSwitchToNextBestWeapon( CBaseCombatWeapon *pWeapon )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CEZ2_Player::Touch( CBaseEntity *pOther )
+{
+	BaseClass::Touch( pOther );
+
+	if ( g_hStealthManager && !(pOther->GetFlags() & FL_OBJECT) )
+	{
+		IPhysicsObject *pPhys = pOther->VPhysicsGetObject();
+		if ( pPhys && pPhys->IsMoveable() )
+		{
+			// Check if we should make this perceivable by NPCs since we're moving it
+			switch (g_hStealthManager->GetStealthObjectType( pOther ))
+			{
+				case STEALTH_OBJ_PROP:
+					{
+						StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pOther );
+						if ( !pObjState || pObjState->nTimesFound == 0 )
+							g_hStealthManager->AddSeenObject( pOther );
+						g_hStealthManager->MakePropPerceivable( pOther );	// Extra step for props
+					}
+					break;
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CEZ2_Player::OnUseEntity( CBaseEntity *pEntity )
 {
 	// Continuous use = turning valves, using chargers, etc.
@@ -614,6 +646,29 @@ void CEZ2_Player::OnUseEntity( CBaseEntity *pEntity )
 			// See MIN_HUDHINT_DISPLAY_TIME in basecombatweapon_shared.cpp
 			if (g_SightHintSurrenderableCitizen.flLastHintTime != 0 && gpGlobals->curtime - g_SightHintSurrenderableCitizen.flLastHintTime < 7.0f)
 				SurrenderableCitizenHintHide( this, pNPC );
+		}
+	}
+	else if ( g_hStealthManager && !(pEntity->GetFlags() & FL_OBJECT) )
+	{
+		// Check if we should make this perceivable by NPCs since we're moving it
+		switch (g_hStealthManager->GetStealthObjectType( pEntity ))
+		{
+			case STEALTH_OBJ_PROP:
+				{
+					StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pEntity );
+					if ( !pObjState || pObjState->nTimesFound == 0 )
+						g_hStealthManager->AddSeenObject( pEntity );
+					g_hStealthManager->MakePropPerceivable( pEntity );	// Extra step for props
+				}
+				break;
+			case STEALTH_OBJ_RAGDOLL:
+				g_AI_SensedObjectsManager.AddEntity( pEntity );
+				break;
+			case STEALTH_OBJ_DOOR:
+				// Unfortunately, we can't do this directly because the door doesn't open right away.
+				// See CBasePropDoor::DoorOpen()
+				//g_AI_SensedObjectsManager.AddEntity( pEntity );
+				break;
 		}
 	}
 
@@ -2616,6 +2671,94 @@ bool CEZ2_Player::ReactToSound( CSound *pSound, float flDist )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CEZ2_Player::AlertLevelUpdate( CAI_BaseNPC *pNPC, float flLevel, int iType )
+{
+	if ( GetNPCComponent() )
+	{
+		// Don't update for enemies I don't know about
+		if ( !GetNPCComponent()->GetEnemies()->Find( pNPC ) )
+			return;
+	}
+
+	CSingleUserRecipientFilter user( this );
+	user.MakeReliable();
+	UserMessageBegin( user, "AlertTargetUpdate" );
+		WRITE_ENTITY( pNPC->entindex() );
+		WRITE_FLOAT( flLevel );
+		WRITE_BYTE( iType );
+	MessageEnd();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::AlertLevelEngageEnemy( CAI_BaseNPC *pNPC )
+{
+	if ( GetNPCComponent() )
+	{
+		// Don't update for enemies I don't know about
+		if ( !GetNPCComponent()->GetEnemies()->Find( pNPC ) )
+			return;
+	}
+
+	bool bTargetingMe = (pNPC->GetEnemy() == this);
+
+	CSingleUserRecipientFilter user( this );
+	user.MakeReliable();
+	UserMessageBegin( user, "AlertTargetEntersCombat" );
+		WRITE_ENTITY( pNPC->entindex() );
+		WRITE_BOOL( bTargetingMe );
+	MessageEnd();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::ShouldMoveDoorStealthily( CBasePropDoor *pDoor )
+{
+	if ( g_hStealthManager )
+	{
+		// Always allow if crouching
+		if ( GetButtons() & IN_DUCK )
+			return true;
+
+		// Otherwise, do so automatically based on local conditions
+
+		// Don't open stealthily if we're either in combat or not in stealth mode
+		if ( !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) )
+			return false;
+
+		// If we're trying to go fast, then the door shouldn't be opened slowly
+		if ( IsSprinting() )
+			return false;
+
+		return true;
+	}
+	
+	// TODO: Could allow stealth door-opening outside of stealth mode if the player is crouching. Is that desired?
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::OnEnterStealthArea( CTriggerStealthArea *pArea )
+{
+	m_flTimeEnteredStealthArea = gpGlobals->curtime;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::OnExitStealthArea( CTriggerStealthArea *pArea )
+{
+	// Nothing at the moment
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 HSCRIPT CEZ2_Player::ScriptGetNPCComponent()
 {
 	return ToHScript( GetNPCComponent() );
@@ -2821,6 +2964,39 @@ void CAI_PlayerNPCDummy::ModifyOrAppendOuterCriteria( AI_CriteriaSet & set )
 		set.AppendCriteria( "timesincecombat", "999999.0" );
 	else
 		set.AppendCriteria( "timesincecombat", UTIL_VarArgs( "%f", gpGlobals->curtime - GetLastEnemyTime() ) );
+
+	// Identify whether it's safe to speak
+	float flClosestEnemySqr = FLT_MAX;
+	AIEnemiesIter_t iter;
+	for ( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
+	{
+		// Doesn't count speech target since that can be accessed with enemydistance criterion. We'd usually care about anyone besides our current enemy
+		if (pEMemory->hEnemy && pEMemory->hEnemy->IsAlive() && GetOuter()->GetSpeechTarget() != pEMemory->hEnemy)
+		{
+			// Use actual origin. This could be a case where the player could see through walls but the NPC can't
+			float flDistSqr = (pEMemory->hEnemy->GetAbsOrigin() - GetOuter()->GetAbsOrigin()).LengthSqr();
+
+			if ( GetOuter()->FVisible( pEMemory->hEnemy ) )
+			{
+				// Pretend they're twice as close
+				flDistSqr *= 0.5f;
+			}
+
+			if (flDistSqr < flClosestEnemySqr)
+			{
+				flClosestEnemySqr = flDistSqr;
+			}
+		}
+	}
+
+	if ( flClosestEnemySqr != FLT_MAX )
+	{
+		set.AppendCriteria( "nearest_enemy_dist", UTIL_VarArgs( "%f", sqrtf( flClosestEnemySqr ) ) );
+	}
+	else
+	{
+		set.AppendCriteria( "nearest_enemy_dist", "999999.0" );
+	}
 }
 
 //-----------------------------------------------------------------------------

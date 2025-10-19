@@ -165,6 +165,8 @@ public:
 #ifdef EZ2
 	bool	IsBeastActBusy();
 	bool	IsHuskActBusy();
+
+	bool	IsStartBusying();
 #endif
 
 #ifdef MAPBASE
