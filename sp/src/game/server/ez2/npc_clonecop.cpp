@@ -683,6 +683,15 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 			handledEvent = true;
 			break;
 		case COMBINE_AE_KICK:
+			if ( m_hOpeningDoor && !IsCurSchedule( SCHED_MELEE_ATTACK1 ) )
+			{
+				if ( KickDoor( m_hOpeningDoor, sk_clonecop_kick.GetInt() ) )
+				{
+					handledEvent = true;
+					break;
+				}
+			}
+
 			// Try to dispatch a kick interaction
 			pHurt = CheckTraceHullAttack( 70, -Vector( 16, 16, 18 ), Vector( 16, 16, 18 ), 0, DMG_CLUB );
 			pBCC = ToBaseCombatCharacter( pHurt );

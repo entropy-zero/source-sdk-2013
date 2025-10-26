@@ -5293,6 +5293,15 @@ void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 
 		case COMBINE_AE_KICK:
 			{
+				if ( m_hOpeningDoor && !IsCurSchedule( SCHED_MELEE_ATTACK1 ) )
+				{
+					if ( KickDoor( m_hOpeningDoor, m_nKickDamage ) )
+					{
+						handledEvent = true;
+						break;
+					}
+				}
+
 				// Does no damage, because damage is applied based upon whether the target can handle the interaction
 				CBaseEntity *pHurt = CheckTraceHullAttack( 70, -Vector(16,16,18), Vector(16,16,18), 0, DMG_CLUB );
 				CBaseCombatCharacter* pBCC = ToBaseCombatCharacter( pHurt );

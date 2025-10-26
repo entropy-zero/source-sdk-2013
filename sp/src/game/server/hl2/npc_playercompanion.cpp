@@ -41,6 +41,7 @@
 #ifdef EZ2
 #include "ez2/ai_stealth_senses.h"
 #include "ez2/ai_stealth_manager.h"
+#include "ez2/ez2_player.h"
 #endif
 
 ConVar ai_debug_readiness("ai_debug_readiness", "0" );
@@ -52,6 +53,12 @@ ConVar ai_jump_rise("ai_jump_rise", "64"); // How high can player companions jum
 ConVar ai_jump_drop("ai_jump_drop", "384"); // How high can player companions fall
 ConVar ai_jump_distance("ai_jump_distance", "160"); // How high can player companions jump
 extern ConVar ai_aim_requires_squadslots;
+#endif
+
+#ifdef EZ2
+ConVar ai_kick_doors( "ai_kick_doors", "1" );
+
+#define AI_KICK_DOOR_SPEED_MOD		0.35f	// Reduced move speed while kicking a door open (since it uses a gesture)
 #endif
 
 #ifdef COMPANION_MELEE_ATTACK
@@ -2234,6 +2241,12 @@ void CNPC_PlayerCompanion::HandleAnimEvent( animevent_t *pEvent )
 #if COMPANION_MELEE_ATTACK
 	case AE_PC_MELEE:
 		{
+			if ( m_hOpeningDoor && !IsCurSchedule( SCHED_MELEE_ATTACK1 ) )
+			{
+				if ( KickDoor( m_hOpeningDoor, m_nMeleeDamage ) )
+					break;
+			}
+
 			CBaseEntity *pHurt = CheckTraceHullAttack(COMPANION_MELEE_DIST, -Vector(16, 16, 18), Vector(16, 16, 18), 0, DMG_CLUB);
 			CBaseCombatCharacter* pBCC = ToBaseCombatCharacter(pHurt);
 			if (pBCC)
@@ -4312,6 +4325,150 @@ bool CNPC_PlayerCompanion::IsJumpLegal(const Vector &startPos, const Vector &ape
 bool CNPC_PlayerCompanion::IsJumpLegal(const Vector & startPos, const Vector & apex, const Vector & endPos, float maxUp, float maxDown, float maxDist) const
 {
 	return BaseClass::IsJumpLegal(startPos, apex, endPos, maxUp, maxDown, maxDist);
+}
+#endif
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: Whether or not we should kick open the door
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::ShouldKickDoor( CBasePropDoor *pDoor )
+{
+	if ( GetState() != NPC_STATE_COMBAT )
+		return false;
+
+	if ( !ai_kick_doors.GetBool() )
+		return false;
+
+	if ( !pDoor->CanOpenOnKick( this ) )
+		return false;
+
+	if ( !HaveSequenceForActivity( ACT_GESTURE_MELEE_ATTACK2 ) )
+		return false;
+
+	// Only if we're already somewhat facing it (enough for our facing queue to face it in time)
+	// (need to do center because the origin is the hinge)
+	Vector vecDir = ( pDoor->WorldSpaceCenter() - GetAbsOrigin() );
+	vecDir.z = 0;
+	VectorNormalize( vecDir );
+
+	if ( DotProduct( vecDir, BodyDirection2D() ) < 0.25f ) // roughly 75 degrees
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Kicks open the door as if Bad Cop kicked it
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::KickDoor( CBasePropDoor *pDoor, int nKickDamage )
+{
+	// Not already open or opening
+	if ( pDoor->IsDoorOpen() || pDoor->IsDoorOpening() )
+		return false;
+
+	// Dispatch the kick interaction with some basic info
+	trace_t tr;
+	CTakeDamageInfo dmgInfo( this, this, nKickDamage, DMG_CLUB );
+	KickInfo_t kickInfo( &tr, &dmgInfo );
+	if ( m_hOpeningDoor->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this ) && m_hOpeningDoor->VPhysicsGetObject() )
+	{
+		if ( !physprops->GetSurfaceData( m_hOpeningDoor->VPhysicsGetObject()->GetMaterialIndex() )->sounds.breakSound )
+		{
+			// Some surfaceprops (particularly metal ones) have no break sound
+			m_hOpeningDoor->EmitSound( "Metal_Box.Break" );
+		}
+		else
+		{
+			PhysBreakSound( m_hOpeningDoor, m_hOpeningDoor->VPhysicsGetObject(), m_hOpeningDoor->WorldSpaceCenter() );
+		}
+
+		EmitSound( "NPC_Combine.WeaponBash" );
+		return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Get movement speed, multipled by modifier
+//-----------------------------------------------------------------------------
+float CNPC_PlayerCompanion::GetSequenceGroundSpeed( CStudioHdr *pStudioHdr, int iSequence )
+{
+	if (m_hOpeningDoor && IsPlayingGesture(ACT_GESTURE_MELEE_ATTACK2))
+	{
+		// Reduce speed while kicking a door open
+		float t = SequenceDuration( pStudioHdr, iSequence );
+		if ( t > 0 )
+			return (GetSequenceMoveDist( pStudioHdr, iSequence ) * AI_KICK_DOOR_SPEED_MOD / t);
+	}
+
+	return BaseClass::GetSequenceGroundSpeed( pStudioHdr, iSequence );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : pMoveGoal - 
+//			pDoor - 
+//			distClear - 
+//			default - 
+//			spawn - 
+//			oldorg - 
+//			pfPosition - 
+//			neworg - 
+// Output : Returns true if movement is solved, false otherwise.
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::OnUpcomingPropDoor( AILocalMoveGoal_t *pMoveGoal,
+ 										CBasePropDoor *pDoor,
+										float distClear,
+										AIMoveResult_t *pResult )
+{
+	StopAiming();
+
+	// If we can't or shouldn't kick this door, defer to base
+	if ( !ShouldKickDoor( pDoor ) )
+		return BaseClass::OnUpcomingPropDoor( pMoveGoal, pDoor, distClear, pResult );
+
+	if ( (pMoveGoal->flags & AILMG_TARGET_IS_GOAL) && pMoveGoal->maxDist < distClear )
+		return false;
+
+	if ( pMoveGoal->maxDist + GetHullWidth() < distClear )
+		return false;
+
+	if (pDoor == m_hOpeningDoor)
+	{
+		if ( pDoor->IsNPCOpening( this ) )
+		{
+			// We're in the process of opening the door, don't be blocked by it.
+			pMoveGoal->maxDist = distClear;
+			*pResult = AIMR_OK;
+			return true;
+		}
+		m_hOpeningDoor = NULL;
+	}
+
+	if ((CapabilitiesGet() & bits_CAP_DOORS_GROUP) && !pDoor->IsDoorLocked() && (pDoor->IsDoorClosed() || pDoor->IsDoorClosing()) && pDoor->PassesDoorFilter(this))
+	{
+		opendata_t opendata;
+		pDoor->GetNPCOpenData(this, opendata);
+
+		m_hOpeningDoor = pDoor;
+
+		int iLayer = AddGesture( ACT_GESTURE_MELEE_ATTACK2 );
+		//float flDuration = GetLayerDuration( iLayer );
+		const float flDuration = 1.0f;
+		SetLayerDuration( iLayer, flDuration );
+
+		// Face the door and wait for the activity to finish before trying to move through the doorway.
+		//m_flMoveWaitFinished = gpGlobals->curtime + flDuration + pDoor->GetOpenInterval();
+		AddFacingTarget( GetAbsOrigin() + (opendata.vecFaceDir * 16), 1.0, flDuration - 0.25f );
+
+		pMoveGoal->maxDist = distClear;
+		*pResult = AIMR_OK;
+		return true;
+	}
+
+	return false;
 }
 #endif
 

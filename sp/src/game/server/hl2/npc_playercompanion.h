@@ -362,6 +362,16 @@ public:
 	bool			IsJumpLegal(const Vector & startPos, const Vector & apex, const Vector & endPos) const; // Added by 1upD - all 'player companions' should be able to jump
 #endif
 
+#ifdef EZ2
+	virtual bool	ShouldKickDoor( CBasePropDoor *pDoor );
+	bool			KickDoor( CBasePropDoor *pDoor, int nKickDamage );
+	virtual float	GetSequenceGroundSpeed( CStudioHdr *pStudioHdr, int iSequence );
+	virtual bool 	OnUpcomingPropDoor( AILocalMoveGoal_t *pMoveGoal,
+ 		CBasePropDoor *pDoor,
+		float distClear,
+		AIMoveResult_t *pResult );
+#endif
+
 	//---------------------------------
 	// Inputs
 	//---------------------------------
