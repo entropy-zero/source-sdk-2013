@@ -114,6 +114,8 @@ ConVar mapbase_prop_consistency_noremove("mapbase_prop_consistency_noremove", "1
 
 	// Unique vort barrel boogie color
 	static const Vector g_vecVortBarrelBoogieColor( 0.1675, 0.90, 0.1675 );
+
+ConVar sk_plr_dmg_kick_door( "sk_plr_dmg_kick_door", "75" );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -5464,6 +5466,22 @@ void CBasePropDoor::OnStartBlocked( CBaseEntity *pOther )
 		// Opened into an NPC, close.
 		if ( pOther->MyNPCPointer() )
 		{
+#ifdef EZ2
+			if ( m_bKicked && sk_plr_dmg_kick_door.GetInt() > 0 )
+			{
+				// Damage whoever's on the other side. If they die, don't close
+				CTakeDamageInfo info( this, m_hActivator, sk_plr_dmg_kick_door.GetInt(), DMG_CRUSH );
+
+				// 2x damage if they aren't fighting the kicker
+				if ( pOther->MyNPCPointer()->GetEnemy() != m_hActivator )
+					info.ScaleDamage( 2.0f );
+
+				pOther->TakeDamage( info );
+				if ( pOther->IsAlive() )
+					DoorClose();
+			}
+			else
+#endif
 			DoorClose();
 		}
 
@@ -5727,6 +5745,7 @@ bool CBasePropDoor::KickOpen(CBaseEntity * pSourceEnt)
 	{
 		// Set the door speed to the kicking speed
 		m_bKicked = true;
+		m_hActivator = pSourceEnt;
 
 		// Open the door away from the source entity if you can
 		OpenIfUnlocked( pSourceEnt, pSourceEnt );
@@ -6436,7 +6455,11 @@ void CPropDoorRotating::BeginOpening(CBaseEntity *pOpenAwayFrom)
 
 		// If player is opening us and we're opening away from them, and we'll be
 		// blocked if we open away from them, open toward them.
-		if (IsPlayerOpening() && (pOpenAwayFrom && pOpenAwayFrom->IsPlayer()) && !CheckDoorClear(eDirCheck))
+		if (IsPlayerOpening() && (pOpenAwayFrom && pOpenAwayFrom->IsPlayer()) && !CheckDoorClear(eDirCheck)
+#ifdef EZ2
+			&& !m_bKicked
+#endif
+			)
 		{
 			if (eDirCheck == DOOR_CHECK_FORWARD)
 			{
