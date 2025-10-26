@@ -110,6 +110,8 @@ public:
 	bool	HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
 	bool	KickOpen( CBaseEntity * pSourceEnt );
 	void	InputKickOpen( inputdata_t &inputdata );
+
+	virtual bool CanOpenOnKick( CBaseEntity * pEntity ) { return m_bOpenOnKick; }
 #endif
 
 protected:
@@ -148,7 +150,12 @@ protected:
 	bool	m_bUnlockOnKick;
 	bool	m_bKicked;
 
-	virtual bool CanOpenOnKick( CBaseEntity * pEntity ) { return m_bOpenOnKick; }
+	// Opening while in stealth section (or crouched)
+	bool	m_bStealth;
+	bool	m_bDisableStealth;
+	float	m_flStealthSpeed;
+	string_t m_SoundStealthMoving;
+	string_t m_SoundStealthUnlock;
 #endif
 
 private:

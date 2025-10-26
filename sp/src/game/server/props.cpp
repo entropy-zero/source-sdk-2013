@@ -52,6 +52,8 @@
 #include "eventqueue.h"
 #include "RagdollBoogie.h"
 #include "particle_parse.h"
+#include "ez2/ai_stealth_manager.h"
+#include "ez2/ai_stealth_senses.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -4347,6 +4349,12 @@ BEGIN_DATADESC(CBasePropDoor)
 	DEFINE_FIELD( m_bKicked, FIELD_BOOLEAN ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "KickOpen", InputKickOpen ),
+
+	DEFINE_FIELD( m_bStealth, FIELD_BOOLEAN ),
+	DEFINE_KEYFIELD( m_flStealthSpeed, FIELD_FLOAT, "stealthspeed" ),
+	DEFINE_KEYFIELD( m_bDisableStealth, FIELD_BOOLEAN, "disablestealth" ),
+	DEFINE_KEYFIELD( m_SoundStealthMoving, FIELD_SOUNDNAME, "soundstealthmoving" ),
+	DEFINE_KEYFIELD( m_SoundStealthUnlock, FIELD_SOUNDNAME, "soundstealthunlock" ),
 #endif
 
 	DEFINE_INPUTFUNC(FIELD_VOID, "Open", InputOpen),
@@ -4427,6 +4435,12 @@ CBasePropDoor::CBasePropDoor( void )
 	m_eNPCOpenFrontActivity = ACT_INVALID;
 	m_eNPCOpenBackActivity = ACT_INVALID;
 #endif
+
+#ifdef EZ2
+	m_bStealth = false;
+	m_bDisableStealth = false;
+	m_flStealthSpeed = 50;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -4452,6 +4466,13 @@ void CBasePropDoor::Spawn()
 	{
 		m_flSpeed = 100;
 	}
+
+#ifdef EZ2
+	if (m_flStealthSpeed == 0)
+	{
+		m_flStealthSpeed = MIN( 50, m_flSpeed );
+	}
+#endif
 	
 	RemoveFlag(FL_STATICPROP);
 
@@ -4614,6 +4635,10 @@ void CBasePropDoor::CalcDoorSounds()
 	string_t strSoundMoving = NULL_STRING;
 	string_t strSoundLocked = NULL_STRING;
 	string_t strSoundUnlocked = NULL_STRING;
+#ifdef EZ2
+	string_t strSoundMovingStealth = NULL_STRING;
+	string_t strSoundUnlockedStealth = NULL_STRING;
+#endif
 
 	bool bFoundSkin = false;
 	// Otherwise, use the sounds specified by the model keyvalues. These are looked up
@@ -4634,6 +4659,9 @@ void CBasePropDoor::CalcDoorSounds()
 				strSoundOpen = AllocPooledString( pkvSkinData->GetString( "open" ) );
 				strSoundClose = AllocPooledString( pkvSkinData->GetString( "close" ) );
 				strSoundMoving = AllocPooledString( pkvSkinData->GetString( "move" ) );
+#ifdef EZ2
+				strSoundMovingStealth = AllocPooledString( pkvSkinData->GetString( "move_stealth" ) );
+#endif
 				const char *pSurfaceprop = pkvSkinData->GetString( "surfaceprop" );
 				if ( pSurfaceprop && VPhysicsGetObject() )
 				{
@@ -4650,6 +4678,9 @@ void CBasePropDoor::CalcDoorSounds()
 			{
 				strSoundLocked = AllocPooledString( pkvHardwareData->GetString( "locked" ) );
 				strSoundUnlocked = AllocPooledString( pkvHardwareData->GetString( "unlocked" ) );
+#ifdef EZ2
+				strSoundUnlockedStealth = AllocPooledString( pkvHardwareData->GetString( "unlocked_stealth" ) );
+#endif
 
 #ifdef MAPBASE
 				if (ai_door_enable_acts.GetBool())
@@ -4700,6 +4731,10 @@ void CBasePropDoor::CalcDoorSounds()
 					ASSIGN_STRING_IF_NULL( strSoundMoving, AllocPooledString( pkvDefaults->GetString( "move" ) ) );
 					ASSIGN_STRING_IF_NULL( strSoundLocked, AllocPooledString( pkvDefaults->GetString( "locked" ) ) );
 					ASSIGN_STRING_IF_NULL( strSoundUnlocked, AllocPooledString( pkvDefaults->GetString( "unlocked" ) ) );
+#ifdef EZ2
+					ASSIGN_STRING_IF_NULL( strSoundMovingStealth, AllocPooledString( pkvDefaults->GetString( "move_stealth" ) ) );
+					ASSIGN_STRING_IF_NULL( strSoundUnlockedStealth, AllocPooledString( pkvDefaults->GetString( "unlocked_stealth" ) ) );
+#endif
 					// NOTE: No default needed for surfaceprop, it's set by the model
 				}
 			}
@@ -4733,6 +4768,22 @@ void CBasePropDoor::CalcDoorSounds()
 	PrecacheScriptSound( STRING( m_SoundClose ) );
 	PrecacheScriptSound( STRING( m_ls.sLockedSound ) );
 	PrecacheScriptSound( STRING( m_ls.sUnlockedSound ) );
+
+#ifdef EZ2
+	if ( !m_bDisableStealth )
+	{
+		ASSIGN_STRING_IF_NULL( m_SoundStealthMoving, strSoundMovingStealth );
+		ASSIGN_STRING_IF_NULL( m_SoundStealthUnlock, strSoundUnlockedStealth );
+
+		// While default door sounds normally use DoorSound.Null as the default, we just assign actual default sounds
+		// (Hardware type 2 = pushbar)
+		UTIL_ValidateSoundName( m_SoundStealthMoving, "Doors.StealthMove1" );
+		UTIL_ValidateSoundName( m_SoundStealthUnlock, m_nHardwareType == 2 ? "DoorHandles.StealthUnlocked2" : "DoorHandles.StealthUnlocked1" );
+
+		PrecacheScriptSound( STRING( m_SoundStealthMoving ) );
+		PrecacheScriptSound( STRING( m_SoundStealthUnlock ) );
+	}
+#endif
 }
 
 
@@ -4827,6 +4878,14 @@ void CBasePropDoor::OnUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TY
 		{
 			m_hActivator = pActivator;
 
+#ifdef EZ2
+			if ( pActivator->IsPlayer() && !m_bDisableStealth )
+				m_bStealth = static_cast<CEZ2_Player *>(pActivator)->ShouldMoveDoorStealthily( this );
+
+			if ( m_bStealth )
+				EmitSound( STRING( m_SoundStealthUnlock ) );
+			else
+#endif
 			PlayLockSounds(this, &m_ls, FALSE, FALSE);
 			int nSequence = SelectWeightedSequence((Activity)ACT_DOOR_OPEN);
 			PropSetSequence(nSequence);
@@ -5061,6 +5120,12 @@ void CBasePropDoor::DoorOpen(CBaseEntity *pOpenAwayFrom)
 	if ( IsDoorOpen() || IsDoorOpening() )
 		return;
 
+#ifdef EZ2
+	// Ideally, we'd be doing this in CEZ2_Player::OnUseEntity(), but we can't because the door doesn't open/close right away
+	if (g_hStealthManager && m_hActivator && m_hActivator->IsPlayer())
+		g_hStealthManager->MakePropPerceivable( this );
+#endif
+
 	UpdateAreaPortals(true);
 
 	// It could be going-down, if blocked.
@@ -5070,11 +5135,28 @@ void CBasePropDoor::DoorOpen(CBaseEntity *pOpenAwayFrom)
 	// filter them out and leave a client stuck with looping door sounds!
 	if (!HasSpawnFlags(SF_DOOR_SILENT))
 	{
-		EmitSound( STRING( m_SoundMoving ) );
-
-		if ( m_hActivator && m_hActivator->IsPlayer() && !HasSpawnFlags( SF_DOOR_SILENT_TO_NPCS ) )
+#ifdef EZ2
+		if ( m_bStealth )
 		{
-			CSoundEnt::InsertSound( SOUND_PLAYER, GetAbsOrigin(), 512, 0.5, this );//<<TODO>>//magic number
+			EmitSound( STRING( m_SoundStealthMoving ) );
+		}
+		else
+#endif
+		{
+			EmitSound( STRING( m_SoundMoving ) );
+
+			if ( m_hActivator && m_hActivator->IsPlayer() && !HasSpawnFlags( SF_DOOR_SILENT_TO_NPCS ) )
+			{
+#ifdef EZ2
+				if ( g_hStealthManager )
+				{
+					// Emit the door sound from the center and have NPCs react to the entity
+					CSoundEnt::InsertSound( SOUND_PLAYER | SOUND_CONTEXT_REACT_TO_SOURCE, WorldSpaceCenter(), 512, 0.5, this );
+				}
+				else
+#endif
+				CSoundEnt::InsertSound( SOUND_PLAYER, GetAbsOrigin(), 512, 0.5, this );//<<TODO>>//magic number
+			}
 		}
 	}
 
@@ -5088,7 +5170,11 @@ void CBasePropDoor::DoorOpen(CBaseEntity *pOpenAwayFrom)
 	m_OnOpen.FireOutput(this, this);
 
 	// Tell all the slaves
-	if ( HasSlaves() )
+	if ( HasSlaves()
+#ifdef EZ2
+		&& !m_bStealth
+#endif
+		)
 	{
 		int	numDoors = m_hDoorList.Count();
 
@@ -5151,6 +5237,7 @@ void CBasePropDoor::DoorOpenMoveDone(void)
 
 #ifdef EZ2
 	m_bKicked = false;
+	m_bStealth = false;
 #endif
 
 	// Let the leaf class do its thing.
@@ -5197,13 +5284,36 @@ void CBasePropDoor::DoorClose(void)
 	if ( IsDoorClosed() || IsDoorClosing() )
 		return;
 
+#ifdef EZ2
+	// Ideally, we'd be doing this in CEZ2_Player::OnUseEntity(), but we can't because the door doesn't open/close right away
+	if (g_hStealthManager && m_hActivator && m_hActivator->IsPlayer())
+		g_AI_SensedObjectsManager.AddEntity( this );
+#endif
+
 	if (!HasSpawnFlags(SF_DOOR_SILENT))
 	{
-		EmitSound( STRING( m_SoundMoving ) );
-
-		if ( m_hActivator && m_hActivator->IsPlayer() )
+#ifdef EZ2
+		if ( m_bStealth )
 		{
-			CSoundEnt::InsertSound( SOUND_PLAYER, GetAbsOrigin(), 512, 0.5, this );//<<TODO>>//magic number
+			EmitSound( STRING( m_SoundStealthMoving ) );
+		}
+		else
+#endif
+		{
+			EmitSound( STRING( m_SoundMoving ) );
+
+			if ( m_hActivator && m_hActivator->IsPlayer() )
+			{
+#ifdef EZ2
+				if ( g_hStealthManager )
+				{
+					// Emit the door sound from the center and identify it with a channel
+					CSoundEnt::InsertSound( SOUND_PLAYER | SOUND_CONTEXT_REACT_TO_SOURCE, WorldSpaceCenter(), 512, 0.5, this );
+				}
+				else
+#endif
+				CSoundEnt::InsertSound( SOUND_PLAYER, GetAbsOrigin(), 512, 0.5, this );//<<TODO>>//magic number
+			}
 		}
 	}
 	
@@ -5218,7 +5328,11 @@ void CBasePropDoor::DoorClose(void)
 	m_OnClose.FireOutput(this, this);
 
 	// Tell all the slaves
-	if ( HasSlaves() )
+	if ( HasSlaves()
+#ifdef EZ2
+		&& !m_bStealth
+#endif
+		)
 	{
 		int	numDoors = m_hDoorList.Count();
 
@@ -5259,6 +5373,7 @@ void CBasePropDoor::DoorCloseMoveDone(void)
 
 #ifdef EZ2
 	m_bKicked = false;
+	m_bStealth = false;
 #endif
 
 	// Let the leaf class do its thing.
@@ -6370,7 +6485,11 @@ void CPropDoorRotating::BeginOpening(CBaseEntity *pOpenAwayFrom)
 	}
 
 	// Make respectful entities move away from our path
-	if( !HasSpawnFlags(SF_DOOR_SILENT_TO_NPCS) )
+	if( !HasSpawnFlags(SF_DOOR_SILENT_TO_NPCS)
+#ifdef EZ2
+		&& !m_bStealth
+#endif
+		 )
 	{
 		CSoundEnt::InsertSound( SOUND_MOVE_AWAY, volumeCenter, volumeRadius, 0.5f, pOpenAwayFrom );
 	}
@@ -6399,6 +6518,10 @@ void CPropDoorRotating::BeginOpening(CBaseEntity *pOpenAwayFrom)
 	{
 		flSpeed = m_flKickSpeed;
 	}
+	else if ( m_bStealth )
+	{
+		flSpeed = m_flStealthSpeed;
+	}
 
 	AngularMove( angOpen, flSpeed );
 
@@ -6426,8 +6549,18 @@ void CPropDoorRotating::BeginClosing( void )
 			NDebugOverlay::Box( GetAbsOrigin(), m_hDoorBlocker->CollisionProp()->OBBMins(), m_hDoorBlocker->CollisionProp()->OBBMaxs(), 255, 0, 0, true, 1.0f );
 		}
 	}
+	
+#ifdef EZ2
+	float flSpeed = m_flSpeed;
+	if ( m_bStealth )
+	{
+		flSpeed = m_flStealthSpeed;
+	}
 
+	AngularMove( m_angRotationClosed, flSpeed );
+#else
 	AngularMove(m_angRotationClosed, m_flSpeed);
+#endif
 }
 
 //-----------------------------------------------------------------------------
