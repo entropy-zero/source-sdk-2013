@@ -229,7 +229,7 @@ public:
 	// -----------------------
 	CBaseCombatWeapon*	Weapon_Create( const char *pWeaponName );
 	virtual Activity	Weapon_TranslateActivity( Activity baseAct, bool *pRequired = NULL );
-	void				Weapon_SetActivity( Activity newActivity, float duration );
+	virtual void		Weapon_SetActivity( Activity newActivity, float duration );
 	virtual void		Weapon_FrameUpdate( void );
 	virtual void		Weapon_HandleAnimEvent( animevent_t *pEvent );
 	CBaseCombatWeapon*	Weapon_OwnsThisType( const char *pszWeapon, int iSubType = 0 ) const;  // True if already owns a weapon of this class
