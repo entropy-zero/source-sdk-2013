@@ -191,6 +191,9 @@ ConVar sv_disallow_zoom_fire("sv_disallow_zoom_fire", "1", FCVAR_REPLICATED);
 #ifdef EZ2
 ConVar sk_suit_maxarmor("sk_suit_maxarmor", "200", FCVAR_REPLICATED);
 ConVar sk_plr_dmg_kick( "sk_plr_dmg_kick", "5", FCVAR_REPLICATED );
+ConVar sk_plr_dmg_kick_highspeed_min( "sk_plr_dmg_kick_highspeed_min", "300", FCVAR_NONE );
+ConVar sk_plr_dmg_kick_highspeed_max( "sk_plr_dmg_kick_highspeed_max", "450", FCVAR_NONE );
+ConVar sk_plr_dmg_kick_highspeed( "sk_plr_dmg_kick_highspeed", "150", FCVAR_NONE );
 #else
 ConVar sk_suit_maxarmor("sk_suit_maxarmor", "100", FCVAR_REPLICATED);
 #endif
@@ -5065,6 +5068,17 @@ void CHL2_Player::TraceKickAttack( CBaseEntity* pKickedEntity )
 	{
 		float dmg = sk_plr_dmg_kick.GetFloat();
 		int dmgType = DMG_CLUB;
+
+		if ( sk_plr_dmg_kick_highspeed.GetFloat() > 0.0f )
+		{
+			// If we're going fast enough, increase the kick's kinetic energy
+			float flSpeedSqr = GetAbsVelocity().LengthSqr();
+			if ( flSpeedSqr > Square( sk_plr_dmg_kick_highspeed_min.GetFloat() ) )
+			{
+				dmg = RemapValClamped( flSpeedSqr, Square( sk_plr_dmg_kick_highspeed_min.GetFloat() ), Square( sk_plr_dmg_kick_highspeed_max.GetFloat() ),
+					dmg, sk_plr_dmg_kick_highspeed.GetFloat() );
+			}
+		}
 
 		CTakeDamageInfo dmgInfo( this, this, dmg, dmgType );
 		dmgInfo.SetDamagePosition( tr.endpos );
