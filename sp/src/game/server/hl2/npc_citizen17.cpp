@@ -1096,9 +1096,23 @@ void CNPC_Citizen::SelectModel()
 	// Unique citizen models are left alone
 	if ( m_Type != CT_UNIQUE )
 	{
+#ifdef EZ2
+		SetCitizenModel( pszModelName );
+#else
 		SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszModelName ) ) );
+#endif
 	}
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Citizen::SetCitizenModel( const char *pszHeadName )
+{
+	SetModelName( AllocPooledString( CFmtStr( "models/Humans/%s/%s", (const char *)(CFmtStr(g_ppszModelLocs[ m_Type ], ( IsMedic() ) ? "m" : "" )), pszHeadName ) ) );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1304,21 +1318,12 @@ void CNPC_Citizen::OnChangeRunningBehavior( CAI_BehaviorBase *pOldBehavior,  CAI
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 #ifdef EZ
-void CNPC_Citizen::GatherWillpowerConditions()
+int CNPC_Citizen::CalculateWillpower()
 {
-	if (m_bWillpowerDisabled || m_NPCState != NPC_STATE_COMBAT)
-		return;
-
-	CBaseCombatWeapon * pWeapon = GetActiveWeapon();
-	if (pWeapon == NULL) // Unarmed citizens do not use willpower
-		return;
-
-	if ( pWeapon->IsMeleeWeapon() ) // Melee citizens do not use willpower
-		return;
+	CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+	Assert( pWeapon && !pWeapon->IsMeleeWeapon() );
 
 	int l_iWillpower = sk_citizen_default_willpower.GetInt() + m_iWillpowerModifier;
-
-	bool typeCanPanic = m_Type != CT_BRUTE && m_Type != CT_LONGFALL && !HasCondition( COND_CIT_WILLPOWER_LOW );
 
 	if( pWeapon->UsesClipsForAmmo1() && ((float)pWeapon->m_iClip1 / (float)pWeapon->GetMaxClip1()) > 0.75) // ratio of rounds left in magazine
 		l_iWillpower++;
@@ -1375,6 +1380,27 @@ void CNPC_Citizen::GatherWillpowerConditions()
 
 	if (HasCondition(COND_HEAR_PHYSICS_DANGER))
 		l_iWillpower--;
+
+	return l_iWillpower;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_Citizen::GatherWillpowerConditions()
+{
+	if (m_bWillpowerDisabled || m_NPCState != NPC_STATE_COMBAT)
+		return;
+
+	CBaseCombatWeapon * pWeapon = GetActiveWeapon();
+	if (pWeapon == NULL) // Unarmed citizens do not use willpower
+		return;
+
+	if ( pWeapon->IsMeleeWeapon() ) // Melee citizens do not use willpower
+		return;
+
+	bool typeCanPanic = !IsConscript() && !IsTypeBrute() && m_Type != CT_LONGFALL && !HasCondition( COND_CIT_WILLPOWER_LOW );
+
+	int l_iWillpower = CalculateWillpower();
 
 #ifdef EZ2
 	// If this citizen is not a brute or a jump rebel, their willpower is below a certain threshold, the enemy can see them, and the enemy is either Bad Cop or a soldier,
@@ -1816,7 +1842,7 @@ void CNPC_Citizen::BuildScheduleTestBits()
 		
 	}
 
-	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( m_Type == CT_BRUTE || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	if ( ( IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE ) || IsCurSchedule ( SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK ) ) && ( IsTypeBrute() || m_Type == CT_LONGFALL || m_iMySquadSlot == SQUAD_SLOT_CITIZEN_ADVANCE ) )
 	{
 		ClearCustomInterruptCondition( COND_CAN_RANGE_ATTACK1 );
 	}
@@ -1956,7 +1982,7 @@ int CNPC_Citizen::SelectSchedule()
 	TrySpeakBeg();
 
 	// Reserve strategy slot if I am a rebel brute, otherwise clear
-	if ( m_Type == CT_BRUTE && !IsStrategySlotRangeOccupied( SQUAD_SLOT_CITIZEN_ADVANCE, SQUAD_SLOT_CITIZEN_ADVANCE ) )
+	if ( IsTypeBrute() && !IsStrategySlotRangeOccupied( SQUAD_SLOT_CITIZEN_ADVANCE, SQUAD_SLOT_CITIZEN_ADVANCE ) )
 	{
 		OccupyStrategySlot( SQUAD_SLOT_CITIZEN_ADVANCE );
 	}
@@ -3399,6 +3425,18 @@ extern ConVar showhitlocation;
 //=========================================================
 void CNPC_Citizen::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator )
 {
+	//
+	// BUGBUG: Stealth sensing sneak attacks, tactical shields, and anything else involving unique bullet impact behavior will not
+	// work with citizens due to this override.
+	// This was overridden and copied from CAI_BaseNPC for jump rebel jumppack behavior, which is bad practice. There should instead
+	// be overridable base functions for the following functionality:
+	//
+	//		- HITGROUP_GEAR being redirected to GetHitgroupDamageMultiplier()
+	//		- HITGROUP_GEAR emitting sparks instead of blood
+	//
+	// These should be simple to add, but are out of scope for the conscript/stealth sensing changes being made as of writing.
+	//
+
 	m_fNoDamageDecal = false;
 	if ( m_takedamage == DAMAGE_NO )
 		return;
@@ -3507,16 +3545,7 @@ void CNPC_Citizen::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDi
 		subInfo.SetInflictor( info.GetAttacker() );
 	}
 
-	if ( IsUsingStealthSenses() )
-	{
-		// Base class call to TraceAttack() is needed for sneak attacks to function
-		// TODO: Figure out if there's any reason why this doesn't call base class already
-		BaseClass::TraceAttack( subInfo, vecDir, ptr, pAccumulator );
-	}
-	else
-	{
-		AddMultiDamage( subInfo, this );
-	}
+	AddMultiDamage( subInfo, this );
 }
 
 //-----------------------------------------------------------------------------
@@ -6500,7 +6529,7 @@ int CNPC_Citizen::CCitizenSurrenderBehavior::SelectSchedule()
 				return schedule;
 		}
 
-		if (GetOuterCit()->m_Type == CT_BRUTE)
+		if (GetOuterCit()->IsTypeBrute())
 		{
 			// Look for a weapon immediately
 			schedule = GetOuterCit()->SelectScheduleRetrieveItem();
@@ -6595,7 +6624,7 @@ int CNPC_Citizen::CCitizenSurrenderBehavior::ModifyResistanceValue( int iVal )
 	iVal += GetOuterCit()->m_iWillpowerModifier;
 
 	// Brutes give resistance a natural bonus
-	if (GetOuterCit()->m_Type == CT_BRUTE)
+	if (GetOuterCit()->IsTypeBrute())
 		iVal += 3;
 
 	return iVal;

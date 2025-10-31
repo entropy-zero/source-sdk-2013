@@ -96,11 +96,14 @@ public:
 	//---------------------------------
 	bool			CreateBehaviors();
 	void			Precache();
-	void			PrecacheAllOfType( CitizenType_t );
+	virtual void	PrecacheAllOfType( CitizenType_t );
 	void			Spawn();
 	void			PostNPCInit();
 	virtual void	SelectModel();
-	void			SelectExpressionType();
+#ifdef EZ2
+	virtual void	SetCitizenModel( const char *pszHeadName );
+#endif
+	virtual void	SelectExpressionType();
 	void			Activate();
 	virtual void	OnGivenWeapon( CBaseCombatWeapon *pNewWeapon );
 	void			FixupMattWeapon();
@@ -211,6 +214,7 @@ public:
 	//---------------------------------
 	// Willpower
 	//---------------------------------
+	virtual int		CalculateWillpower();
 	void			GatherWillpowerConditions();
 	int				MeleeAttack1Conditions( float flDot, float flDist );
 
@@ -220,7 +224,10 @@ public:
 
 	CitizenType_t	GetCitiznType() { return m_Type; }
 
-	bool			GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * pActivator );
+	virtual bool	IsTypeBrute() { return m_Type == CT_BRUTE; } // Whether this type should act like a brute
+	virtual bool	IsConscript() { return false; }
+
+	virtual bool	GiveBackupWeapon( CBaseCombatWeapon * pWeapon, CBaseEntity * pActivator );
 	bool			TrySpeakBeg();
 
 	inline bool		IsSurrendered() { return m_SurrenderBehavior.IsSurrendered(); } //{ return GetContextValue( "surrendered" )[0] == '1'; };
@@ -467,12 +474,14 @@ private:
 	float			m_flTimePlayerStare;	// The game time at which the player started staring at me.
 	float			m_flTimeNextHealStare;	// Next time I'm allowed to heal a player who is staring at me.
 #ifdef EZ
+protected:
 	int				m_iWillpowerModifier;	// 1upD - Amount of 'mental fortitude' points before panic
 	bool			m_bWillpowerDisabled;	// 1upD - Override willpower behavior
 	bool			m_bSuppressiveFireDisabled; // 1upD - Override suppressive fire behavior
 
 	bool			m_bUsedBackupWeapon;	// 1upD - Has this rebel been given a backup weapon already?
 
+private:
 	CSprite			*m_pShoulderGlow;
 #endif
 	//-----------------------------------------------------
@@ -532,7 +541,9 @@ private:
 		inline CNPC_Citizen *GetOuterCit() { return static_cast<CNPC_Citizen*>(GetOuter()); }
 	};
 
+protected:
 	virtual CAI_SurrenderBehavior &GetSurrenderBehavior( void ) { return m_SurrenderBehavior; }
+private:
 
 	CCitizenSurrenderBehavior	m_SurrenderBehavior;
 #endif
@@ -549,7 +560,7 @@ private:
 	DECLARE_ENT_SCRIPTDESC();
 #endif
 	DECLARE_DATADESC();
-#ifdef _XBOX
+#if defined(_XBOX) || defined(EZ2)
 protected:
 #endif
 	DEFINE_CUSTOM_AI;

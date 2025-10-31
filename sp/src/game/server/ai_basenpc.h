@@ -1975,6 +1975,9 @@ public:
 	void				SetSquadName( string_t name )	{ m_SquadName = name; 	}
 	bool				IsInSquad() const				{ return m_pSquad != NULL; }
 	virtual bool		IsSilentSquadMember() const 	{ return false; }
+#ifdef EZ2
+	virtual bool		IsDesignatedSquadLeader() const { return false; }
+#endif
 
 	int					NumWeaponsInSquad( const char *pszWeaponClassname );
 

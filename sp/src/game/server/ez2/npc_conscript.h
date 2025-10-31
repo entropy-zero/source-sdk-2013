@@ -1,0 +1,111 @@
+//=============================================================================//
+//
+// Purpose:		Early Combine soldier conscripted from Earth's pre-war militaries
+//
+// Author:		Blixibon
+//
+//=============================================================================//
+
+#ifndef NPC_CONSCRIPT_H
+#define NPC_CONSCRIPT_H
+#ifdef _WIN32
+#pragma once
+#endif
+
+#include "npc_conscript_base.h"
+#include "npc_citizen17.h"
+#include "prop_armor.h"
+#include "ai_prop_shield.h"
+
+//-----------------------------------------------------------------------------
+
+// Conscript types are currently aliases for citizen types due to having identical functionality.
+// 
+// Since E:Z2 types usually have a bunch of logic dedicated to them, any conscript types after CT_CONSCRIPT_UNIQUE
+// will either require a dedicated conscript type value or changes to CNPC_Citizen to account for this.
+// Something like that was already done for CT_BRUTE, although that applies to behavioral changes only.
+#define CT_CONSCRIPT_DEFAULT		CT_DEFAULT
+#define CT_CONSCRIPT_REGULAR		CT_DOWNTRODDEN
+#define CT_CONSCRIPT_REBEL			CT_REFUGEE
+#define CT_CONSCRIPT_HECU			CT_REBEL
+#define CT_CONSCRIPT_UNIQUE			CT_UNIQUE
+
+class CPropConscriptHeadwear;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+class CNPC_Conscript : public CAI_PropShieldUser< CAI_ConscriptBase<CNPC_Citizen> >
+{
+	DECLARE_CLASS( CNPC_Conscript, CAI_PropShieldUser< CAI_ConscriptBase<CNPC_Citizen> > );
+	DECLARE_DATADESC();
+
+public:
+	CNPC_Conscript();
+
+	void Spawn();
+	void Precache( void );
+
+	virtual void	PrecacheAllOfType( CitizenType_t );
+	virtual void	SelectModel();
+	virtual void	SetCitizenModel( const char *pszHeadName );
+
+	bool			IsTypeBrute() { return m_Subtype == CST_BRUTE; }
+	bool			IsConscript() { return true; }
+	bool			IsCommander() { return m_Subtype == CST_COMMANDER; }
+	bool			IsGasmask() { return m_Subtype == CST_GASMASK; }
+	bool			IsRiot() { return m_Subtype == CST_RIOT; }
+
+	bool			HandleInteraction( int interactionType, void *data, CBaseCombatCharacter *sourceEnt );
+	virtual bool	GiveBackupWeapon( CBaseCombatWeapon *pWeapon, CBaseEntity *pActivator );
+	virtual int		CalculateWillpower();
+
+	void			ModifyOrAppendCriteria( AI_CriteriaSet &set );
+	virtual void	ModifyEmitSoundParams( EmitSound_t &params );
+
+	bool			GetDataForHeadwear( const char **ppszModelName, const char **ppszType );
+	static CBaseEntity		*SpawnHeadGib( CAI_BaseNPC *pNPC, const CTakeDamageInfo &info, string_t iszModelName, const char *pszType );
+
+	virtual void	Event_Killed( const CTakeDamageInfo &info );
+	virtual int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
+	virtual void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
+	virtual bool	CanBeSneakAttacked( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr );
+	float			GetHitgroupDamageMultiplier( int iHitGroup, const CTakeDamageInfo &info );
+
+	virtual bool	ShouldPickADeathPose( void );
+
+	virtual void	GatherConditions( void );
+	int 			TranslateSchedule( int scheduleType );
+
+	Activity		NPC_TranslateActivity( Activity eNewActivity );
+
+	virtual bool	IsDesignatedSquadLeader() const { return m_Subtype == CST_COMMANDER; }
+
+	// Different subtypes that fall into default citizen types
+	enum ConscriptSubtype_t
+	{
+		CST_DEFAULT,
+		CST_NONE,
+		CST_COMMANDER,
+		CST_BRUTE,
+		CST_GASMASK,
+		CST_RIOT,
+	};
+
+	int				GetConscriptSubtype() { return m_Subtype; }
+	void			SetConscriptSubtype( int nSubtype ) { m_Subtype = (ConscriptSubtype_t)nSubtype; }
+
+private:
+
+	ConscriptSubtype_t	m_Subtype;
+	ThreeState_t		m_nHelmetPreference;
+
+	CHandle<CPropConscriptHeadwear>		m_hHeadwear;
+
+	bool				m_bFirstEncounter;
+	bool				m_bShouldPoint;
+
+	DEFINE_CUSTOM_AI;
+};
+
+#endif

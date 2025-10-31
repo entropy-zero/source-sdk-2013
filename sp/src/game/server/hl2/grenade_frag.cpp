@@ -117,7 +117,7 @@ void CGrenadeFrag::Spawn( void )
 {
 #ifdef EZ
 	// Blixibon - Rebel grenades use an orange trail
-	if (GetThrower() && GetThrower()->Classify() == CLASS_PLAYER_ALLY)
+	if (GetThrower() && (GetThrower()->Classify() == CLASS_PLAYER_ALLY || GetThrower()->Classify() == CLASS_CONSCRIPT))
 		m_bRebelColor = true;
 #endif
 

@@ -486,6 +486,13 @@ CAI_BaseNPC *CAI_Squad::GetLeader( void )
 		{
 			if ( !pLeader )
 				pLeader = m_SquadMembers[i];
+
+#ifdef EZ2
+			// If this NPC is a designated squad leader, make them the leader even if we've already selected one
+			// If there are multiple designated squad leaders in one squad, the last one to be added will be chosen as the leader
+			if ( m_SquadMembers[i]->IsDesignatedSquadLeader() )
+				pLeader = m_SquadMembers[i];
+#endif
 		}
 		else
 		{
