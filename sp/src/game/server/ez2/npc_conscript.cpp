@@ -38,6 +38,10 @@ ConVar sk_conscript_gasmask_head( "sk_conscript_gasmask_head", "0.5" );
 ConVar sk_conscript_gasmask_helmet( "sk_conscript_gasmask_helmet", "0.5" );
 ConVar sk_conscript_helmet_protection( "sk_conscript_helmet_protection", "10" );
 
+ConVar sk_conscript_default_proficiency( "sk_conscript_default_proficiency", "2" );
+ConVar sk_conscript_oicw_proficiency( "sk_conscript_oicw_proficiency", "2" );
+ConVar sk_conscript_shield_proficiency( "sk_conscript_shield_proficiency", "1" );
+
 ConVar npc_conscript_headwear_collide( "npc_conscript_headwear_collide", "1" );
 ConVar npc_conscript_default_male( "npc_conscript_default_male", "1" );
 
@@ -1041,6 +1045,25 @@ Activity CNPC_Conscript::NPC_TranslateActivity( Activity eNewActivity )
 	}
 
 	return BaseClass::NPC_TranslateActivity( eNewActivity );
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+WeaponProficiency_t CNPC_Conscript::CalcWeaponProficiency( CBaseCombatWeapon *pWeapon )
+{
+	int nProficiency = sk_conscript_default_proficiency.GetInt();
+
+	if ( HasPropShield() )
+	{
+		nProficiency = sk_conscript_shield_proficiency.GetInt();
+	}
+	else if ( FClassnameIs( pWeapon, "weapon_oicw" ) )
+	{
+		nProficiency = sk_conscript_oicw_proficiency.GetInt();
+	}
+
+	return Clamp( (WeaponProficiency_t)nProficiency, WEAPON_PROFICIENCY_POOR, WEAPON_PROFICIENCY_PERFECT );
 }
 
 //-----------------------------------------------------------------------------

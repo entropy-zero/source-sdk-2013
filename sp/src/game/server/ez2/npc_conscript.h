@@ -79,6 +79,8 @@ public:
 
 	Activity		NPC_TranslateActivity( Activity eNewActivity );
 
+	WeaponProficiency_t		CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
+
 	virtual bool	IsDesignatedSquadLeader() const { return m_Subtype == CST_COMMANDER; }
 
 	// Different subtypes that fall into default citizen types
