@@ -14,13 +14,14 @@
 
 #include "npc_conscript_base.h"
 #include "npc_combine.h"
+#include "ai_stealth_utils.h"
 
 class CBeam;
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-class CNPC_ConscriptElite : public CAI_ConscriptBase<CNPC_Combine>
+class CNPC_ConscriptElite : public CAI_ConscriptBase<CNPC_Combine>, public ICloakCompromisable
 {
 	DECLARE_CLASS( CNPC_ConscriptElite, CAI_ConscriptBase<CNPC_Combine> );
 	DECLARE_DATADESC();
@@ -59,6 +60,8 @@ public:
 	Activity		Weapon_TranslateActivity( Activity baseAct, bool *pRequired );
 	void			HandleAnimEvent( animevent_t *pEvent );
 	WeaponProficiency_t		CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
+
+	bool			CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType );
 
 	void			InputTurnOnLaser( inputdata_t &inputdata ) { TurnOnLaser(); }
 	void			InputTurnOffLaser( inputdata_t &inputdata ) { TurnOffLaser(); }

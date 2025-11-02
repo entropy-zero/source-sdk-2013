@@ -34,6 +34,7 @@
 #include "ammodef.h"
 #include "ai_stealth_manager.h"
 #include "ai_stealth_area.h"
+#include "ai_stealth_utils.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -62,6 +63,17 @@ BEGIN_DATADESC(CEZ2_Player)
 	//DEFINE_UTLVECTOR( m_SightEvents, FIELD_EMBEDDED ),
 
 	DEFINE_FIELD( m_vecLastCommandGoal, FIELD_VECTOR ),
+
+	DEFINE_KEYFIELD( m_bCloakEnabled, FIELD_BOOLEAN, "CloakEnabled" ),
+	DEFINE_FIELD( m_bIsCloaking, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_flCloakFactor, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flNextCloakThinkTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flCloakCompromiseTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flCloakVisibleTime, FIELD_TIME ),
+	DEFINE_FIELD( m_nLastCloakCompromiseType, FIELD_INTEGER ),
+	DEFINE_FIELD( m_flLastCloakCompromiseTypeChange, FIELD_TIME ),
+	DEFINE_FIELD( m_flCloakTransitionStartTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flLastTouchEnemyTime, FIELD_TIME ),
 
 	DEFINE_FIELD( m_flTimeEnteredStealthArea, FIELD_TIME ),
 
@@ -109,9 +121,25 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 
 END_SCRIPTDESC();
 
+void *SendProxy_SendEZ2LocalPlayerCloakDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
+
+BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerCloakData )
+	// Only sent when the player supports cloaking
+	// Partitioning it in this way isn't particularly useful in SP since these vars are only sent when they change,
+	// and MP support would still need further work, but it doesn't hurt anything either
+	SendPropBool( SENDINFO( m_bIsCloaking ) ),
+	SendPropFloat( SENDINFO( m_flNextCloakThinkTime ) ),
+	SendPropFloat( SENDINFO( m_flCloakCompromiseTime ) ),
+	SendPropFloat( SENDINFO( m_flCloakVisibleTime ) ),
+	SendPropInt( SENDINFO( m_nLastCloakCompromiseType ) ),
+	SendPropFloat( SENDINFO( m_flCloakTransitionStartTime ) ),
+END_SEND_TABLE();
+
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
 	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
+	SendPropFloat( SENDINFO( m_flCloakFactor ) ), // Always sent because not just the local player would care about this
+	SendPropDataTable( "ez2p_localcloak", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerCloakData), SendProxy_SendEZ2LocalPlayerCloakDataTable ),
 END_SEND_TABLE()
 
 /*
@@ -133,6 +161,43 @@ END_DATADESC()
 
 #define SPEECH_AI_INTERVAL_IDLE 0.5f
 #define SPEECH_AI_INTERVAL_ALERT 0.25f
+
+//-----------------------------------------------------------------------------
+
+void *SendProxy_SendEZ2LocalPlayerCloakDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID )
+{	
+	CEZ2_Player *pEZ2Player = ( CEZ2_Player * )pStruct;
+	if ( pEZ2Player != NULL)
+	{
+		if ( pEZ2Player->IsCloakEnabled() )
+		{
+			pRecipients->SetOnly( pEZ2Player->entindex() - 1 );
+			return (void *)pVarData;
+		}
+	}
+	return NULL;
+}
+REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerCloakDataTable );
+
+// Cloaking
+#define DEVICE_CLOAK			1
+#define CLOAK_DRAIN_RATE		5.0
+
+#define CLOAK_MAX_MOVE_SPEED	250.0
+#define CLOAK_TICK_TIME			0.05
+#define CLOAK_SPEED				0.05
+#define CLOAK_DECLOAK_DAMAGE	10
+#define CLOAK_DECLOAK_FLIP		7.5
+#define CLOAK_DECLOAK_MELEE		6.0
+#define CLOAK_DECLOAK_SHOOT		7.5
+#define CLOAK_DECLOAK_USE		4.0
+#define CLOAK_DECLOAK_TOUCH		5.0
+#define CLOAK_DECLOAK_SPEED		0.075
+
+#define CLOAK_INVISIBLE_TO_NPCS_DIST			2000
+#define CLOAK_INVISIBLE_TO_NPCS_CANCEL_DIST		32
+
+#define CLOAK_ATTACK_DRAIN_MULT					0.25
 
 //-----------------------------------------------------------------------------
 // Purpose: Allow post-frame adjustments on the player
@@ -204,6 +269,44 @@ void CEZ2_Player::PostThink(void)
 				}
 			}
 		}
+	}
+
+	// Check cloak
+	if (m_bIsCloaking)
+	{
+		float flAuxPower = SuitPower_GetCurrentPercentage();
+		if (flAuxPower <= 0 || !IsAlive())
+		{
+			StopCloaking();
+		}
+		else
+		{
+			if (m_flNextCloakThinkTime <= gpGlobals->curtime)
+			{
+				// Increase cloak factor
+				CloakThink();
+			}
+			
+			// Warning sounds
+			// TODO: Put on client HUD instead
+			/*{
+				if (m_nWarningSoundsUsed < m_WarningSoundThresholds.len() && auxPower <= m_WarningSoundThresholds[m_nWarningSoundsUsed])
+				{
+					m_nWarningSoundsUsed++;
+					self.EmitSound("AssassinPlayer.CloakWarningBlip")
+				}
+				else if (m_nWarningSoundsUsed > 0 && auxPower > m_WarningSoundThresholds[m_nWarningSoundsUsed-1])
+				{
+					// Recharged since this warning sound
+					m_nWarningSoundsUsed--;
+				}
+			}*/
+		}
+	}
+	else if (m_flCloakFactor > 0.0 && m_flNextCloakThinkTime <= gpGlobals->curtime)
+	{
+		// Decrease cloak factor
+		DecloakThink();
 	}
 
 	if (GetBonusChallenge() != EZ_CHALLENGE_NONE && !m_bMaskInterrupt && gpGlobals->curtime > 2.5f)
@@ -594,6 +697,18 @@ void CEZ2_Player::Touch( CBaseEntity *pOther )
 
 	if ( g_hStealthManager && !(pOther->GetFlags() & FL_OBJECT) )
 	{
+		if ( pOther->IsNPC() && IRelationType( pOther ) <= D_FR )
+		{
+			if ( IsCloaking() )
+			{
+				NoteCompromiseCloak( COMPROMISE_TYPE_TOUCH );
+			}
+
+			m_flLastTouchEnemyTime = gpGlobals->curtime;
+			InsertStealthSound( SOUND_COMBAT, GetAbsOrigin(), 128, 0.1f, this, SOUNDENT_CHANNEL_STEALTH_HIT_BY_OBJECT, pOther ); // TODO: Unique channel
+			return;
+		}
+
 		IPhysicsObject *pPhys = pOther->VPhysicsGetObject();
 		if ( pPhys && pPhys->IsMoveable() )
 		{
@@ -1179,6 +1294,11 @@ void CEZ2_Player::ModifyOrAppendCriteria(AI_CriteriaSet& criteriaSet)
 	else
 	{
 		criteriaSet.AppendCriteria("wilson_distance", "99999999999");
+	}
+
+	if ( m_bCloakEnabled )
+	{
+		criteriaSet.AppendCriteria( "cloak_factor", m_flCloakFactor );
 	}
 
 	// Do we have a speech filter? If so, append its criteria too
@@ -2253,6 +2373,19 @@ void CEZ2_Player::FireBullets( const FireBulletsInfo_t &info )
 	{
 		SetBonusProgress( GetBonusProgress() + info.m_iShots );
 	}
+
+	if (m_bIsCloaking)
+	{
+		// Drain aux power each time we fire a shot, depending on how powerful it was
+		float flDamage = info.m_flDamage;
+		if (flDamage == 0)
+		{
+			flDamage = GetAmmoDef()->PlrDamage( info.m_iAmmoType );
+		}
+		
+		Msg( "%f\n", CLOAK_ATTACK_DRAIN_MULT * (flDamage * info.m_iShots) );
+		SuitPower_Drain( CLOAK_ATTACK_DRAIN_MULT * (flDamage * info.m_iShots) );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2754,6 +2887,355 @@ void CEZ2_Player::OnEnterStealthArea( CTriggerStealthArea *pArea )
 void CEZ2_Player::OnExitStealthArea( CTriggerStealthArea *pArea )
 {
 	// Nothing at the moment
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::ModifyPlayerSound( int &iVolume )
+{
+	if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) && !(m_nButtons & IN_SPEED) )
+	{
+		// Reduce walk sound volume in stealth mode
+		switch ( g_hStealthManager->GetStealthLevel() )
+		{
+			case STEALTH_LEVEL_QUIET:
+				iVolume *= 0.4f;
+				break;
+			case STEALTH_LEVEL_GUARD:
+				iVolume *= 0.6f;
+				break;
+			case STEALTH_LEVEL_TENSE:
+				iVolume *= 0.75f;
+				break;
+		}
+
+		// Mute it entirely if we're fully cloaked
+		iVolume *= m_flCloakFactor;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::OverridePhysSwap()
+{
+	// If cloaking is enabled, toggle that instead
+	if ( IsCloakEnabled() )
+	{
+		ToggleCloak();
+		return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::SetCloakEnabled( bool bEnabled )
+{
+	m_bCloakEnabled = bEnabled;
+
+	if ( m_bCloakEnabled )
+	{
+		PrecacheScriptSound( "NPC_Assassin.RunFootstepLeft" );
+		PrecacheScriptSound( "NPC_Assassin.RunFootstepRight" );
+		PrecacheScriptSound( "NPC_Assassin.Jump" );
+		PrecacheScriptSound( "NPC_Assassin.Cloak" );
+		PrecacheScriptSound( "NPC_Assassin.Uncloak" );
+
+		InitCustomSuitDevice( DEVICE_CLOAK, CLOAK_DRAIN_RATE );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::StartCloaking()
+{
+	m_bIsCloaking = true;
+	m_flCloakTransitionStartTime = gpGlobals->curtime;
+
+	// TODO: cloak cc
+	//if (m_eCloakedCC)
+	//	m_eCloakedCC.AcceptInput("Enable", "", self, self);
+	
+	AddCustomSuitDevice( DEVICE_CLOAK );
+	EmitSound( "NPC_Assassin.Cloak" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::StopCloaking()
+{
+	m_bIsCloaking = false;
+	m_flCloakTransitionStartTime = gpGlobals->curtime;
+
+	RemoveCustomSuitDevice( DEVICE_CLOAK );
+	EmitSound( "NPC_Assassin.Uncloak" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::ToggleCloak()
+{
+	if (!IsAlive())
+		return;
+
+	if (m_bIsCloaking)
+	{
+		StopCloaking();
+	}
+	else
+	{
+		if (SuitPower_GetCurrentPercentage() < 5.0)
+		{
+			EmitSound( "HL2Player.SprintNoPower" );
+			return;
+		}
+		
+		StartCloaking();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::CloakThink()
+{
+	float flDest = 1.0;
+	float flSpeed = CLOAK_SPEED;
+	float flVelocity = GetAbsVelocity().Length();
+	
+	if ( flVelocity > CLOAK_MAX_MOVE_SPEED )
+	{
+		flDest = CLOAK_MAX_MOVE_SPEED / flVelocity;
+	}
+
+	// Damage
+	if ( gpGlobals->curtime - GetLastDamageTime() <= 2.0 )
+	{
+		flDest *= CLOAK_DECLOAK_DAMAGE / 10.0;
+	}
+	// Acrobatics
+	if ( gpGlobals->curtime - GetLastLongJumpTime() <= 0.5 )
+	{
+		flDest *= CLOAK_DECLOAK_FLIP / 10.0;
+	}
+	// Melee
+	if ( gpGlobals->curtime - GetNextKickAttackTime() <= 0.5 ) // 1.5
+	{
+		flDest *= CLOAK_DECLOAK_MELEE / 10.0;
+	}
+	// Shoot
+	if ( gpGlobals->curtime - MuzzleFlashTime() <= 1.0 )
+	{
+		flDest *= CLOAK_DECLOAK_SHOOT / 10.0;
+	}
+	// Carrying object
+	if ( GetUseEntity() )
+	{
+		CBaseEntity *pHeldObject = GetPlayerHeldEntity( this );
+		if ( pHeldObject )
+		{
+			float flObjectMass;
+			if ( pHeldObject->ClassMatches( "prop_ragdoll" ) )
+			{
+				// Use a preset large mass for all ragdolls
+				flObjectMass = 90.0;
+			}
+			else
+			{
+				// Base it on the object's mass
+				flObjectMass = PlayerPickupGetHeldObjectMass( GetUseEntity(), pHeldObject->VPhysicsGetObject() );
+			}
+			float flDestAmt = RemapValClamped( flObjectMass, 35, 0, CLOAK_DECLOAK_USE / 10.0, 1.0 );
+			Msg( "Object mass: %f, flDestAmt = %f\n", flObjectMass, flDestAmt );
+			flDest *= flDestAmt;
+			
+		}
+		else
+		{
+			flDest *= CLOAK_DECLOAK_USE / 10.0;
+		}
+	}
+	// Touching enemy
+	if ( gpGlobals->curtime - m_flLastTouchEnemyTime < 0.5f )
+	{
+		flDest *= CLOAK_DECLOAK_TOUCH / 10.0;
+	}
+
+	// Faster when decloaking
+	if ( flDest < m_flCloakFactor )
+		flSpeed = CLOAK_DECLOAK_SPEED;
+
+	if ( flDest != m_flCloakFactor )
+	{
+		m_flCloakFactor = Approach( flDest, m_flCloakFactor, flSpeed );
+		
+		if ( m_flCloakFactor >= 1.0 )
+		{
+			// Make player and weapon invisible
+			// (253 = most view IDs)
+			// TODO: Now that this isn't in VScript, should a better solution be used?
+			variant_t var;
+			var.SetInt( 253 );
+			AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+
+			if ( GetActiveWeapon() )
+				GetActiveWeapon()->AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+		}
+	}
+	
+	if ( GetEnemy() )
+	{
+		CBaseEntity *pEnemy = GetEnemy();
+		if ( pEnemy->IsAlive() && pEnemy->GetEnemy() == this && pEnemy->IsNPC() && pEnemy->MyNPCPointer()->HasCondition( COND_SEE_ENEMY ) )
+		{
+			// We are compromised
+			NoteCompromiseCloak();
+		}
+		else if (m_flCloakFactor < 0.8 && gpGlobals->curtime - m_flCloakTransitionStartTime > 1.25)
+		{
+			NoteVisibleCloak();
+		}
+	}
+	else if (m_flCloakFactor < 0.8 && gpGlobals->curtime - m_flCloakTransitionStartTime > 1.25)
+	{
+		NoteVisibleCloak();
+	}
+
+	m_flNextCloakThinkTime = gpGlobals->curtime + CLOAK_TICK_TIME;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::DecloakThink()
+{
+	if (m_flCloakFactor >= 1.0)
+	{
+		// TODO: Now that this isn't in VScript, should a better solution be used?
+		variant_t var;
+		var.SetInt( 0 );
+		AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+
+		if (GetActiveWeapon())
+			GetActiveWeapon()->AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+	}
+		
+	m_flCloakFactor = Approach( 0.0, m_flCloakFactor, CLOAK_DECLOAK_SPEED );
+
+	m_flNextCloakThinkTime = gpGlobals->curtime + CLOAK_TICK_TIME;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::NoteCompromiseCloak( int nCompromiseType )
+{
+	m_flCloakCompromiseTime = gpGlobals->curtime;
+
+	// Don't switch too often unless it's from a non-standard type
+	if ( gpGlobals->curtime - m_flLastCloakCompromiseTypeChange > 2.0f || m_nLastCloakCompromiseType == COMPROMISE_TYPE_SIGHT )
+	{
+		m_nLastCloakCompromiseType = nCompromiseType;
+		m_flLastCloakCompromiseTypeChange = gpGlobals->curtime;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::NoteVisibleCloak( int nCompromiseType )
+{
+	m_flCloakVisibleTime = gpGlobals->curtime;
+
+	// Don't switch too often unless it's from a non-standard type
+	if ( gpGlobals->curtime - m_flLastCloakCompromiseTypeChange > 2.0f || m_nLastCloakCompromiseType == COMPROMISE_TYPE_SIGHT )
+	{
+		m_nLastCloakCompromiseType = nCompromiseType;
+		m_flLastCloakCompromiseTypeChange = gpGlobals->curtime;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::CanBeSeenBy( CAI_BaseNPC *pNPC )
+{
+	// NPCs we like always see me
+	if ( IRelationType( pNPC ) == D_LI )
+		return BaseClass::CanBeSeenBy( pNPC );
+
+	if (m_flCloakFactor > 0.0)
+	{
+		// If the player *just* attacked, then allow visibility
+		if (gpGlobals->curtime - MuzzleFlashTime() <= 0.5)
+			return BaseClass::CanBeSeenBy( pNPC );
+			
+		// Based directly on assassin code
+		float flDist = (GetAbsOrigin() - pNPC->GetAbsOrigin()).Length();
+		if (flDist > (CLOAK_INVISIBLE_TO_NPCS_DIST * (1.0 - m_flCloakFactor)) && flDist > CLOAK_INVISIBLE_TO_NPCS_CANCEL_DIST)
+		{
+			ICloakCompromisable *pCloakCompromisable = dynamic_cast<ICloakCompromisable *>(pNPC);
+			if ( pCloakCompromisable )
+			{
+				// Check if this NPC can compromise us
+				int iCompromiseType = COMPROMISE_TYPE_SIGHT;
+				if ( pCloakCompromisable->CanSeeThroughCloak( this, m_flCloakFactor, iCompromiseType ) )
+				{
+					NoteVisibleCloak( iCompromiseType );
+					AddContext( "cloak_laser_visible", "1", gpGlobals->curtime + 1.0 );
+				
+					//if (npc.GetExpresser())
+					//	npc.GetExpresser().Speak("TLK_SEE_ENEMY_THROUGH_LASER", "")
+
+					return BaseClass::CanBeSeenBy( pNPC );
+				}
+			}
+			
+			return false;
+		}
+	}
+
+	return BaseClass::CanBeSeenBy( pNPC );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CEZ2_Player::ShouldShootMissTarget( CBaseCombatCharacter *pAttacker )
+{
+	if ( BaseClass::ShouldShootMissTarget( pAttacker ) )
+		return true;
+
+	// If we're in a long jump or cloaked, then we're more difficult to hit depending on direction and distance
+	if ( IsInLongJump() || GetCloakFactor() > 0.0f )
+	{
+		Vector vecAttackerDir = pAttacker->BodyDirection3D();
+		Vector vecMyDir = GetAbsVelocity();
+		float flMySpeed = VectorNormalize( vecMyDir );
+		float flDot = DotProduct( vecAttackerDir, vecMyDir );
+
+		float flDotThreshold = RemapValClamped( flMySpeed, 0.0f, 500.0f, 0.0f, 0.9f );
+
+		if ( abs( flDot ) < flDotThreshold )
+		{
+			// Too fast
+			DevMsg( "Player going too fast - dot: %.2f, speed: %.2f (threshold: %.2f)\n", flDot, flMySpeed, flDotThreshold );
+			return true;
+		}
+		else
+		{
+			DevMsg( "Player not going fast enough - dot: %.2f, speed: %.2f (threshold: %.2f)\n", flDot, flMySpeed, flDotThreshold );
+		}
+	}
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------

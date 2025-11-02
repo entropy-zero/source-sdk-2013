@@ -195,6 +195,7 @@ public:
 	virtual void ApplyFlashlightColorCorrection( bool bColorCorrectionEnabled );
 
 	virtual void SetLegModel( string_t iszModel );
+	float		GetNextKickAttackTime() const { return m_flNextKickAttack; }
 
 	bool		IsLongJumpEnabled() const { return m_bLongJumpEnabled; }
 	void		SetLongJumpEnabled( bool bEnabled );
@@ -202,6 +203,15 @@ public:
 	void		SetLongJumpSoundAsCStr( const char *pszSound ) { m_iszLongJumpSound = AllocPooledString( pszSound ); }
 	bool		IsInLongJump() const { return m_bInLongJump; }
 	float		GetLastLongJumpTime() const { return m_flLastLongJumpTime; }
+
+	// Implemented by CEZ2_Player
+	virtual bool		IsCloakEnabled() const { return false; }
+	virtual void		SetCloakEnabled( bool bEnabled ) {}
+	virtual bool		IsCloaking() const { return false; }
+	virtual float		GetCloakFactor() const { return false; }
+	virtual void		ToggleCloak() {}
+	virtual void		NoteCompromiseCloak( int nCompromiseType = 0 ) {}
+	virtual void		NoteVisibleCloak( int nCompromiseType = 0 ) {}
 
 	void		ModifyFallDamage( float &flFallDamage );
 

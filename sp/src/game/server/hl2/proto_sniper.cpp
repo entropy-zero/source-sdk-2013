@@ -40,6 +40,9 @@
 #include "mapbase/expandedrs_combine.h"
 #include "ai_speech.h"
 #endif
+#ifdef EZ2
+#include "ez2/ai_stealth_utils.h"
+#endif
 
 #include "effect_dispatch_data.h"
 #include "te_effect_dispatch.h"
@@ -206,6 +209,9 @@ private:
 //=========================================================
 #ifdef EXPANDED_RESPONSE_SYSTEM_USAGE
 class CProtoSniper : public CAI_ExpresserHost<CAI_BaseNPC>
+#ifdef EZ2
+	, public ICloakCompromisable
+#endif
 {
 	DECLARE_CLASS( CProtoSniper, CAI_ExpresserHost<CAI_BaseNPC> );
 #else
@@ -290,6 +296,10 @@ public:
 	virtual CAI_Expresser *CreateExpresser( void );
 	virtual CAI_Expresser *GetExpresser() { return m_pExpresser; }
 	virtual void		PostConstructor( const char *szClassname );
+#endif
+
+#ifdef EZ2
+	bool	CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType );
 #endif
 
 private:
@@ -3204,6 +3214,34 @@ void CProtoSniper::PostConstructor(const char *szClassname)
 {
 	BaseClass::PostConstructor(szClassname);
 	CreateExpresser();
+}
+#endif
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: For assassin cloaking
+//-----------------------------------------------------------------------------
+bool CProtoSniper::CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType )
+{
+	if ( !IsLaserOn() )
+		return false;
+
+	Vector vecToTarget = (pCloaker->WorldSpaceCenter() - GetBulletOrigin());
+	VectorNormalize( vecToTarget );
+	
+	Vector vecToLaser = (m_pBeam->GetLocalOrigin() - GetBulletOrigin()); // m_vecPaintCursor
+	VectorNormalize( vecToLaser );
+	
+	float flDotLaser = vecToTarget.Dot( vecToLaser );
+
+	// Need to be super precise
+	if (flDotLaser > 0.9998)
+	{
+		iCompromiseType = COMPROMISE_TYPE_LASER;
+		return true;
+	}
+	
+	return false;
 }
 #endif
 

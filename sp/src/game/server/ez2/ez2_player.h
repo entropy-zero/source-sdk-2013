@@ -18,6 +18,7 @@
 #include "ai_sensorydummy.h"
 #include "ai_concept_response.h"
 #include "GameEventListener.h"
+#include "ez2/ai_stealth_shared.h"
 
 class CAI_PlayerNPCDummy;
 class CEZ2_Player;
@@ -241,6 +242,24 @@ public:
 	void				OnExitStealthArea( CTriggerStealthArea *pArea );
 	float				GetTimeEnteredStealthArea() { return m_flTimeEnteredStealthArea; }
 
+	void				ModifyPlayerSound( int &iVolume );
+	bool				OverridePhysSwap();
+
+	// Cloaking
+	bool				IsCloakEnabled() const { return m_bCloakEnabled; }
+	void				SetCloakEnabled( bool bEnabled );
+	bool				IsCloaking() const { return m_bIsCloaking; }
+	float				GetCloakFactor() const { return m_flCloakFactor; }
+	void				StartCloaking();
+	void				StopCloaking();
+	void				ToggleCloak();
+	void				CloakThink();
+	void				DecloakThink();
+	void				NoteCompromiseCloak( int nCompromiseType = COMPROMISE_TYPE_SIGHT );
+	void				NoteVisibleCloak( int nCompromiseType = COMPROMISE_TYPE_SIGHT );
+	bool				CanBeSeenBy( CAI_BaseNPC *pNPC );
+	bool				ShouldShootMissTarget( CBaseCombatCharacter *pAttacker );
+
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();
 	void				RemoveNPCComponent();
@@ -309,6 +328,18 @@ private:
 
 	// For speech purposes
 	Vector			m_vecLastCommandGoal;
+
+	// Cloaking
+	bool				m_bCloakEnabled;
+	CNetworkVar( bool,	m_bIsCloaking );
+	CNetworkVar( float, m_flCloakFactor );
+	CNetworkVar( float, m_flNextCloakThinkTime );
+	CNetworkVar( float, m_flCloakCompromiseTime );
+	CNetworkVar( float, m_flCloakVisibleTime );
+	CNetworkVar( int,	m_nLastCloakCompromiseType );
+	int					m_flLastCloakCompromiseTypeChange;
+	CNetworkVar( float, m_flCloakTransitionStartTime );
+	float				m_flLastTouchEnemyTime;
 
 	// Stealth system
 	float			m_flTimeEnteredStealthArea;

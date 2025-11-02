@@ -4624,6 +4624,10 @@ void CBasePlayer::UpdatePlayerSound ( void )
 		iBodyVolume += 100;
 	}
 
+#ifdef EZ2
+	ModifyPlayerSound( iBodyVolume );
+#endif
+
 	m_iTargetVolume = iBodyVolume;
 
 	// if target volume is greater than the player sound's current volume, we paste the new volume in 

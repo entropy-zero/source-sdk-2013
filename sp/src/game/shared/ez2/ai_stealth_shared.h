@@ -23,4 +23,13 @@ enum AlertSourceType_t
 
 //-----------------------------------------------------------------------------
 
+enum CompromiseType_t
+{
+	COMPROMISE_TYPE_SIGHT,		// Spotted generically
+	COMPROMISE_TYPE_LASER,		// Seen through laser
+	COMPROMISE_TYPE_TOUCH,		// Rubbing against someone
+};
+
+//-----------------------------------------------------------------------------
+
 #endif

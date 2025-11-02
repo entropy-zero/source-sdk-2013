@@ -3,6 +3,7 @@
 #include "point_bonusmaps_accessor.h"
 #include "achievementmgr.h"
 #include "basegrenade_shared.h"
+#include "clienteffectprecachesystem.h"
 
 #if defined( CEZ2Player )
 	#undef CEZ2Player
@@ -10,22 +11,46 @@
 
 ConVar cl_slam_glow( "cl_slam_glow", "0", FCVAR_ARCHIVE );
 
+#define CLOAK_COLORCORRECTION_FILE	"colorcorrection/progenitor_cloak.raw"
+
+#define NUM_WARNING_SOUNDS 13
+
+static float g_flWarningSoundThresholds[NUM_WARNING_SOUNDS] = { 25.0, 18.75, 14.0625, 10.5469, 7.9102, 5.9326, 4.4495, 3.3371, 2.5028, 1.8771, 1.4078, 1.0559, 0.7919 }; // *.75
+
+BEGIN_RECV_TABLE_NOBASE( C_EZ2_Player, DT_EZ2LocalPlayerCloakData )
+	RecvPropBool( RECVINFO( m_bIsCloaking ) ),
+	RecvPropFloat( RECVINFO( m_flNextCloakThinkTime ) ),
+	RecvPropFloat( RECVINFO( m_flCloakCompromiseTime ) ),
+	RecvPropFloat( RECVINFO( m_flCloakVisibleTime ) ),
+	RecvPropInt( RECVINFO( m_nLastCloakCompromiseType ) ),
+	RecvPropFloat( RECVINFO( m_flCloakTransitionStartTime ) ),
+END_RECV_TABLE();
+
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropBool( RECVINFO( m_bBonusChallengeUpdate ) ),
 	RecvPropEHandle( RECVINFO( m_hWarningTarget ) ),
+	RecvPropFloat( RECVINFO( m_flCloakFactor ) ),
+	RecvPropDataTable( "ez2p_localcloak", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerCloakData ) ),
 END_RECV_TABLE()
 
 BEGIN_PREDICTION_DATA( C_EZ2_Player )
 END_PREDICTION_DATA()
 
+CLIENTEFFECT_REGISTER_BEGIN( PrecacheEZ2Effects )
+	CLIENTEFFECT_MATERIAL( "hud/stealth_cloak_overlay" )
+CLIENTEFFECT_REGISTER_END()
+
 C_EZ2_Player::C_EZ2_Player()
 {
+	m_CloakCCHandle = INVALID_CLIENT_CCHANDLE;
 }
 
 C_EZ2_Player::~C_EZ2_Player()
 {
 	DestroyGlowTargetEffect();
 	DestroySLAMGlowEffect();
+
+	g_pColorCorrectionMgr->RemoveColorCorrection( m_CloakCCHandle );
 }
 
 void C_EZ2_Player::Precache()
@@ -34,6 +59,8 @@ void C_EZ2_Player::Precache()
 
 	PrecacheScriptSound( "EZ2Player.AlertTarget_Begin" );
 	PrecacheScriptSound( "EZ2Player.AlertTarget_Spot" );
+
+	PrecacheScriptSound( "AssassinPlayer.CloakWarningBlip" );
 }
 
 void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
@@ -83,10 +110,59 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 				}
 			}
 		}
+
+		if ( m_bIsCloaking && IsLocalPlayer() && m_CloakCCHandle == INVALID_CLIENT_CCHANDLE)
+		{
+			m_CloakCCHandle = g_pColorCorrectionMgr->AddColorCorrection( "_ez2p_cloak_cc", CLOAK_COLORCORRECTION_FILE );
+		}
 	}
 
 	UpdateGlowTargetEffect();
 	UpdateSLAMGlowEffect();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : updateType - 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::PostDataUpdate( DataUpdateType_t updateType )
+{
+	BaseClass::PostDataUpdate( updateType );
+
+	if ( m_flCloakFactor > 0.0f && IsLocalPlayer() )
+	{
+		// Warning sounds
+		{
+			if (m_nWarningSoundsUsed < NUM_WARNING_SOUNDS && m_HL2Local.m_flSuitPower <= g_flWarningSoundThresholds[m_nWarningSoundsUsed])
+			{
+				m_nWarningSoundsUsed++;
+				EmitSound( "AssassinPlayer.CloakWarningBlip" );
+			}
+			else if (m_nWarningSoundsUsed > 0 && m_HL2Local.m_flSuitPower > g_flWarningSoundThresholds[m_nWarningSoundsUsed-1])
+			{
+				// Recharged since this warning sound
+				m_nWarningSoundsUsed--;
+			}
+		}
+	}
+}
+
+void C_EZ2_Player::SetCloakCCWeights()
+{
+	float flCloakFactor = GetCloakFactor();
+	if ( GetObserverMode() == OBS_MODE_IN_EYE && GetObserverTarget() && GetObserverTarget()->IsPlayer() )
+	{
+		// Use the player we're spectating instead
+		flCloakFactor = ToEZ2Player( GetObserverTarget() )->GetCloakFactor();
+	}
+
+	if ( GetCloakFactor() > 0.0f )
+	{
+		if ( m_CloakCCHandle != INVALID_CLIENT_CCHANDLE )
+		{
+			g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CloakCCHandle, flCloakFactor );
+		}
+	}
 }
 
 void C_EZ2_Player::BonusChallengeUpdate()

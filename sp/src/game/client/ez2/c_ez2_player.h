@@ -5,6 +5,7 @@
 #endif
 
 #include "c_basehlplayer.h"
+#include "colorcorrectionmgr.h"
 
 class C_PointDetonatable : public C_BaseEntity
 {
@@ -36,6 +37,8 @@ public:
 	void Precache();
 
 	void OnDataChanged( DataUpdateType_t updateType );
+	void PostDataUpdate( DataUpdateType_t updateType );
+	void SetCloakCCWeights();
 
 	void BonusChallengeUpdate( );
 
@@ -54,6 +57,27 @@ public:
 	CUtlVector<EHANDLE>	m_hActiveTripmines;
 	CUtlVector< CHandle<C_PointDetonatable> >	m_hActiveDetonatables;
 	CUtlVector<CGlowObject*>	m_pSLAMGlowEffects;
+
+	inline float	GetCloakFactor() const { return m_flCloakFactor; }
+	inline float	GetCloakCompromiseTime() const { return m_flCloakCompromiseTime; }
+	inline float	GetCloakVisibleTime() const { return m_flCloakVisibleTime; }
+	inline int		GetCloakCompromiseType() const { return m_nLastCloakCompromiseType; }
+	inline float	GetCloakTransitionStartTime() const { return m_flCloakTransitionStartTime; }
+	inline float	GetCloakPower() const { return m_HL2Local.m_flSuitPower * 0.01f; } // Ratio of suit power (which maxes out at 100)
+
+private:
+
+	// Cloaking
+	bool	m_bIsCloaking;
+	float	m_flCloakFactor;
+	float	m_flNextCloakThinkTime;
+	float	m_flCloakCompromiseTime;
+	float	m_flCloakVisibleTime;
+	int		m_nLastCloakCompromiseType;
+	float	m_flCloakTransitionStartTime;
+
+	ClientCCHandle_t m_CloakCCHandle;
+	int		m_nWarningSoundsUsed;
 };
 
 

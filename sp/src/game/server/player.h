@@ -681,6 +681,12 @@ public:
 	void					UpdateFXVolume( void );		// From Alien Swarm SDK
 #endif
 
+#ifdef EZ2
+	// Stealth system
+	virtual void			ModifyPlayerSound( int &iVolume ) {}
+	virtual bool			OverridePhysSwap() { return false; }
+#endif
+
 public:
 	// Player Physics Shadow
 	void					SetupVPhysicsShadow( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity, CPhysCollide *pStandModel, const char *pStandHullName, CPhysCollide *pCrouchModel, const char *pCrouchHullName );

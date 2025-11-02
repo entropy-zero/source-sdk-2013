@@ -977,6 +977,11 @@ void CC_Player_PhysSwap( void )
 	
 	if ( pPlayer )
 	{
+#ifdef EZ2
+		if ( pPlayer->OverridePhysSwap() )
+			return;
+#endif
+
 		CBaseCombatWeapon *pWeapon = pPlayer->GetActiveWeapon();
 
 		if ( pWeapon )

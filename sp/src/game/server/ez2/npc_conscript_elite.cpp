@@ -449,6 +449,20 @@ bool CNPC_ConscriptElite::TargetCrossingLaser( CBaseEntity *pTarget )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: For assassin cloaking
+//-----------------------------------------------------------------------------
+bool CNPC_ConscriptElite::CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType )
+{
+	if ( TargetCrossingLaser( pCloaker ) )
+	{
+		iCompromiseType = COMPROMISE_TYPE_LASER;
+		return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 bool CNPC_ConscriptElite::ShouldAimLaserAtEnemy( CBaseEntity *pEnemy )

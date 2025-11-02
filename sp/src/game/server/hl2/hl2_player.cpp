@@ -370,6 +370,9 @@ public:
 	void InputEnableLongJump( inputdata_t &inputdata );
 	void InputDisableLongJump( inputdata_t &inputdata );
 	void InputSetLongJumpSound( inputdata_t &inputdata );
+
+	void InputEnableCloaking( inputdata_t &inputdata );
+	void InputDisableCloaking( inputdata_t &inputdata );
 #endif
 
 	void Activate ( void );
@@ -778,6 +781,13 @@ BEGIN_ENT_SCRIPTDESC( CHL2_Player, CBasePlayer, "The HL2 player entity." )
 	DEFINE_SCRIPTFUNC_NAMED( SetLongJumpSoundAsCStr, "SetLongJumpSound", "Sets the long jump sound." )
 	DEFINE_SCRIPTFUNC( IsInLongJump, "Returns true if the player is currently in a long jump." )
 	DEFINE_SCRIPTFUNC( GetLastLongJumpTime, "Gets the player's last long jump time." )
+
+	DEFINE_SCRIPTFUNC( IsCloakEnabled, "Returns true if cloaking is enabled." )
+	DEFINE_SCRIPTFUNC( SetCloakEnabled, "Sets whether cloaking is enabled." )
+	DEFINE_SCRIPTFUNC( IsCloaking, "Returns true if cloaking device is active. (i.e. desired state for cloak factor)" )
+	DEFINE_SCRIPTFUNC( GetCloakFactor, "Gets current cloak factor." )
+	DEFINE_SCRIPTFUNC( NoteCompromiseCloak, "Tells the player that the cloak is compromised for the specified reason. 0 = sight, 1 = laser" )
+	DEFINE_SCRIPTFUNC( NoteVisibleCloak, "Tells the player that the cloak is visible for the specified reason. 0 = sight, 1 = laser" )
 #endif
 
 END_SCRIPTDESC();
@@ -5844,6 +5854,9 @@ BEGIN_DATADESC( CLogicPlayerProxy )
 	DEFINE_INPUTFUNC( FIELD_STRING, "EnableLongJump", InputEnableLongJump ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "DisableLongJump", InputDisableLongJump ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetLongJumpSound", InputSetLongJumpSound ),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableCloaking", InputEnableCloaking ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableCloaking", InputDisableCloaking ),
 #endif
 
 	DEFINE_FIELD( m_hPlayer, FIELD_EHANDLE ),
@@ -6474,5 +6487,23 @@ void CLogicPlayerProxy::InputSetLongJumpSound( inputdata_t &inputdata )
 	
 	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
 	pPlayer->SetLongJumpSound( iszSound );
+}
+
+void CLogicPlayerProxy::InputEnableCloaking( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetCloakEnabled( true );
+}
+
+void CLogicPlayerProxy::InputDisableCloaking( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetCloakEnabled( false );
 }
 #endif

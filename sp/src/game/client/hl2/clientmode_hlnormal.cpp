@@ -13,6 +13,11 @@
 #include <vgui_controls/AnimationController.h>
 #include "iinput.h"
 #include "ienginevgui.h"
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#include "materialsystem/itexture.h"
+#include "view_scene.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -94,6 +99,56 @@ bool ClientModeHLNormal::ShouldDrawCrosshair( void )
 {
 	return ( g_bRollingCredits == false );
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool ClientModeHLNormal::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
+{
+	if ( !BaseClass::DoPostScreenSpaceEffects( pSetup ) )
+		return false;
+	
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pPlayer )
+	{
+		// If the player is cloaking, render the cloak overlay
+		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+		if ( pEZ2Player->GetCloakFactor() > 0.0f )
+		{
+			// UNDONE: Cloak factor offset (works better with material proxy)
+			/*int offsetX = 0;
+			int offsetY = 0;
+			if ( pEZ2Player->GetCloakFactor() < 1.0f )
+			{
+				offsetX = (pSetup->width * 0.5f) * (1.0f - pEZ2Player->GetCloakFactor());
+				offsetY = (pSetup->height * 0.5f) * (1.0f - pEZ2Player->GetCloakFactor());
+			}*/
+
+			IMaterial *pOverlayMaterial = materials->FindMaterial( "hud/stealth_cloak_overlay", TEXTURE_GROUP_OTHER );
+			DrawScreenEffectMaterial( pOverlayMaterial, 0, 0, pSetup->width, pSetup->height );
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void ClientModeHLNormal::OnColorCorrectionWeightsReset( void )
+{
+	BaseClass::OnColorCorrectionWeightsReset();
+
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pPlayer )
+	{
+		// If the player is cloaking, set its color correction weights
+		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+		pEZ2Player->SetCloakCCWeights();
+	}
+}
+#endif
 
 
 

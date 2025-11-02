@@ -15,6 +15,8 @@
 #include "particle_parse.h"
 #include "functionproxy.h"
 #include "toolframework_client.h"
+#include "c_ez2_player.h"
+#include "baseviewmodel_shared.h"
 
 class C_NPC_Assassin : public C_AI_BaseNPC
 {
@@ -118,6 +120,38 @@ void CProxyAssassinCloak::OnBind( void *pC_BaseEntity )
 			{
 				SetFloatResult( 0.0f );
 			}
+		}
+		else if ( pEntity->IsPlayer() )
+		{
+			C_EZ2_Player *pEZ2Player = ToEZ2Player( pEntity );
+			if ( pEZ2Player->GetCloakFactor() > 0.0f )
+			{
+				SetFloatResult( pEZ2Player->GetCloakFactor() /*+ RandomFloat( 0.0f, 0.05f )*/ );
+			}
+			else
+			{
+				SetFloatResult( 0.0f );
+			}
+		}
+		else if ( FStrEq( pEntity->GetClassname(), "viewmodel" ) )
+		{
+			float flCloakFactor = 0.0f;
+
+			C_BaseViewModel *pViewmodel = static_cast<C_BaseViewModel *>(pEntity);
+			if ( pViewmodel->GetOwner() && pViewmodel->GetOwner()->IsPlayer() )
+			{
+				C_EZ2_Player *pEZ2Player = ToEZ2Player( pViewmodel->GetOwner() );
+				if ( pEZ2Player->GetCloakFactor() > 0.0f )
+				{
+					flCloakFactor = pEZ2Player->GetCloakFactor();
+
+					// Don't make the viewmodel completely invisible
+					if ( flCloakFactor > 0.95f )
+						flCloakFactor = 0.95f;
+				}
+			}
+
+			SetFloatResult( flCloakFactor );
 		}
 		else if (pEntity->GetRenderMode() == kRenderNormal && pEntity->GetRenderColor().a < 255)
 		{

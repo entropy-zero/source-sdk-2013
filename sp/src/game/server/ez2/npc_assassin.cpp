@@ -51,6 +51,7 @@
 #include "IEffects.h"
 #include "ai_interactions.h"
 #include "basehlcombatweapon_shared.h"
+#include "ai_stealth_utils.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -406,7 +407,25 @@ bool CNPC_Assassin::CanBeSeenBy( CAI_BaseNPC *pNPC )
 	// NPCs shouldn't see cloaked assassins if they're too far away and haven't attacked in the past half second
 	float flDist = EnemyDistance( pNPC );
 	if (m_flCloakFactor > 0.0f && gpGlobals->curtime - GetLastAttackTime() > 0.5f && flDist > (sk_assassin_cloak_invisible_to_npcs_distance.GetFloat() * (1.0f - m_flCloakFactor)) && flDist > sk_assassin_cloak_invisible_to_npcs_cancel_distance.GetFloat())
+	{
+		ICloakCompromisable *pCloakCompromisable = dynamic_cast<ICloakCompromisable *>(pNPC);
+		if ( pCloakCompromisable )
+		{
+			// Check if this NPC can compromise us
+			int iCompromiseType = COMPROMISE_TYPE_SIGHT;
+			if ( pCloakCompromisable->CanSeeThroughCloak( this, m_flCloakFactor, iCompromiseType ) )
+			{
+				AddContext( "cloak_laser_visible", "1", gpGlobals->curtime + 1.0 );
+			
+				//if (npc.GetExpresser())
+				//	npc.GetExpresser().Speak("TLK_SEE_ENEMY_THROUGH_LASER", "")
+
+				return BaseClass::CanBeSeenBy( pNPC );
+			}
+		}
+
 		return false;
+	}
 
 	return BaseClass::CanBeSeenBy( pNPC );
 }
