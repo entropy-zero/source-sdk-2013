@@ -64,6 +64,7 @@ public:
 	virtual void	OnSeeRagdoll( CBaseEntity *pEntity );
 	virtual void	OnSeeDoor( CBaseEntity *pEntity );
 	virtual void	OnSeeProp( CBaseEntity *pEntity, bool bPickup = false );
+	virtual void	OnSeeLaserDot( CBaseEntity *pEntity );
 	virtual void	HandleAnimEvent( animevent_t *pEvent );
 
 	virtual void	ModifyOrAppendCriteria( AI_CriteriaSet &criteriaSet );

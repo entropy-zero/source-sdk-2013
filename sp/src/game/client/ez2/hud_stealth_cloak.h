@@ -48,6 +48,7 @@ private:
 	int		m_iCloakIconCompromised;
 	int		m_iCloakIconLaser;
 	int		m_iCloakIconTouch;
+	int		m_iCloakIconMyLaser;
 
 	CPanelAnimationVar( Color, m_clrCaution, "color_empty", "Stealth.Alert_Caution" );
 	CPanelAnimationVar( Color, m_clrCompromised, "color_full", "Stealth.Alert_Compromised" );

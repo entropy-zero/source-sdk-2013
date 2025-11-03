@@ -110,7 +110,7 @@ bool CAI_StealthCuriousBehavior::ShouldStayAtSound( CSound *pSound )
 bool CAI_StealthCuriousBehavior::ShouldGoToSoundSource( CSound *pSound )
 {
 	// TODO: More specific behavior for sticking together?
-	if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
+	if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) && GetOuter()->GetSquad() )
 	{
 		if ( g_hStealthManager->GetKnownLivingSquadMembers( GetStealthSenses()->GetStealthSquadInfo() ) <= 2 )
 			return false;
@@ -193,6 +193,10 @@ void CAI_StealthCuriousBehavior::OnSeeEntity( CBaseEntity *pEntity )
 
 				case STEALTH_OBJ_PROP_PICKUP:
 					OnSeeProp( pEntity, true );
+					break;
+
+				case STEALTH_OBJ_LASER_DOT:
+					OnSeeLaserDot( pEntity );
 					break;
 			}
 		}
@@ -508,6 +512,61 @@ void CAI_StealthCuriousBehavior::OnSeeProp( CBaseEntity *pEntity, bool bPickup )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CAI_StealthCuriousBehavior::OnSeeLaserDot( CBaseEntity *pEntity )
+{
+	// Only see laser dots that are on
+	if ( pEntity->GetEffects() & EF_NODRAW )
+		return;
+
+	CuriousDbgMsg( "OnSeeLaserDot\n" );
+
+	if ( g_hStealthManager )
+	{
+		/*if ( g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
+		{
+			// TODO: Something quiet to do
+		}
+		else*/ if ( GetOuter()->GetState() != NPC_STATE_COMBAT )
+		{
+			m_hSuspiciousTarget = pEntity;
+
+			CuriousDbgMsg( "- Calling out laser sight danger\n" );
+
+			CBaseEntity *pOwner = pEntity->GetOwnerEntity();
+			if ( pOwner )
+			{
+				// Create a temporary target for two reasons:
+				// 1. The player could move away quickly
+				// 2. Companions look to sounds from origin, which can be obstructed by a ledge
+				// TODO: Also make them acquire it as an enemy briefly?
+				CBaseEntity *pTarget = GetOuter()->CreateCustomTarget( pOwner->EyePosition(), 5.1f );
+				if (pTarget)
+				{
+					pTarget->SetOwnerEntity( pOwner );
+					pOwner = pTarget;
+				}
+			}
+
+			// SOUND_CONTEXT_REACT_TO_SOURCE makes us take cover from the weapon
+			InsertStealthSound( SOUND_DANGER | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 2000, 5.0f, pOwner );
+		}
+		else
+		{
+			// Notice the source
+			CBaseEntity *pOwner = pEntity->GetOwnerEntity();
+			if ( pOwner )
+			{
+				GetOuter()->UpdateEnemyMemory( pOwner, pOwner->GetAbsOrigin() );
+			}
+		}
+	}
+
+	MarkAsSeen( pEntity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CAI_StealthCuriousBehavior::HandleAnimEvent( animevent_t *pEvent )
 {
 	switch (pEvent->event)
@@ -607,6 +666,7 @@ void CAI_StealthCuriousBehavior::BuildScheduleTestBits( void )
 	if ( IsInvestigatingSound() )
 	{
 		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_STEALTH_NEW_SOUND ) );
+		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_HEAR_DANGER ) );
 	}
 	else if ( IsCurSchedule( SCHED_GET_HEALTHKIT, false ) )
 	{

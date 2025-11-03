@@ -45,6 +45,7 @@ enum StealthObjectType_t
 	STEALTH_OBJ_SLAM,
 	STEALTH_OBJ_ITEM,
 	STEALTH_OBJ_WEAPON,
+	STEALTH_OBJ_LASER_DOT,		// Laser dot from an enemy's weapon
 
 	NUM_STEALTH_OBJS,
 };

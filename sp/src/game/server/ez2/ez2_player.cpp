@@ -2764,9 +2764,16 @@ void CEZ2_Player::ModifyOrAppendSoundCriteria(AI_CriteriaSet & set, CSound *pSou
 //-----------------------------------------------------------------------------
 bool CEZ2_Player::ReactToSound( CSound *pSound, float flDist )
 {
-	// Do not react to our own sounds, or sounds produced by the vehicle we're in
-	if (pSound->m_hOwner == this || pSound->m_hOwner == GetVehicleEntity())
-		return false;
+	if ( pSound->m_hOwner )
+	{
+		// Do not react to our own sounds, or sounds produced by the vehicle we're in
+		if ( pSound->m_hOwner == this || pSound->m_hOwner == GetVehicleEntity() )
+			return false;
+
+		// Used by danger sounds emitted by our laser dot in stealth mode
+		if ( pSound->m_hOwner->Classify() == CLASS_BULLSEYE && pSound->m_hOwner->GetOwnerEntity() == this )
+			return false;
+	}
 
 	AI_CriteriaSet set;
 	ModifyOrAppendSoundCriteria(set, pSound, flDist);

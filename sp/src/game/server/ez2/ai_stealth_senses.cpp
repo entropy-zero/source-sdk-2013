@@ -61,7 +61,6 @@ const Color DbgStealthColor = Color( 64, 255, 255, 255 );
 #define NUM_STEALTH_SOUND_CHANNELS (SOUNDENT_CHANNEL_STEALTH_LAST - SOUNDENT_CHANNEL_STEALTH_FIRST + 1)
 
 static const char *g_pszStealthSoundChannels[NUM_STEALTH_SOUND_CHANNELS] = {
-	"",							//	SOUNDENT_CHANNEL_STEALTH_FIRST
 	"Discovered Body",			//	SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY,
 	"Discovered Open Door",		//	SOUNDENT_CHANNEL_STEALTH_DISCOVERED_OPEN_DOOR,
 	"Discovered Enemy",			//	SOUNDENT_CHANNEL_STEALTH_DISCOVERED_ENEMY,
@@ -181,6 +180,9 @@ void CAI_StealthSenses::RunStealthSenses()
 //-----------------------------------------------------------------------------
 bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 {
+	if ( pSound->IsSoundType( SOUND_DANGER ) )
+		return true;
+
 	// HACKHACK: This is currently how we check for silenced gunfire sounds, as player gunfire doesn't use SOUND_CONTEXT_GUNFIRE. Not at all ideal!
 	if ( pSound->m_hOwner && pSound->m_hOwner->IsCombatCharacter() &&
 		( pSound->SoundType() == SOUND_COMBAT || pSound->SoundType() == (SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE) ) && pSound->Volume() < 1000 )
@@ -215,10 +217,10 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 		return false;
 	}
 	
-	// Don't hear stealth sounds if we have a real combat sound 
-	if (IsStealthSound(pSound) && GetOuter()->HasCondition(COND_HEAR_COMBAT))
+	// Don't hear stealth sounds if we have a real combat or danger sound
+	if (IsStealthSound(pSound) && (GetOuter()->HasCondition(COND_HEAR_COMBAT) || GetOuter()->HasCondition(COND_HEAR_DANGER)))
 	{
-		CSound *pBestSound = GetOuter()->GetBestSound( SOUND_COMBAT );
+		CSound *pBestSound = GetOuter()->GetBestSound( SOUND_COMBAT | SOUND_DANGER );
 		if (pBestSound && !IsStealthSound(pBestSound))
 		{
 			if ( g_debug_stealth_senses.GetBool() )

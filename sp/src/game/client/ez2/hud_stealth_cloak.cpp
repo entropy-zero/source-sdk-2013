@@ -55,6 +55,7 @@ CHudStealthCloak::CHudStealthCloak( const char *pElementName ) : CHudElement( pE
 	FindOrCreateTextureID( m_iCloakIconCompromised, "hud/stealth_cloak_icon_compromised" );
 	FindOrCreateTextureID( m_iCloakIconLaser, "hud/stealth_cloak_icon_laser" );
 	FindOrCreateTextureID( m_iCloakIconTouch, "hud/stealth_cloak_icon_touch" );
+	FindOrCreateTextureID( m_iCloakIconMyLaser, "hud/stealth_cloak_icon_mylaser" );
 }
 
 CHudStealthCloak::~CHudStealthCloak()
@@ -162,6 +163,10 @@ void CHudStealthCloak::Paint()
 					break;
 				case COMPROMISE_TYPE_TOUCH:
 					iTexture = m_iCloakIconTouch;
+					break;
+				case COMPROMISE_TYPE_MYLASER:
+					iTexture = m_iCloakIconMyLaser;
+					pszCloakLabel = "#Suit_HUD_Cloak_WarnMyLaserVisible";
 					break;
 			}
 

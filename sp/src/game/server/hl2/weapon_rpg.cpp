@@ -27,6 +27,10 @@
 #include "hl2_shareddefs.h"
 #include "rumble_shared.h"
 #include "gamestats.h"
+#ifdef EZ2
+#include "ez2/ez2_player.h"
+#include "ez2/ai_stealth_manager.h"
+#endif
 
 #ifdef PORTAL
 	#include "portal_util_shared.h"
@@ -2474,6 +2478,12 @@ CLaserDot *CLaserDot::Create( const Vector &origin, CBaseEntity *pOwner, bool bV
 	{
 		pLaserDot->MakeInvisible();
 	}
+#ifdef EZ2
+	else if ( g_hStealthManager )
+	{
+		g_AI_SensedObjectsManager.AddEntity( pLaserDot );
+	}
+#endif
 
 	return pLaserDot;
 }
@@ -2497,6 +2507,18 @@ void CLaserDot::LaserThink( void )
 	scale = clamp( scale + scaleOffs, 0.1f, 32.0f );
 
 	SetScale( scale );
+
+#ifdef EZ2
+	if ( m_bIsOn && GetOwnerEntity()->IsPlayer() )
+	{
+		CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(GetOwnerEntity());
+		if ( pEZ2Player->GetCloakFactor() > 0.0f )
+		{
+			// Tell the player that they are visible
+			pEZ2Player->NoteVisibleCloak( COMPROMISE_TYPE_MYLASER );
+		}
+	}
+#endif
 }
 
 void CLaserDot::SetLaserPosition( const Vector &origin, const Vector &normal )
@@ -2524,6 +2546,10 @@ void CLaserDot::TurnOn( void )
 	if ( m_bVisibleLaserDot )
 	{
 		BaseClass::TurnOn();
+#ifdef EZ2
+		if ( g_hStealthManager )
+			g_AI_SensedObjectsManager.AddEntity( this );
+#endif
 	}
 }
 
@@ -2537,6 +2563,10 @@ void CLaserDot::TurnOff( void )
 	if ( m_bVisibleLaserDot )
 	{
 		BaseClass::TurnOff();
+#ifdef EZ2
+		if ( g_hStealthManager )
+			g_AI_SensedObjectsManager.RemoveEntity( this );
+#endif
 	}
 }
 

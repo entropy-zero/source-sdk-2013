@@ -935,6 +935,16 @@ void CAI_StealthManager::SquadLostPlayer( CAI_BaseNPC *pNPC, CAI_Squad *pSquad )
 	{
 		NDebugOverlay::Circle( vecLastKnownPos, QAngle( 90, 0, 0 ), ai_stealth_area_contaminate_plr_dist.GetFloat(), 255, 0, 0, 255, true, 5.0f );
 	}
+
+	// If there's any active laser dots owned by our enemy, make them perceivable again
+	CBaseEntity *pEnt = gEntList.FindEntityByClassname( NULL, "env_laserdot" );
+	for ( ; pEnt != NULL; pEnt = gEntList.FindEntityByClassname( pEnt, "env_laserdot" ) )
+	{
+		if ( pEnt->GetEffects() & EF_NODRAW || pEnt->GetFlags() & FL_OBJECT || !pEnt->GetOwnerEntity() || pNPC->IRelationType( pEnt->GetOwnerEntity() ) > D_FR )
+			continue;
+
+		g_AI_SensedObjectsManager.AddEntity( pEnt );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1214,6 +1224,10 @@ StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEnti
 				return STEALTH_OBJ_PROP;
 			}
 		}
+	}
+	else if ( V_strncmp( pszClassname, "env_l", 5 ) == 0 ) // env_laserdot
+	{
+		return STEALTH_OBJ_LASER_DOT;
 	}
 	// TODO: Generic stealth interest object, can be used to mark bloodstains or missing objects
 	//else if ( FStrEq( pszClassname, "ai_stealth_obj" ) )

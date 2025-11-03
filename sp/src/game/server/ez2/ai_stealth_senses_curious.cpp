@@ -100,9 +100,9 @@ void CAI_CuriousStealthSenses::OnDamagedByAttacker( const CTakeDamageInfo &info 
 //-----------------------------------------------------------------------------
 void CAI_CuriousStealthSenses::OnListened()
 {
-	if (GetOuter()->HasCondition(COND_HEAR_COMBAT))
+	if (GetOuter()->HasCondition(COND_HEAR_COMBAT) || GetOuter()->HasCondition(COND_HEAR_DANGER))
 	{
-		CSound *pBestSound = GetOuter()->GetBestSound( SOUND_COMBAT );
+		CSound *pBestSound = GetOuter()->GetBestSound( SOUND_COMBAT | SOUND_DANGER );
 		if (IsStealthSound(pBestSound))
 		{
 			m_bInvestigatingStealth = true;
@@ -128,7 +128,7 @@ void CAI_CuriousStealthSenses::OnListened()
 					CSound *pCurrentSound = GetOuter()->GetSenses()->GetFirstHeardSound( &iter );
 					while ( pCurrentSound )
 					{
-						if (!pCurrentSound->IsSoundType(SOUND_COMBAT) && pCurrentSound->SoundChannel() != SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS)
+						if (!pCurrentSound->IsSoundType(SOUND_COMBAT | SOUND_DANGER) && pCurrentSound->SoundChannel() != SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS)
 						{
 							pCurrentSound = GetOuter()->GetSenses()->GetNextHeardSound( &iter );
 							continue;
