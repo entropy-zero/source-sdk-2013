@@ -31,12 +31,13 @@ ConVar	hud_stealth_alert_circle( "hud_stealth_alert_circle", "1" );
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
-CHudStealthAlertIcon::CHudStealthAlertIcon( C_BaseEntity *pSource, AlertSourceType_t iType, float flLevel, float flCombatTime,
+CHudStealthAlertIcon::CHudStealthAlertIcon( C_BaseEntity *pSource, AlertSourceType_t iType, float flLevel, float flCombatTime, bool bTargetingPlayer,
 		Panel *parent, int texCircle, int texSpotted ) : BaseClass( parent, "HudStealthAlertIcon" )
 {
 	m_hSource = pSource;
 	m_iType = iType;
 	m_flLevel = flLevel;
+	m_bTargetingPlayer = bTargetingPlayer;
 	m_flCombatTime = flCombatTime;
 
 	m_iCircleTexture = texCircle;
@@ -193,7 +194,7 @@ void CHudStealthAlertIcon::Paint()
 		int textY = 0; //+ iAlertBarTall + height;
 		
 		surface()->DrawSetTextFont( m_hAlertSpottedFont );
-		surface()->DrawSetTextColor( m_clrFull );
+		surface()->DrawSetTextColor( m_bTargetingPlayer ? m_clrFull : m_clrTargetingOther );
 		surface()->DrawSetTextPos( textX, textY );
 		surface()->DrawPrintText( L"!", 1 );
 		
@@ -573,8 +574,19 @@ void CHudStealthAlert::MsgFunc_AlertTargetUpdate( bf_read &msg )
 	{
 		if (m_AlertIcons[i] && m_AlertIcons[i]->GetSource() == pEntity)
 		{
-			m_AlertIcons[i]->SetLevel( flNewLevel );
-			index = i;
+			if (m_AlertIcons[i]->GetCombatTime() != -1.0f)
+			{
+				// Currently displaying alert notice. Replace it with a fresh new one to avoid scaling issues
+				m_AlertIconParents[i]->MarkForDeletion();
+				m_AlertIconParents.Remove( i );
+				m_AlertIcons[i]->MarkForDeletion();
+				m_AlertIcons.Remove( i );
+			}
+			else
+			{
+				m_AlertIcons[i]->SetLevel( flNewLevel );
+				index = i;
+			}
 			break;
 		}
 	}
@@ -582,7 +594,7 @@ void CHudStealthAlert::MsgFunc_AlertTargetUpdate( bf_read &msg )
 	if (index == -1)
 	{
 		// New target
-		int i = CreateAlertTarget( pEntity, (AlertSourceType_t)iType, flNewLevel, -1.0f );
+		int i = CreateAlertTarget( pEntity, (AlertSourceType_t)iType, flNewLevel, -1.0f, true );
 
 		pEntity->EmitSound( "EZ2Player.AlertTarget_Begin" );
 		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( m_AlertIconParents[i], "StealthAlertPopup" );
@@ -604,6 +616,7 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 		if (m_AlertIcons[i] && m_AlertIcons[i]->GetSource() == pEntity)
 		{
 			m_AlertIcons[i]->SetCombatTime( gpGlobals->curtime );
+			m_AlertIcons[i]->SetTargetingPlayer( bTargetingMe );
 			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( m_AlertIconParents[i], "StealthAlertSpotted" );
 			index = i;
 			break;
@@ -613,7 +626,7 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 	if (index == -1)
 	{
 		// New target
-		int i = CreateAlertTarget( pEntity, ALERT_SOURCE_TYPE_NONE, ALERT_TARGET_COMBAT_LEVEL, gpGlobals->curtime );
+		int i = CreateAlertTarget( pEntity, ALERT_SOURCE_TYPE_NONE, ALERT_TARGET_COMBAT_LEVEL, gpGlobals->curtime, bTargetingMe );
 
 		if ( bTargetingMe )
 			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( m_AlertIconParents[i], "StealthAlertSpotted" );
@@ -629,13 +642,13 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-int CHudStealthAlert::CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t iType, float flLevel, float flCombatTime )
+int CHudStealthAlert::CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t iType, float flLevel, float flCombatTime, bool bTargetingPlayer )
 {
 	vgui::Panel *pIconParent = new CHudStealthAlertIconParent( this, "HudStealthAlertIconParent" );
 	pIconParent->SetBounds( 0, 0, 32, 32 );
 	int i = m_AlertIconParents.AddToTail( pIconParent );
 
-	CHudStealthAlertIcon *pIcon = new CHudStealthAlertIcon( pEntity, iType, flLevel, flCombatTime, pIconParent );
+	CHudStealthAlertIcon *pIcon = new CHudStealthAlertIcon( pEntity, iType, flLevel, flCombatTime, bTargetingPlayer, pIconParent );
 	int j = m_AlertIcons.AddToTail( pIcon );
 
 	Assert( i == j );
@@ -648,7 +661,7 @@ int CHudStealthAlert::CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t
 //-----------------------------------------------------------------------------
 void CHudStealthAlert::Paint()
 {
-	BaseClass::OnThink();
+	//BaseClass::Paint();
 
 	static CUtlVector< Vector2D > occupiedSpaces;
 

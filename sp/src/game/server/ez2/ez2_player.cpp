@@ -2832,7 +2832,7 @@ void CEZ2_Player::AlertLevelUpdate( CAI_BaseNPC *pNPC, float flLevel, int iType 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CEZ2_Player::AlertLevelEngageEnemy( CAI_BaseNPC *pNPC )
+void CEZ2_Player::AlertLevelEngageEnemy( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy )
 {
 	if ( GetNPCComponent() )
 	{
@@ -2841,7 +2841,7 @@ void CEZ2_Player::AlertLevelEngageEnemy( CAI_BaseNPC *pNPC )
 			return;
 	}
 
-	bool bTargetingMe = (pNPC->GetEnemy() == this);
+	bool bTargetingMe = (pEnemy == this);
 
 	CSingleUserRecipientFilter user( this );
 	user.MakeReliable();
@@ -3060,7 +3060,6 @@ void CEZ2_Player::CloakThink()
 				flObjectMass = PlayerPickupGetHeldObjectMass( GetUseEntity(), pHeldObject->VPhysicsGetObject() );
 			}
 			float flDestAmt = RemapValClamped( flObjectMass, 35, 0, CLOAK_DECLOAK_USE / 10.0, 1.0 );
-			Msg( "Object mass: %f, flDestAmt = %f\n", flObjectMass, flDestAmt );
 			flDest *= flDestAmt;
 			
 		}

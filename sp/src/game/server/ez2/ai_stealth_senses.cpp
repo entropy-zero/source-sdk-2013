@@ -51,7 +51,8 @@
 
 #define AI_INJURY_SOUND_DIST 64.0
 
-#define AI_STEALTH_FREE_KNOWLEDGE_DURATION 0.3
+#define AI_STEALTH_FREE_KNOWLEDGE_DURATION		0.3
+#define AI_STEALTH_ENEMY_LKP_ALWAYS_SEE_DIST	200.0
 
 // TODO: Make into dedicated console group? See mapbase_con_groups.cpp
 const Color DbgStealthColor = Color( 64, 255, 255, 255 );
@@ -296,11 +297,23 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 {
 	NPC_STATE eNPCState = GetOuter()->GetState();
-	if (eNPCState == NPC_STATE_IDLE || eNPCState == NPC_STATE_ALERT || eNPCState == NPC_STATE_SCRIPT)
+	if (eNPCState == NPC_STATE_IDLE || eNPCState == NPC_STATE_ALERT || eNPCState == NPC_STATE_COMBAT || eNPCState == NPC_STATE_SCRIPT)
 	{
 		// Always see allies
 		if ( GetOuter()->IRelationType( pEntity ) == D_LI )
 			return true;
+
+		if ( pEntity == GetEnemy() )
+		{
+			AI_EnemyInfo_t *pMemory = GetOuter()->GetEnemies()->Find( pEntity );
+			if ( pMemory )
+			{
+				// If the enemy is where we would expect them to be, just always see them
+				float flDistToLKPSqr = (pEntity->GetAbsOrigin() - pMemory->vLastKnownLocation).LengthSqr();
+				if ( flDistToLKPSqr < Square( AI_STEALTH_ENEMY_LKP_ALWAYS_SEE_DIST ) )
+					return true;
+			}
+		}
 
 		// When idle, have a smaller view cone
 		Vector vecLookPos, vecLookDir;
@@ -317,7 +330,7 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 			return true;
 		}
 
-		if (!pEntity->IsPlayer() || ToBasePlayer( pEntity )->GetTimeSinceWeaponFired() > 0.5)
+		if (!pEntity->IsPlayer() || gpGlobals->curtime - ToBasePlayer( pEntity )->MuzzleFlashTime() > 0.5)
 		{
 			// Also see less of the stuff above us (unless we hear a sound near this entity)
 			if ( GetOuter()->HasCondition( COND_HEAR_COMBAT ) || GetOuter()->HasCondition( COND_HEAR_PLAYER ) || GetOuter()->HasCondition( COND_HEAR_WORLD ) )
@@ -418,7 +431,7 @@ bool CAI_StealthSenses::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &po
 	}
 	else if ((!pInformer || pInformer == GetOuter()))
 	{
-		if (GetOuter()->GetExpresser() && GetOuter()->GetExpresser()->IsSpeaking())
+		if (GetOuter()->GetExpresser() && GetOuter()->GetExpresser()->IsSpeaking() && CompareConcepts(GetOuter()->GetExpresser()->GetLastSpokeConcept(), TLK_STARTCOMBAT))
 		{
 			if (g_hStealthManager && !g_hStealthManager->IsStealthLevel(STEALTH_LEVEL_LOUD))
 			{
@@ -479,7 +492,7 @@ void CAI_StealthSenses::OnStateChange( int eNPCState )
 			if (pPlayer)
 			{
 				CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pPlayer);
-				pEZ2Player->AlertLevelEngageEnemy( GetOuter() );
+				pEZ2Player->AlertLevelEngageEnemy( GetOuter(), GetOuter()->GetEnemy() );
 			}
 
 			for ( int i = m_AlertLevels.Count()-1; i >= 0; i-- )
@@ -492,9 +505,6 @@ void CAI_StealthSenses::OnStateChange( int eNPCState )
 
 				m_AlertLevels.Remove( i );
 			}
-
-			if ( m_AlertLevels.Count() > 1 )
-				m_AlertLevels.RemoveAll();
 		
 			m_flNextAlertLevelThink = gpGlobals->curtime + 1.0f;
 		}
@@ -873,24 +883,13 @@ void CAI_StealthSenses::BuildScheduleTestBits()
 //-----------------------------------------------------------------------------
 void CAI_StealthSenses::MaintainAlertLevels()
 {
-	if ( GetEnemy() && GetEnemy()->Classify() != CLASS_BULLSEYE )
+	bool bInCombatWithEnemy = false;
+	if ( GetEnemy() && GetEnemy()->Classify() != CLASS_BULLSEYE && GetOuter()->HasCondition( COND_SEE_ENEMY ) )
 	{
-		// TODO: Investigate alertness levels for players when distracted by combat with NPCs
-		for ( int i = m_AlertLevels.Count()-1; i >= 0; i-- )
-		{
-			if (m_AlertLevels[i].hTarget->IsPlayer())
-			{
-				CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(m_AlertLevels[i].hTarget.Get());
-				pEZ2Player->AlertLevelUpdate( GetOuter(), 0.0f, GetAlertSourceType() );
-			}
-
-			m_AlertLevels.Remove( i );
-		}
-
-		GetOuter()->SetUsingHighFrequencyLook( false );
+		bInCombatWithEnemy = true;
 		
-		m_flNextAlertLevelThink = gpGlobals->curtime + 1.0f;
-		return;
+		//m_flNextAlertLevelThink = gpGlobals->curtime + 1.0f;
+		//return;
 	}
 
 	bool bCheckingPlayer = false;
@@ -901,6 +900,22 @@ void CAI_StealthSenses::MaintainAlertLevels()
 		{
 			m_AlertLevels.Remove( i );
 			continue;
+		}
+
+		if ( bInCombatWithEnemy )
+		{
+			// If we're already in combat, then dynamically mark alert levels as spotted
+			if (m_AlertLevels[i].hTarget == GetEnemy() || m_AlertLevels[i].flLevel >= 1.0f)
+			{
+				if (m_AlertLevels[i].hTarget->IsPlayer())
+				{
+					CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(m_AlertLevels[i].hTarget.Get());
+					pEZ2Player->AlertLevelEngageEnemy( GetOuter(), m_AlertLevels[i].hTarget );
+				}
+
+				m_AlertLevels.Remove( i );
+				continue;
+			}
 		}
 
 		float flDecayAmt = 0.0f;
@@ -947,7 +962,7 @@ void CAI_StealthSenses::MaintainAlertLevels()
 		m_AlertLevels[i].flPrevLevel = m_AlertLevels[i].flLevel;
 	}
 
-	GetOuter()->SetUsingHighFrequencyLook( bCheckingPlayer && ai_stealth_alertness_high_freq_look.GetBool() );
+	GetOuter()->SetUsingHighFrequencyLook( bCheckingPlayer && !bInCombatWithEnemy && ai_stealth_alertness_high_freq_look.GetBool() );
 
 	if ( m_AlertLevels.Count() > 0 )
 	{
@@ -970,7 +985,7 @@ void CAI_StealthSenses::MaintainAlertLevels()
 //-----------------------------------------------------------------------------
 bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecDelta, float flDot )
 {
-	if (GetEnemy() == pTarget)
+	if (GetEnemy() == pTarget && gpGlobals->curtime - GetOuter()->GetLastDamageTime() < 1.0f)
 	{
 		return true;
 	}
@@ -1057,11 +1072,17 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 		CBasePlayer *pPlayer = ToBasePlayer( pTarget );
 		if ( pPlayer )
 		{
-			if (pPlayer->GetTimeSinceWeaponFired() < 0.5)
+			if (gpGlobals->curtime - pPlayer->MuzzleFlashTime() < 0.5)
 				flAlertLevelIncrease += 0.5;
 			
 			if (pPlayer->GetUseEntity())
 				flAlertLevelIncrease += 0.1;
+
+			/*CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pPlayer);
+			if ( pEZ2Player->GetCloakFactor() > 0.0f )
+			{
+				flAlertLevelIncrease *= (1.0 - pEZ2Player->GetCloakFactor());
+			}*/
 		}
 			
 		if (pTarget->GetFlags() & FL_DUCKING)
@@ -1092,6 +1113,15 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 		flAlertLevelIncrease *= 0.5;
 	else if (GetNumBodiesFound() <= 0)
 		flAlertLevelIncrease *= 0.75;
+
+	// Use enemy memory if we have it
+	AI_EnemyInfo_t *pMemory = GetOuter()->GetEnemies()->Find( pTarget );
+	if ( pMemory )
+	{
+		// Vary based on whether the enemy is where we would expect them to be
+		float flDistToLKPSqr = (pTarget->GetAbsOrigin() - pMemory->vLastKnownLocation).LengthSqr();
+		flAlertLevelIncrease *= (2.0f - RemapValClamped( flDistToLKPSqr, Square( 128.0f ), Square( 4000.0f ), 0.0f, 1.5f ));
+	}
 		
 	// Civilians less ready
 	if (HasStealthFlags(STEALTH_F_CIVILIAN))

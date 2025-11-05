@@ -976,6 +976,9 @@ void CAI_StealthManager::SquadQuieted( CAI_BaseNPC *pNPC, CAI_Squad *pSquad )
 //-----------------------------------------------------------------------------
 void CAI_StealthManager::PlayerMovedObject( CBasePlayer *pPlayer, CBaseEntity *pEntity )
 {
+	if ( !IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_GUARD ) )
+		return;
+
 	CTriggerStealthArea *pArea = GetStealthAreaForEntity( pEntity );
 	if ( pArea )
 	{

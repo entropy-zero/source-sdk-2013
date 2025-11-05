@@ -8386,7 +8386,7 @@ void CAI_BaseNPC::NPCInit ( void )
 #endif
 
 #ifdef EZ2
-	if ( m_bUsesStealthSenses )
+	if ( m_bUsesStealthSenses || ai_stealth_force.GetBool() )
 	{
 		GetStealthSenses()->InitStealthSenses();
 	}
@@ -13653,7 +13653,7 @@ void CAI_BaseNPC::DiscardScheduleState()
 void CAI_BaseNPC::OnRestore()
 {
 #ifdef EZ2
-	if ( m_bUsesStealthSenses )
+	if ( m_bUsesStealthSenses || ai_stealth_force.GetBool() )
 	{
 		GetStealthSenses()->InitStealthSenses();
 	}

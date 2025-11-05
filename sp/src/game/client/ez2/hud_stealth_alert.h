@@ -28,7 +28,7 @@ class CHudStealthAlertIcon : public vgui::EditablePanel
 {
 	DECLARE_CLASS_SIMPLE( CHudStealthAlertIcon, vgui::EditablePanel );
 public:
-	CHudStealthAlertIcon( C_BaseEntity *pSource, AlertSourceType_t iType, float flLevel, float flCombatTime,
+	CHudStealthAlertIcon( C_BaseEntity *pSource, AlertSourceType_t iType, float flLevel, float flCombatTime, bool bTargetingPlayer,
 		Panel *parent, int texCircle = -1, int texSpotted = -1 );
 	~CHudStealthAlertIcon();
 
@@ -37,6 +37,7 @@ public:
 
 	void	SetLevel( float flLevel ) { m_flLevel = flLevel; }
 	void	SetCombatTime( float flCombatTime ) { m_flCombatTime = flCombatTime; m_flLevel = ALERT_TARGET_COMBAT_LEVEL; }
+	void	SetTargetingPlayer( bool bTargetingPlayer ) { m_bTargetingPlayer = bTargetingPlayer; }
 
 	C_BaseEntity *GetSource() const { return m_hSource; }
 	AlertSourceType_t GetType() const { return m_iType; }
@@ -58,6 +59,7 @@ private:
 	AlertSourceType_t	m_iType;
 	float				m_flLevel;
 	float				m_flCombatTime = -1.0f;
+	bool				m_bTargetingPlayer;
 
 	Vector		m_vecWorldPos;
 
@@ -70,8 +72,9 @@ private:
 
 	CPanelAnimationVar( Color, m_clrBG, "color_bg", "BgColor" );
 
-	CPanelAnimationVar( Color, m_clrEmpty, "color_empty", "DamagedFg" );
-	CPanelAnimationVar( Color, m_clrFull, "color_full", "BrightDamagedFg" );
+	CPanelAnimationVar( Color, m_clrEmpty, "color_empty", "Stealth.Alert_Caution" );
+	CPanelAnimationVar( Color, m_clrFull, "color_full", "Stealth.Alert_Compromised" );
+	CPanelAnimationVar( Color, m_clrTargetingOther, "color_targeting_other", "Stealth.Alert_Caution" );
 
 	CPanelAnimationVar( vgui::HFont, m_hAlertSpottedFont, "AlertSpottedFont", "AlertSpotted" );
 
@@ -112,7 +115,7 @@ public:
 	void MsgFunc_AlertTargetUpdate( bf_read &msg );
 	void MsgFunc_AlertTargetEntersCombat( bf_read &msg );
 
-	int CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t iType, float flLevel, float flCombatTime );
+	int CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t iType, float flLevel, float flCombatTime, bool bTargetingPlayer );
 
 private:
 

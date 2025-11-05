@@ -236,7 +236,7 @@ public:
 
 	// Stealth system
 	void				AlertLevelUpdate( CAI_BaseNPC *pNPC, float flLevel, int iType );
-	void				AlertLevelEngageEnemy( CAI_BaseNPC *pNPC );
+	void				AlertLevelEngageEnemy( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy );
 	bool				ShouldMoveDoorStealthily( CBasePropDoor *pDoor );
 	void				OnEnterStealthArea( CTriggerStealthArea *pArea );
 	void				OnExitStealthArea( CTriggerStealthArea *pArea );
