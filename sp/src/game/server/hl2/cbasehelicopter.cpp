@@ -26,6 +26,9 @@
 #include "coordsize.h"
 #include "effects.h"
 #include "rotorwash.h"
+#ifdef EZ2
+#include "ez2/ai_stealth_senses.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -128,6 +131,12 @@ BEGIN_DATADESC( CBaseHelicopter )
 	DEFINE_INPUTFUNC( FIELD_VOID, "EnableRotorSound", InputEnableRotorSound ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableRotorSound", InputDisableRotorSound ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Kill", InputKill ),
+
+#ifdef EZ2
+	// Outputs for stealth senses
+	DEFINE_OUTPUT( m_OnStealthFoundEnemy, "OnStealthFoundEnemy" ),
+	DEFINE_OUTPUT( m_OnStealthLostEnemy, "OnStealthLostEnemy" ),
+#endif
 
 END_DATADESC()
 
@@ -346,6 +355,13 @@ void CBaseHelicopter::HelicopterThink( void )
 	}
 
 	HelicopterPostThink();
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && m_lifeState == LIFE_ALIVE )
+	{
+		GetStealthSenses()->RunStealthSenses();
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -697,6 +713,16 @@ void CBaseHelicopter::UpdateEnemy()
 	// be sure and change my prevseen/lastseen timers.
 	if( m_lifeState == LIFE_ALIVE )
 	{
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			// Also listen
+			if( !GetSenses()->HasSensingFlags( SENSING_FLAGS_DONT_LISTEN ) )
+				GetSenses()->Listen();
+		}
+
+		if( !GetSenses()->HasSensingFlags( SENSING_FLAGS_DONT_LOOK ) )
+#endif
 		GetSenses()->Look( EnemySearchDistance() );
 
 		GetEnemies()->RefreshMemories();
@@ -1633,6 +1659,37 @@ void CBaseHelicopter::GatherEnemyConditions( CBaseEntity *pEnemy )
 		ClearCondition( COND_ENEMY_OCCLUDED );
 		return;
 	}
+
+#ifdef EZ2
+	// -------------------
+	// Stealth Senses: Enemies can elude helicopters
+	// -------------------
+	const float HELI_TRACK_ENEMY_LOSE_TIME = 16.0f;
+	const float HELI_TRACK_ENEMY_LOSE_DIST_SQR = Square( 1500.0f );
+
+	if ( IsUsingStealthSenses() && pEnemy->Classify() != CLASS_BULLSEYE )
+	{
+		if ( HasCondition( COND_NEW_ENEMY ) )
+		{
+			m_OnStealthFoundEnemy.Set( pEnemy, pEnemy, this );
+		}
+		else if ( !HasCondition( COND_SEE_ENEMY ) )
+		{
+			if ( gpGlobals->curtime - m_flLastSeen > HELI_TRACK_ENEMY_LOSE_TIME )
+			{
+				// Lose track of enemy
+				MarkEnemyAsEluded();
+				m_OnStealthLostEnemy.Set( pEnemy, pEnemy, this );
+			}
+			else if ( ( GetEnemies()->LastSeenPosition( pEnemy ) - pEnemy->GetAbsOrigin() ).LengthSqr() > HELI_TRACK_ENEMY_LOSE_DIST_SQR )
+			{
+				// Cheat a little: If the enemy is far away from its last seen position, forget it
+				MarkEnemyAsEluded();
+				m_OnStealthLostEnemy.Set( pEnemy, pEnemy, this );
+			}
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------

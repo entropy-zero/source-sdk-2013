@@ -203,13 +203,20 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 		}
 	}
 	
-	// Ignore injury sounds we don't see (unless we're really close to it)
-	if (pSound->SoundChannel() == SOUNDENT_CHANNEL_INJURY && (!GetOuter()->FVisible(pSound->GetSoundOrigin()) || !GetOuter()->FInViewCone(pSound->GetSoundOrigin())) && (GetAbsOrigin() - pSound->GetSoundOrigin()).LengthSqr() > Square(AI_INJURY_SOUND_DIST))
+	if (pSound->SoundChannel() == SOUNDENT_CHANNEL_INJURY)
 	{
-		if ( g_debug_stealth_senses.GetBool() )
-			EntityPrint( GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_SOUND ), Color( 255, 255, 128 ), 4.0f, "Ignoring injury" );
+		// Ignore injury sounds we don't see (unless we're really close to it)
+		if ( (!GetOuter()->FVisible(pSound->GetSoundOrigin()) || !GetOuter()->FInViewCone(pSound->GetSoundOrigin())) && (GetAbsOrigin() - pSound->GetSoundOrigin()).LengthSqr() > Square(AI_INJURY_SOUND_DIST) )
+		{
+			if ( g_debug_stealth_senses.GetBool() )
+				EntityPrint( GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_SOUND ), Color( 255, 255, 128 ), 4.0f, "Ignoring unseen injury" );
 
-		return false;
+			return false;
+		}
+
+		// Ignore injury sounds from invalid owners
+		if ( !pSound->m_hOwner || pSound->m_hOwner->Classify() == CLASS_BULLSEYE )
+			return false;
 	}
 	
 	// For now, ignore scents (the guards keep smelling bodies they shouldn't know about, but that means they go alert; maybe they should just investigate instead?)
@@ -919,7 +926,7 @@ void CAI_StealthSenses::MaintainAlertLevels()
 		}
 
 		float flDecayAmt = 0.0f;
-		if (m_AlertLevels[i].flLevel == m_AlertLevels[i].flPrevLevel)
+		if (m_AlertLevels[i].flLevel == m_AlertLevels[i].flPrevLevel && gpGlobals->curtime - m_AlertLevels[i].flLastUpdate > 0.5f)
 			flDecayAmt = 1.0f;
 
 		if ( flDecayAmt > 0.0f && ( IsInvestigatingSound() || GetOuter()->IsCurSchedule( SCHED_ALERT_FACE_BESTSOUND ) ) )

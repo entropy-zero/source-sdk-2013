@@ -237,6 +237,12 @@ protected:
 	void			InputMoveSpecifiedSpeed( inputdata_t &inputdata );
 	void			InputSetAngles( inputdata_t &inputdata );	// Sets the angles of the helicopter
 
+#ifdef EZ2
+	// Outputs for stealth senses
+	COutputEHANDLE	m_OnStealthFoundEnemy;
+	COutputEHANDLE	m_OnStealthLostEnemy;
+#endif
+
 protected:	
 	// Custom conservative collision volumes
 	Vector			m_cullBoxMins;

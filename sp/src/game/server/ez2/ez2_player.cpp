@@ -697,7 +697,8 @@ void CEZ2_Player::Touch( CBaseEntity *pOther )
 
 	if ( g_hStealthManager && !(pOther->GetFlags() & FL_OBJECT) )
 	{
-		if ( pOther->IsNPC() && IRelationType( pOther ) <= D_FR )
+		// HACKHACK: Don't tell helicopters we're touching them
+		if ( pOther->IsNPC() && IRelationType( pOther ) <= D_FR && !pOther->ClassMatches("*helicopter") )
 		{
 			if ( IsCloaking() )
 			{

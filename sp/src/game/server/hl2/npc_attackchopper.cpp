@@ -208,6 +208,10 @@ enum
 
 #define GRENADE_HELICOPTER_MODEL "models/combine_helicopter/helicopter_bomb01.mdl"
 
+#ifdef EZ2
+class CAI_HeliStealthSenses;
+#endif
+
 #ifdef MAPBASE
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -510,35 +514,8 @@ private:
 	};
 
 #ifdef EZ2
-	//-----------------------------------------------------------------------------
-	// Helicopter stealth sense type.
-	//-----------------------------------------------------------------------------
-	class CAI_HeliStealthSenses : public CAI_StealthSenses
-	{
-	public:
-		DECLARE_CLASS( CAI_HeliStealthSenses, CAI_StealthSenses );
-
-		CAI_HeliStealthSenses( CAI_BaseNPC *pOuter )
-			: CAI_StealthSenses( pOuter )
-		{
-		}
-
-		//-----------------------------------------------
-
-		virtual int		GetAlertSourceType() const { return ALERT_SOURCE_TYPE_HELICOPTER; }
-
-		virtual void GetStealthLookVectors( Vector &vecPos, Vector &vecDir )
-		{
-			// Use the spotlight as eyes
-			Vector vecForward;
-			Vector vecOrigin;
-			GetOuter()->GetAttachment( static_cast<CNPC_AttackHelicopter*>(GetOuter())->m_nSpotlightAttachment, vecPos, &vecDir );
-		}
-	};
-
 	friend class CAI_HeliStealthSenses;
-
-	virtual CAI_StealthSenses *CreateStealthSenses() { return new CAI_HeliStealthSenses( this ); }
+	virtual CAI_StealthSenses *CreateStealthSenses();
 #endif
 
 	// Gets the max speed of the helicopter
@@ -578,6 +555,9 @@ private:
 	void	InputStartTrailingVehicle( inputdata_t &inputdata );
 	void	InputStartDefaultBehavior( inputdata_t &inputdata );
 	void	InputStartAlwaysLeadingVehicle( inputdata_t &inputdata );
+#ifdef EZ2
+	void	InputStartStealthHunt( inputdata_t &inputdata );
+#endif
 
 	// Deadly shooting, tex!
 	void	InputEnableDeadlyShooting( inputdata_t &inputdata );
@@ -790,6 +770,9 @@ private:
 		ATTACK_MODE_TRAIL_VEHICLE,
 		ATTACK_MODE_ALWAYS_LEAD_VEHICLE,
 		ATTACK_MODE_BULLRUSH_VEHICLE,
+#ifdef EZ2
+		ATTACK_MODE_STEALTH_HUNT,
+#endif
 	};
 
 	enum
@@ -1039,6 +1022,9 @@ BEGIN_DATADESC( CNPC_AttackHelicopter )
 	DEFINE_INPUTFUNC( FIELD_VOID, "StartTrailingVehicle", InputStartTrailingVehicle ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "StartDefaultBehavior", InputStartDefaultBehavior ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "StartBullrushBehavior", InputStartBullrushBehavior ),
+#ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_VOID, "StartStealthHunt", InputStartStealthHunt ),
+#endif
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "DropBomb", InputDropBomb ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "DropBombStraightDown", InputDropBombStraightDown ),
@@ -1331,6 +1317,13 @@ void CNPC_AttackHelicopter::Spawn( void )
 	AddFlag( FL_AIMTARGET );
 
 	m_hCrashPoint.Set( NULL );
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() )
+	{
+		m_hSensor->SetBlocksLOS( false );
+	}
+#endif
 }
 
 #ifdef HL2_EPISODIC
@@ -1695,6 +1688,14 @@ void CNPC_AttackHelicopter::InputStartBullrushBehavior( inputdata_t &inputdata )
 		SetLeadingDistance( 0.0f );
 	}
 }
+
+#ifdef EZ2
+void CNPC_AttackHelicopter::InputStartStealthHunt( inputdata_t &inputdata )
+{
+	m_nAttackMode = ATTACK_MODE_STEALTH_HUNT;
+	SetLeadingDistance( 0.0f );
+}
+#endif
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -5098,6 +5099,25 @@ void CNPC_AttackHelicopter::UpdateEnemyLeading( void )
 		flLeadingDist = ComputeBullrushLeadingDistance( flSpeed, flSpeedAlongPath, bEnemyInVehicle );
 		break;
 
+#ifdef EZ2
+	case ATTACK_MODE_STEALTH_HUNT:
+		{
+			if ( pTarget->Classify() == CLASS_BULLSEYE )
+			{
+				// Don't lead bullseyes
+				if ( GetEnemies()->NumEnemies() >= 2 )
+				{
+					// Fly right on top of the bullseye if we have another enemy in memory, just shine towards it otherwise
+					flLeadingDist = CreepTowardEnemy( flSpeed, 0.0f, MIN_ENEMY_SPEED, 0.0f, 1000.0f );
+				}
+				else
+				{
+					flLeadingDist = ClampSplineRemapVal( flSpeedAlongPath, -600.0f, -200.0f, -2500.0f, -1000.0f );
+				}
+				break;
+			}
+		} // Fall through
+#endif
 	case ATTACK_MODE_ALWAYS_LEAD_VEHICLE:
 		if (( flSpeed <= MIN_ENEMY_SPEED ) && (bEnemyInVehicle) )
 		{
@@ -5295,6 +5315,31 @@ void CNPC_AttackHelicopter::Hunt( void )
 		else if (GetIdleAimTarget())
 		{
 			SetIdleAimTarget( NULL );
+		}
+	}
+#endif
+
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && HasCondition( COND_SEE_ENEMY ) )
+	{
+		// Alert any NPCs near the heli
+		CBaseEntity *pEnemy = GetEnemy();
+		if ( pEnemy && pEnemy->Classify() != CLASS_BULLSEYE )
+		{
+			CBaseEntity *pEntity = gEntList.FindEntityInSphere( NULL, GetAbsOrigin(), 4000.0f );
+			for ( ; pEntity != NULL; pEntity = gEntList.FindEntityInSphere( pEntity, GetAbsOrigin(), 4000.0f ) )
+			{
+				if (pEntity->IsNPC() && IRelationType( pEntity ) == D_LI && pEntity->GetClassname() != GetClassname() && pEntity->MyNPCPointer()->GetState() != NPC_STATE_SCRIPT) //  && nearNPC.IsEntVisible(self)
+				{
+					pEntity->MyNPCPointer()->UpdateEnemyMemory( pEnemy, pEnemy->GetAbsOrigin(), this );
+				
+					/*if (pEnemy->IsPlayer() && pEnemy->GetNPCComponent())
+					{
+						// Cheat a bit and allow the player to see who's coming
+						enemy.GetNPCComponent().UpdateEnemyMemory(nearNPC, nearNPC.GetOrigin(), self)
+					}*/
+				}
+			}
 		}
 	}
 #endif
@@ -7340,9 +7385,20 @@ float CNPC_ArbeitHelicopter::GetMaxSpeed()
 {
 	float flBase = BaseClass::BaseClass::GetMaxSpeed();
 
-	// Reduced speed when doors are open
-	if (m_bDoorsOpen)
-		return flBase * 0.5f;
+	if ( m_lifeState == LIFE_ALIVE )
+	{
+		if ( IsUsingStealthSenses() )
+		{
+			if ( !GetEnemy() )
+				flBase *= 0.25f;
+			else if ( GetEnemy()->Classify() == CLASS_BULLSEYE )
+				flBase *= 0.5f;
+		}
+
+		// Reduced speed when doors are open
+		if (m_bDoorsOpen)
+			return flBase * 0.5f;
+	}
 
 	return flBase;
 }
@@ -7640,5 +7696,138 @@ void CNPC_ArbeitHelicopter::InputForceGunnerRappel( inputdata_t &inputdata )
 			Warning( "%s has no rappel behavior\n", pNPC->GetDebugName() );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Helicopter stealth sense type.
+//-----------------------------------------------------------------------------
+class CAI_HeliStealthSenses : public CAI_StealthSenses
+{
+public:
+	DECLARE_CLASS( CAI_HeliStealthSenses, CAI_StealthSenses );
+	DECLARE_DATADESC();
+
+	CAI_HeliStealthSenses( CAI_BaseNPC *pOuter )
+		: CAI_StealthSenses( pOuter )
+	{
+	}
+
+	inline CNPC_AttackHelicopter *GetHeliOuter() { return static_cast<CNPC_AttackHelicopter *>(GetOuter()); }
+
+	//-----------------------------------------------
+
+	virtual int		GetAlertSourceType() const { return ALERT_SOURCE_TYPE_HELICOPTER; }
+
+	virtual void GetStealthLookVectors( Vector &vecPos, Vector &vecDir )
+	{
+		// Use the spotlight as eyes
+		GetOuter()->GetAttachment( GetHeliOuter()->m_nSpotlightAttachment, vecPos, &vecDir );
+	}
+
+	virtual float	GetDotToSee( int eNPCState )
+	{
+		return eNPCState == NPC_STATE_IDLE ? 0.7f : 0.5f;
+	}
+
+	virtual bool	IsInvestigatingSound()
+	{
+		return ( GetEnemy() != NULL && GetEnemy()->Classify() == CLASS_BULLSEYE );
+	}
+
+	//-----------------------------------------------
+
+	void	OnListened();
+	
+	const Vector	&GetLastSoundLocation() const { return m_vecLastSoundLocation; }
+	const float		GetLastSoundTime() const { return m_flLastSoundTime; }
+	const int		GetLastSoundChannel() const { return m_nLastSoundChannel; }
+	void	UpdateLastSound( CSound *pSound );
+
+	//-----------------------------------------------
+
+private:
+
+	Vector			m_vecLastSoundLocation;
+	int				m_nLastSoundType;
+	int				m_nLastSoundChannel;
+	EHANDLE			m_hLastSoundOwner;
+	float			m_flLastSoundTime;
+	float			m_flLastSoundExpireTime;
+
+	EHANDLE			m_hLastSoundBullseye;
+};
+
+BEGIN_DATADESC( CAI_HeliStealthSenses )
+
+	DEFINE_FIELD( m_vecLastSoundLocation, FIELD_POSITION_VECTOR ),
+	DEFINE_FIELD( m_nLastSoundType, FIELD_INTEGER ),
+	DEFINE_FIELD( m_nLastSoundChannel, FIELD_INTEGER ),
+	DEFINE_FIELD( m_hLastSoundOwner, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_flLastSoundTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flLastSoundExpireTime, FIELD_TIME ),
+
+	DEFINE_FIELD( m_hLastSoundBullseye, FIELD_EHANDLE ),
+
+END_DATADESC();
+
+CAI_StealthSenses *CNPC_AttackHelicopter::CreateStealthSenses()
+{
+	return new CAI_HeliStealthSenses( this );
+}
+
+#define HELI_STEALTH_BULLSEYE_EXIST_TIME	8.0
+
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+void CAI_HeliStealthSenses::OnListened()
+{
+	if ( GetOuter()->GetEnemy() && GetOuter()->GetEnemy()->Classify() != CLASS_BULLSEYE )
+		return;
+
+	if ( GetOuter()->HasCondition( COND_HEAR_COMBAT ) || GetOuter()->HasCondition( COND_HEAR_PLAYER ) || GetOuter()->HasCondition( COND_HEAR_WORLD ) || GetOuter()->HasCondition( COND_HEAR_BULLET_IMPACT ) )
+	{
+		CSound *pSound = GetOuter()->GetBestSound( SOUND_COMBAT | SOUND_PLAYER | SOUND_WORLD | SOUND_BULLET_IMPACT );
+		if ( pSound )
+		{
+			if ( pSound->DoesSoundExpire() && pSound->SoundExpirationTime() > m_flLastSoundTime )
+			{
+				UpdateLastSound( pSound );
+
+				Vector vecBullseyePos = m_vecLastSoundLocation;
+				if ( m_nLastSoundType & SOUND_COMBAT && m_hLastSoundOwner && m_hLastSoundOwner->IsNPC()
+					&& GetOuter()->IRelationType( m_hLastSoundOwner ) == D_LI )
+				{
+					// Ally firing at something, go to what it's firing at
+					if ( m_hLastSoundOwner->MyNPCPointer()->GetEnemy() )
+						vecBullseyePos = m_hLastSoundOwner->MyNPCPointer()->GetEnemy()->EyePosition();
+				}
+
+				CBaseEntity *pBullseye = GetOuter()->CreateCustomTarget( vecBullseyePos, HELI_STEALTH_BULLSEYE_EXIST_TIME );
+				GetOuter()->AddEntityRelationship( pBullseye, D_HT, -1 );
+				GetOuter()->UpdateEnemyMemory( pBullseye, pBullseye->GetAbsOrigin() );
+
+				if ( m_hLastSoundBullseye )
+				{
+					// Remove previous bullseye
+					UTIL_Remove( m_hLastSoundBullseye );
+				}
+
+				m_hLastSoundBullseye = pBullseye;
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_HeliStealthSenses::UpdateLastSound( CSound *pSound )
+{
+	m_vecLastSoundLocation = pSound->GetSoundReactOrigin();
+	m_nLastSoundType = pSound->SoundType();
+	m_nLastSoundChannel = pSound->SoundChannel();
+	m_hLastSoundOwner = pSound->m_hOwner;
+	m_flLastSoundTime = gpGlobals->curtime;
+	m_flLastSoundExpireTime = pSound->SoundExpirationTime();
 }
 #endif

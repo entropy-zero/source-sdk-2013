@@ -100,8 +100,8 @@ public:
 	CAI_StealthSenses( CAI_BaseNPC *pOuter );
 
 	virtual void	InitStealthSenses();
-	void	StopStealthSenses();
-	void	RunStealthSenses();
+	virtual void	StopStealthSenses();
+	virtual void	RunStealthSenses();
 
 	virtual void	InitSquad( CAI_Squad *pSquad );
 
@@ -156,8 +156,8 @@ public:
 
 	//-----------------------------------------------
 
-	virtual void GetStealthLookVectors( Vector &vecPos, Vector &vecDir );
-	float	GetDotToSee( int eNPCState );
+	virtual void	GetStealthLookVectors( Vector &vecPos, Vector &vecDir );
+	virtual float	GetDotToSee( int eNPCState );
 
 	bool	ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea );
 	bool	ShouldSeeInDark( CBaseEntity *pEntity );
