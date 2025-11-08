@@ -70,7 +70,7 @@ public:
 	int		GetNumBodiesFound() const { return m_nBodiesFound; }
 	void	IncrementBodiesFound() { m_nBodiesFound++; }
 	const Vector	&GetLastSoundLocation() const { return m_vecLastSoundLocation; }
-	const float		GetLastSoundLocationUpdateTime() const { return m_flLastSoundLocationUpdateTime; }
+	const float		GetLastSoundTime() const { return m_flLastSoundTime; }
 	const int		GetLastSoundChannel() const { return m_nLastSoundChannel; }
 	void	UpdateLastSound( CSound *pSound );
 
@@ -94,7 +94,7 @@ private:
 	int				m_nLastSoundType;
 	int				m_nLastSoundChannel;
 	EHANDLE			m_hLastSoundOwner;
-	float			m_flLastSoundLocationUpdateTime;
+	float			m_flLastSoundTime;
 
 	int				m_nLastDamageType;
 

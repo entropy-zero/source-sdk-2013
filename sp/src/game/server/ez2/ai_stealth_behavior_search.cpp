@@ -476,7 +476,7 @@ bool CAI_StealthSearchBehavior::ShouldSquadSweep()
 		return false;
 
 	// Only when we don't currently hear anything
-	if ( GetOuter()->GetStealthSenses()->GetLastSoundLocationUpdateTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetStealthSenses()->GetLastSoundLocationUpdateTime() < 5.0f )
+	if ( GetOuter()->GetStealthSenses()->GetLastSoundTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetStealthSenses()->GetLastSoundTime() < 5.0f )
 		return false;
 
 	// Make sure we have a valid area
@@ -572,7 +572,7 @@ bool CAI_StealthSearchBehavior::ShouldSitrep()
 		return false;
 
 	// Only when we don't currently hear anything
-	if ( GetOuter()->GetStealthSenses()->GetLastSoundLocationUpdateTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetStealthSenses()->GetLastSoundLocationUpdateTime() < 5.0f )
+	if ( GetOuter()->GetStealthSenses()->GetLastSoundTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetStealthSenses()->GetLastSoundTime() < 5.0f )
 		return false;
 
 	StealthSquadInfo_t *pSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
@@ -703,7 +703,7 @@ StealthSquadOrder_t CAI_StealthSearchBehavior::SelectBestOrder( CUtlVector< CHan
 	Vector vecBestSoundLocation = vec3_origin;
 	for ( int i = 0; i < vecSquadMembers->Count(); i++ )
 	{
-		float flSoundTime = vecSquadMembers->Element( i )->GetStealthSenses()->GetLastSoundLocationUpdateTime();
+		float flSoundTime = vecSquadMembers->Element( i )->GetStealthSenses()->GetLastSoundTime();
 		if ( flSoundTime < flBestSoundTime && vecSquadMembers->Element( i )->GetStealthSenses()->IsLastSoundRelevant() )
 		{
 			flBestSoundTime = flSoundTime;
@@ -988,7 +988,7 @@ void CAI_StealthSearchBehavior::MaintainInterestPoints()
 	if ( GetStealthSenses()->IsLastSoundRelevant() )
 	{
 		// Add an interest point for our last sound if we haven't added it already
-		const float flLastSoundTime = GetStealthSenses()->GetLastSoundLocationUpdateTime();
+		const float flLastSoundTime = GetStealthSenses()->GetLastSoundTime();
 		const float flLastSoundTimeEnd = flLastSoundTime + g_hStealthManager->GetInterestTypeDuration( STEALTH_INTEREST_SOUND );
 		if ( gpGlobals->curtime - flLastSoundTime < g_hStealthManager->GetInterestTypeDuration( STEALTH_INTEREST_SOUND ) )
 		{

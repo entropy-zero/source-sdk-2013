@@ -142,7 +142,7 @@ public:
 	virtual int		GetNumBodiesFound() const { return 0; }
 	virtual void	IncrementBodiesFound() {}
 	virtual const Vector	&GetLastSoundLocation() const { return vec3_origin; }
-	virtual const float		GetLastSoundLocationUpdateTime() const { return 0.0f; }
+	virtual const float		GetLastSoundTime() const { return 0.0f; }
 	virtual const int		GetLastSoundChannel() const { return 0; }
 
 	virtual StealthAreaMemory_t *GetAreaMemory( CTriggerStealthArea *pArea ) { return NULL; }

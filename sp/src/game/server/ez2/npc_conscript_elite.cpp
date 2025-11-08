@@ -620,7 +620,7 @@ void CNPC_ConscriptElite::OnScheduleChange( void )
 		{
 			if ( GetState() != NPC_STATE_COMBAT )
 			{
-				if ( GetState() == NPC_STATE_IDLE && ( !IsUsingStealthSenses() || gpGlobals->curtime - GetStealthSenses()->GetLastSoundLocationUpdateTime() > 20.0f ) )
+				if ( GetState() == NPC_STATE_IDLE && ( !IsUsingStealthSenses() || gpGlobals->curtime - GetStealthSenses()->GetLastSoundTime() > 20.0f ) )
 				{
 					// Nobody left to look out for
 					iLaserLayer = AddGesture( (Activity)ACT_LASER_DISABLE );

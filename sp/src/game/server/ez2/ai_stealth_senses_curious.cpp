@@ -38,7 +38,7 @@ BEGIN_DATADESC( CAI_CuriousStealthSenses )
 	DEFINE_FIELD( m_nLastSoundType, FIELD_INTEGER ),
 	DEFINE_FIELD( m_nLastSoundChannel, FIELD_INTEGER ),
 	DEFINE_FIELD( m_hLastSoundOwner, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_flLastSoundLocationUpdateTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flLastSoundTime, FIELD_TIME ),
 
 	DEFINE_FIELD( m_nLastDamageType, FIELD_INTEGER ),
 
@@ -58,7 +58,7 @@ CAI_CuriousStealthSenses::CAI_CuriousStealthSenses( CAI_BaseNPC *pOuter )
 	m_nLastSoundType = 0;
 	m_nLastSoundChannel = 0;
 	m_hLastSoundOwner = NULL;
-	m_flLastSoundLocationUpdateTime = 0.0f;
+	m_flLastSoundTime = 0.0f;
 
 	m_nLastDamageType = 0;
 }
@@ -297,7 +297,7 @@ bool CAI_CuriousStealthSenses::IsCuriousObject( CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 void CAI_CuriousStealthSenses::ResetLastSound()
 {
-	m_flLastSoundLocationUpdateTime = 0.0f;
+	m_flLastSoundTime = 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -305,11 +305,11 @@ void CAI_CuriousStealthSenses::ResetLastSound()
 //-----------------------------------------------------------------------------
 bool CAI_CuriousStealthSenses::IsLastSoundRelevant()
 {
-	if ( m_flLastSoundLocationUpdateTime == 0.0f )
+	if ( m_flLastSoundTime == 0.0f )
 		return false;
 
 	// Not from when we were idle
-	if ( m_flLastSoundLocationUpdateTime < ( GetOuter()->GetLastEnemyTime() + 10.0f ) )
+	if ( m_flLastSoundTime < ( GetOuter()->GetLastEnemyTime() + 10.0f ) )
 		return false;
 
 	return true;
@@ -334,7 +334,7 @@ void CAI_CuriousStealthSenses::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 
 		set.AppendCriteria( "last_sound_type", UTIL_VarArgs( "%i", m_nLastSoundType ) );
 		set.AppendCriteria( "last_sound_channel", UTIL_VarArgs( "%i", m_nLastSoundChannel ) );
-		set.AppendCriteria( "last_sound_time", gpGlobals->curtime - m_flLastSoundLocationUpdateTime );
+		set.AppendCriteria( "last_sound_time", gpGlobals->curtime - m_flLastSoundTime );
 
 		if ( m_hLastSoundOwner )
 		{
@@ -413,7 +413,7 @@ void CAI_CuriousStealthSenses::UpdateLastSound( CSound *pSound )
 	m_nLastSoundType = pSound->SoundType();
 	m_nLastSoundChannel = pSound->SoundChannel();
 	m_hLastSoundOwner = pSound->m_hOwner;
-	m_flLastSoundLocationUpdateTime = gpGlobals->curtime;
+	m_flLastSoundTime = gpGlobals->curtime;
 }
 
 //-----------------------------------------------------------------------------
