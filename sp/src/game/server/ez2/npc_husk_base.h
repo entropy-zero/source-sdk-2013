@@ -67,6 +67,7 @@ extern ConVar sk_husk_common_infight_time;
 #define DEFINE_BASE_HUSK_SENDPROPS() \
 	SendPropInt( SENDINFO( m_nHuskAggressionLevel ) ),	\
 	SendPropInt( SENDINFO( m_nHuskCognitionFlags ) ),	\
+	SendPropBool( SENDINFO( m_bAlliedWithPlayer ) ),	\
 
 //-----------------------------------------------------------------------------
 
@@ -184,13 +185,15 @@ public:
 
 	inline bool	HasCognitionFlags( int nFlag ) { return this->m_nHuskCognitionFlags & nFlag; }
 
+	void CheckPlayerAllied();
+
 	//-----------------------------------------------------------------------------
 
 	// From CAI_HuskSink
 	bool IsPassiveTarget( CBaseEntity *pTarget ) override { return this->m_PassiveTargets.HasElement( pTarget ); }
 
 	inline bool HasPassiveTargets() { return this->m_PassiveTargets.Count() > 0; }
-	virtual void AddPassiveTarget( CBaseEntity *pTarget ) { this->m_PassiveTargets.AddToTail( pTarget ); }
+	virtual void AddPassiveTarget( CBaseEntity *pTarget ) { this->m_PassiveTargets.AddToTail( pTarget ); this->CheckPlayerAllied(); }
 	virtual bool RemovePassiveTarget( CBaseEntity *pTarget ) { return this->m_PassiveTargets.FindAndRemove( pTarget ); }
 
 	//-----------------------------------------------------------------------------
@@ -226,6 +229,7 @@ public:
 
 	CNetworkVarForDerived( int, m_nHuskAggressionLevel );
 	CNetworkVarForDerived( int, m_nHuskCognitionFlags );
+	CNetworkVarForDerived( bool, m_bAlliedWithPlayer );
 
 protected:
 
@@ -275,6 +279,7 @@ void CAI_BaseHusk<BASE_NPC>::Activate()
 	BaseClass::Activate();
 
 	this->RefreshCognitionFlags();
+	this->CheckPlayerAllied();
 }
 
 //-----------------------------------------------------------------------------
@@ -1104,6 +1109,24 @@ void CAI_BaseHusk<BASE_NPC>::RefreshCognitionFlags()
 	else
 	{
 		this->StartEye();
+	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+template <class BASE_NPC>
+void CAI_BaseHusk<BASE_NPC>::CheckPlayerAllied()
+{
+	this->m_bAlliedWithPlayer = false;
+
+	if ( this->HasPassiveTargets() )
+	{
+		// Check if one of our passive targets is a player
+		for (int i = 0; i < this->m_PassiveTargets.Count(); i++)
+		{
+			if (m_PassiveTargets[i] && m_PassiveTargets[i]->IsPlayer())
+				this->m_bAlliedWithPlayer = true;
+		}
 	}
 }
 
