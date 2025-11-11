@@ -286,6 +286,14 @@ bool CBaseHelicopter::GetTrackPatherTarget( Vector *pPos )
 { 
 	if ( GetEnemy() ) 
 	{ 
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			*pPos = GetEnemyLKP() + GetEnemy()->GetViewOffset();
+			return true;
+		}
+#endif
+
 		*pPos = GetEnemy()->BodyTarget( GetAbsOrigin(), false ); 
 		return true; 
 	}
@@ -752,6 +760,13 @@ void CBaseHelicopter::UpdateEnemy()
 			// look at where we're going instead
 			m_vecTargetPosition = GetDesiredPosition();
 		}
+
+#ifdef EZ2
+		// Tell our pilot
+		CAI_BaseNPC *pPilot = GetPilot();
+		if ( pPilot )
+			pPilot->SetEnemy( GetEnemy() );
+#endif
 	}
 	else
 	{
@@ -1686,6 +1701,14 @@ void CBaseHelicopter::GatherEnemyConditions( CBaseEntity *pEnemy )
 				// Cheat a little: If the enemy is far away from its last seen position, forget it
 				MarkEnemyAsEluded();
 				m_OnStealthLostEnemy.Set( pEnemy, pEnemy, this );
+			}
+
+			if ( EnemyHasEludedMe() )
+			{
+				// Tell our pilot
+				CAI_BaseNPC *pPilot = GetPilot();
+				if ( pPilot )
+					pPilot->MarkEnemyAsEluded();
 			}
 		}
 	}

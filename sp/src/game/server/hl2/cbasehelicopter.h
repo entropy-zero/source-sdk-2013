@@ -152,6 +152,13 @@ public:
 	virtual bool	IsDisplacementImpossible() { return true; }
 #endif
 
+#ifdef EZ2
+	// Arbeit helicopter pilot NPC
+	virtual void		SetPilot( CAI_BaseNPC *pPilot ) {}
+	virtual CAI_BaseNPC *GetPilot() { return NULL; }
+	virtual void		OnPilotKilled( CAI_BaseNPC *pPilot ) {}
+#endif
+
 protected:
 	void			HelicopterMove( );
 

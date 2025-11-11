@@ -43,6 +43,7 @@
 #include "ai_pathfinder.h"
 #include "ai_route.h"
 #include "ez2/ai_stealth_senses.h"
+#include "eventqueue.h"
 #endif
 
 #ifdef HL2_EPISODIC
@@ -755,6 +756,16 @@ private:
 	void SpotlightShutdown();
 
 #ifdef EZ2
+	virtual void	OnPilotKilled( CAI_BaseNPC *pPilot )
+	{
+		if ( m_lifeState == LIFE_ALIVE )
+		{
+			// Shoot it down
+			variant_t var;
+			g_EventQueue.AddEvent( this, "SelfDestructNoFX", var, 0.5f, pPilot, pPilot );
+		}
+	}
+
 protected:
 #endif
 
@@ -6744,6 +6755,9 @@ public:
 	void	SpawnGunners();
 	void	RefreshGunnerState();
 
+	virtual void		SetPilot( CAI_BaseNPC *pPilot );
+	virtual CAI_BaseNPC *GetPilot() { return m_hPilot; }
+
 	Class_T Classify ( void ) { return CLASS_PLAYER_ALLY; }
 
 	virtual int	OnTakeDamage_Alive( const CTakeDamageInfo &info );
@@ -6805,6 +6819,9 @@ private:
 	// Handles to our current gunners
 	AIHANDLE	m_hGunners[ ARBEIT_HELI_MAX_GUNNERS ];
 
+	// Our current pilot
+	AIHANDLE	m_hPilot;
+
 	// Door stuff
 	bool		m_bDoorsOpen;
 	float		m_flDoorTransitionTime;
@@ -6843,6 +6860,8 @@ BEGIN_DATADESC( CNPC_ArbeitHelicopter )
 	DEFINE_KEYFIELD( m_sNPCTemplate[1], FIELD_STRING,	"NPCTemplate2" ),
 
 	DEFINE_ARRAY( m_hGunners, FIELD_EHANDLE, ARBEIT_HELI_MAX_GUNNERS ),
+
+	DEFINE_FIELD( m_hPilot, FIELD_EHANDLE ),
 
 	DEFINE_KEYFIELD( m_bDoorsOpen, FIELD_BOOLEAN,	"DoorsOpen" ),
 	DEFINE_FIELD( m_flDoorTransitionTime, FIELD_TIME ),
@@ -7145,6 +7164,14 @@ void CNPC_ArbeitHelicopter::RefreshGunnerState( void )
 		m_iGunnerState = GUNNER_NONE;
 }
 
+//------------------------------------------------------------------------------
+// Purpose : 
+//------------------------------------------------------------------------------
+void CNPC_ArbeitHelicopter::SetPilot( CAI_BaseNPC *pPilot )
+{
+	m_hPilot = pPilot;
+}
+
 //-----------------------------------------------------------------------------
 // Think!	
 //-----------------------------------------------------------------------------
@@ -7255,6 +7282,13 @@ void CNPC_ArbeitHelicopter::Event_Killed( const CTakeDamageInfo &info )
 		pNPC->TakeDamage( info );
 
 		m_hGunners[i] = NULL;
+	}
+
+	// Kill our pilot
+	if ( m_hPilot )
+	{
+		m_hPilot->TakeDamage( info );
+		m_hPilot = NULL;
 	}
 
 	Vector vecChunkPos, vecChunkVelocity, vecForward, vecRight, vecUp;
