@@ -42,6 +42,7 @@
 #include "hl2_player.h"
 #include "npc_manhack.h"
 #include "items.h"
+#include "ammodef.h"
 #endif
 #ifdef EZ2
 #include "ez2/ez2_player.h"
@@ -74,6 +75,36 @@ ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NO
 ConVar npc_combine_order_surrender_max_dist( "npc_combine_order_surrender_max_dist", "224", FCVAR_NONE, "The maximum distance a soldier can order surrenders from. Beyond that, they will only pursue." );
 ConVar npc_combine_order_surrender_min_tlk_surrender( "npc_combine_order_surrender_min_tlk_surrender", "2.0", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_SURRENDER before being considered for surrenders, assuming they haven't already spoken TLK_BEG." );
 ConVar npc_combine_order_surrender_min_tlk_beg( "npc_combine_order_surrender_min_tlk_beg", "0.5", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_BEG before being considered for surrenders, assuming they haven't already spoken TLK_SURRENDER." );
+
+ConVar	sk_combine_heal_player( "sk_combine_heal_player", "25" );
+ConVar	sk_combine_heal_player_delay( "sk_combine_heal_player_delay", "25" );
+ConVar	sk_combine_giveammo_player_delay( "sk_combine_giveammo_player_delay", "10" );
+ConVar	sk_combine_heal_player_min_pct( "sk_combine_heal_player_min_pct", "0.60" );
+ConVar	sk_combine_heal_player_min_forced( "sk_combine_heal_player_min_forced", "10.0" );
+ConVar	sk_combine_heal_ally( "sk_combine_heal_ally", "30" );
+ConVar	sk_combine_heal_ally_delay( "sk_combine_heal_ally_delay", "20" );
+ConVar	sk_combine_heal_ally_min_pct( "sk_combine_heal_ally_min_pct", "0.90" );
+ConVar	sk_combine_player_stare_time( "sk_combine_player_stare_time", "1.0" );
+ConVar  sk_combine_player_stare_dist( "sk_combine_player_stare_dist", "72" );
+ConVar	sk_combine_stare_heal_time( "sk_combine_stare_heal_time", "5" );
+
+ConVar  npc_combine_medic_emit_sound("npc_combine_medic_emit_sound", "1" );
+ConVar	npc_combine_heal_chuck_medkit("npc_combine_heal_chuck_medkit" , "1" , FCVAR_ARCHIVE, "Set to 1 to use new experimental healthkit-throwing medic.");
+ConVar	npc_combine_medic_throw_style( "npc_combine_medic_throw_style", "1", FCVAR_ARCHIVE, "Set to 0 for a lobbier trajectory" );
+ConVar	npc_combine_medic_throw_speed( "npc_combine_medic_throw_speed", "650" );
+ConVar	npc_combine_resupplier_adjust_ammo( "npc_combine_resupplier_adjust_ammo", "1", FCVAR_NONE, "If what ammo we give to the player would go over their max, should we adjust what we give accordingly (1) or cancel it altogether? (0)" );
+ConVar	sk_combine_heal_toss_player_delay("sk_combine_heal_toss_player_delay", "26", FCVAR_NONE, "how long between throwing healthkits" );
+
+#define MEDIC_THROW_SPEED npc_combine_medic_throw_speed.GetFloat()
+#define USE_EXPERIMENTAL_MEDIC_CODE() (npc_combine_heal_chuck_medkit.GetBool() && m_bTossesMedkits)
+
+const float HEAL_MOVE_RANGE = 30 * 12;
+const float HEAL_TARGET_RANGE = 120; // 10 feet
+const float HEAL_TOSS_TARGET_RANGE = 480; // 40 feet when we are throwing medkits 
+const float HEAL_TARGET_RANGE_Z = 72; // a second check that Gordon isn't too far above us -- 6 feet
+
+extern int ACT_CIT_HEAL;
+extern int AE_CITIZEN_HEAL;
 
 //--------------------------------------------------------------
 
@@ -284,6 +315,14 @@ DEFINE_FIELD( m_flTimePlayerStare, FIELD_TIME ),
 DEFINE_FIELD( m_bTemporarilyNeedWeapon, FIELD_BOOLEAN ),
 DEFINE_FIELD( m_flNextHealthSearchTime, FIELD_TIME ),
 DEFINE_INPUT( m_bLookForItems, FIELD_BOOLEAN, "SetLookForItems" ),
+DEFINE_KEYFIELD( m_bIsMedic, FIELD_BOOLEAN, "IsMedic" ),
+DEFINE_KEYFIELD( m_bIsAmmoResupplier, FIELD_BOOLEAN, "IsAmmoResupplier" ),
+DEFINE_FIELD( m_flPlayerHealTime, FIELD_TIME ),
+DEFINE_FIELD( m_flAllyHealTime, FIELD_TIME ),
+DEFINE_FIELD( m_flPlayerGiveAmmoTime, FIELD_TIME ),
+DEFINE_KEYFIELD( m_iszAmmoSupply, FIELD_STRING, "ammosupply" ),
+DEFINE_KEYFIELD( m_iAmmoAmount, FIELD_INTEGER, "ammoamount" ),
+DEFINE_INPUT( m_bTossesMedkits, FIELD_BOOLEAN, "SetTossMedkits" ),
 #endif
 #ifdef EZ2
 DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
@@ -360,6 +399,15 @@ DEFINE_INPUTFUNC( FIELD_VOID, "DisableOrderSurrender", InputDisableOrderSurrende
 DEFINE_KEYFIELD( m_iCanPlayerGive, FIELD_INTEGER, "CanPlayerGive" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnablePlayerGive", InputEnablePlayerGive ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisablePlayerGive", InputDisablePlayerGive ),
+
+DEFINE_INPUTFUNC( FIELD_VOID, "SetMedicOn", InputSetMedicOn ),
+DEFINE_INPUTFUNC( FIELD_VOID, "SetMedicOff", InputSetMedicOff ),
+DEFINE_INPUTFUNC( FIELD_VOID, "SetAmmoResupplierOn", InputSetAmmoResupplierOn ),
+DEFINE_INPUTFUNC( FIELD_VOID, "SetAmmoResupplierOff", InputSetAmmoResupplierOff ),
+DEFINE_INPUTFUNC( FIELD_VOID, "ThrowHealthKit", InputForceHealthKitToss ),
+DEFINE_OUTPUT( m_OnHealedNPC, "OnHealedNPC" ),
+DEFINE_OUTPUT( m_OnHealedPlayer, "OnHealedPlayer" ),
+DEFINE_OUTPUT( m_OnThrowMedkit, "OnTossMedkit" ),
 #endif
 
 #ifndef MAPBASE
@@ -1059,11 +1107,86 @@ int CNPC_Combine::SelectSchedulePriorityAction()
 	int schedule = BaseClass::SelectSchedulePriorityAction();
 	if ( schedule != SCHED_NONE )
 		return schedule;
+	
+	schedule = SelectScheduleHeal();
+	if ( schedule != SCHED_NONE )
+		return schedule;
 
 	schedule = SelectScheduleRetrieveItem();
 	if ( schedule != SCHED_NONE )
 		return schedule;
 
+	return SCHED_NONE;
+}
+
+//-----------------------------------------------------------------------------
+// Determine if soldier should perform heal action.
+//-----------------------------------------------------------------------------
+int CNPC_Combine::SelectScheduleHeal()
+{
+	// episodic medics may toss the healthkits rather than poke you with them
+	if ( CanHeal() )
+	{
+		CBaseEntity *pEntity = PlayerInRange( GetLocalOrigin(), HEAL_TOSS_TARGET_RANGE );
+		if ( pEntity )
+		{
+			if ( USE_EXPERIMENTAL_MEDIC_CODE() && IsMedic() )
+			{
+				// use the new heal toss algorithm
+				if ( ShouldHealTossTarget( pEntity, HasCondition( COND_COMBINE_PLAYERHEALREQUEST ) ) )
+				{
+					SetTarget( pEntity );
+					return SCHED_COMBINE_HEAL_TOSS;
+				}
+			}
+			else if ( PlayerInRange( GetLocalOrigin(), HEAL_MOVE_RANGE ) )
+			{
+				// use old mechanism for ammo
+				if ( ShouldHealTarget( pEntity, HasCondition( COND_COMBINE_PLAYERHEALREQUEST ) ) )
+				{
+					SetTarget( pEntity );
+					return SCHED_COMBINE_HEAL;
+				}
+			}
+
+		}
+		
+		if ( m_pSquad )
+		{
+			pEntity = NULL;
+			float distClosestSq = HEAL_MOVE_RANGE*HEAL_MOVE_RANGE;
+			float distCurSq;
+			
+			AISquadIter_t iter;
+			CAI_BaseNPC *pSquadmate = m_pSquad->GetFirstMember( &iter );
+			while ( pSquadmate )
+			{
+				if ( pSquadmate != this )
+				{
+					distCurSq = ( GetAbsOrigin() - pSquadmate->GetAbsOrigin() ).LengthSqr();
+					if ( distCurSq < distClosestSq && ShouldHealTarget( pSquadmate ) )
+					{
+						distClosestSq = distCurSq;
+						pEntity = pSquadmate;
+					}
+				}
+
+				pSquadmate = m_pSquad->GetNextMember( &iter );
+			}
+			
+			if ( pEntity )
+			{
+				SetTarget( pEntity );
+				return SCHED_COMBINE_HEAL;
+			}
+		}
+	}
+	else
+	{
+		if ( HasCondition( COND_COMBINE_PLAYERHEALREQUEST ) )
+			DevMsg( "Would say: sorry, need to recharge\n" );
+	}
+	
 	return SCHED_NONE;
 }
 
@@ -1212,6 +1335,346 @@ bool CNPC_Combine::IsGiveableItem( CBaseEntity *pItem )
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanHeal()
+{ 
+	if ( !IsMedic() && !IsAmmoResupplier() )
+		return false;
+
+	if ( IsInAScript() || (m_NPCState == NPC_STATE_SCRIPT) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldHealTarget( CBaseEntity *pTarget, bool bActiveUse )
+{
+	Disposition_t disposition;
+	
+	if ( pTarget && ( ( disposition = IRelationType( pTarget ) ) != D_LI && disposition != D_NU ) )
+		return false;
+
+	// Don't heal if I'm in the middle of talking
+	if ( IsSpeaking() )
+		return false;
+
+	bool bTargetIsPlayer = pTarget->IsPlayer();
+
+	// Don't heal or give ammo to targets in vehicles
+	CBaseCombatCharacter *pCCTarget = pTarget->MyCombatCharacterPointer();
+	if ( pCCTarget != NULL && pCCTarget->IsInAVehicle() )
+		return false;
+
+	if ( IsMedic() )
+	{
+		Vector toPlayer = ( pTarget->GetAbsOrigin() - GetAbsOrigin() );
+	 	if (( bActiveUse /*|| !HaveCommandGoal()*/ || toPlayer.Length() < HEAL_TARGET_RANGE) 
+			&& fabs(toPlayer.z) < HEAL_TARGET_RANGE_Z
+			)
+	 	{
+			if ( pTarget->m_iHealth > 0 )
+			{
+	 			if ( bActiveUse )
+				{
+					// Ignore heal requests if we're going to heal a tiny amount
+					float timeFullHeal = m_flPlayerHealTime;
+					float timeRecharge = sk_combine_heal_player_delay.GetFloat();
+					float maximumHealAmount = sk_combine_heal_player.GetFloat();
+					float healAmt = ( maximumHealAmount * ( 1.0 - ( timeFullHeal - gpGlobals->curtime ) / timeRecharge ) );
+					if ( healAmt > pTarget->m_iMaxHealth - pTarget->m_iHealth )
+						healAmt = pTarget->m_iMaxHealth - pTarget->m_iHealth;
+					if ( healAmt < sk_combine_heal_player_min_forced.GetFloat() )
+						return false;
+
+	 				return ( pTarget->m_iMaxHealth > pTarget->m_iHealth );
+				}
+	 				
+				// Are we ready to heal again?
+				bool bReadyToHeal = ( ( bTargetIsPlayer && m_flPlayerHealTime <= gpGlobals->curtime ) || 
+									  ( !bTargetIsPlayer && m_flAllyHealTime <= gpGlobals->curtime ) );
+
+				// Only heal if we're ready
+				if ( bReadyToHeal )
+				{
+					int requiredHealth;
+
+					if ( bTargetIsPlayer )
+						requiredHealth = pTarget->GetMaxHealth() - sk_combine_heal_player.GetFloat();
+					else
+						requiredHealth = pTarget->GetMaxHealth() * sk_combine_heal_player_min_pct.GetFloat();
+
+					if ( ( pTarget->m_iHealth <= requiredHealth ) && IRelationType( pTarget ) == D_LI )
+						return true;
+				}
+			}
+		}
+	}
+
+	// Only players need ammo
+	if ( IsAmmoResupplier() && bTargetIsPlayer )
+	{
+		if ( m_flPlayerGiveAmmoTime <= gpGlobals->curtime )
+		{
+			int iAmmoType = GetAmmoDef()->Index( STRING(m_iszAmmoSupply) );
+			if ( iAmmoType == -1 )
+			{
+				DevMsg("ERROR: Citizen attempting to give unknown ammo type (%s)\n", STRING(m_iszAmmoSupply) );
+			}
+			else
+			{
+				// No ammo remaining
+				if (m_iAmmoAmount <= 0)
+					return false;
+
+				// Does the player need the ammo we can give him?
+				int iMax = GetAmmoDef()->MaxCarry(iAmmoType);
+				int iCount = ((CBasePlayer*)pTarget)->GetAmmoCount(iAmmoType);
+				if ( !iCount || ((iMax - iCount) >= m_iAmmoAmount) )
+				{
+					// Only give the player ammo if he has a weapon that uses it
+					if ( ((CBasePlayer*)pTarget)->Weapon_GetWpnForAmmo( iAmmoType ) )
+						return true;
+				}
+				else if ( (iMax - iCount) < m_iAmmoAmount && (iMax - iCount) != 0 )
+				{
+					// If we're allowed to adjust our ammo, the amount of ammo we give may be reduced, but that's better than not giving any at all!
+					if (npc_combine_resupplier_adjust_ammo.GetBool() == true && ((CBasePlayer*)pTarget)->Weapon_GetWpnForAmmo( iAmmoType ))
+						return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+#ifdef HL2_EPISODIC
+//-----------------------------------------------------------------------------
+// Determine if the human_grunt is in a position to be throwing medkits
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldHealTossTarget( CBaseEntity *pTarget, bool bActiveUse )
+{
+	Disposition_t disposition;
+
+	Assert( IsMedic() );
+	if ( !IsMedic() )
+		return false;
+	
+	if ( pTarget && ( ( disposition = IRelationType( pTarget ) ) != D_LI && disposition != D_NU ) )
+		return false;
+
+	// Don't heal if I'm in the middle of talking
+	if ( IsSpeaking() )
+		return false;
+
+	// NPCs cannot be healed by throwing medkits at them.
+	// I don't think NPCs even pass through this function anyway, it's just the actual heal event that's the problem.
+	if (!pTarget->IsPlayer())
+		return false;
+
+	// Don't heal or give ammo to targets in vehicles
+	CBaseCombatCharacter *pCCTarget = pTarget->MyCombatCharacterPointer();
+	if ( pCCTarget != NULL && pCCTarget->IsInAVehicle() )
+		return false;
+
+	Vector toPlayer = ( pTarget->GetAbsOrigin() - GetAbsOrigin() );
+	if ( bActiveUse /*|| !HaveCommandGoal()*/ || toPlayer.Length() < HEAL_TOSS_TARGET_RANGE )
+	{
+		if ( pTarget->m_iHealth > 0 )
+		{
+			if ( bActiveUse )
+			{
+				// Ignore heal requests if we're going to heal a tiny amount
+				float timeFullHeal = m_flPlayerHealTime;
+				float timeRecharge = sk_combine_heal_player_delay.GetFloat();
+				float maximumHealAmount = sk_combine_heal_player.GetFloat();
+				float healAmt = ( maximumHealAmount * ( 1.0 - ( timeFullHeal - gpGlobals->curtime ) / timeRecharge ) );
+				if ( healAmt > pTarget->m_iMaxHealth - pTarget->m_iHealth )
+					healAmt = pTarget->m_iMaxHealth - pTarget->m_iHealth;
+				if ( healAmt < sk_combine_heal_player_min_forced.GetFloat() )
+					return false;
+
+				return ( pTarget->m_iMaxHealth > pTarget->m_iHealth );
+			}
+
+			// Are we ready to heal again?
+			bool bReadyToHeal = m_flPlayerHealTime <= gpGlobals->curtime;
+
+			// Only heal if we're ready
+			if ( bReadyToHeal )
+			{
+				int requiredHealth = pTarget->GetMaxHealth() - sk_combine_heal_player.GetFloat();
+				if ( ( pTarget->m_iHealth <= requiredHealth ) && IRelationType( pTarget ) == D_LI )
+					return true;
+			}
+		}
+	}
+	
+	return false;
+}
+#endif
+
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_Combine::Heal()
+{
+	if ( !CanHeal() )
+		  return;
+
+	CBaseEntity *pTarget = GetTarget();
+	if ( !pTarget )
+		return;
+
+	Vector target = pTarget->GetAbsOrigin() - GetAbsOrigin();
+	if ( target.Length() > HEAL_TARGET_RANGE * 2 )
+		return;
+
+	if ( IsMedic() )
+	{
+		float timeFullHeal;
+		float timeRecharge;
+		float maximumHealAmount;
+		if ( pTarget->IsPlayer() )
+		{
+			timeFullHeal 		= m_flPlayerHealTime;
+			timeRecharge 		= sk_combine_heal_player_delay.GetFloat();
+			maximumHealAmount 	= sk_combine_heal_player.GetFloat();
+			m_flPlayerHealTime 	= gpGlobals->curtime + timeRecharge;
+		}
+		else
+		{
+			timeFullHeal 		= m_flAllyHealTime;
+			timeRecharge 		= sk_combine_heal_ally_delay.GetFloat();
+			maximumHealAmount 	= sk_combine_heal_ally.GetFloat();
+			m_flAllyHealTime 	= gpGlobals->curtime + timeRecharge;
+		}
+		
+		float healAmt = ( maximumHealAmount * ( 1.0 - ( timeFullHeal - gpGlobals->curtime ) / timeRecharge ) );
+		
+		if ( healAmt > maximumHealAmount )
+			healAmt = maximumHealAmount;
+		else
+			healAmt = RoundFloatToInt( healAmt );
+		
+		if ( healAmt > 0 )
+		{
+			if ( pTarget->IsPlayer() && npc_combine_medic_emit_sound.GetBool() )
+			{
+				CPASAttenuationFilter filter( pTarget, "HealthKit.Touch" );
+				EmitSound( filter, pTarget->entindex(), "HealthKit.Touch" );
+			}
+
+			pTarget->IsPlayer() ? m_OnHealedPlayer.FireOutput(pTarget, this) : m_OnHealedNPC.FireOutput(pTarget, this);
+
+			pTarget->TakeHealth( healAmt, DMG_GENERIC );
+			pTarget->RemoveAllDecals();
+		}
+	}
+
+	if ( IsAmmoResupplier() )
+	{
+		// Non-players don't use ammo
+		if ( pTarget->IsPlayer() )
+		{
+			int iAmmoType = GetAmmoDef()->Index( STRING(m_iszAmmoSupply) );
+			if ( iAmmoType == -1 )
+			{
+				DevMsg("ERROR: Citizen attempting to give unknown ammo type (%s)\n", STRING(m_iszAmmoSupply) );
+			}
+			else
+			{
+				((CBasePlayer*)pTarget)->GiveAmmo( m_iAmmoAmount, iAmmoType, false );
+
+				m_OnGiveAmmo.FireOutput(pTarget, this);
+			}
+
+			m_flPlayerGiveAmmoTime = gpGlobals->curtime + sk_combine_giveammo_player_delay.GetFloat();
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Like Heal(), but tosses a healthkit in front of the player rather than just juicing him up.
+//-----------------------------------------------------------------------------
+void CNPC_Combine::TossHealthKit(CBaseCombatCharacter *pThrowAt, const Vector &offset)
+{
+	Assert( pThrowAt );
+
+	Vector forward, right, up;
+	GetVectors( &forward, &right, &up );
+	Vector medKitOriginPoint = WorldSpaceCenter() + ( forward * 20.0f );
+	Vector destinationPoint;
+	// this doesn't work without a moveparent: pThrowAt->ComputeAbsPosition( offset, &destinationPoint );
+	VectorTransform( offset, pThrowAt->EntityToWorldTransform(), destinationPoint );
+	// flatten out any z change due to player looking up/down
+	destinationPoint.z = pThrowAt->EyePosition().z;
+
+	Vector tossVelocity;
+
+	if (npc_combine_medic_throw_style.GetInt() == 0)
+	{
+		CTraceFilterSkipTwoEntities tracefilter( this, pThrowAt, COLLISION_GROUP_NONE );
+		tossVelocity = VecCheckToss( this, &tracefilter, medKitOriginPoint, destinationPoint, 0.233f, 1.0f, false );
+	}
+	else
+	{
+		tossVelocity = VecCheckThrow( this, medKitOriginPoint, destinationPoint, MEDIC_THROW_SPEED, 1.0f );
+
+		if (vec3_origin == tossVelocity)
+		{
+			// if out of range, just throw it as close as I can
+			tossVelocity = destinationPoint - medKitOriginPoint;
+
+			// rotate upwards against gravity
+			float len = VectorLength(tossVelocity);
+			tossVelocity *= (MEDIC_THROW_SPEED / len);
+			tossVelocity.z += 0.57735026918962576450914878050196 * MEDIC_THROW_SPEED;
+		}
+	}
+
+	// create a healthkit and toss it into the world
+	CBaseEntity *pHealthKit = CreateEntityByName( "item_healthkit" );
+	Assert(pHealthKit);
+	if (pHealthKit)
+	{
+		pHealthKit->SetAbsOrigin( medKitOriginPoint );
+		pHealthKit->SetOwnerEntity( this );
+		// pHealthKit->SetAbsVelocity( tossVelocity );
+		DispatchSpawn( pHealthKit );
+
+		{
+			IPhysicsObject *pPhysicsObject = pHealthKit->VPhysicsGetObject();
+			Assert( pPhysicsObject );
+			if ( pPhysicsObject )
+			{
+				unsigned int cointoss = random->RandomInt(0,0xFF); // int bits used for bools
+
+				// some random precession
+				Vector angDummy(random->RandomFloat(-200,200), random->RandomFloat(-200,200), 
+					cointoss & 0x01 ? random->RandomFloat(200,600) : -1.0f * random->RandomFloat(200,600));
+				pPhysicsObject->SetVelocity( &tossVelocity, &angDummy );
+			}
+		}
+
+		m_OnThrowMedkit.Set(pHealthKit, pHealthKit, this);
+	}
+	else
+	{
+		Warning("Grunt tried to heal but could not spawn item_healthkit!\n");
+	}
+}
+
+//-----------------------------------------------------------------------------
+// cause an immediate call to TossHealthKit with some default numbers
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputForceHealthKitToss( inputdata_t &inputdata )
+{
+	TossHealthKit( UTIL_GetLocalPlayer(), Vector(48.0f, 0.0f, 0.0f)  );
 }
 
 ConVar npc_combine_gib( "npc_combine_gib", "0" );
@@ -1518,6 +1981,42 @@ void CNPC_Combine::InputEnablePlayerGive( inputdata_t &inputdata )
 void CNPC_Combine::InputDisablePlayerGive( inputdata_t &inputdata )
 {
 	m_iCanPlayerGive = TRS_FALSE;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputSetMedicOn( inputdata_t &inputdata )
+{
+	m_bIsMedic = true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputSetMedicOff( inputdata_t &inputdata )
+{
+	m_bIsMedic = false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputSetAmmoResupplierOn( inputdata_t &inputdata )
+{
+	m_bIsAmmoResupplier = true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::InputSetAmmoResupplierOff( inputdata_t &inputdata )
+{
+	m_bIsAmmoResupplier = false;
 }
 #endif
 
@@ -2617,6 +3116,30 @@ void CNPC_Combine::StartTask( const Task_t *pTask )
 		}
 		break;
 
+#ifdef EZ
+	case TASK_COMBINE_HEAL:
+	case TASK_COMBINE_HEAL_TOSS:
+		if ( IsMedic() )
+		{
+			if ( GetTarget() && GetTarget()->IsPlayer() && GetTarget()->m_iMaxHealth == GetTarget()->m_iHealth )
+			{
+				// Doesn't need us anymore
+				TaskComplete();
+				break;
+			}
+
+			SetSpeechTarget( GetTarget() );
+			Speak( TLK_HEAL );
+		}
+		else if ( IsAmmoResupplier() )
+		{
+			SetSpeechTarget( GetTarget() );
+			Speak( TLK_GIVEAMMO );
+		}
+		SetIdealActivity( (Activity)ACT_CIT_HEAL );
+		break;
+#endif
+
 	default: 
 		BaseClass:: StartTask( pTask );
 		break;
@@ -2780,12 +3303,66 @@ void CNPC_Combine::RunTask( const Task_t *pTask )
 		}
 		break;
 
+#ifdef EZ
+	case TASK_COMBINE_HEAL:
+		if ( IsSequenceFinished() )
+		{
+			TaskComplete();
+		}
+		else if (!GetTarget())
+		{
+			// Our heal target was killed or deleted somehow.
+			TaskFail(FAIL_NO_TARGET);
+		}
+		else
+		{
+			if ( ( GetTarget()->GetAbsOrigin() - GetAbsOrigin() ).Length2D() > HEAL_MOVE_RANGE/2 )
+				TaskComplete();
+
+			GetMotor()->SetIdealYawToTargetAndUpdate( GetTarget()->GetAbsOrigin() );
+		}
+		break;
+
+	case TASK_COMBINE_HEAL_TOSS:
+		if ( IsSequenceFinished() )
+		{
+			TaskComplete();
+		}
+		else if (!GetTarget())
+		{
+			// Our heal target was killed or deleted somehow.
+			TaskFail(FAIL_NO_TARGET);
+		}
+		else
+		{
+			GetMotor()->SetIdealYawToTargetAndUpdate( GetTarget()->GetAbsOrigin() );
+		}
+		break;
+#endif
+
 	default:
 		{
 			BaseClass::RunTask( pTask );
 			break;
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : code - 
+//-----------------------------------------------------------------------------
+void CNPC_Combine::TaskFail( AI_TaskFailureCode_t code )
+{
+#ifdef EZ
+	// If our heal task has failed, push out the heal time
+	if ( IsCurSchedule( SCHED_COMBINE_HEAL ) )
+	{
+		m_flPlayerHealTime 	= gpGlobals->curtime + sk_combine_heal_ally_delay.GetFloat();
+	}
+#endif
+
+	BaseClass::TaskFail( code );
 }
 
 //------------------------------------------------------------------------------
@@ -4512,6 +5089,25 @@ void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 		else if ( pEvent->event == AE_METROPOLICE_DEPLOY_MANHACK )
 		{
 			OnAnimEventDeployManhack( pEvent );
+			return;
+		}
+		else if ( pEvent->event == AE_CITIZEN_HEAL )
+		{
+			// Heal my target (if within range)
+			if ( USE_EXPERIMENTAL_MEDIC_CODE() && IsMedic() && GetTarget() && !GetTarget()->IsNPC() )
+			{
+				CBaseCombatCharacter *pTarget = dynamic_cast<CBaseCombatCharacter *>( GetTarget() );
+				Assert(pTarget);
+				if ( pTarget )
+				{
+					m_flPlayerHealTime 	= gpGlobals->curtime + sk_combine_heal_toss_player_delay.GetFloat();;
+					TossHealthKit( pTarget, Vector(48.0f, 0.0f, 0.0f)  );
+				}
+			}
+			else
+			{
+				Heal();
+			}
 			return;
 		}
 #endif
@@ -6256,6 +6852,10 @@ DECLARE_TASK( TASK_COMBINE_DIE_INSTANTLY )
 DECLARE_TASK( TASK_COMBINE_PLAY_SEQUENCE_FACE_ALTFIRE_TARGET )
 DECLARE_TASK( TASK_COMBINE_GET_PATH_TO_FORCED_GREN_LOS )
 DECLARE_TASK( TASK_COMBINE_SET_STANDING )
+#ifdef EZ
+DECLARE_TASK( TASK_COMBINE_HEAL )
+DECLARE_TASK( TASK_COMBINE_HEAL_TOSS )
+#endif
 
 //Activities
 #if !SHARED_COMBINE_ACTIVITIES
@@ -6297,6 +6897,10 @@ DECLARE_CONDITION( COND_COMBINE_ATTACK_SLOT_AVAILABLE )
 #ifdef EZ2
 DECLARE_CONDITION( COND_COMBINE_CAN_ORDER_SURRENDER )
 DECLARE_CONDITION( COND_COMBINE_OBSTRUCTED )
+#endif
+#ifdef EZ
+DECLARE_CONDITION( COND_COMBINE_PLAYERHEALREQUEST )
+DECLARE_CONDITION( COND_COMBINE_COMMANDHEAL )
 #endif
 
 DECLARE_INTERACTION( g_interactionCombineBash );
@@ -7108,6 +7712,46 @@ DEFINE_SCHEDULE
  	"		COND_NEW_ENEMY"
  	"		COND_ENEMY_DEAD"
  )
+#endif
+
+#ifdef EZ
+	 DEFINE_SCHEDULE
+	(
+		SCHED_COMBINE_HEAL,
+
+		"	Tasks"
+		"		TASK_GET_PATH_TO_TARGET				0"
+		"		TASK_MOVE_TO_TARGET_RANGE			50"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_FACE_IDEAL						0"
+//		"		TASK_SAY_HEAL						0"
+//		"		TASK_PLAY_SEQUENCE_FACE_TARGET		ACTIVITY:ACT_ARM"
+		"		TASK_COMBINE_HEAL					0"
+//		"		TASK_PLAY_SEQUENCE_FACE_TARGET		ACTIVITY:ACT_DISARM"
+		"	"
+		"	Interrupts"
+	)
+
+	//=========================================================
+	// > SCHED_COMBINE_HEAL_TOSS
+	// this is for the episodic behavior where the combine hurls the medkit
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_COMBINE_HEAL_TOSS,
+
+	"	Tasks"
+//  "		TASK_GET_PATH_TO_TARGET				0"
+//  "		TASK_MOVE_TO_TARGET_RANGE			50"
+	"		TASK_STOP_MOVING					0"
+	"		TASK_FACE_IDEAL						0"
+//	"		TASK_SAY_HEAL						0"
+//	"		TASK_PLAY_SEQUENCE_FACE_TARGET		ACTIVITY:ACT_ARM"
+	"		TASK_COMBINE_HEAL_TOSS				0"
+//	"		TASK_PLAY_SEQUENCE_FACE_TARGET		ACTIVITY:ACT_DISARM"
+	"	"
+	"	Interrupts"
+	)
 #endif
 
  AI_END_CUSTOM_NPC()
