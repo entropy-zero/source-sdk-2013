@@ -19,6 +19,13 @@
 
 using namespace vgui;
 
+#ifdef EZ2
+// TEMP!!!
+ConVar	hud_malfunction_enable( "hud_malfunction_enable", "0" );
+ConVar	hud_malfunction_intensity( "hud_malfunction_intensity", "0.5" );
+ConVar	hud_malfunction_number_chance( "hud_malfunction_number_chance", "0.1" );
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
@@ -106,6 +113,18 @@ void CHudNumericDisplay::SetIsTime(bool state)
 //-----------------------------------------------------------------------------
 void CHudNumericDisplay::PaintNumbers(HFont font, int xpos, int ypos, int value)
 {
+#ifdef EZ2
+	if ( hud_malfunction_enable.GetBool() )
+	{
+		// Small chance of the number suffering imprecision
+		if ( RandomFloat( 0.0f, 1.0f ) < Square( hud_malfunction_number_chance.GetFloat() * hud_malfunction_intensity.GetFloat() ) )
+		{
+			int max = (10.0f * hud_malfunction_intensity.GetFloat());
+			value += RandomInt( -max, max );
+		}
+	}
+#endif
+
 	surface()->DrawSetTextFont(font);
 	wchar_t unicode[6];
 	if ( !m_bIsTime )
@@ -153,6 +172,40 @@ void CHudNumericDisplay::PaintLabel( void )
 	surface()->DrawSetTextFont(m_hTextFont);
 	surface()->DrawSetTextColor(GetFgColor());
 	surface()->DrawSetTextPos(text_xpos, text_ypos);
+	
+#ifdef EZ2
+	if ( hud_malfunction_enable.GetBool() )
+	{
+		float flIntensitySqr = Square( hud_malfunction_intensity.GetFloat() );
+
+		wchar_t	wszLabelText[32];
+		V_wcsncpy( wszLabelText, m_LabelText, sizeof( wszLabelText ) );
+
+		int len = V_wcslen( wszLabelText );
+		for ( int i = 0; i < len; i++ )
+		{
+			// Chance of replacing each character with a random ASCII character
+			// TODO: Consider Unicode characters?
+			if ( RandomFloat( 0.0f, 1.0f ) < flIntensitySqr )
+			{
+				wszLabelText[i] = (wchar_t)(RandomInt( '!', '~' ));
+			}
+		}
+
+		// Flicker slightly
+		Color clr = GetFgColor();
+		float flClrIntensity = flIntensitySqr * 0.25f;
+		clr[0] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+		clr[1] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+		clr[2] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+		clr[3] *= Clamp( RandomGaussianFloat( 1.0f, hud_malfunction_intensity.GetFloat() ), 0.0f, 1.0f );
+		surface()->DrawSetTextColor( clr );
+
+		surface()->DrawUnicodeString( wszLabelText );
+		return;
+	}
+#endif
+
 	surface()->DrawUnicodeString( m_LabelText );
 }
 
