@@ -2900,27 +2900,57 @@ void CEZ2_Player::OnExitStealthArea( CTriggerStealthArea *pArea )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CEZ2_Player::ModifyPlayerSound( int &iVolume )
+float CEZ2_Player::GetPlayerSoundVolumeModifier()
 {
-	if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) && !(m_nButtons & IN_SPEED) )
+	if ( !(m_nButtons & IN_SPEED) )
 	{
-		// Reduce walk sound volume in stealth mode
-		switch ( g_hStealthManager->GetStealthLevel() )
+		float flMod = 1.0f;
+
+		if ( g_hStealthManager )
 		{
-			case STEALTH_LEVEL_QUIET:
-				iVolume *= 0.4f;
-				break;
-			case STEALTH_LEVEL_GUARD:
-				iVolume *= 0.6f;
-				break;
-			case STEALTH_LEVEL_TENSE:
-				iVolume *= 0.75f;
-				break;
+			// Reduce walk sound volume in stealth mode
+			switch ( g_hStealthManager->GetStealthLevel() )
+			{
+				case STEALTH_LEVEL_QUIET:
+					flMod *= 0.4f;
+					break;
+				case STEALTH_LEVEL_GUARD:
+					flMod *= 0.6f;
+					break;
+				case STEALTH_LEVEL_TENSE:
+					flMod *= 0.75f;
+					break;
+			}
 		}
 
-		// Mute it entirely if we're fully cloaked
-		iVolume *= m_flCloakFactor;
+		if ( m_bIsCloaking )
+		{
+			// Mute it entirely if we're fully cloaked
+			flMod *= ( 1.0f - m_flCloakFactor );
+		}
+
+		return flMod;
 	}
+
+	return 1.0f;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::ModifyPlayerSound( int &iVolume )
+{
+	iVolume *= GetPlayerSoundVolumeModifier();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force )
+{
+	fvol *= MAX( GetPlayerSoundVolumeModifier(), 0.5f );
+
+	BaseClass::PlayStepSound( vecOrigin, psurface, fvol, force );
 }
 
 //-----------------------------------------------------------------------------

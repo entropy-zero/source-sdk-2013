@@ -242,7 +242,9 @@ public:
 	void				OnExitStealthArea( CTriggerStealthArea *pArea );
 	float				GetTimeEnteredStealthArea() { return m_flTimeEnteredStealthArea; }
 
+	float				GetPlayerSoundVolumeModifier();
 	void				ModifyPlayerSound( int &iVolume );
+	void				PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force );
 	bool				OverridePhysSwap();
 
 	// Cloaking
