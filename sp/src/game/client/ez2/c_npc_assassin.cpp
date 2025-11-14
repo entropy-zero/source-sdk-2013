@@ -126,14 +126,23 @@ void CProxyAssassinCloak::OnBind( void *pC_BaseEntity )
 			C_EZ2_Player *pEZ2Player = ToEZ2Player( pEntity );
 			if ( pEZ2Player->GetCloakFactor() > 0.0f )
 			{
-				SetFloatResult( pEZ2Player->GetCloakFactor() /*+ RandomFloat( 0.0f, 0.05f )*/ );
+				float flCloakFactor = pEZ2Player->GetCloakFactor();
+
+				if ( pEZ2Player->InFirstPersonView() )
+				{
+					// If this is the local player or their spectator target, don't go completely invisible
+					if (flCloakFactor > 0.95f)
+						flCloakFactor = 0.95f;
+				}
+
+				SetFloatResult( flCloakFactor /*+ RandomFloat( 0.0f, 0.05f )*/ );
 			}
 			else
 			{
 				SetFloatResult( 0.0f );
 			}
 		}
-		else if ( FStrEq( pEntity->GetClassname(), "viewmodel" ) )
+		else if ( FStrEq( pEntity->GetClassname(), "viewmodel" ) )	// Can't fall under pEntity->GetMoveParent() because parent not sent by default
 		{
 			float flCloakFactor = 0.0f;
 
@@ -148,6 +157,30 @@ void CProxyAssassinCloak::OnBind( void *pC_BaseEntity )
 					// Don't make the viewmodel completely invisible
 					if ( flCloakFactor > 0.95f )
 						flCloakFactor = 0.95f;
+				}
+			}
+
+			SetFloatResult( flCloakFactor );
+		}
+		else if ( pEntity->GetMoveParent() )
+		{
+			float flCloakFactor = 0.0f;
+
+			if ( pEntity->GetMoveParent()->IsPlayer() )
+			{
+				C_EZ2_Player *pEZ2Player = ToEZ2Player( pEntity->GetMoveParent() );
+				if ( pEZ2Player->GetCloakFactor() > 0.0f )
+				{
+					flCloakFactor = pEZ2Player->GetCloakFactor();
+				}
+			}
+			else if ( pEntity->GetMoveParent()->IsNPC() )
+			{
+				// TODO: Something more efficient?
+				C_NPC_Assassin *pAssassin = dynamic_cast<C_NPC_Assassin*>( pEntity );
+				if ( pAssassin && pAssassin->GetCloakFactor() > 0.0f )
+				{
+					flCloakFactor = pAssassin->GetCloakFactor();
 				}
 			}
 

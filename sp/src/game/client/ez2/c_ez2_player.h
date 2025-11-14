@@ -36,9 +36,10 @@ public:
 
 	void Precache();
 
-	void OnDataChanged( DataUpdateType_t updateType );
-	void PostDataUpdate( DataUpdateType_t updateType );
-	void SetCloakCCWeights();
+	void	OnDataChanged( DataUpdateType_t updateType );
+	void	PostDataUpdate( DataUpdateType_t updateType );
+	int		DrawModel( int flags );
+	void	SetCloakCCWeights();
 
 	void BonusChallengeUpdate( );
 

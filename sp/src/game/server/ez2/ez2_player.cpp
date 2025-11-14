@@ -3090,7 +3090,7 @@ void CEZ2_Player::CloakThink()
 			// TODO: Now that this isn't in VScript, should a better solution be used?
 			variant_t var;
 			var.SetInt( 253 );
-			AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+			//AcceptInput( "SetViewHideFlags", this, this, var, 0 );
 
 			if ( GetActiveWeapon() )
 				GetActiveWeapon()->AcceptInput( "SetViewHideFlags", this, this, var, 0 );
@@ -3128,7 +3128,7 @@ void CEZ2_Player::DecloakThink()
 		// TODO: Now that this isn't in VScript, should a better solution be used?
 		variant_t var;
 		var.SetInt( 0 );
-		AcceptInput( "SetViewHideFlags", this, this, var, 0 );
+		//AcceptInput( "SetViewHideFlags", this, this, var, 0 );
 
 		if (GetActiveWeapon())
 			GetActiveWeapon()->AcceptInput( "SetViewHideFlags", this, this, var, 0 );

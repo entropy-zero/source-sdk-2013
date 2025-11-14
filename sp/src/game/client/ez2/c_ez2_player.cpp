@@ -4,6 +4,7 @@
 #include "achievementmgr.h"
 #include "basegrenade_shared.h"
 #include "clienteffectprecachesystem.h"
+#include "viewrender.h"
 
 #if defined( CEZ2Player )
 	#undef CEZ2Player
@@ -145,6 +146,37 @@ void C_EZ2_Player::PostDataUpdate( DataUpdateType_t updateType )
 			}
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Draws the object
+// Input  : flags - 
+//-----------------------------------------------------------------------------
+int C_EZ2_Player::DrawModel( int flags )
+{
+	if ( m_flCloakFactor == 1.0f )
+	{
+		view_id_t iCurrentView = CurrentViewID();
+		if ( InFirstPersonView() )
+		{
+			// Don't draw in non-perspective views
+			switch ( iCurrentView )
+			{
+				case VIEW_MONITOR:
+				case VIEW_REFRACTION:
+				case VIEW_SHADOW_DEPTH_TEXTURE:
+				case VIEW_SSAO:
+					return 0;
+			}
+		}
+		else
+		{
+			// Don't draw at all
+			return 0;
+		}
+	}
+
+	return BaseClass::DrawModel( flags );
 }
 
 void C_EZ2_Player::SetCloakCCWeights()
