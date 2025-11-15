@@ -227,6 +227,12 @@ ConVar	ai_shot_stats( "ai_shot_stats", "0" );
 ConVar	ai_shot_stats_term( "ai_shot_stats_term", "1000" );
 ConVar	ai_shot_bias( "ai_shot_bias", "1.0" );
 
+#ifdef EZ2
+ConVar	ai_stealth_miss_speed_min( "ai_stealth_miss_speed_min", "200", FCVAR_NONE, "Stealth Senses: The minimum speed in which a player should move before we miss them" );
+ConVar	ai_stealth_miss_speed_max( "ai_stealth_miss_speed_max", "600", FCVAR_NONE, "Stealth Senses: The maximum speed in which a player should move before we miss them" );
+ConVar	ai_stealth_miss_lead_time( "ai_stealth_miss_lead_time", "-0.3", FCVAR_NONE, "Stealth Senses: Maximum time to lead shots when missing a fast player. Ranges from 0 to this value based on the min/max speed" );
+#endif
+
 ConVar	ai_spread_defocused_cone_multiplier( "ai_spread_defocused_cone_multiplier","3.0" );
 ConVar	ai_spread_cone_focus_time( "ai_spread_cone_focus_time","0.6" );
 ConVar	ai_spread_pattern_focus_time( "ai_spread_pattern_focus_time","0.8" );
@@ -11706,8 +11712,31 @@ Vector CAI_BaseNPC::GetActualShootPosition( const Vector &shootOrigin )
 	}
 #endif
 
+	Vector vecVelocity = GetEnemy()->GetSmoothedVelocity();
+
+#ifdef EZ2
+	// If using stealth senses, allow the player to evade shots if they're moving quickly
+	if ( IsUsingStealthSenses() && GetEnemy()->IsPlayer() )
+	{
+		const float flSpeedMinSqr = Square( ai_stealth_miss_speed_min.GetFloat() );
+		const float flSpeedMaxSqr = Square( ai_stealth_miss_speed_max.GetFloat() );
+
+		float flSpeedSqr = vecVelocity.LengthSqr();
+		if ( flSpeedSqr > flSpeedMinSqr )
+		{
+			// Speed becomes a ratio between the min and max
+			float flMissFactor = RemapValClamped( flSpeedSqr, flSpeedMinSqr, flSpeedMaxSqr, 0.0f, 1.0f );
+
+			// The more proficient we are, the less we lag behind
+			flMissFactor *= 1.0f - ( ((float)GetCurrentWeaponProficiency()) / 5.0f );
+
+			vecTargetPosition += ( vecVelocity * ( ai_stealth_miss_lead_time.GetFloat() * flMissFactor ) );
+		}
+	}
+#endif
+
 	// lead for some fraction of a second.
-	return (vecTargetPosition + ( GetEnemy()->GetSmoothedVelocity() * ai_lead_time.GetFloat() ));
+	return (vecTargetPosition + ( vecVelocity * ai_lead_time.GetFloat() ));
 }
 
 //-----------------------------------------------------------------------------
