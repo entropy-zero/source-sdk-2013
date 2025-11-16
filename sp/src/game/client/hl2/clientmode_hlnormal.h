@@ -38,6 +38,10 @@ public:
 	virtual void	Init();
 	virtual bool	ShouldDrawCrosshair( void );
 
+#ifdef MAPBASE
+	virtual void	ReloadScheme( void );
+#endif
+
 #ifdef EZ2
 	virtual bool	DoPostScreenSpaceEffects( const CViewSetup *pSetup );
 	virtual void	OnColorCorrectionWeightsReset( void );

@@ -45,6 +45,10 @@ private:
 		CUtlVector<int>	vecParents;
 
 #ifdef CLIENT_DLL
+		// User Interface
+		const char *pszClientScheme = NULL;
+		const char *pszHUDLayout = NULL;
+		const char *pszHUDAnims = NULL;
 #else
 		// Playermodel
 		const char *pszPlayerModel = NULL;
@@ -64,18 +68,22 @@ private:
 #endif
 
 		// Responses
-		const char *pszResponseContexts = NULL;
+		const char		*pszResponseContexts = NULL;
 
 		// Multiplayer
 		int nTeam = TEAM_ANY;
+#endif
+
+		// Sounds
+		CUtlDict<int>	dictSoundOverrides; // Indices to m_Strings
 
 		// Precached (used by system, not actual data)
 		bool bPrecached = false;
-#endif
 
 		// Weapon Data
 		struct WeaponDataOverride_t
 		{
+			const char *pszPrintName = NULL;
 			const char *pszVM = NULL;
 #ifdef EZ2
 			const char *pszDualVM = NULL;
@@ -117,6 +125,9 @@ public:
 	public: \
 
 #ifdef CLIENT_DLL
+	DeclareProtagonistFunc( const char*,	ClientScheme )
+	DeclareProtagonistFunc( const char*,	HUDLayout )
+	DeclareProtagonistFunc( const char*,	HUDAnims )
 #else
 	DeclareProtagonistFunc( const char*,	PlayerModel )
 	DeclareProtagonistFunc( int,			PlayerModelSkin )
@@ -132,7 +143,9 @@ public:
 	DeclareProtagonistFunc( bool,			ResponseContexts, char *pszContexts, int nContextsSize )
 	DeclareProtagonistFunc( int,			Team )
 #endif
+	DeclareProtagonistFunc( const char*,	SoundOverride, const char *pszSound )
 	
+	DeclareProtagonistFunc( const char*,	PrintName, const CBaseCombatWeapon *pWeapon )
 	DeclareProtagonistFunc( const char*,	ViewModel, const CBaseCombatWeapon *pWeapon )
 	DeclareProtagonistFunc( float*,			ViewModelFOV, const CBaseCombatWeapon *pWeapon )
 	DeclareProtagonistFunc( bool*,			UsesHands, const CBaseCombatWeapon *pWeapon )
@@ -155,6 +168,7 @@ private:
 
 	const char *FindString( const char *string );
 	const char *AllocateString( const char *string );
+	int AllocateStringIdx( const char *string );
 	
 	//----------------------------------------------------------------------------
 
