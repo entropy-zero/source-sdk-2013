@@ -19,12 +19,15 @@
 #include "rumble_shared.h"
 #include "gamestats.h"
 #include "particle_parse.h" // BREADMAN - particle muzzle
+#include "ammodef.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 #define MIN_SPREAD_COMPONENT weapon_smg2_min_spread.GetFloat()
 #define MAX_SPREAD_COMPONENT weapon_smg2_max_spread.GetFloat()
+
+#define SOUNDENT_VOLUME_SMG2_SILENCED		850.0
 
 ConVar weapon_smg2_altfire_enabled( "weapon_smg2_altfire_enabled", "1", FCVAR_NONE, "Allows weapon_smg2 to fire full auto if the player holds down the secondary attack button." );
 ConVar weapon_smg2_altfire_ammo_modifier( "weapon_smg2_altfire_ammo_modifier", "1", FCVAR_NONE, "Multiply the number of bullets per shot by this amount for altfire" );
@@ -50,7 +53,7 @@ public:
 
 	virtual Vector	GetBulletSpread( WeaponProficiency_t proficiency );
 
-	Vector CalculateBurstAttackSpread();
+	virtual Vector CalculateBurstAttackSpread();
 	void	BurstAttack(int burstSize, float cycleRate, int spentAmmoModifier = 1, float spreadComponentDivisor = 1.0f);
 	
 	void	SecondaryAttack( void );
@@ -64,7 +67,7 @@ public:
 	bool	Reload( void );
 
 	float	GetFireRate( void ) { return 0.02f; }
-	float	GetFullAutoFireRate( void ) { return weapon_smg2_altfire_rate.GetFloat(); }
+	virtual float	GetFullAutoFireRate( void ) { return weapon_smg2_altfire_rate.GetFloat(); }
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 	Activity	GetPrimaryAttackActivity( void );
 
@@ -447,7 +450,7 @@ void CWeaponSMG2::BurstAttack( int burstSize, float cycleRate, int spentAmmoModi
 	//Factor in the view kick
 	AddViewKick();
 
-	CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_MACHINEGUN, 0.2, pPlayer);
+	CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), IsSilenced() ? SOUNDENT_VOLUME_SMG2_SILENCED : SOUNDENT_VOLUME_MACHINEGUN, 0.2, pPlayer);
 
 	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
 	{
@@ -570,3 +573,112 @@ const WeaponProficiencyInfo_t *CWeaponSMG2::GetProficiencyValues()
 
 	return proficiencyTable;
 }
+
+#ifdef EZ2
+ConVar sk_plr_dmg_smg2_silenced_scale( "sk_plr_dmg_smg2_silenced_scale", "0.75" );
+ConVar sk_npc_dmg_smg2_silenced_scale( "sk_npc_dmg_smg2_silenced_scale", "0.75" );
+
+ConVar weapon_smg2_silenced_burstfire_rate( "weapon_smg2_silenced_burstfire_rate", "0.04", FCVAR_NONE, "weapon_smg2_silenced's burst fire rate." );
+ConVar weapon_smg2_silenced_altfire_rate( "weapon_smg2_silenced_altfire_rate", "0.07", FCVAR_NONE, "weapon_smg2_silenced's full-auto fire rate." );
+ConVar weapon_smg2_silenced_min_spread( "weapon_smg2_silenced_min_spread", "0.020", FCVAR_NONE, "Silenced SMG2 minimum fire cone vector component" );
+ConVar weapon_smg2_silenced_max_spread( "weapon_smg2_silenced_max_spread", "0.085", FCVAR_NONE, "Silenced SMG2 maximum fire cone vector component" );
+
+//-----------------------------------------------------------------------------
+// Silenced variant of the MP5K.
+//-----------------------------------------------------------------------------
+class CWeaponSilencedSMG2 : public CWeaponSMG2
+{
+	//DECLARE_DATADESC();
+public:
+	DECLARE_CLASS( CWeaponSilencedSMG2, CWeaponSMG2 );
+	DECLARE_SERVERCLASS();
+
+	void	FireBullets( const FireBulletsInfo_t &info );
+	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+
+	virtual bool IsSilenced() const { return true; }
+
+	virtual Vector CalculateBurstAttackSpread();
+
+	float	GetFireRate( void ) { return weapon_smg2_silenced_burstfire_rate.GetFloat(); }
+	virtual float	GetFullAutoFireRate( void ) { return weapon_smg2_altfire_rate.GetFloat(); }
+};
+
+IMPLEMENT_SERVERCLASS_ST( CWeaponSilencedSMG2, DT_WeaponSilencedSMG2 )
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_smg2_silenced, CWeaponSilencedSMG2 );
+//PRECACHE_WEAPON_REGISTER( weapon_smg2_silenced ); // No need to always precache
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &info - 
+//-----------------------------------------------------------------------------
+void CWeaponSilencedSMG2::FireBullets( const FireBulletsInfo_t &info )
+{
+	FireBulletsInfo_t *newInfo = const_cast<FireBulletsInfo_t *>(&info);
+
+	if ( newInfo )
+	{
+		float flDamage = ((float)GetAmmoDef()->PlrDamage( info.m_iAmmoType )) * sk_plr_dmg_smg2_silenced_scale.GetFloat();
+		if ( g_pGameRules )
+		{
+			// Would use GetAmmoDamage(), but can't check for NPC...
+			flDamage = g_pGameRules->AdjustPlayerDamageInflicted( flDamage );
+		}
+
+		newInfo->m_flDamage = flDamage;
+		newInfo->m_nFlags |= FIRE_BULLETS_NO_AUTO_GIB_TYPE;
+
+		BaseClass::FireBullets( *newInfo );
+		return;
+	}
+
+	BaseClass::FireBullets( info );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeaponSilencedSMG2::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir )
+{
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_SMG2_SILENCED, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy());
+
+	WeaponSound( SINGLE_NPC );
+
+	FireBulletsInfo_t info;
+	info.m_iShots = 1;
+	info.m_vecSrc = vecShootOrigin;
+	info.m_vecDirShooting = vecShootDir;
+	info.m_vecSpread = VECTOR_CONE_PRECALCULATED;
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 2;
+
+	info.m_flDamage = ((float)GetAmmoDef()->NPCDamage( info.m_iAmmoType )) * sk_npc_dmg_smg2_silenced_scale.GetFloat();
+	info.m_nFlags |= FIRE_BULLETS_NO_AUTO_GIB_TYPE;
+
+	pOperator->FireBullets( info );
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = m_iClip1 - 1;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+Vector CWeaponSilencedSMG2::CalculateBurstAttackSpread()
+{
+	float l_flSpreadRegen = ((gpGlobals->curtime - m_flLastPrimaryAttack) / GetBurstCycleRate()) * (weapon_smg2_silenced_max_spread.GetFloat() - weapon_smg2_silenced_min_spread.GetFloat()) / 2;
+	m_flSpreadComponent -= l_flSpreadRegen;
+
+	// Minimum spread
+	if (m_flSpreadComponent < weapon_smg2_silenced_min_spread.GetFloat())
+		m_flSpreadComponent = weapon_smg2_silenced_min_spread.GetFloat();
+
+	// Maximum spread
+	if (m_flSpreadComponent > weapon_smg2_silenced_max_spread.GetFloat())
+		m_flSpreadComponent = weapon_smg2_silenced_max_spread.GetFloat();
+
+	return Vector( m_flSpreadComponent, m_flSpreadComponent, m_flSpreadComponent );
+}
+#endif

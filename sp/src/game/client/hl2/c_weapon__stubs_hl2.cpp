@@ -53,6 +53,7 @@ STUB_WEAPON_CLASS( weapon_oldmanharpoon, WeaponOldManHarpoon, C_WeaponCitizenPac
 #ifdef EZ2
 //STUB_WEAPON_CLASS( weapon_pulsepistol, WeaponPulsePistol, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_pistol_silenced, WeaponSilencedPistol, C_BaseHLCombatWeapon );
+STUB_WEAPON_CLASS( weapon_smg2_silenced, WeaponSilencedSMG2, C_HLSelectFireMachineGun );
 STUB_WEAPON_CLASS( weapon_displacer_pistol, DisplacerPistol, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_ar2_proto, WeaponAR2Proto, C_BaseHLCombatWeapon );
 STUB_WEAPON_CLASS( weapon_endgame, WeaponEndGame, C_BaseHLCombatWeapon );
