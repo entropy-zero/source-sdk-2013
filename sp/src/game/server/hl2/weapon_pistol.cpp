@@ -660,7 +660,14 @@ void CWeaponSilencedPistol::FireBullets( const FireBulletsInfo_t &info )
 
 	if ( newInfo )
 	{
-		newInfo->m_flDamage = ((float)GetAmmoDef()->PlrDamage( info.m_iAmmoType )) * sk_plr_dmg_pistol_silenced_scale.GetFloat();
+		float flDamage = ((float)GetAmmoDef()->PlrDamage( info.m_iAmmoType )) * sk_plr_dmg_pistol_silenced_scale.GetFloat();
+		if ( g_pGameRules )
+		{
+			// Would use GetAmmoDamage(), but can't check for NPC...
+			flDamage = g_pGameRules->AdjustPlayerDamageInflicted( flDamage );
+		}
+
+		newInfo->m_flDamage = flDamage;
 		newInfo->m_nFlags |= FIRE_BULLETS_NO_AUTO_GIB_TYPE;
 
 		BaseClass::FireBullets( *newInfo );
