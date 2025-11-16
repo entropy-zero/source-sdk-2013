@@ -434,6 +434,7 @@ const char *CFastZombie::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/zombie/fast_bloodbie.mdl",
 	"models/zombie/fast_athenaebie.mdl",
 	"models/zombie/fast_ashbie.mdl",
+	"models/zombie/fast_protocmbie.mdl",
 };
 
 const char *CFastZombie::pTorsoModelNames[EZ_VARIANT_COUNT] = {
@@ -445,6 +446,7 @@ const char *CFastZombie::pTorsoModelNames[EZ_VARIANT_COUNT] = {
 	"models/gibs/fast_bloodbie_zombie_torso.mdl",
 	"models/gibs/fast_athenaebie_zombie_torso.mdl",
 	"models/gibs/fast_ashbie_zombie_torso.mdl",
+	"models/gibs/fast_protocmbie_zombie_torso.mdl",
 };
 
 const char *CFastZombie::pLegsModelNames[EZ_VARIANT_COUNT] = {
@@ -456,6 +458,7 @@ const char *CFastZombie::pLegsModelNames[EZ_VARIANT_COUNT] = {
 	"models/gibs/fast_bloodbie_zombie_legs.mdl",
 	"models/gibs/fast_athenaebie_zombie_legs.mdl",
 	"models/gibs/fast_ashbie_zombie_legs.mdl",
+	"models/gibs/fast_protocmbie_zombie_legs.mdl",
 };
 
 const char *CFastZombie::pLivingTorsoModelNames[EZ_VARIANT_COUNT] = {
@@ -467,6 +470,7 @@ const char *CFastZombie::pLivingTorsoModelNames[EZ_VARIANT_COUNT] = {
 	"models/zombie/fast_bloodbie_torso.mdl",
 	"models/zombie/fast_athenaebie_torso.mdl",
 	"models/zombie/fast_ashbie_torso.mdl",
+	"models/zombie/fast_protocmbie_torso.mdl",
 };
 
 const char *CFastZombie::pHeadcrabModelNames[EZ_VARIANT_COUNT] = {
@@ -478,6 +482,7 @@ const char *CFastZombie::pHeadcrabModelNames[EZ_VARIANT_COUNT] = {
 	"models/bloodcrab.mdl",
 	"models/athenaeumcrab.mdl",
 	"models/ashcrab.mdl",
+	"models/protocmbcrab.mdl",
 };
 
 const char *CFastZombie::pMoanSounds[EZ_VARIANT_COUNT] =
@@ -490,6 +495,7 @@ const char *CFastZombie::pMoanSounds[EZ_VARIANT_COUNT] =
 	"NPC_FastBloodbie.Moan1",
 	"NPC_FastAthenaebie.Moan1",
 	"NPC_FastAshbie.Moan1",
+	"NPC_FastProtoCMBie.Moan1",
 };
 #endif
 

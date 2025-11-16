@@ -53,6 +53,11 @@ const char *CNPC_Zombigaunt::pModelNames[EZ_VARIANT_COUNT] ={
 	"models/zombie/xenbigaunt.mdl", // "Shackles. How long have these guys been down here?"
 	"models/zombie/glowbigaunt.mdl", // "Now I've seen everything."
 	"models/zombie/xenbigaunt.mdl" // No temporal zombigaunt model - right now temporal variants limited to poison headcrabs
+	"models/zombie/zombigaunt.mdl",
+	"models/zombie/zombigaunt.mdl",
+	"models/zombie/zombigaunt.mdl",
+	"models/zombie/zombigaunt.mdl",
+	"models/zombie/zombigaunt_xenslave.mdl", // ProtoCMB uses Xen slave with HL2 headcrab
 };
 
 //-----------------------------------------------------------------------------

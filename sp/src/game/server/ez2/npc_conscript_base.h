@@ -26,7 +26,7 @@ class CAI_ConscriptBase : public BASE_NPC
 	DECLARE_CLASS_NOFRIEND( CAI_ConscriptBase, BASE_NPC );
 
 public:
-	CAI_ConscriptBase() { }
+	CAI_ConscriptBase() { this->m_tEzVariant = EZ_VARIANT_PROTOCMB; }
 
 	Class_T Classify ( void )
 	{

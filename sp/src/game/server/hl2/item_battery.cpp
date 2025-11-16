@@ -90,6 +90,7 @@ const char *CItemBattery::pModelNames[EZ_VARIANT_COUNT] = {
 	"models/items/blood/battery.mdl",
 	"models/items/athenaeum/battery.mdl",
 	"models/items/ash/battery.mdl",
+	"models/items/protocmb/battery.mdl",
 };
 #endif
 

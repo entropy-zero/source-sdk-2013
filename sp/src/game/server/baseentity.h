@@ -163,6 +163,8 @@ enum EZ_VARIANT
 	EZ_VARIANT_ATHENAEUM,		// Servants of the Athenaeum.
 	EZ_VARIANT_ASH,				// Residents of the Ashlands.
 
+	EZ_VARIANT_PROTOCMB,		// Progenitors and prototypes from the early Combine occupation.
+
 	EZ_VARIANT_COUNT, // Keep this at the end
 };
 
