@@ -39,7 +39,10 @@ public:
 	void	OnDataChanged( DataUpdateType_t updateType );
 	void	PostDataUpdate( DataUpdateType_t updateType );
 	int		DrawModel( int flags );
-	void	SetCloakCCWeights();
+	void	SetCCWeights();
+
+	bool	IsNVGActive();			// Checks if flashlight is enabled *and* we're using NVG type
+	int		GetFlashlightType();
 
 	void BonusChallengeUpdate( );
 
@@ -66,7 +69,11 @@ public:
 	inline float	GetCloakTransitionStartTime() const { return m_flCloakTransitionStartTime; }
 	inline float	GetCloakPower() const { return m_HL2Local.m_flSuitPower * 0.01f; } // Ratio of suit power (which maxes out at 100)
 
+	ClientCCHandle_t m_NVGCCHandle;
+
 private:
+
+	bool	m_bUseNVG;
 
 	// Cloaking
 	bool	m_bIsCloaking;

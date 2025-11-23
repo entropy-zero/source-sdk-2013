@@ -138,8 +138,14 @@ bool ClientModeHLNormal::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	if ( pPlayer )
 	{
-		// If the player is cloaking, render the cloak overlay
 		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+		if ( pEZ2Player->IsNVGActive() )
+		{
+			IMaterial *pOverlayMaterial = materials->FindMaterial( "Ezero/Mask_NvMap", TEXTURE_GROUP_OTHER, true );
+			DrawScreenEffectMaterial( pOverlayMaterial, 0, 0, pSetup->width, pSetup->height );
+		}
+
+		// If the player is cloaking, render the cloak overlay
 		if ( pEZ2Player->GetCloakFactor() > 0.0f )
 		{
 			// UNDONE: Cloak factor offset (works better with material proxy)
@@ -165,13 +171,13 @@ bool ClientModeHLNormal::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
 void ClientModeHLNormal::OnColorCorrectionWeightsReset( void )
 {
 	BaseClass::OnColorCorrectionWeightsReset();
-
+	
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	if ( pPlayer )
 	{
-		// If the player is cloaking, set its color correction weights
+		// Set the player's color correction weights
 		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
-		pEZ2Player->SetCloakCCWeights();
+		pEZ2Player->SetCCWeights();
 	}
 }
 #endif

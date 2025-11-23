@@ -64,6 +64,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD( m_vecLastCommandGoal, FIELD_VECTOR ),
 
+	DEFINE_FIELD( m_bUseNVG, FIELD_BOOLEAN ),
+
 	DEFINE_KEYFIELD( m_bCloakEnabled, FIELD_BOOLEAN, "CloakEnabled" ),
 	DEFINE_FIELD( m_bIsCloaking, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flCloakFactor, FIELD_FLOAT ),
@@ -91,6 +93,9 @@ BEGIN_DATADESC(CEZ2_Player)
 	//DEFINE_FIELD(m_iVisibleEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCloseEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCriteriaAppended, FIELD_INTEGER),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableNVG", InputEnableNVG ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableNVG", InputDisableNVG ),
 
 	DEFINE_INPUTFUNC(FIELD_STRING, "AnswerConcept", InputAnswerConcept),
 
@@ -136,6 +141,7 @@ BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerCloakData )
 END_SEND_TABLE();
 
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
+	SendPropBool( SENDINFO( m_bUseNVG ) ),
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
 	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
 	SendPropFloat( SENDINFO( m_flCloakFactor ) ), // Always sent because not just the local player would care about this
@@ -592,6 +598,8 @@ CEZ2_Player::CEZ2_Player()
 	AddSightEvent( g_SightHintSurrenderableCitizen );
 	AddSightEvent( g_SightHintSurrenderedMedic );
 	AddSightEvent( g_SightIncomingSMGGrenade );
+
+	m_bUseNVG = true;
 
 	if (sv_bonus_challenge.GetInt() != EZ_CHALLENGE_NONE)
 	{
