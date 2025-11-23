@@ -3,6 +3,9 @@
 #include "point_bonusmaps_accessor.h"
 #include "achievementmgr.h"
 #include "basegrenade_shared.h"
+#include "clienteffectprecachesystem.h"
+#include "viewrender.h"
+#include "flashlighteffect.h"
 
 #if defined( CEZ2Player )
 	#undef CEZ2Player
@@ -10,7 +13,34 @@
 
 ConVar cl_slam_glow( "cl_slam_glow", "0", FCVAR_ARCHIVE );
 
+// Defined in hl2_player.cpp
+// Since these are replicated, they are synchronized with the server
+ConVar sv_flashlight_cc_enabled( "sv_flashlight_cc_enabled", "1", FCVAR_REPLICATED );
+ConVar sv_flashlight_cc_maxweight( "sv_flashlight_cc_maxweight", "100", FCVAR_REPLICATED );
+
+static void OnNVGCCFileChange( IConVar *var, const char *pOldValue, float flOldValue )
+{
+	for ( int i = 1; i < gpGlobals->maxClients; i++ )
+	{
+		C_BasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer )
+			continue;
+
+		// Reset CC handle
+		C_EZ2_Player *pEZ2Player = (C_EZ2_Player *)pPlayer;
+		if ( pEZ2Player->m_NVGCCHandle != INVALID_CLIENT_CCHANDLE )
+		{
+			g_pColorCorrectionMgr->RemoveColorCorrection( pEZ2Player->m_NVGCCHandle );
+			pEZ2Player->m_NVGCCHandle = INVALID_CLIENT_CCHANDLE;
+		}
+	}
+}
+
+// TODO: Should really put this in the protagonist system
+ConVar sv_flashlight_cc_filename( "sv_flashlight_cc_filename", "ez2_nvg.raw", FCVAR_REPLICATED, "", OnNVGCCFileChange );
+
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
+	RecvPropBool( RECVINFO( m_bUseNVG ) ),
 	RecvPropBool( RECVINFO( m_bBonusChallengeUpdate ) ),
 	RecvPropEHandle( RECVINFO( m_hWarningTarget ) ),
 END_RECV_TABLE()
@@ -18,14 +48,21 @@ END_RECV_TABLE()
 BEGIN_PREDICTION_DATA( C_EZ2_Player )
 END_PREDICTION_DATA()
 
+CLIENTEFFECT_REGISTER_BEGIN( PrecacheEZ2Effects )
+	CLIENTEFFECT_MATERIAL( "Ezero/Mask_NvMap" )
+CLIENTEFFECT_REGISTER_END()
+
 C_EZ2_Player::C_EZ2_Player()
 {
+	m_NVGCCHandle = INVALID_CLIENT_CCHANDLE;
 }
 
 C_EZ2_Player::~C_EZ2_Player()
 {
 	DestroyGlowTargetEffect();
 	DestroySLAMGlowEffect();
+
+	g_pColorCorrectionMgr->RemoveColorCorrection( m_NVGCCHandle );
 }
 
 void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
@@ -34,6 +71,11 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 	if ( updateType == DATA_UPDATE_DATATABLE_CHANGED )
 	{
+		if ( GetEffects() & EF_DIMLIGHT && m_NVGCCHandle == INVALID_CLIENT_CCHANDLE && IsLocalPlayer() )
+		{
+			m_NVGCCHandle = g_pColorCorrectionMgr->AddColorCorrection( "cc_nvg", sv_flashlight_cc_filename.GetString() );
+		}
+
 		BonusChallengeUpdate();
 
 		if (cl_slam_glow.GetBool())
@@ -79,6 +121,40 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 	UpdateGlowTargetEffect();
 	UpdateSLAMGlowEffect();
+}
+
+void C_EZ2_Player::SetCCWeights()
+{
+	C_EZ2_Player *pEZ2Player = this;
+	if ( GetObserverMode() == OBS_MODE_IN_EYE && GetObserverTarget() && GetObserverTarget()->IsPlayer() )
+	{
+		// Use the player we're spectating instead
+		pEZ2Player = ToEZ2Player( GetObserverTarget() );
+	}
+
+	if ( pEZ2Player->IsNVGActive() && sv_flashlight_cc_enabled.GetBool() )
+	{
+		if ( pEZ2Player->m_NVGCCHandle != INVALID_CLIENT_CCHANDLE )
+		{
+			g_pColorCorrectionMgr->SetColorCorrectionWeight( pEZ2Player->m_NVGCCHandle, sv_flashlight_cc_maxweight.GetFloat() );
+		}
+	}
+}
+
+bool C_EZ2_Player::IsNVGActive()
+{
+	if ( !(GetEffects() & EF_DIMLIGHT) )
+		return false;
+
+	if ( !m_bUseNVG )
+		return false;
+
+	return true;
+}
+
+int C_EZ2_Player::GetFlashlightType()
+{
+	return m_bUseNVG ? NVG : FLASHLIGHT;
 }
 
 void C_EZ2_Player::BonusChallengeUpdate()
