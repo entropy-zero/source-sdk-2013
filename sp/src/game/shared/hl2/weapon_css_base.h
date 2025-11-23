@@ -701,6 +701,10 @@ public:
 	//-----------------------------------------------------------------------------
 
 	inline float GetAccuracyPenalty() { return m_flAccuracyPenalty; }
+	virtual float GetAccuracyPenaltyAmt() const;
+	virtual float GetMaxAccuracyPenalty() const;
+	virtual float GetAccuracyPenaltyViewkick() { return m_flAccuracyPenalty; }
+	inline float GetLastAttackTime() { return m_flLastAttackTime; }
 
 	virtual float GetViewKickBase() { return 0.0f; }
 

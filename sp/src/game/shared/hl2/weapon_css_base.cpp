@@ -291,7 +291,7 @@ void CBase_CSS_HL2_Pistol::PrimaryAttack( void )
 	// 
 
 	// Add an accuracy penalty which can move past our maximum penalty time if we're really spastic
-	m_flAccuracyPenalty += PISTOL_ACCURACY_SHOT_PENALTY_TIME;
+	m_flAccuracyPenalty += GetAccuracyPenaltyAmt();
 
 	m_iPrimaryAttacks++;
 #ifndef CLIENT_DLL
@@ -327,8 +327,24 @@ void CBase_CSS_HL2_Pistol::UpdatePenaltyTime( void )
 	if ( ( ( pOwner->m_nButtons & IN_ATTACK ) == false ) && ( m_flSoonestPrimaryAttack < gpGlobals->curtime ) )
 	{
 		m_flAccuracyPenalty -= gpGlobals->frametime;
-		m_flAccuracyPenalty = clamp( m_flAccuracyPenalty, 0.0f, PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME );
+		m_flAccuracyPenalty = clamp( m_flAccuracyPenalty, 0.0f, GetMaxAccuracyPenalty() );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CBase_CSS_HL2_Pistol::GetAccuracyPenaltyAmt( void ) const
+{
+	return PISTOL_ACCURACY_SHOT_PENALTY_TIME;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CBase_CSS_HL2_Pistol::GetMaxAccuracyPenalty( void ) const
+{
+	return PISTOL_ACCURACY_MAXIMUM_PENALTY_TIME;
 }
 
 //-----------------------------------------------------------------------------
@@ -411,7 +427,7 @@ void CBase_CSS_HL2_Pistol::AddViewKick( void )
 
 	QAngle	viewPunch;
 
-	viewPunch.x = -(GetViewKickBase() * (m_flAccuracyPenalty + 1.0f));
+	viewPunch.x = -(GetViewKickBase() * (GetAccuracyPenaltyViewkick() + 1.0f));
 	viewPunch.y = (viewPunch.x * 0.15f);
 
 	viewPunch.x += random->RandomFloat( -0.25f, -0.5f );
