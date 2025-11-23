@@ -207,6 +207,11 @@ public:
 
 	void			FireBullets( const FireBulletsInfo_t &info );
 
+	bool			IsNVGEnabled() { return m_bUseNVG; }
+	void			SetNVGEnabled( bool bToggle ) { m_bUseNVG = bToggle; }
+	void			InputEnableNVG( inputdata_t &inputdata ) { m_bUseNVG = true; }
+	void			InputDisableNVG( inputdata_t &inputdata ) { m_bUseNVG = false; }
+
 	// Blixibon - StartScripting for gag replacement
 	bool				IsInAScript( void ) { return m_bInAScript; }
 	inline void			SetInAScript( bool bScript ) { m_bInAScript = bScript; }
@@ -299,6 +304,8 @@ private:
 
 	// For speech purposes
 	Vector			m_vecLastCommandGoal;
+	
+	CNetworkVar( bool,	m_bUseNVG );
 
 	CHandle<CAI_PlayerNPCDummy> m_hNPCComponent;
 	float			m_flNextSpeechTime;

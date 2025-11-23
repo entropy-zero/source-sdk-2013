@@ -13,6 +13,11 @@
 #include <vgui_controls/AnimationController.h>
 #include "iinput.h"
 #include "ienginevgui.h"
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#include "materialsystem/itexture.h"
+#include "view_scene.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -95,5 +100,44 @@ bool ClientModeHLNormal::ShouldDrawCrosshair( void )
 	return ( g_bRollingCredits == false );
 }
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool ClientModeHLNormal::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
+{
+	if ( !BaseClass::DoPostScreenSpaceEffects( pSetup ) )
+		return false;
+	
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pPlayer )
+	{
+		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+		if ( pEZ2Player->IsNVGActive() )
+		{
+			IMaterial *pOverlayMaterial = materials->FindMaterial( "Ezero/Mask_NvMap", TEXTURE_GROUP_OTHER, true );
+			DrawScreenEffectMaterial( pOverlayMaterial, 0, 0, pSetup->width, pSetup->height );
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void ClientModeHLNormal::OnColorCorrectionWeightsReset( void )
+{
+	BaseClass::OnColorCorrectionWeightsReset();
+	
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pPlayer )
+	{
+		// Set the player's color correction weights
+		C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+		pEZ2Player->SetCCWeights();
+	}
+}
+#endif
 
 

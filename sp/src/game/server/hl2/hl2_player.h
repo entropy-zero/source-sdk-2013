@@ -192,7 +192,8 @@ public:
 #endif
 
 #ifdef EZ2
-	virtual void ApplyFlashlightColorCorrection( bool bColorCorrectionEnabled );
+	virtual bool	IsNVGEnabled() { return false; }
+	virtual void	SetNVGEnabled( bool bToggle ) {}
 
 	virtual void SetLegModel( string_t iszModel );
 
@@ -203,6 +204,9 @@ public:
 	void		OnTripmineExploded( CBaseEntity *pTripmine, CBaseEntity *pAttacker );
 	void		OnDetonatableExploded( CBaseEntity *pDetonatable, CBaseEntity *pAttacker );
 	void		OnDetonatableDisabled( CBaseEntity *pDetonatable );
+#elif defined(EZ1)
+	virtual bool	IsNVGEnabled() { return true; }
+	virtual void	SetNVGEnabled( bool bToggle ) {}
 #endif
 
 	// Apply a battery
@@ -486,9 +490,6 @@ private:
 	float				m_flFlashlightPowerDrainScale;
 
 #ifdef EZ2
-	EHANDLE				m_hFlashlightColorCorrection;
-	bool				m_bHandledColorCorrection; // NOT saved - this tells us that within this session, CC hasn't been cleaned up yet
-
 	CNetworkVar( float, m_flNextKickAttack );
 	bool				m_bKickWeaponLowered;
 

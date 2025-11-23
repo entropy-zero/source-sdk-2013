@@ -37,6 +37,11 @@ public:
 
 	virtual void	Init();
 	virtual bool	ShouldDrawCrosshair( void );
+
+#ifdef EZ2
+	virtual bool	DoPostScreenSpaceEffects( const CViewSetup *pSetup );
+	virtual void	OnColorCorrectionWeightsReset( void );
+#endif
 };
 
 extern IClientMode *GetClientModeNormal();

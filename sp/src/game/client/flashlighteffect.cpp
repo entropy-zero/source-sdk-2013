@@ -148,7 +148,7 @@ CFlashlightEffect::CFlashlightEffect(int nEntIndex)
 CFlashlightEffect::~CFlashlightEffect()
 {
 	LightOff();
-#ifdef EZ
+#ifdef EZ1
 	if ( IsNVG() )
 	{
 		engine->ClientCmd( "Ez_Nvg_On" ); //Breadman - see View_scene.cpp for this Convar
@@ -164,7 +164,7 @@ void CFlashlightEffect::TurnOn()
 {
 	m_bIsOn = true;
 	m_flDistMod = 1.0f;
-#ifdef EZ
+#ifdef EZ1
 	if ( IsNVG() )
 	{
 		engine->ClientCmd( "Ez_Nvg_On" ); //Breadman - see View_scene.cpp for this Convar

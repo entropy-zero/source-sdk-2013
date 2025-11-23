@@ -33,7 +33,11 @@ public:
 	C_EZ2_Player();
 	~C_EZ2_Player();
 
-	void OnDataChanged( DataUpdateType_t updateType );
+	void	OnDataChanged( DataUpdateType_t updateType );
+	void	SetCCWeights();
+
+	bool	IsNVGActive();			// Checks if flashlight is enabled *and* we're using NVG type
+	int		GetFlashlightType();
 
 	void BonusChallengeUpdate( );
 
@@ -52,6 +56,12 @@ public:
 	CUtlVector<EHANDLE>	m_hActiveTripmines;
 	CUtlVector< CHandle<C_PointDetonatable> >	m_hActiveDetonatables;
 	CUtlVector<CGlowObject*>	m_pSLAMGlowEffects;
+
+	ClientCCHandle_t m_NVGCCHandle;
+
+private:
+
+	bool	m_bUseNVG;
 };
 
 

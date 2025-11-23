@@ -189,6 +189,9 @@ public:
 	// Flashlight
 	void	Flashlight( void );
 	virtual void	UpdateFlashlight( void );
+#ifdef EZ
+	virtual int		GetFlashlightType() { return 0; }
+#endif
 
 	// Weapon selection code
 	virtual bool				IsAllowedToSwitchWeapons( void ) { return !IsObserver(); }

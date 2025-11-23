@@ -61,6 +61,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD( m_vecLastCommandGoal, FIELD_VECTOR ),
 
+	DEFINE_FIELD( m_bUseNVG, FIELD_BOOLEAN ),
+
 	DEFINE_FIELD(m_hNPCComponent, FIELD_EHANDLE),
 	DEFINE_FIELD(m_flNextSpeechTime, FIELD_TIME),
 	DEFINE_FIELD(m_hSpeechFilter, FIELD_EHANDLE),
@@ -75,6 +77,9 @@ BEGIN_DATADESC(CEZ2_Player)
 	//DEFINE_FIELD(m_iVisibleEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCloseEnemies, FIELD_INTEGER),
 	//DEFINE_FIELD(m_iCriteriaAppended, FIELD_INTEGER),
+
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableNVG", InputEnableNVG ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableNVG", InputDisableNVG ),
 
 	DEFINE_INPUTFUNC(FIELD_STRING, "AnswerConcept", InputAnswerConcept),
 
@@ -106,6 +111,7 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 END_SCRIPTDESC();
 
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
+	SendPropBool( SENDINFO( m_bUseNVG ) ),
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
 	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
 END_SEND_TABLE()
@@ -485,6 +491,8 @@ CEZ2_Player::CEZ2_Player()
 	AddSightEvent( g_SightHintSurrenderableCitizen );
 	AddSightEvent( g_SightHintSurrenderedMedic );
 	AddSightEvent( g_SightIncomingSMGGrenade );
+
+	m_bUseNVG = true;
 
 	if (sv_bonus_challenge.GetInt() != EZ_CHALLENGE_NONE)
 	{

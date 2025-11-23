@@ -353,6 +353,9 @@ public:
 #endif
 
 #ifdef EZ2
+	void InputEnableNVG( inputdata_t &inputdata );
+	void InputDisableNVG( inputdata_t &inputdata );
+
 	void InputSetLegModel( inputdata_t &inputdata );
 #endif
 
@@ -628,7 +631,6 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_FIELD( m_QueuedCommand, FIELD_INTEGER ),
 #ifdef EZ
 	DEFINE_FIELD( m_hCommandPointProp, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_hFlashlightColorCorrection, FIELD_EHANDLE ),
 #endif
 #ifdef EZ2
 	DEFINE_FIELD( m_flNextKickAttack , FIELD_TIME ),
@@ -825,6 +827,9 @@ void CHL2_Player::Precache( void )
 	UTIL_PrecacheOther( "prop_command_point" );
 #endif
 #ifdef EZ2
+	PrecacheScriptSound( "EZ2Player.NVGOn" );
+	PrecacheScriptSound( "EZ2Player.NVGOff" );
+
 	PrecacheScriptSound( "EZ2Player.KickSwing" );
 	PrecacheScriptSound( "EZ2Player.KickHit" );
 	PrecacheScriptSound( "EZ2Player.KickMiss" );
@@ -2921,11 +2926,14 @@ void CHL2_Player::FlashlightTurnOn( void )
 		return;
 	}
 #endif
-#ifdef EZ2
-	ApplyFlashlightColorCorrection( true );
-#endif
 
 	AddEffects( EF_DIMLIGHT );
+
+#ifdef EZ
+	if ( IsNVGEnabled() )
+		EmitSound( "EZ2Player.NVGOn" );
+	else
+#endif
 	EmitSound( "HL2Player.FlashLightOn" );
 
 	variant_t flashlighton;
@@ -2944,11 +2952,13 @@ void CHL2_Player::FlashlightTurnOff( void )
 			return;
 	}
 
-#ifdef EZ2
-	ApplyFlashlightColorCorrection( false );
-#endif
-
 	RemoveEffects( EF_DIMLIGHT );
+
+#ifdef EZ
+	if ( IsNVGEnabled() )
+		EmitSound( "EZ2Player.NVGOff" );
+	else
+#endif
 	EmitSound( "HL2Player.FlashLightOff" );
 
 	variant_t flashlightoff;
@@ -5183,14 +5193,6 @@ void CHL2_Player::ItemPostFrame()
 		m_bPlayUseDenySound = false;
 		EmitSound( "HL2Player.UseDeny" );
 	}
-
-#ifdef EZ2
-	if ( !m_bHandledColorCorrection )
-	{
-		ApplyFlashlightColorCorrection( IsEffectActive( EF_DIMLIGHT ) );
-		m_bHandledColorCorrection = true;
-	}
-#endif
 }
 
 
@@ -5428,7 +5430,7 @@ void CHL2_Player::RefreshProtagonistData()
 #ifdef EZ2
 	const char *pszLegModel = g_ProtagonistSystem.GetProtagonist_LegModel( this );
 	if (pszLegModel)
-		m_LegModelName = MAKE_STRING( pszLegModel );
+		m_LegModelName = AllocPooledString( pszLegModel );
 
 	m_nLegSkin = g_ProtagonistSystem.GetProtagonist_LegModelSkin( this );
 	m_nLegBody = g_ProtagonistSystem.GetProtagonist_LegModelBody( this );
@@ -5641,6 +5643,9 @@ BEGIN_DATADESC( CLogicPlayerProxy )
 #endif
 
 #ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableNVG", InputEnableNVG ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableNVG", InputDisableNVG ),
+
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetLegModel", InputSetLegModel ),
 #endif
 
@@ -5864,51 +5869,6 @@ float CHL2_Player::GetFlashlightBattery()
 #endif
 
 #ifdef EZ2
-// This method is a little bit dirty - it directly mocks the way that a color correction
-// filter would be set up for a flashlight with a logic player proxy.
-// The color correction entity remains an anonymous CBaseEntity and is manipulated
-// via KeyValue() and AcceptInput()
-void CHL2_Player::ApplyFlashlightColorCorrection( bool bColorCorrectionEnabled )
-{
-	// Clean up any existing CCs that might be confounding this
-	if (m_hFlashlightColorCorrection != NULL)
-	{
-		variant_t emptyVariant;
-		m_hFlashlightColorCorrection->AcceptInput( "Disable", this, this, emptyVariant, 0 );
-		m_hFlashlightColorCorrection->SUB_Remove();
-		m_hFlashlightColorCorrection = NULL;
-	}
-
-	// Clean up any old NVG CC lying around
-	CBaseEntity * oldCC = FindNamedEntity( "cc_nvg" );
-	if (oldCC != NULL)
-	{
-		oldCC->SUB_Remove();
-	}
-
-	if ( bColorCorrectionEnabled )
-	{
-		// If the ConVar isn't set, cancel!
-		if ( !sv_flashlight_cc_enabled.GetBool() )
-			return;
-
-		m_hFlashlightColorCorrection = CreateNoSpawn( "color_correction", GetAbsOrigin(), GetAbsAngles(), this );
-		m_hFlashlightColorCorrection->KeyValue( "targetname", "cc_nvg" );
-		m_hFlashlightColorCorrection->KeyValue( "fadeInDuration", 0.1f );
-		m_hFlashlightColorCorrection->KeyValue( "fadeOutDuration", 0.1f );
-		m_hFlashlightColorCorrection->KeyValue( "filename", sv_flashlight_cc_filename.GetString() );
-		m_hFlashlightColorCorrection->KeyValue( "maxfalloff", -1.0f );
-		m_hFlashlightColorCorrection->KeyValue( "minfalloff", 0.0f );
-		m_hFlashlightColorCorrection->KeyValue( "maxweight", sv_flashlight_cc_maxweight.GetFloat() );
-		m_hFlashlightColorCorrection->KeyValue( "StartDisabled", "1" );
-
-		DispatchSpawn( m_hFlashlightColorCorrection );
-		m_hFlashlightColorCorrection->Activate();
-
-		variant_t emptyVariant;
-		m_hFlashlightColorCorrection->AcceptInput( "Enable", this, this, emptyVariant, 0 );
-	}
-}
 void CHL2_Player::SetLegModel( string_t iszModel )
 {
 	m_LegModelName = iszModel;
@@ -6190,6 +6150,24 @@ void CLogicPlayerProxy::InputSetPlayerDrawExternally( inputdata_t &inputdata )
 #endif
 
 #ifdef EZ2
+void CLogicPlayerProxy::InputEnableNVG( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetNVGEnabled( true );
+}
+
+void CLogicPlayerProxy::InputDisableNVG( inputdata_t &inputdata )
+{
+	if (!m_hPlayer)
+		return;
+	
+	CHL2_Player *pPlayer = static_cast<CHL2_Player*>(m_hPlayer.Get());
+	pPlayer->SetNVGEnabled( false );
+}
+
 void CLogicPlayerProxy::InputSetLegModel( inputdata_t &inputdata )
 {
 	if (!m_hPlayer)
