@@ -1170,4 +1170,87 @@ END_PREDICTION_DATA()
 CWeapon_Arbeit_Pistol::CWeapon_Arbeit_Pistol( void )
 {
 }
+
+//-----------------------------------------------------------------------------
+// CWeapon_CSS_HL2_Glock18_Silenced
+//-----------------------------------------------------------------------------
+class CWeapon_CSS_HL2_Glock18_Silenced : public CWeapon_CSS_HL2_Glock18 // CBase_CSS_HL2_SilencedWeapon<>
+{
+public:
+	DECLARE_CLASS( CWeapon_CSS_HL2_Glock18_Silenced, CWeapon_CSS_HL2_Glock18 );
+	DECLARE_NETWORKCLASS();
+	DECLARE_PREDICTABLE();
+	DECLARE_DATADESC();
+
+	CWeapon_CSS_HL2_Glock18_Silenced(void);
+
+	bool IsSilenced() const { return true; }
+
+	virtual const Vector& GetBulletSpread( void )
+	{
+		if ( IsDualWielding() && ( GetOwner() && !GetOwner()->IsNPC() ) )
+		{
+			static Vector cone;
+			cone = BaseClass::GetBulletSpread() * 2.0f;
+			return cone;
+		}
+
+		return BaseClass::GetBulletSpread();
+	}
+
+	virtual float GetViewKickBase() { return InBurst() ? 0.175f : 0.05f; }
+
+	virtual float GetRefireRate() { return IsDualWielding() ? 0.05f : 0.1f; }
+	virtual float GetFireRate( void )
+	{
+		if ( IsDualWielding() && (GetOwner() && GetOwner()->IsNPC()) )
+			return 0.25f;
+
+		return InBurst() ? 0.1f : 0.5f;
+	}
+
+	WeaponClass_t	WeaponClassify() { return WEPCLASS_HANDGUN; }
+	virtual void	SetActivity( Activity act, float duration );
+
+	bool			CanDualWield() const { return true; }
+	bool			CanUseBurstMode() const { return !IsDualWielding() && BaseClass::CanUseBurstMode(); }
+};
+
+IMPLEMENT_NETWORKCLASS_DT( CWeapon_CSS_HL2_Glock18_Silenced, DT_Weapon_CSS_HL2_Glock18_Silenced )
+END_NETWORK_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_css_glock_silenced, CWeapon_CSS_HL2_Glock18_Silenced );
+#if PRECACHE_REGISTER_CSS_WEAPONS == 1
+PRECACHE_WEAPON_REGISTER( weapon_css_glock_silenced );
+#endif
+
+BEGIN_DATADESC( CWeapon_CSS_HL2_Glock18_Silenced )
+
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+
+END_DATADESC()
+
+#ifdef CLIENT_DLL
+BEGIN_PREDICTION_DATA( CWeapon_CSS_HL2_Glock18_Silenced )
+END_PREDICTION_DATA()
+#endif
+
+//-----------------------------------------------------------------------------
+// Purpose: Constructor
+//-----------------------------------------------------------------------------
+CWeapon_CSS_HL2_Glock18_Silenced::CWeapon_CSS_HL2_Glock18_Silenced( void )
+{
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CWeapon_CSS_HL2_Glock18_Silenced::SetActivity( Activity act, float duration )
+{
+	// HACKHACK: Can't recompile all of the models to have this right now
+	if (act == ACT_RANGE_ATTACK_DUAL_PISTOLS && SelectWeightedSequence( act ) == ACTIVITY_NOT_AVAILABLE)
+		act = ACT_RANGE_ATTACK_PISTOL;
+
+	BaseClass::SetActivity( act, duration );
+}
 #endif
