@@ -851,6 +851,13 @@ bool CBaseFlex::StartSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CCh
 							WRITE_STRING( event->GetParameters2() );
 							WRITE_STRING( "" ); // No custom font
 							WRITE_BYTE ( Q_strlen( event->GetParameters2() ) );
+
+							// Box size
+							WRITE_FLOAT( 0.4f );
+							WRITE_BYTE( 31 );
+							WRITE_BYTE( 31 );
+							WRITE_BYTE( 31 );
+							WRITE_BYTE( 127 );
 						MessageEnd();
 					}
 					return true;

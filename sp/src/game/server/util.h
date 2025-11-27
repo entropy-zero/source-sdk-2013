@@ -510,6 +510,10 @@ typedef struct hudtextparms_s
 	float		holdTime;
 	float		fxTime;
 	int			channel;
+#ifdef MAPBASE
+	float		boxSize = 0.0f;
+	color32		boxColor;
+#endif
 } hudtextparms_t;
 
 
