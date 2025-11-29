@@ -214,6 +214,10 @@ ConVar  player_debug_print_damage( "player_debug_print_damage", "0", FCVAR_CHEAT
 ConVar	player_use_visibility_cache( "player_use_visibility_cache", "0", FCVAR_NONE, "Allows the player to use the visibility cache." );
 #endif
 
+#ifdef EZ2
+ConVar player_remove_unswappable_weapons( "player_remove_unswappable_weapons", "0", FCVAR_NONE, "Removes unswappable weapons when the player takes their ammo while already carrying an equivalent weapon" );
+#endif
+
 
 void CC_GiveCurrentAmmo( void )
 {
@@ -7226,6 +7230,26 @@ bool CBasePlayer::BumpWeapon( CBaseCombatWeapon *pWeapon )
 				{
 					pWeapon->SetSecondaryAmmoCount( pWeapon->GetSecondaryAmmoCount() - takenSecondary );
 				}
+
+#ifdef EZ2
+				if ( player_remove_unswappable_weapons.GetBool() && !pWeapon->HasPrimaryAmmo() && !pWeapon->HasSecondaryAmmo() )
+				{
+					// If we can't pick up this weapon, and we already have one in the same slot, then remove it when we take its ammo
+					if ( pWeapon->GetWpnData().m_bPreventPlayerSwap )
+					{
+						for (int i=0; i<MAX_WEAPONS; i++)
+						{
+							if (m_hMyWeapons[i] &&
+								pWeapon->GetSlot() == m_hMyWeapons[i]->GetSlot() &&
+								pWeapon->GetPosition() == m_hMyWeapons[i]->GetPosition())
+							{
+								UTIL_Remove( pWeapon );
+								return true;
+							}
+						}
+					}
+				}
+#endif
 
 				return false;
 			}
