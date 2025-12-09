@@ -315,6 +315,20 @@ void CBaseHLCombatWeapon::ItemPostFrame( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::WeaponSound( WeaponSound_t sound_type, float soundtime )
+{
+	// This is a bit of a hack: Dual-wielded guns have different reload animations,
+	// but the reload sound is typically designed for the original weapon's animation.
+	// So we suppress the reload sound when dual wielding so that the viewmodel can emit its own sounds
+	if ( GetLeftHandGun() && sound_type == RELOAD )
+		return;
+
+	BaseClass::WeaponSound( sound_type, soundtime );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 CHudTexture const *CBaseHLCombatWeapon::GetSpriteActive( void ) const
 {
 	if (GetLeftHandGun() && GetWpnData().iconActiveDual)

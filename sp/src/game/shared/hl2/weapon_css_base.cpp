@@ -103,6 +103,12 @@ void CBase_CSS_HL2_Pistol::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseC
 	{
 		case EVENT_WEAPON_PISTOL_FIRE:
 		{
+#ifdef EZ2
+			// HACKHACK: Ignore the regular firing event while dual-wielding
+			if ( IsDualWielding() )
+				return;
+#endif
+
 			Vector vecShootOrigin, vecShootDir;
 			vecShootOrigin = pOperator->Weapon_ShootPosition();
 

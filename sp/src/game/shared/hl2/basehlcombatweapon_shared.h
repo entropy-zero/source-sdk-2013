@@ -66,6 +66,8 @@ public:
 	// Dual wielding
 	//
 	virtual void		ItemPostFrame( void );
+
+	virtual void		WeaponSound( WeaponSound_t sound_type, float soundtime = 0.0f );
 	
 	virtual CHudTexture const	*GetSpriteActive( void ) const;
 	virtual CHudTexture const	*GetSpriteInactive( void ) const;
