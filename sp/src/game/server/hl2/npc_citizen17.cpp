@@ -4476,11 +4476,6 @@ bool CNPC_Citizen::GetGameTextSpeechParams( hudtextparms_t &params )
 	if (NameMatches( "*RadioGuy*" ))
 	{
 		// Radio guy has a specific color
-		params.channel = 3;
-		params.x = -1;
-		params.y = 0.6;
-		params.effect = 0;
-
 		params.r1 = 250;
 		params.g1 = 245;
 		params.b1 = 215;
@@ -4488,7 +4483,7 @@ bool CNPC_Citizen::GetGameTextSpeechParams( hudtextparms_t &params )
 		return true;
 	}
 
-	return false;
+	return BaseClass::GetGameTextSpeechParams( params );
 }
 #endif
 

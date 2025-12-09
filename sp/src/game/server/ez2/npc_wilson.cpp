@@ -2107,11 +2107,6 @@ void CNPC_Wilson::PostSpeakDispatchResponse( AIConcept_t concept, AI_Response *r
 //-----------------------------------------------------------------------------
 bool CNPC_Wilson::GetGameTextSpeechParams( hudtextparms_t &params )
 {
-	params.channel = 3;
-	params.x = -1;
-	params.y = 0.6;
-	params.effect = 0;
-
 	params.r1 = 66;
 	params.g1 = 255;
 	params.b1 = 199;

@@ -1099,11 +1099,6 @@ bool CNPC_CloneCop::IsJumpLegal( const Vector &startPos, const Vector &apex, con
 //-----------------------------------------------------------------------------
 bool CNPC_CloneCop::GetGameTextSpeechParams( hudtextparms_t &params )
 {
-	params.channel = 3;
-	params.x = -1;
-	params.y = 0.6;
-	params.effect = 0;
-
 	params.r1 = 253;
 	params.g1 = 162;
 	params.b1 = 2;
