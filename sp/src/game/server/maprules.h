@@ -12,7 +12,12 @@
 #ifdef MAPBASE
 #define MAX_MENU_OPTIONS	10
 
-#define SF_GAMEMENU_ALLPLAYERS			0x0001
+#define SF_GAMEMENU_ALLPLAYERS			(1 << 0)
+#define SF_GAMEMENU_CENTERED			(1 << 1)
+#define SF_GAMEMENU_CENTER_FILL			(1 << 2)
+#define SF_GAMEMENU_BIG_FONTS			(1 << 3)
+#define SF_GAMEMENU_NO_FLASH			(1 << 4)
+#define SF_GAMEMENU_WORD_WRAP			(1 << 5)
 
 //-----------------------------------------------------------------------------
 // Purpose: Displays a custom number menu for player(s)

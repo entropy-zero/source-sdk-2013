@@ -1035,10 +1035,14 @@ void CGameMenu::ShowMenu( CRecipientFilter &filter, float flDisplayTime )
 		return;
 	}
 
+	// Menu flags are just spawnflags without ALLPLAYERS
+	int nMenuFlags = m_spawnflags >> 1;
+
 	UserMessageBegin( filter, "ShowMenuComplex" );
 		WRITE_WORD( nBitsValidSlots );
 		WRITE_FLOAT( flDisplayTime );
 		WRITE_BYTE( 0 );
+		WRITE_BYTE( nMenuFlags );
 		WRITE_STRING( szString );
 	MessageEnd();
 
