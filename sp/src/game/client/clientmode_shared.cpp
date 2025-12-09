@@ -328,7 +328,7 @@ void ClientModeShared::ReloadScheme( void )
 	m_pViewport->ReloadScheme( "resource/ClientScheme.res" );
 	ClearKeyValuesCache();
 #ifdef MAPBASE
-	m_bResetSchemeOnUnload = false;
+	m_bResetSchemeOnReload = false;
 #endif
 }
 
@@ -337,25 +337,25 @@ void ClientModeShared::SetCustomClientScheme( const char *pszFile )
 {
 	m_pViewport->ReloadScheme( pszFile );
 	ClearKeyValuesCache();
-	m_bResetSchemeOnUnload = true;
+	m_bResetSchemeOnReload = true;
 }
 
 void ClientModeShared::SetCustomHudLayout( const char *pszFile )
 {
 	m_pViewport->SetCustomHUDLayout( pszFile );
 	if ( pszFile != NULL )
-		m_bResetSchemeOnUnload = true;
+		m_bResetSchemeOnReload = true;
 }
 
 bool ClientModeShared::LoadCustomHudAnimations( const char *pszFile )
 {
-	m_bResetSchemeOnUnload = true;
+	m_bResetSchemeOnReload = true;
 	return m_pViewport->LoadCustomHudAnimations( pszFile );
 }
 
 bool ClientModeShared::LoadCustomHudAnimationsManifest( const char *pszFile )
 {
-	m_bResetSchemeOnUnload = true;
+	m_bResetSchemeOnReload = true;
 	return m_pViewport->LoadCustomHudAnimationsManifest( pszFile );
 }
 #endif
@@ -942,6 +942,16 @@ void ClientModeShared::LevelInit( const char *newmap )
 #ifdef DEMO_AUTORECORD
 	AutoRecord(newmap);
 #endif
+
+#ifdef MAPBASE
+	if ( m_bResetSchemeOnReload )
+	{
+		// Restore default HUD
+		// (note that there is currently no way to destruct the old scheme)
+		m_pViewport->SetCustomHUDLayout( NULL );
+		ReloadScheme();
+	}
+#endif
 }
 
 #ifdef DEMO_AUTORECORD
@@ -1012,14 +1022,6 @@ void ClientModeShared::LevelShutdown( void )
 		m_LerpEndPostProcessParameters = PostProcessParameters_t();
 		m_pCurrentPostProcessController = NULL;
 		SetPostProcessParams( &m_CurrentPostProcessParameters );
-	}
-
-	if ( m_bResetSchemeOnUnload )
-	{
-		// Restore default HUD
-		// (note that there is currently no way to destruct the old scheme)
-		m_pViewport->SetCustomHUDLayout( NULL );
-		ReloadScheme();
 	}
 #endif
 
