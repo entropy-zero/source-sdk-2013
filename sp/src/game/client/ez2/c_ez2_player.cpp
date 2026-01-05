@@ -223,11 +223,13 @@ void C_EZ2_Player::SetCCWeights()
 		pEZ2Player = ToEZ2Player( GetObserverTarget() );
 	}
 
+	bool bUsingNVGColCorrect = false;
 	if ( pEZ2Player->IsNVGActive() && sv_flashlight_cc_enabled.GetBool() )
 	{
 		if ( pEZ2Player->m_NVGCCHandle != INVALID_CLIENT_CCHANDLE )
 		{
-			g_pColorCorrectionMgr->SetColorCorrectionWeight( pEZ2Player->m_NVGCCHandle, sv_flashlight_cc_maxweight.GetFloat() );
+			g_pColorCorrectionMgr->SetColorCorrectionWeight( pEZ2Player->m_NVGCCHandle, sv_flashlight_cc_maxweight.GetFloat(), true );
+			bUsingNVGColCorrect = true;
 		}
 	}
 
@@ -236,7 +238,11 @@ void C_EZ2_Player::SetCCWeights()
 	{
 		if ( m_CloakCCHandle != INVALID_CLIENT_CCHANDLE )
 		{
-			g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CloakCCHandle, flCloakFactor );
+			// If using NVG, make sure they blend correctly
+			if ( bUsingNVGColCorrect )
+				flCloakFactor *= sv_flashlight_cc_maxweight.GetFloat();
+
+			g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CloakCCHandle, flCloakFactor, true, true );
 		}
 	}
 }

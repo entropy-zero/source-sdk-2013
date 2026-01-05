@@ -130,9 +130,9 @@ void ClientModeHLNormal::ReloadScheme()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool ClientModeHLNormal::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
+bool ClientModeHLNormal::DoPostScreenSpaceEffectsPostViewModel( const CViewSetup *pSetup )
 {
-	if ( !BaseClass::DoPostScreenSpaceEffects( pSetup ) )
+	if ( !BaseClass::DoPostScreenSpaceEffectsPostViewModel( pSetup ) )
 		return false;
 	
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();

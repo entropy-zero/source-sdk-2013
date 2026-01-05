@@ -43,7 +43,7 @@ public:
 #endif
 
 #ifdef EZ2
-	virtual bool	DoPostScreenSpaceEffects( const CViewSetup *pSetup );
+	virtual bool	DoPostScreenSpaceEffectsPostViewModel( const CViewSetup *pSetup );
 	virtual void	OnColorCorrectionWeightsReset( void );
 #endif
 };
