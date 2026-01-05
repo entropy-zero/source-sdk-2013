@@ -63,6 +63,9 @@ float CNPC_FloorTurret::fMaxTipControllerAngularVelocity = 90.0f * 90.0f;
 
 #define	FLOOR_TURRET_MODEL			"models/combine_turrets/floor_turret.mdl"
 #define	FLOOR_TURRET_MODEL_CITIZEN	"models/combine_turrets/citizen_turret.mdl"
+#ifdef EZ2
+#define	FLOOR_TURRET_MODEL_CONSCRIPT	"models/combine_turrets/floor_turret_conscript.mdl"
+#endif
 #define FLOOR_TURRET_GLOW_SPRITE	"sprites/glow1.vmt"
 // #define FLOOR_TURRET_BC_YAW			"aim_yaw"
 // #define FLOOR_TURRET_BC_PITCH		"aim_pitch"
@@ -249,7 +252,16 @@ void CNPC_FloorTurret::UpdateOnRemove( void )
 void CNPC_FloorTurret::Precache( void )
 {
 	const char *pModelName = STRING( GetModelName() );
-	pModelName = ( pModelName && pModelName[ 0 ] != '\0' ) ? pModelName : FLOOR_TURRET_MODEL;
+	if ( !pModelName || pModelName[ 0 ] == '\0' )
+	{
+#ifdef EZ2
+		if ( m_tEzVariant == EZ_VARIANT_PROTOCMB )
+			pModelName = FLOOR_TURRET_MODEL_CONSCRIPT;
+		else
+#endif
+		pModelName = FLOOR_TURRET_MODEL;
+	}
+
 	PrecacheModel( pModelName );
 	PrecacheModel( FLOOR_TURRET_GLOW_SPRITE );
 
@@ -284,6 +296,11 @@ void CNPC_FloorTurret::Precache( void )
 	PrecacheScriptSound( "NPC_FloorTurret.Die" );
 	PrecacheScriptSound( "NPC_FloorTurret.Retract");
 	PrecacheScriptSound( "NPC_FloorTurret.Alarm");
+#ifdef EZ2
+	if ( m_tEzVariant == EZ_VARIANT_PROTOCMB )
+		PrecacheScriptSound( "NPC_ConscriptTurret.Ping" );
+	else
+#endif
 	PrecacheScriptSound( "NPC_FloorTurret.Ping");
 	PrecacheScriptSound( "NPC_FloorTurret.DryFire");
 	PrecacheScriptSound( "NPC_FloorTurret.Destruct" );
@@ -303,7 +320,19 @@ void CNPC_FloorTurret::Spawn( void )
 	Precache();
 
 	const char *pModelName = STRING( GetModelName() );
-	SetModel( ( pModelName && pModelName[ 0 ] != '\0' ) ? pModelName : FLOOR_TURRET_MODEL );
+	if ( pModelName && pModelName[ 0 ] != '\0' )
+	{
+		SetModel( pModelName );
+	}
+	else
+	{
+#ifdef EZ2
+		if ( m_tEzVariant == EZ_VARIANT_PROTOCMB )
+			SetModel( FLOOR_TURRET_MODEL_CONSCRIPT );
+		else
+#endif
+		SetModel( FLOOR_TURRET_MODEL );
+	}
 	
 	// If we're a citizen turret, we use a different skin
 	if ( IsCitizenTurret() )
@@ -1761,6 +1790,11 @@ void CNPC_FloorTurret::Ping( void )
 		return;
 
 	//Ping!
+#ifdef EZ2
+	if ( m_tEzVariant == EZ_VARIANT_PROTOCMB )
+		EmitSound( "NPC_ConscriptTurret.Ping" );
+	else
+#endif
 	EmitSound( "NPC_FloorTurret.Ping" );
 
 	SetEyeState( TURRET_EYE_SEEKING_TARGET );
