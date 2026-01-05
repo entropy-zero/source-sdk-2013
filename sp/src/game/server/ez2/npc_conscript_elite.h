@@ -24,6 +24,7 @@ class CBeam;
 class CNPC_ConscriptElite : public CAI_ConscriptBase<CNPC_Combine>, public ICloakCompromisable
 {
 	DECLARE_CLASS( CNPC_ConscriptElite, CAI_ConscriptBase<CNPC_Combine> );
+	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
 public:
@@ -33,7 +34,9 @@ public:
 	void			Precache( void );
 	void			OnRestore( void );
 
+	bool			GunSupportsLaser( CBaseCombatWeapon *pWeapon, int &iAttachment, bool bForce = false );
 	void			AddLaserToGun( CBaseCombatWeapon *pWeapon );
+	void			RemoveLaserFromGun( CBaseCombatWeapon *pWeapon );
 	void			TurnOnLaser();
 	void			TurnOffLaser();
 
@@ -57,23 +60,27 @@ public:
 	void			OnScheduleChange( void );
 	int 			TranslateSchedule( int scheduleType );
 
+	void			Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
+	void			Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
+	bool			Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex = 0 );		// Switch to given weapon if has ammo (false if failed)
 	Activity		Weapon_TranslateActivity( Activity baseAct, bool *pRequired );
 	void			HandleAnimEvent( animevent_t *pEvent );
 	WeaponProficiency_t		CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 
 	bool			CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType );
 
-	void			InputTurnOnLaser( inputdata_t &inputdata ) { TurnOnLaser(); }
-	void			InputTurnOffLaser( inputdata_t &inputdata ) { TurnOffLaser(); }
-	void			InputStartLaserTracking( inputdata_t &inputdata ) { m_bLaserTrackEnemy = true; }
-	void			InputStopLaserTracking( inputdata_t &inputdata ) { m_bLaserTrackEnemy = false; }
+	void			InputTurnOnLaser( inputdata_t &inputdata );
+	void			InputTurnOffLaser( inputdata_t &inputdata );
+	void			InputTurnOnLaserInstant( inputdata_t &inputdata ) { TurnOnLaser(); }
+	void			InputTurnOffLaserInstant( inputdata_t &inputdata ) { TurnOffLaser(); }
 
 private:
 
 	bool			m_bLaserOn;
-	bool			m_bLaserTrackEnemy;
+	bool			m_bCanUseLaserDuringAI;		// Allows elite to use laser dynamically
+	bool			m_bAlwaysAddLaser;			// Always adds a laser to the elite's gun, even if it doesn't have an attachment
 
-	CHandle<CBeam>	m_hGunLaser;
+	CNetworkHandle( CBeam,	m_hGunLaser );
 	EHANDLE			m_hGunLaserEnd;
 	EHANDLE			m_hGunLaserHitTarget;
 	int				m_nGunLaserAttachment;

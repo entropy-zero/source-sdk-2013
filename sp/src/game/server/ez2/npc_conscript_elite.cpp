@@ -38,11 +38,19 @@ int	ACT_LASER_DISABLE;
 int	AE_CONSCRIPT_ENABLE_LASER;
 int	AE_CONSCRIPT_DISABLE_LASER;
 
+//---------------------------------------------------------
+// Custom Client entity
+//---------------------------------------------------------
+IMPLEMENT_SERVERCLASS_ST( CNPC_ConscriptElite, DT_NPC_ConscriptElite )
+	SendPropEHandle( SENDINFO( m_hGunLaser ) ),
+END_SEND_TABLE()
+
 //-----------------------------------------------------------------------------
 
 BEGIN_DATADESC( CNPC_ConscriptElite )
 	DEFINE_KEYFIELD( m_bLaserOn, FIELD_BOOLEAN, "LaserStartsOn" ),
-	DEFINE_FIELD( m_bLaserTrackEnemy, FIELD_BOOLEAN ),
+	DEFINE_INPUT( m_bCanUseLaserDuringAI, FIELD_BOOLEAN, "SetCanUseLaserDuringAI" ),
+	DEFINE_KEYFIELD( m_bAlwaysAddLaser, FIELD_BOOLEAN, "AlwaysAddLaser" ),
 
 	DEFINE_FIELD( m_hGunLaser, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hGunLaserEnd, FIELD_EHANDLE ),
@@ -52,6 +60,12 @@ BEGIN_DATADESC( CNPC_ConscriptElite )
 	DEFINE_FIELD( m_flLaserTargetTime, FIELD_TIME ),
 
 	DEFINE_THINKFUNC( LaserThink ),
+
+	// Inputs
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnLaser", InputTurnOnLaser ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffLaser", InputTurnOffLaser ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnLaserInstant", InputTurnOnLaserInstant ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffLaserInstant", InputTurnOffLaserInstant ),
 
 	DEFINE_CONSCRIPT_DATADESC()
 END_DATADESC()
@@ -64,6 +78,12 @@ LINK_ENTITY_TO_CLASS( npc_conscript_elite, CNPC_ConscriptElite );
 CNPC_ConscriptElite::CNPC_ConscriptElite()
 {
 	RemoveSpawnFlags( SF_COMBINE_COMMANDABLE );
+
+	m_bInvestigateSounds = true;
+
+	m_bLaserOn = false;
+	m_bCanUseLaserDuringAI = true;
+	m_bAlwaysAddLaser = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -78,11 +98,6 @@ void CNPC_ConscriptElite::Spawn()
 
 	m_fIsElite = true;
 	SetAlternateCapable( true );
-
-	if ( GetActiveWeapon() )
-	{
-		AddLaserToGun( GetActiveWeapon() );
-	}
 
 	CapabilitiesAdd( bits_CAP_MOVE_JUMP );
 }
@@ -129,13 +144,29 @@ void CNPC_ConscriptElite::OnRestore()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CNPC_ConscriptElite::GunSupportsLaser( CBaseCombatWeapon *pWeapon, int &iAttachment, bool bForce )
+{
+	iAttachment = pWeapon->LookupAttachment( "laser" );
+	if ( iAttachment <= 0 )
+	{
+		if ( !bForce )
+			return false;
+
+		// No laser attachment, but the gun can still have a laser
+		// Fall back to the muzzle
+		iAttachment = pWeapon->LookupAttachment( "muzzle" );
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CNPC_ConscriptElite::AddLaserToGun( CBaseCombatWeapon *pWeapon )
 {
-	m_nGunLaserAttachment = pWeapon->LookupAttachment( "laser" );
-	if ( m_nGunLaserAttachment <= 0 )
-	{
-		m_nGunLaserAttachment = pWeapon->LookupAttachment( "muzzle" );
-	}
+	if ( !GunSupportsLaser( pWeapon, m_nGunLaserAttachment, m_bAlwaysAddLaser ) )
+		return;
 	
 	//if ( m_nGunLaserAttachment <= 0 )
 	//	return;
@@ -157,6 +188,7 @@ void CNPC_ConscriptElite::AddLaserToGun( CBaseCombatWeapon *pWeapon )
 		m_hGunLaser->RelinkBeam();
 		m_hGunLaser->SetNoise( 0 );
 		m_hGunLaser->SetBeamFlags( FBEAM_FADEOUT );
+		m_hGunLaser->SetNetworkNodraw( true );
 
 		m_hGunLaser->SetParent( pWeapon, m_nGunLaserAttachment );
 		m_hGunLaser->SetLocalOrigin( vec3_origin );
@@ -176,6 +208,31 @@ void CNPC_ConscriptElite::AddLaserToGun( CBaseCombatWeapon *pWeapon )
 		var.SetBool( true );
 		pWeapon->AcceptInput( "SetLaserEquipped", this, this, var, 0 );
 	}
+
+	// Set any laser attachment bodygroup
+	int nLaserBody = pWeapon->FindBodygroupByName( "laser" );
+	if ( nLaserBody != -1 )
+	{
+		pWeapon->SetBodygroup( nLaserBody, 1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_ConscriptElite::RemoveLaserFromGun( CBaseCombatWeapon *pWeapon )
+{
+	if ( m_hGunLaser )
+	{
+		UTIL_Remove( m_hGunLaser );
+		m_hGunLaser = NULL;
+	}
+
+	if ( m_hGunLaserEnd )
+	{
+		UTIL_Remove( m_hGunLaserEnd );
+		m_hGunLaserEnd = NULL;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -183,6 +240,15 @@ void CNPC_ConscriptElite::AddLaserToGun( CBaseCombatWeapon *pWeapon )
 //-----------------------------------------------------------------------------
 void CNPC_ConscriptElite::TurnOnLaser()
 {
+	if ( !m_hGunLaser )
+	{
+		Warning( "%s: Can't turn on invalid laser\n", GetDebugName() );
+		return;
+	}
+
+	if ( m_bLaserOn )
+		return;
+
 	m_bLaserOn = true;
 	m_hGunLaser->RemoveEffects( EF_NODRAW );
 	EmitSound( "NPC_ConscriptElite.LaserOn" );
@@ -195,11 +261,42 @@ void CNPC_ConscriptElite::TurnOnLaser()
 //-----------------------------------------------------------------------------
 void CNPC_ConscriptElite::TurnOffLaser()
 {
+	if ( !m_hGunLaser )
+	{
+		Warning( "%s: Can't turn off invalid laser\n", GetDebugName() );
+		return;
+	}
+
+	if ( !m_bLaserOn )
+		return;
+
 	m_bLaserOn = false;
 	m_hGunLaser->AddEffects( EF_NODRAW );
 	EmitSound( "NPC_ConscriptElite.LaserOff" );
 
 	SetContextThink( NULL, TICK_NEVER_THINK, "ConscriptEliteLaserThink" );
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CNPC_ConscriptElite::InputTurnOnLaser( inputdata_t &inputdata )
+{
+	if ( m_bLaserOn )
+		return;
+
+	AddGesture( (Activity)ACT_LASER_ENABLE );
+}
+
+//------------------------------------------------------------------------------
+// Purpose: 
+//------------------------------------------------------------------------------
+void CNPC_ConscriptElite::InputTurnOffLaser( inputdata_t &inputdata )
+{
+	if ( !m_bLaserOn )
+		return;
+
+	AddGesture( (Activity)ACT_LASER_DISABLE );
 }
 
 //-----------------------------------------------------------------------------
@@ -221,17 +318,6 @@ void CNPC_ConscriptElite::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 void CNPC_ConscriptElite::Event_Killed( const CTakeDamageInfo &info )
 {
 	BaseClass::Event_Killed( info );
-
-	if ( m_hGunLaser )
-	{
-		m_hGunLaser->LiveForTime( 0.75f );
-	}
-
-	if ( m_hGunLaserEnd )
-	{
-		m_hGunLaserEnd->SetThink( &CBaseEntity::SUB_Remove );
-		m_hGunLaserEnd->SetNextThink( gpGlobals->curtime + 0.75f );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -467,7 +553,7 @@ bool CNPC_ConscriptElite::CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, fl
 //-----------------------------------------------------------------------------
 bool CNPC_ConscriptElite::ShouldAimLaserAtEnemy( CBaseEntity *pEnemy )
 {
-	if ( !pEnemy /*|| !m_bLaserTrackEnemy*/ )
+	if ( !pEnemy )
 		return false;
 		
 	if (GetActivity() != ACT_RANGE_ATTACK1 && GetActivity() != ACT_IDLE && GetActivity() != ACT_RUN_AIM && GetActivity() != ACT_WALK_AIM)
@@ -476,7 +562,7 @@ bool CNPC_ConscriptElite::ShouldAimLaserAtEnemy( CBaseEntity *pEnemy )
 		return false;
 	}
 
-	if (GetLaserDotToTarget(GetEnemy()) < 0.97)
+	if (GetLaserDotToTarget(GetEnemy()) < 0.97 || !FVisible(GetEnemy()))
 	{
 		//printl("Dot: " + GetLaserDotToTarget(self.GetEnemy()))
 		return false;
@@ -596,7 +682,7 @@ void CNPC_ConscriptElite::OnScheduleChange( void )
 		SetReadinessLevel( AIRL_AGITATED, false, false );
 	}
 
-	if ( !IsInAScript() )
+	if ( m_bCanUseLaserDuringAI && m_hGunLaser )
 	{
 		// Determine desired laser state
 		int iLaserLayer = -1;
@@ -670,6 +756,78 @@ int CNPC_ConscriptElite::TranslateSchedule( int scheduleType )
 	}
 
 	return scheduleType;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:	Gives character new weapon and equips it
+// Input  : New weapon
+//-----------------------------------------------------------------------------
+void CNPC_ConscriptElite::Weapon_Equip( CBaseCombatWeapon *pWeapon )
+{
+	BaseClass::Weapon_Equip( pWeapon );
+
+	if ( GetActiveWeapon() )
+	{
+		AddLaserToGun( GetActiveWeapon() );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Drop the active weapon, optionally throwing it at the given target position.
+// Input  : pWeapon - Weapon to drop/throw.
+//			pvecTarget - Position to throw it at, NULL for none.
+//-----------------------------------------------------------------------------
+void CNPC_ConscriptElite::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget /* = NULL */, const Vector *pVelocity /* = NULL */ )
+{
+	BaseClass::Weapon_Drop( pWeapon, pvecTarget, pVelocity );
+
+	if ( pWeapon )
+	{
+		if ( IsAlive() && GetState() != NPC_STATE_COMBAT )
+		{
+			// Remove gun laser immediately
+			RemoveLaserFromGun( pWeapon );
+		}
+		else
+		{
+			// Gun laser stays on for a moment
+			if ( m_hGunLaser )
+			{
+				m_hGunLaser->LiveForTime( 0.75f );
+				m_hGunLaser = NULL;
+			}
+
+			if ( m_hGunLaserEnd )
+			{
+				m_hGunLaserEnd->SetThink( &CBaseEntity::SUB_Remove );
+				m_hGunLaserEnd->SetNextThink( gpGlobals->curtime + 0.75f );
+				m_hGunLaserEnd = NULL;
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Switches to the given weapon (providing it has ammo)
+// Input  :
+// Output : true is switch succeeded
+//-----------------------------------------------------------------------------
+bool CNPC_ConscriptElite::Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex /*=0*/ )
+{
+	CBaseCombatWeapon *pOldWeapon = GetActiveWeapon();
+
+	if ( !BaseClass::Weapon_Switch( pWeapon, viewmodelindex ) )
+		return false;
+
+	if ( pOldWeapon )
+		RemoveLaserFromGun( pOldWeapon );
+
+	if ( pWeapon )
+	{
+		AddLaserToGun( pWeapon );
+	}
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
