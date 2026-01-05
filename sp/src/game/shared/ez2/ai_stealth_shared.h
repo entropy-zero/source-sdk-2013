@@ -19,6 +19,7 @@ enum AlertSourceType_t
 {
 	ALERT_SOURCE_TYPE_NONE,
 	ALERT_SOURCE_TYPE_HELICOPTER,
+	ALERT_SOURCE_TYPE_EXTRA,	// Generic extreme danger
 };
 
 //-----------------------------------------------------------------------------

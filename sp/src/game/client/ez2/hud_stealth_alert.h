@@ -122,6 +122,7 @@ private:
 	CUtlVector<vgui::Panel*>			m_AlertIconParents;
 	CUtlVector<CHudStealthAlertIcon*>	m_AlertIcons;
 	float								m_flNextAlertSoundTime;
+	float								m_flNextAlertAmbSoundTime;
 
 	CPanelAnimationVarAliasType( int, m_iAlertMinX, "alert_min_x", "90", "proportional_int" );
 	CPanelAnimationVarAliasType( int, m_iAlertMaxX, "alert_max_x", "670", "proportional_int" );

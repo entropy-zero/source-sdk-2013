@@ -538,6 +538,7 @@ void CHudStealthAlert::Reset( void )
 	Init();
 
 	m_flNextAlertSoundTime = 0.0f;
+	m_flNextAlertAmbSoundTime = 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -596,7 +597,34 @@ void CHudStealthAlert::MsgFunc_AlertTargetUpdate( bf_read &msg )
 		// New target
 		int i = CreateAlertTarget( pEntity, (AlertSourceType_t)iType, flNewLevel, -1.0f, true );
 
-		pEntity->EmitSound( "EZ2Player.AlertTarget_Begin" );
+		if ( gpGlobals->curtime > m_flNextAlertAmbSoundTime )
+		{
+			// First alert target is more prominent
+			switch ( iType )
+			{
+				case ALERT_SOURCE_TYPE_EXTRA:
+				case ALERT_SOURCE_TYPE_HELICOPTER:
+					pEntity->EmitSound( "EZ2Player.AlertTarget_Extra.Begin_Amb" );
+					break;
+				default:
+					pEntity->EmitSound( "EZ2Player.AlertTarget.Begin_Amb" );
+					break;
+			}
+
+			m_flNextAlertAmbSoundTime = gpGlobals->curtime + 7.5f;
+		}
+		
+		switch ( iType )
+		{
+			case ALERT_SOURCE_TYPE_EXTRA:
+			case ALERT_SOURCE_TYPE_HELICOPTER:
+				pEntity->EmitSound( "EZ2Player.AlertTarget_Extra.Begin" );
+				break;
+			default:
+				pEntity->EmitSound( "EZ2Player.AlertTarget.Begin" );
+				break;
+		}
+
 		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( m_AlertIconParents[i], "StealthAlertPopup" );
 	}
 }
@@ -634,7 +662,7 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 
 	if ( bTargetingMe && gpGlobals->curtime > m_flNextAlertSoundTime )
 	{
-		pEntity->EmitSound( "EZ2Player.AlertTarget_Spot" );
+		pEntity->EmitSound( "EZ2Player.AlertTarget.Spot" );
 		m_flNextAlertSoundTime = gpGlobals->curtime + 0.5f;
 	}
 }
@@ -649,9 +677,7 @@ int CHudStealthAlert::CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t
 	int i = m_AlertIconParents.AddToTail( pIconParent );
 
 	CHudStealthAlertIcon *pIcon = new CHudStealthAlertIcon( pEntity, iType, flLevel, flCombatTime, bTargetingPlayer, pIconParent );
-	int j = m_AlertIcons.AddToTail( pIcon );
-
-	Assert( i == j );
+	Verify( i == m_AlertIcons.AddToTail( pIcon ) );
 
 	return i;
 }

@@ -88,8 +88,11 @@ void C_EZ2_Player::Precache()
 {
 	BaseClass::Precache();
 
-	PrecacheScriptSound( "EZ2Player.AlertTarget_Begin" );
-	PrecacheScriptSound( "EZ2Player.AlertTarget_Spot" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget.Begin" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget.Begin_Amb" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget.Spot" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget_Extra.Begin" );
+	PrecacheScriptSound( "EZ2Player.AlertTarget_Extra.Begin_Amb" );
 
 	PrecacheScriptSound( "AssassinPlayer.CloakWarningBlip" );
 }
