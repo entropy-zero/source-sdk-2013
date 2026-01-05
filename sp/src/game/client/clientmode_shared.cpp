@@ -290,6 +290,20 @@ static void __MsgFunc_HudAnim( bf_read &msg )
 
 	g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( animname );
 }
+
+static void __MsgFunc_NodrawToggle( bf_read &msg )
+{
+	C_BaseEntity *pEntity = C_BaseEntity::Instance( msg.ReadShort() );
+	bool bEnable = msg.ReadOneBit();
+
+	if ( pEntity )
+	{
+		if ( bEnable )
+			pEntity->AddEffects( EF_NODRAW );
+		else
+			pEntity->RemoveEffects( EF_NODRAW );
+	}
+}
 #endif
 
 //-----------------------------------------------------------------------------
@@ -430,6 +444,7 @@ void ClientModeShared::Init()
 	HOOK_MESSAGE( Rumble );
 #ifdef MAPBASE
 	HOOK_MESSAGE( HudAnim );
+	HOOK_MESSAGE( NodrawToggle );
 #endif
 }
 

@@ -216,6 +216,9 @@ inline void CBaseEntity::RemoveEffects( int nEffects )
 #ifndef CLIENT_DLL
 		NetworkProp()->MarkPVSInformationDirty();
 		DispatchUpdateTransmitState();
+#ifdef MAPBASE
+		OnNodrawToggled();
+#endif
 #else
 		UpdateVisibility();
 #endif

@@ -24,6 +24,8 @@ void HookMapbaseUserMessages( void )
 	//HOOK_MESSAGE( ShowMenuComplex ); // Hooked in CHudMenu
 	
 	//HOOK_MESSAGE( HudAnim ); // Hooked in ClientModeShared
+
+	//HOOK_MESSAGE( NodrawToggle ); // Hooked in ClientModeShared
 }
 #endif
 
@@ -35,6 +37,8 @@ void RegisterMapbaseUserMessages( void )
 	usermessages->Register( "ShowMenuComplex", -1 ); // CHudMenu
 
 	usermessages->Register( "HudAnim", -1 ); // ClientModeShared
+
+	usermessages->Register( "NodrawToggle", 3 ); // ClientModeShared
 
 #ifdef CLIENT_DLL
 	// TODO: Better placement?

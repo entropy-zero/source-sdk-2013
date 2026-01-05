@@ -224,6 +224,11 @@ void CBaseEntity::SetEffects( int nEffects )
 #endif // HL2_EPISODIC
 #endif // !CLIENT_DLL
 
+#if defined(MAPBASE) && !defined(CLIENT_DLL)
+		if ( (m_fEffects ^ nEffects) & EF_NODRAW )
+			OnNodrawToggled();
+#endif
+
 		m_fEffects = nEffects;
 
 #ifndef CLIENT_DLL
@@ -255,6 +260,9 @@ void CBaseEntity::AddEffects( int nEffects )
 	{
 #ifndef CLIENT_DLL
 		DispatchUpdateTransmitState();
+#ifdef MAPBASE
+		OnNodrawToggled();
+#endif
 #else
 		UpdateVisibility();
 #endif

@@ -278,6 +278,10 @@ BEGIN_DATADESC( CBeam )
 
 	DEFINE_KEYFIELD( m_nDissolveType, FIELD_INTEGER, "dissolvetype" ),
 
+#ifdef MAPBASE
+	DEFINE_FIELD( m_bNetworkNodraw, FIELD_BOOLEAN ),
+#endif
+
 #ifdef PORTAL
 	DEFINE_FIELD( m_bDrawInMainRender, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bDrawInPortalRender, FIELD_BOOLEAN ),
@@ -917,6 +921,16 @@ int CBeam::ShouldTransmit( const CCheckTransmitInfo *pInfo )
 
 	return BaseClass::ShouldTransmit( pInfo );
 }
+
+#ifdef MAPBASE
+bool CBeam::ShouldNetworkNodraw()
+{
+	if ( m_bNetworkNodraw )
+		return true;
+
+	return BaseClass::ShouldNetworkNodraw();
+}
+#endif
 
 #endif
 

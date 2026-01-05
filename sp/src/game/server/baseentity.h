@@ -588,6 +588,13 @@ public:
 	void					SetSimulatedEveryTick( bool sim );
 	void					SetAnimatedEveryTick( bool anim );
 
+#ifdef MAPBASE
+	// If true, this entity will notify clients when EF_NODRAW is set.
+	// This is mainly a band-aid for when the client paradoxically wants to know this.
+	virtual bool			ShouldNetworkNodraw() { return false; }
+	void					OnNodrawToggled();
+#endif
+
 public:
 
 	virtual const char	*GetTracerType( void );

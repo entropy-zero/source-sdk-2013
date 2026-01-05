@@ -64,6 +64,10 @@ public:
 	void	SetTransmit( CCheckTransmitInfo *pInfo, bool bAlways );
 	int		UpdateTransmitState( void );
 	int		ShouldTransmit( const CCheckTransmitInfo *pInfo );
+#ifdef MAPBASE
+	bool	ShouldNetworkNodraw();
+	void	SetNetworkNodraw( bool bToggle ) { m_bNetworkNodraw = bToggle; }
+#endif
 #endif
 
 	virtual int DrawDebugTextOverlays(void);
@@ -235,6 +239,10 @@ private:
 
 #if !defined( CLIENT_DLL )
 	int			m_nDissolveType;
+
+#ifdef MAPBASE
+	bool		m_bNetworkNodraw;
+#endif
 #endif
 
 public:

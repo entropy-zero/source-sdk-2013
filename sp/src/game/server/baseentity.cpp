@@ -4407,6 +4407,28 @@ void CBaseEntity::SetTransmit( CCheckTransmitInfo *pInfo, bool bAlways )
 }
 
 
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseEntity::OnNodrawToggled()
+{
+	if ( ShouldNetworkNodraw() )
+	{
+		// MP TODO: Optimize who receives this message?
+		CRecipientFilter filter;
+		filter.AddAllPlayers();
+		filter.MakeReliable();
+
+		UserMessageBegin( filter, "NodrawToggle" );
+			WRITE_ENTITY( entindex() );
+			WRITE_BOOL( IsEffectActive( EF_NODRAW ) );
+		MessageEnd();
+	}
+}
+#endif
+
+
 //-----------------------------------------------------------------------------
 // Returns which skybox the entity is in
 //-----------------------------------------------------------------------------
