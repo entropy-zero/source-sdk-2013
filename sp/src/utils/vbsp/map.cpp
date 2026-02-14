@@ -2247,7 +2247,11 @@ void CMapFile::MergeBrushes( entity_t *pInstanceEntity, CMapFile *Instance, Vect
 		brush->entitynum += num_entities;
 		brush->brushnum += nummapbrushes;
 
-		if ( i < Instance->entities[ 0 ].numbrushes || ( brush->contents & CONTENTS_LADDER ) != 0 )
+		if ( i < Instance->entities[ 0 ].numbrushes || ( brush->contents & CONTENTS_LADDER ) != 0
+#ifdef MAPBASE
+			|| ( brush->entitynum > 0 && !*ValueForKey( &Instance->entities[brush->entitynum - num_entities], "origin" ) )
+#endif
+			)
 		{	// world spawn brushes as well as ladders we physically move
 			Vector	minsIn = brush->mins;
 			Vector	maxsIn = brush->maxs;
@@ -2256,6 +2260,15 @@ void CMapFile::MergeBrushes( entity_t *pInstanceEntity, CMapFile *Instance, Vect
 		}
 		else
 		{
+#ifdef MAPBASE
+			matrix3x4_t matAngleOnly = InstanceMatrix;
+			MatrixSetColumn( vec3_origin, 3, matAngleOnly );
+
+			Vector	minsIn = brush->mins;
+			Vector	maxsIn = brush->maxs;
+
+			TransformAABB( matAngleOnly, minsIn, maxsIn, brush->mins, brush->maxs );
+#endif
 		}
 		brush->id += max_brush_id;
 		
@@ -2301,6 +2314,10 @@ void CMapFile::MergeBrushSides( entity_t *pInstanceEntity, CMapFile *Instance, V
 
 		// this could be pre-processed into a list for quicker checking
 		bool	bNeedsTranslation = ( side->pMapDisp && side->pMapDisp->entitynum == 0 );
+#ifdef MAPBASE
+		bool	bAngleTranslationOnly = false;
+		Vector	vecEntOrigin = vec3_origin;
+#endif
 		if ( !bNeedsTranslation )
 		{	// check for sides that are part of the world spawn - those need translating
 			for( int j = 0; j < Instance->entities[ 0 ].numbrushes; j++ )
@@ -2320,21 +2337,51 @@ void CMapFile::MergeBrushSides( entity_t *pInstanceEntity, CMapFile *Instance, V
 			{
 				int loc = Instance->mapbrushes[ j ].original_sides - Instance->brushsides;
 
-				if ( i >= loc && i < ( loc + Instance->mapbrushes[ j ].numsides ) && ( Instance->mapbrushes[ j ].contents & CONTENTS_LADDER ) != 0 )
+				if ( i >= loc && i < ( loc + Instance->mapbrushes[ j ].numsides ) )
 				{
-					bNeedsTranslation = true;
-					break;
+					if ( ( Instance->mapbrushes[ j ].contents & CONTENTS_LADDER ) != 0
+#ifdef MAPBASE
+						|| ( Instance->mapbrushes[ j ].entitynum > 0 && !*ValueForKey( &Instance->entities[Instance->mapbrushes[j].entitynum], "origin" ) )
+#endif
+						)
+					{
+						bNeedsTranslation = true;
+						break;
+					}
+#ifdef MAPBASE
+					else
+					{
+						//bNeedsTranslation = true;
+						//bAngleTranslationOnly = true;
+						//if ( Instance->mapbrushes[ j ].entitynum > 0 )
+						//{
+						//	VectorTransform( Instance->entities[Instance->mapbrushes[j].entitynum].origin, InstanceMatrix, vecEntOrigin );
+						//}
+						//break;
+					}
+#endif
 				}
 			}
 		}
 		if ( bNeedsTranslation )
 		{	// we only want to do the adjustment on world spawn brushes, not entity brushes
+			matrix3x4_t TransformMatrix = InstanceMatrix;
+			Vector TransformOrigin = InstanceOrigin;
+
+#ifdef MAPBASE
+			if ( bAngleTranslationOnly )
+			{
+				MatrixSetColumn( vec3_origin, 3, TransformMatrix );
+				TransformOrigin = vecEntOrigin;
+			}
+#endif
+
 			if ( side->winding )
 			{
 				for( int point = 0; point < side->winding->numpoints; point++ )
 				{
 					Vector	inPoint = side->winding->p[ point ];
-					VectorTransform( inPoint, InstanceMatrix, side->winding->p[ point ] );
+					VectorTransform( inPoint, TransformMatrix, side->winding->p[ point ] );
 				}
 			}
 
@@ -2343,16 +2390,17 @@ void CMapFile::MergeBrushSides( entity_t *pInstanceEntity, CMapFile *Instance, V
 			inPlane.normal = mapplanes[ planenum ].normal;
 			inPlane.dist = mapplanes[ planenum ].dist; 
 
-			MatrixTransformPlane( InstanceMatrix, inPlane, outPlane );
+			MatrixTransformPlane( TransformMatrix, inPlane, outPlane );
 			planenum = FindFloatPlane( outPlane.normal, outPlane.dist );
 			side->planenum = planenum;
 
 			brush_texture_t	bt = Instance->side_brushtextures[ i ];
 
-			VectorRotate( Instance->side_brushtextures[ i ].UAxis, InstanceMatrix, bt.UAxis );
-			VectorRotate( Instance->side_brushtextures[ i ].VAxis, InstanceMatrix, bt.VAxis );
-			bt.shift[ 0 ] -= InstanceOrigin.Dot( bt.UAxis ) / bt.textureWorldUnitsPerTexel[ 0 ];
-			bt.shift[ 1 ] -= InstanceOrigin.Dot( bt.VAxis ) / bt.textureWorldUnitsPerTexel[ 1 ];
+			VectorRotate( Instance->side_brushtextures[ i ].UAxis, TransformMatrix, bt.UAxis );
+			VectorRotate( Instance->side_brushtextures[ i ].VAxis, TransformMatrix, bt.VAxis );
+			
+			bt.shift[ 0 ] -= TransformOrigin.Dot( bt.UAxis ) / bt.textureWorldUnitsPerTexel[ 0 ];
+			bt.shift[ 1 ] -= TransformOrigin.Dot( bt.VAxis ) / bt.textureWorldUnitsPerTexel[ 1 ];
 
 			if ( !onlyents )
 			{
@@ -2523,8 +2571,24 @@ void CMapFile::MergeEntities( entity_t *pInstanceEntity, CMapFile *Instance, Vec
 		}
 		else
 		{
+#ifdef MAPBASE
+			// Some brush entities use the bounds of their brushes instead of an explicit position
+			// Under those circumstances, don't remap origin/angles
+			if ( entity->numbrushes != 0 && entity->origin.IsZero() )
+			{
+				GD.SetInstanceRemapAddRequiredKeys( false );
+			}
+			else
+			{
+				Vector	inOrigin = entity->origin;
+				VectorTransform( inOrigin, InstanceMatrix, entity->origin );
+
+				GD.SetInstanceRemapAddRequiredKeys( true );
+			}
+#else
 			Vector	inOrigin = entity->origin;
 			VectorTransform( inOrigin, InstanceMatrix, entity->origin );
+#endif
 
 			// search for variables coming from the func_instance to replace inside of the instance
 			// this is done before entity fixup, so fixup may occur on the replaced value.  Not sure if this is a desired order of operation yet.

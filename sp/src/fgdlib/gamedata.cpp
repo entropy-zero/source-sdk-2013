@@ -562,14 +562,19 @@ GDclass *GameData::BeginInstanceRemap( const char *pszClassName, const char *psz
 		m_InstanceClass->Parent = this;
 		m_InstanceClass->AddBase( BaseClass );
 
-		for( int i = 0; RequiredKeys[ i ]; i++ )
+#ifdef MAPBASE
+		if ( m_bAddRequiredKeys )
+#endif
 		{
-			if ( m_InstanceClass->VarForName( RequiredKeys[ i ] ) == NULL )
+			for( int i = 0; RequiredKeys[ i ]; i++ )
 			{
-				BaseClass = ClassForName( RequiredKeys[ i ] );
-				if ( BaseClass )
+				if ( m_InstanceClass->VarForName( RequiredKeys[ i ] ) == NULL )
 				{
-					m_InstanceClass->AddBase( BaseClass );
+					BaseClass = ClassForName( RequiredKeys[ i ] );
+					if ( BaseClass )
+					{
+						m_InstanceClass->AddBase( BaseClass );
+					}
 				}
 			}
 		}
@@ -607,6 +612,14 @@ void GameData::SetupInstanceRemapParams( int iStartNodes, int iStartBrushSide, b
 	//---------------------------------------------
 
 	m_bRemapVecLines = bRemapVecLines;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Whether or not to add the required keys (origin/angles) before remap.
+//-----------------------------------------------------------------------------
+void GameData::SetInstanceRemapAddRequiredKeys( bool bToggle )
+{
+	m_bAddRequiredKeys = bToggle;
 }
 #endif
 

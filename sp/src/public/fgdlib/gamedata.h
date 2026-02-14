@@ -92,6 +92,10 @@ class GameData
 #ifdef MAPBASE
 		// Sets up for additional instance remap fixes from Mapbase
 		void	SetupInstanceRemapParams( int iStartNodes, int iStartBrushSide, bool bRemapVecLines );
+
+		// Whether or not to add the required keys (origin/angles) before remap.
+		// Used for brush ents that use the bounds of their brushes instead of an explicit origin
+		void	SetInstanceRemapAddRequiredKeys( bool bToggle );
 #endif
 		
 
@@ -118,6 +122,7 @@ class GameData
 		int			m_InstanceStartAINodes;		// the number of AI nodes in the level (for AI node remapping)
 		int			m_InstanceStartSide;		// the number of brush sides in the level (for brush side remapping)
 		bool		m_bRemapVecLines;			// allows ivVecLine to be remapped
+		bool		m_bAddRequiredKeys;			// whether or not required keys are added (set per-entity)
 #endif
 };
 
