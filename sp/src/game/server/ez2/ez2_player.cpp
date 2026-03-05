@@ -1988,11 +1988,11 @@ void CEZ2_Player::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 	// Make sure Wilson doesn't remind us of our special weapons for at least 20 minutes
 	if (FClassnameIs( pWeapon, "weapon_hopwire" ))
 	{
-		AddContext( "xen_grenade_thrown", "1", 1200.0f );
+		AddContext( "xen_grenade_thrown", "1", gpGlobals->curtime + 1200.0f );
 	}
 	else if (FClassnameIs( pWeapon, "weapon_displacer_pistol" ))
 	{
-		AddContext( "displacer_used", "1", 1200.0f );
+		AddContext( "displacer_used", "1", gpGlobals->curtime + 1200.0f);
 	}
 }
 
@@ -2056,7 +2056,7 @@ void CEZ2_Player::Event_ThrewGrenade( CBaseCombatWeapon *pWeapon )
 	if (FClassnameIs(pWeapon, "weapon_hopwire"))
 	{
 		// Take note of Xen grenade throws for 20 minutes
-		AddContext("xen_grenade_thrown", "1", 1200.0f);
+		AddContext("xen_grenade_thrown", "1", gpGlobals->curtime + 1200.0f);
 	}
 
 	AI_CriteriaSet modifiers;
