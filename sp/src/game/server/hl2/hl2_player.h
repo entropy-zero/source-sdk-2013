@@ -493,6 +493,8 @@ private:
 	bool				m_bKickWeaponLowered;
 
 	string_t		    m_LegModelName;
+	int					m_nLegSkin;
+	int					m_nLegBody;
 #endif
 
 	// Aiming heuristics code
