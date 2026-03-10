@@ -205,10 +205,9 @@ void ScriptMatrixSetTranslation( const Vector& vecset, HSCRIPT hMat1 )
 //=============================================================================
 CScriptQuaternionInstanceHelper g_QuaternionScriptInstanceHelper;
 
-BEGIN_SCRIPTDESC_ROOT_NAMED( Quaternion, "Quaternion", "A quaternion." )
+BEGIN_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( Quaternion, "Quaternion", "A quaternion.", &g_QuaternionScriptInstanceHelper )
 
 	DEFINE_SCRIPT_CONSTRUCTOR()
-	DEFINE_SCRIPT_INSTANCE_HELPER( &g_QuaternionScriptInstanceHelper )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptInit, "Init", "Creates a quaternion with the given values." )
 
 	DEFINE_MEMBERVAR( "x", FIELD_FLOAT, "The quaternion's i axis component." )
@@ -259,37 +258,16 @@ bool CScriptQuaternionInstanceHelper::Set( void *p, const char *pszKey, ScriptVa
 		switch (pszKey[0])
 		{
 			case 'x':
-				variant.AssignTo( &pQuat->x );
-				return true;
+				return variant.AssignTo( &pQuat->x );
 			case 'y':
-				variant.AssignTo( &pQuat->y );
-				return true;
+				return variant.AssignTo( &pQuat->y );
 			case 'z':
-				variant.AssignTo( &pQuat->z );
-				return true;
+				return variant.AssignTo( &pQuat->z );
 			case 'w':
-				variant.AssignTo( &pQuat->w );
-				return true;
+				return variant.AssignTo( &pQuat->w );
 		}
 	}
 	return false;
-}
-
-ScriptVariant_t *CScriptQuaternionInstanceHelper::Add( void *p, ScriptVariant_t &variant )
-{
-	Quaternion *pQuat = ((Quaternion *)p);
-
-	float flAdd;
-	variant.AssignTo( &flAdd );
-
-	(*pQuat)[0] += flAdd;
-	(*pQuat)[1] += flAdd;
-	(*pQuat)[2] += flAdd;
-	(*pQuat)[3] += flAdd;
-
-	static ScriptVariant_t result;
-	result = (HSCRIPT)p;
-	return &result;
 }
 
 //-----------------------------------------------------------------------------

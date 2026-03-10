@@ -458,7 +458,7 @@ void CNPC_Zombine::Precache( void )
 #ifndef EZ
 	BaseClass::Precache();
 
-	PrecacheModel( "models/zombie/zombie_soldier.mdl" );
+	PrecacheModel( DefaultOrCustomModel( "models/zombie/zombie_soldier.mdl" ) );
 
 	PrecacheScriptSound( "Zombie.FootstepRight" );
 	PrecacheScriptSound( "Zombie.FootstepLeft" );
@@ -567,7 +567,7 @@ void CNPC_Zombine::AllocPooledStringsForGrenadeTypes()
 void CNPC_Zombine::SetZombieModel( void )
 {
 #ifndef EZ
-	SetModel( "models/zombie/zombie_soldier.mdl" );
+	SetModel( DefaultOrCustomModel( "models/zombie/zombie_soldier.mdl" ) );
 #else
 	SetModel( STRING( GetModelName() ) );
 #endif  

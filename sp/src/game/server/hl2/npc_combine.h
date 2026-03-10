@@ -84,6 +84,7 @@ public:
 	int				RangeAttack2Conditions( float flDot, float flDist ); // For innate grenade attack
 	int				MeleeAttack1Conditions( float flDot, float flDist ); // For kick/punch
 	bool			FVisible( CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
+	bool			FVisible( const Vector &vecTarget, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL ) { return BaseClass::FVisible( vecTarget, traceMask, ppBlocker ); }
 #ifdef EZ2
 	void			OnSeeEntity( CBaseEntity *pEntity );
 #endif

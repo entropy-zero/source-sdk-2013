@@ -18,6 +18,7 @@
 #include "sceneentity.h"
 #include "ai_speechqueue.h"
 #ifdef MAPBASE
+#include "mapbase/choreosentence.h"
 #include "ai_squad.h"
 #ifdef EZ2
 #include "hl2_player.h"
@@ -849,6 +850,9 @@ bool CAI_Expresser::SpeakDispatchResponse( AIConcept_t concept, AI_Response *res
 	case ResponseRules::RESPONSE_NONE:
 		break;
 
+#ifdef MAPBASE
+	case ResponseRules::RESPONSE_CHOREOSENTENCE:
+#endif
 	case ResponseRules::RESPONSE_SPEAK:
 		{
 			if ( !result->ShouldntUseScene() )
@@ -921,7 +925,7 @@ bool CAI_Expresser::SpeakDispatchResponse( AIConcept_t concept, AI_Response *res
 			textParams.g1 = 255;
 			textParams.b1 = 255;
 
-			if (ai_speech_print_mode.GetBool() && GetOuter()->GetGameTextSpeechParams( textParams ))
+			if (ai_speech_print_mode.GetBool() && GetOuter()->DispatchGetGameTextSpeechParams( textParams ))
 			{
 				CRecipientFilter filter;
 				filter.AddAllPlayers();
@@ -1214,6 +1218,15 @@ float CAI_Expresser::GetResponseDuration( AI_Response *result )
 	case ResponseRules::RESPONSE_NONE:
 	case ResponseRules::RESPONSE_ENTITYIO:
 		return 0.0f;
+#ifdef MAPBASE
+	case ResponseRules::RESPONSE_CHOREOSENTENCE:
+		{
+			const ChoreoSentence_t *pSentence = LookupChoreoSentence( GetOuter(), response );
+			if (pSentence)
+				return GetChoreoSentenceDuration( GetOuter(), *pSentence );
+		}
+		break;
+#endif
 	}
 
 	return 0.0f;
