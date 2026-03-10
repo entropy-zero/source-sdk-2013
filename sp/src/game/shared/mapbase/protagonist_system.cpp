@@ -14,6 +14,9 @@
 #ifdef HL2MP
 #include "hl2mp_gamerules.h"
 #endif
+#ifdef EZ2
+#include "basehlcombatweapon_shared.h"
+#endif
 
 CProtagonistSystem g_ProtagonistSystem;
 
@@ -162,6 +165,31 @@ void CProtagonistSystem::LoadProtagonistFile( const char *pszFile )
 					}
 				}
 
+#ifdef EZ2
+				//----------------------------------------------------------------------------
+				// Leg
+				//----------------------------------------------------------------------------
+				else if (V_strnicmp( pszSubKeyName, "leg", 3 ) == 0)
+				{
+					pszSubKeyName += 3;
+					if (!pszSubKeyName[0] || pszSubKeyName[0] == 's')
+					{
+						// Model
+						pProtag->pszLegModel = AllocateString( pSubKey->GetString() );
+					}
+					else if (FStrEq( pszSubKeyName, "_skin" ))
+					{
+						// Skin
+						pProtag->nLegSkin = pSubKey->GetInt();
+					}
+					else if (FStrEq( pszSubKeyName, "_body" ))
+					{
+						// Bodygroup
+						pProtag->nLegBody = pSubKey->GetInt();
+					}
+				}
+#endif
+
 				//----------------------------------------------------------------------------
 				// Responses
 				//----------------------------------------------------------------------------
@@ -221,6 +249,12 @@ void CProtagonistSystem::LoadProtagonistFile( const char *pszFile )
 						const char *pszVM = pWeaponKey->GetString( "viewmodel", NULL );
 						if (pszVM)
 							pProtag->dictWpnData[i].pszVM = AllocateString( pszVM );
+
+#ifdef EZ2
+						pszVM = pWeaponKey->GetString( "viewmodel_dual", NULL );
+						if (pszVM)
+							pProtag->dictWpnData[i].pszDualVM = AllocateString( pszVM );
+#endif
 
 						const char *pszHandRig = pWeaponKey->GetString( "hand_rig", NULL );
 						if (pszHandRig)
@@ -356,6 +390,14 @@ void CProtagonistSystem::PrecacheProtagonist( CBaseEntity *pSource, int nIdx )
 		}
 	}
 
+#ifdef EZ2
+	// Legs
+	if (pProtag.pszLegModel)
+	{
+		pSource->PrecacheModel( pProtag.pszLegModel );
+	}
+#endif
+
 	// Weapon Data
 	FOR_EACH_DICT_FAST( pProtag.dictWpnData, i )
 	{
@@ -363,6 +405,13 @@ void CProtagonistSystem::PrecacheProtagonist( CBaseEntity *pSource, int nIdx )
 		{
 			pSource->PrecacheModel( pProtag.dictWpnData[i].pszVM );
 		}
+
+#ifdef EZ2
+		if (pProtag.dictWpnData[i].pszDualVM)
+		{
+			pSource->PrecacheModel( pProtag.dictWpnData[i].pszDualVM );
+		}
+#endif
 	}
 
 	CBaseEntity::SetAllowPrecache( false );
@@ -425,6 +474,11 @@ GetProtagParam( PlayerModelBody,		int,			GetProtagParamInner( PlayerModelBody ) 
 GetProtagParam( HandModel,			const char*,	GetProtagParamInner( HandModel, pWeapon ), const CBaseCombatWeapon *pWeapon )
 GetProtagParam( HandModelSkin,		int,			GetProtagParamInner( HandModelSkin, pWeapon ), const CBaseCombatWeapon *pWeapon )
 GetProtagParam( HandModelBody,		int,			GetProtagParamInner( HandModelBody, pWeapon ), const CBaseCombatWeapon *pWeapon )
+#ifdef EZ2
+GetProtagParam( LegModel,			const char*,	GetProtagParamInner( LegModel ) )
+GetProtagParam( LegModelSkin,		int,			GetProtagParamInner( LegModelSkin ) )
+GetProtagParam( LegModelBody,		int,			GetProtagParamInner( LegModelBody ) )
+#endif
 GetProtagParamBody( ResponseContexts,	bool,			GetProtagParamInner( ResponseContexts, pszContexts, nContextsSize ), {
 		if (pszContexts[0] != '\0')
 		{
@@ -535,6 +589,41 @@ int CProtagonistSystem::DoGetProtagonist_HandModelBody( ProtagonistData_t &pProt
 	return NULL;
 }
 
+#ifdef EZ2
+const char *CProtagonistSystem::DoGetProtagonist_LegModel( ProtagonistData_t &pProtag )
+{
+	if (pProtag.pszLegModel != NULL)
+		return pProtag.pszLegModel;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModel )
+
+	return NULL;
+}
+
+int CProtagonistSystem::DoGetProtagonist_LegModelSkin( ProtagonistData_t &pProtag )
+{
+	if (pProtag.nLegSkin >= 0)
+		return pProtag.nLegSkin;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModelSkin )
+
+	return NULL;
+}
+
+int CProtagonistSystem::DoGetProtagonist_LegModelBody( ProtagonistData_t &pProtag )
+{
+	if (pProtag.nLegBody >= 0)
+		return pProtag.nLegBody;
+
+	// Recursively search parent protagonists
+	GetProtagonistRecurse( DoGetProtagonist_LegModelBody )
+
+	return NULL;
+}
+#endif
+
 bool CProtagonistSystem::DoGetProtagonist_ResponseContexts( ProtagonistData_t &pProtag, char *pszContexts, int nContextsSize )
 {
 	if (pProtag.pszResponseContexts)
@@ -568,6 +657,14 @@ const char *CProtagonistSystem::DoGetProtagonist_ViewModel( ProtagonistData_t &p
 		// HACKHACK: GetClassname is not const
 		if (!FStrEq( pProtag.dictWpnData.GetElementName( i ), const_cast<CBaseCombatWeapon*>(pWeapon)->GetClassname() ))
 			continue;
+
+#ifdef EZ2
+		// Protagonist override code is currently handled in CBaseHLCombatWeapon, so a static cast is safe.
+		// Please change this if protagonist overrides are extended to other classes.
+		const CBaseHLCombatWeapon *pHLWeapon = assert_cast<const CBaseHLCombatWeapon*>(pWeapon);
+		if (pHLWeapon && pHLWeapon->GetLeftHandGun() && pProtag.dictWpnData[i].pszDualVM)
+			return pProtag.dictWpnData[i].pszDualVM;
+#endif
 
 		if (pProtag.dictWpnData[i].pszVM)
 			return pProtag.dictWpnData[i].pszVM;
@@ -708,6 +805,11 @@ void CProtagonistSystem::PrintProtagonistData()
 				Msg( "\t\tHand %s model: \"%s\" (%i, %i)\n", pHandRigs[j], pProtag.pszHandModels[j], pProtag.nPlayerSkin, pProtag.nPlayerBody );
 		}
 
+#ifdef EZ2
+		if (pProtag.pszLegModel)
+			Msg( "\t\t\t\tLeg model: \"%s\" (%i, %i)\n", pProtag.pszLegModel, pProtag.nLegSkin, pProtag.nLegBody );
+#endif
+
 		// Weapon Data
 		Msg( "\t\tWeapon Data: %i\n", pProtag.dictWpnData.Count() );
 		FOR_EACH_DICT_FAST( pProtag.dictWpnData, j )
@@ -715,6 +817,11 @@ void CProtagonistSystem::PrintProtagonistData()
 			Msg( "\t\t\t%s\n", pProtag.dictWpnData.GetElementName(j) );
 			if (pProtag.dictWpnData[j].pszVM)
 				Msg( "\t\t\t\tViewmodel: \"%s\"\n", pProtag.dictWpnData[j].pszVM );
+
+#ifdef EZ2
+			if (pProtag.dictWpnData[j].pszDualVM)
+				Msg( "\t\t\t\tDual Viewmodel: \"%s\"\n", pProtag.dictWpnData[j].pszDualVM );
+#endif
 
 			Msg( "\t\t\t\tUses hands: %d, hand rig: %i\n", pProtag.dictWpnData[j].bUsesHands, pProtag.dictWpnData[j].nHandRig );
 		}
