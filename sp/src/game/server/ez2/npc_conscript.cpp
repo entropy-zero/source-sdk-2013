@@ -214,8 +214,6 @@ public:
 
 	void Event_Killed( const CTakeDamageInfo &info )
 	{
-		BaseClass::Event_Killed( info );
-
 		if ( HasNPCParent() && GetNPCParent()->GetHealth() > 0 )
 		{
 			CBaseEntity *pGib = CNPC_Conscript::SpawnHeadGib( GetNPCParent(), info, GetModelName(), STRING( m_iszType ) );
@@ -233,6 +231,9 @@ public:
 
 			GetNPCParent()->AddGesture( ACT_GESTURE_FLINCH_HEAD );
 		}
+
+		// Skip traditional breakage code because we handle everything here
+		CBaseEntity::Event_Killed( info );
 	}
 
 	string_t	m_iszType;
@@ -282,6 +283,7 @@ CNPC_Conscript::CNPC_Conscript()
 
 	//m_iWillpowerModifier = 1;
 	m_iNumGrenades = 5;
+	KeyValue( "SetGrenadeCapabilities", UTIL_VarArgs( "%i", GRENCAP_GRENADE ) ); // TODO: Direct access?
 
 	GetSurrenderBehavior().KeyValue( "cansurrender", "0" );
 }
@@ -384,7 +386,7 @@ void CNPC_Conscript::Precache()
 			if ( FStrEq( STRING( m_spawnEquipment ), "weapon_oicw" ) )
 			{
 				m_Subtype = CST_COMMANDER;
-				KeyValue( "SetGrenadeCapabilities", UTIL_VarArgs( "%i", GRENCAP_ALTFIRE ) );
+				KeyValue( "SetGrenadeCapabilities", UTIL_VarArgs( "%i", GRENCAP_ALTFIRE ) ); // TODO: Direct access?
 			}
 			else if ( FStrEq( STRING( m_spawnEquipment ), "weapon_shotgun" ) )
 			{
@@ -757,11 +759,13 @@ CBaseEntity *CNPC_Conscript::SpawnHeadGib( CAI_BaseNPC *pNPC, const CTakeDamageI
 		}
 		else
 		{
-			if ( g_hStealthManager )
+			if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_LOUD ) )
 			{
 				pGib->AddContext( "curious_prop", "1", 0.0 );
 				pGib->AddContext( "pickup_prop", "1", 0.0 );
 				pGib->AddContext( "headwear", pszType, 0.0 );
+
+				g_AI_SensedObjectsManager.AddEntity( pGib );
 			}
 			else
 			{
