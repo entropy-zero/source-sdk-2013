@@ -237,6 +237,8 @@ bool CActBusyAnimData::ParseActBusyFromKV( busyanim_t *pAnim, KeyValues *pSectio
 
 #ifdef MAPBASE
 	pAnim->bTranslateActivity = pSection->GetBool("translateactivity", false);
+
+	pAnim->bSkipExitOnInterrupt = pSection->GetBool("skip_exit_on_interrupt", false);
 #endif
 
 	return true;
@@ -1590,6 +1592,16 @@ void CAI_ActBusyBehavior::OnScheduleChange()
 		{
 			m_bExitedBusyToDueLostSeeEntity = true;
 		}
+
+#ifdef MAPBASE
+		if ( m_bNeedsToPlayExitAnim && m_flEndBusyAt > gpGlobals->curtime )
+		{
+			// If we were interrupted, check if we should skip exit anim
+			busyanim_t *pBusyAnim = g_ActBusyAnimDataSystem.GetBusyAnim( m_iCurrentBusyAnim );
+			if ( pBusyAnim && pBusyAnim->bSkipExitOnInterrupt )
+				m_bNeedsToPlayExitAnim = false;
+		}
+#endif
 	}
 
 	BaseClass::OnScheduleChange();
@@ -2085,7 +2097,12 @@ void CAI_ActBusyBehavior::StartTask( const Task_t *pTask )
 			PlaySoundForActBusy( BA_EXIT );
 
 			// Play the exit animation. If it fails, we don't have an entry anim, so complete immediately.
+#ifdef MAPBASE
+			// Check m_bNeedsToPlayExitAnim in case it was disabled beforehand
+			if ( !m_bNeedsToPlayExitAnim || !PlayAnimForActBusy( BA_EXIT ) )
+#else
 			if ( !PlayAnimForActBusy( BA_EXIT ) )
+#endif
 			{
 				m_bNeedsToPlayExitAnim = false;
 				GetOuter()->RemoveFlag( FL_FLY );

@@ -61,6 +61,7 @@ struct busyanim_t
 	bool				bUseAutomovement;
 #ifdef MAPBASE
 	bool				bTranslateActivity;
+	bool				bSkipExitOnInterrupt;
 #endif
 };
 
