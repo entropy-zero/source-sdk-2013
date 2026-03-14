@@ -440,6 +440,7 @@ public:
 	Beam_t				*m_pLaserBeam;
 	bool				m_bOldLaserPrimed;
 #else
+	void	OnRestore( void );
 	void	ItemPostFrame( void );
 	bool	Deploy( void );
 	bool	Holster( CBaseCombatWeapon *pSwitchingTo = NULL );
@@ -490,7 +491,7 @@ BEGIN_DATADESC( CWeapon_CSS_HL2_LaserDeagle )
 	DEFINE_KEYFIELD( m_bCanToggleLaser, FIELD_BOOLEAN, "CanToggleLaser" ),
 	DEFINE_FIELD( m_bLaserOn, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_hLaserDot, FIELD_EHANDLE ),
-	//DEFINE_FIELD( m_bLaserPrimed, FIELD_BOOLEAN ),	// Not necessary
+	DEFINE_FIELD( m_bLaserPrimed, FIELD_BOOLEAN ),
 
 	//DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetLaserEquipped", InputSetLaserEquipped ),
 #endif
@@ -637,6 +638,25 @@ void CWeapon_CSS_HL2_LaserDeagle::TurnLaserBeamOff( void )
 	}
 }
 #else
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CWeapon_CSS_HL2_LaserDeagle::OnRestore( void )
+{
+	BaseClass::OnRestore();
+
+	if ( ( GetOwner() && GetOwner()->GetActiveWeapon() == this ) && m_bLaserOn )
+	{
+		// Create the laser after restore
+		if ( !m_hLaserDot )
+		{
+			m_hLaserDot = CreateLaserDot( GetAbsOrigin(), GetOwner(), true );
+			m_hLaserDot->SetModel( "sprites/smg1laserdot.vmt" );
+			EnableLaserDot( m_hLaserDot, m_bLaserPrimed );
+		}
+	}
+}
+
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
