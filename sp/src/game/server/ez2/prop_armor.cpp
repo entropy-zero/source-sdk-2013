@@ -40,12 +40,14 @@ void CArmorProp::Spawn()
 {
 	BaseClass::Spawn();
 
+	SetBlocksLOS( false );
+
 	if ( !m_sbAmmoTypesLoaded )
 	{
 		CAmmoDef *pAmmoDef = GetAmmoDef();
 		m_nAmmoTypePistol = pAmmoDef->Index( "Pistol" );
 		m_nAmmoTypeGaussPistol = pAmmoDef->Index( "GaussPistol" );
-		m_nAmmoTypeAR2 = pAmmoDef->Index( "GaussPistol" );
+		m_nAmmoTypeAR2 = pAmmoDef->Index( "AR2" );
 		m_nAmmoType556mm = pAmmoDef->Index( "556mm" );
 		m_nAmmoType762mm = pAmmoDef->Index( "762mm" );
 		m_sbAmmoTypesLoaded = true;
@@ -58,6 +60,21 @@ void CArmorProp::Spawn()
 void CArmorProp::Precache()
 {
 	BaseClass::Precache();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CArmorProp::PassesDamageFilter( const CTakeDamageInfo &info )
+{
+	if (!BaseClass::PassesDamageFilter( info ))
+		return false;
+
+	// Don't take damage our parent would block
+	if ( HasNPCParent() && !GetNPCParent()->PassesDamageFilter( info ) )
+		return false;
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------

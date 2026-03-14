@@ -23,6 +23,7 @@ public:
 	void Spawn();
 	void Precache( void );
 
+	bool	PassesDamageFilter( const CTakeDamageInfo &info );
 	int		OnTakeDamage( const CTakeDamageInfo &inputInfo );
 	void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
 	void	Event_Killed( const CTakeDamageInfo &info );
