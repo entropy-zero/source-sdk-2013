@@ -73,6 +73,8 @@ static const char *g_pszStealthSoundChannels[NUM_STEALTH_SOUND_CHANNELS] = {
 	"Prop Moving",				//	SOUNDENT_CHANNEL_STEALTH_PROP_MOVING,
 
 	"Hit by Object",			//	SOUNDENT_CHANNEL_STEALTH_HIT_BY_OBJECT,
+	"Speech Interrupted",		//	SOUNDENT_CHANNEL_STEALTH_SPEECH_INTERRUPTED,
+	"Announce Attacked",		//	SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ATTACKED,
 
 	"Saw Suspicious",			//	SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS,
 };
@@ -82,9 +84,12 @@ static const char *g_pszStealthSoundChannels[NUM_STEALTH_SOUND_CHANNELS] = {
 ConVar	ai_stealth_alertness_cap( "ai_stealth_alertness_cap", "0" );
 ConVar	ai_stealth_alertness_high_freq_look( "ai_stealth_alertness_high_freq_look", "1" );
 ConVar	ai_stealth_allow_default_stealth_manager( "ai_stealth_allow_default_stealth_manager", "1" );
+ConVar	ai_stealth_alertness_big_health( "ai_stealth_alertness_big_health", "500" );
 
 ConVar	g_debug_stealth_senses( "g_debug_stealth_senses", "0" );
 ConVar	g_debug_stealth_alertness( "g_debug_stealth_alertness", "0" );
+
+extern ConVar ai_stealth_force;
 
 //-----------------------------------------------------------------------------
 
@@ -147,6 +152,12 @@ void CAI_StealthSenses::InitStealthSenses()
 
 		if (!g_hStealthManager)
 			Warning( "No ai_stealth_manager detected. Some stealth functionality may be missing or degraded\n" );
+	}
+
+	if ( ai_stealth_force.GetBool() && GetOuter()->GetHealth() >= ai_stealth_alertness_big_health.GetInt() )
+	{
+		// If we're using non-mapper stealth senses, automatically use the extra danger flag for dangerous enemies
+		GetOuter()->AddStealthFlags( STEALTH_F_EXTRA_DANGER );
 	}
 }
 
@@ -381,6 +392,8 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 			return false;
 		}
 
+		bool bCuriousObject = false;
+
 		if ( g_hStealthManager )
 		{
 			// Check to see if it's in an area
@@ -389,6 +402,26 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 			{
 				if ( !ShouldSeeInArea( pEntity, pArea ) )
 					return false;
+			}
+
+			if ( IsCuriousObject( pEntity ) )
+			{
+				// Only see curious objects if they're in a suspicious place
+				if ( !g_hStealthManager->ShouldSeeObject( pEntity ) )
+				{
+					if ( IsCuriousObjectMoving( pEntity ) )
+					{
+						// If the prop isn't in a suspicious place, then we can still see it if it's moving
+						// Add a context so that we know why we were interested in case it stops moving by the time we're fully alert
+						pEntity->AddContext( "obj_saw_moved", "1", gpGlobals->curtime + 2.0f );
+					}
+					else
+					{
+						return false;
+					}
+				}
+
+				bCuriousObject = true;
 			}
 		}
 
@@ -399,7 +432,7 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 		}
 
 		// Alert level - NPCs don't see hostiles or objects unless they're alert
-		if ((GetOuter()->IRelationType( pEntity ) < D_LI && pEntity->Classify() != CLASS_BULLSEYE) || IsCuriousObject( pEntity ))
+		if ((GetOuter()->IRelationType( pEntity ) < D_LI && pEntity->Classify() != CLASS_BULLSEYE) || bCuriousObject)
 		{
 			if ( !EvalAlertLevel( pEntity, vecDelta, flDot ) )
 				return false;
@@ -692,7 +725,7 @@ float CAI_StealthSenses::GetDotToSee( int eNPCState )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_StealthSenses::HasStealthFlags( int iFlags )
+bool CAI_StealthSenses::HasStealthFlags( int iFlags ) const
 {
 	return GetOuter()->GetStealthFlags() & iFlags;
 }
@@ -752,6 +785,12 @@ bool CAI_StealthSenses::ShouldSeeInDark( CBaseEntity *pEntity )
 	//	if (flDist > AI_SIGHT_DARKNESS_MAX_DIST_ALERT)
 	//		return false;
 	//}
+	else if (eNPCState == NPC_STATE_COMBAT)
+	{
+		// If this isn't our enemy, don't pay attention
+		if ( pEntity != GetEnemy() )
+			return false;
+	}
 
 	return true;
 }
@@ -1131,7 +1170,7 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 	}
 		
 	// Civilians less ready
-	if (HasStealthFlags(STEALTH_F_CIVILIAN))
+	if (HasStealthFlags(STEALTH_F_SLOW))
 		flAlertLevelIncrease *= 0.75;
 		
 	// Vary by difficulty
@@ -1233,6 +1272,17 @@ float CAI_StealthSenses::GetHighestAlertLevel() const
 	}
 
 	return flHighestAlertLevel;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CAI_StealthSenses::GetAlertSourceType() const
+{
+	if ( HasStealthFlags( STEALTH_F_EXTRA_DANGER ) )
+		return ALERT_SOURCE_TYPE_EXTRA;
+
+	return ALERT_SOURCE_TYPE_NONE;
 }
 
 //-----------------------------------------------------------------------------

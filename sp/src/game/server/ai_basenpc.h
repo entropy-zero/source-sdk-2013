@@ -2205,7 +2205,11 @@ public:
 
 	bool			IsUsingStealthSenses() const;
 	void			SetUsingStealthSenses( bool bEnabled );
+
 	int				GetStealthFlags() const { return m_iStealthFlags; }
+	void			SetStealthFlags( int iFlags ) { m_iStealthFlags = iFlags; }
+	void			AddStealthFlags( int iFlags ) { m_iStealthFlags |= iFlags; }
+	void			RemoveStealthFlags( int iFlags ) { m_iStealthFlags &= ~iFlags; }
 
 	// Runs look senses as its own parallel think function, doing so every tick rather than every NPC think.
 	// This is used with NPCs that have begun to notice the player so that their alertness behaves more smoothly.

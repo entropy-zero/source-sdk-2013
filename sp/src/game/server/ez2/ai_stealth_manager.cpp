@@ -139,6 +139,9 @@ BEGIN_DATADESC( CAI_StealthManager )
 
 	DEFINE_THINKFUNC( StealthManagerThink ),
 
+	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
+
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetMinStealthLevelQuiet", InputSetMinStealthLevelQuiet ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetMinStealthLevelGuard", InputSetMinStealthLevelGuard ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetMinStealthLevelTense", InputSetMinStealthLevelTense ),
@@ -339,7 +342,7 @@ void CAI_StealthManager::StealthManagerThink()
 				r = 128; g = 128; b = 128;
 			}
 
-			NDebugOverlay::Circle( m_SeenObjects[i].vecLastPosition, QAngle( 90, 0, 0 ), ai_stealth_obj_min_dist_change.GetFloat(), r, g, b, 255, true, STEALTH_MANAGER_DEBUG_SHOW_DURATION );
+			NDebugOverlay::Circle( m_SeenObjects[i].vecLastPosition, QAngle( 90, 0, 0 ), m_SeenObjects[i].flNoticeRadius, r, g, b, 255, true, STEALTH_MANAGER_DEBUG_SHOW_DURATION );
 		}
 	}
 
@@ -1006,6 +1009,8 @@ void CAI_StealthManager::PlayerMovedObject( CBasePlayer *pPlayer, CBaseEntity *p
 		if ( !bMemoryExists )
 			return;
 	}
+	else
+		return;
 
 	IGameEvent *event = gameeventmanager->CreateEvent( "stealth_moved_object" );
 	if ( event && pEntity && pPlayer )
@@ -1112,6 +1117,7 @@ void CAI_StealthManager::AddSeenObject( CBaseEntity *pEntity )
 	{
 		i = m_SeenObjects.AddToTail();
 		m_SeenObjects[i].hEntity = pEntity;
+		m_SeenObjects[i].flNoticeRadius = ai_stealth_obj_min_dist_change.GetFloat();
 		m_SeenObjects[i].nTimesFound = 0;
 		m_SeenObjects[i].flTimeEnteredArea = 0;	// This prop would've already been in the area for an unknown time
 	}
@@ -1139,7 +1145,7 @@ bool CAI_StealthManager::ShouldSeeObject( CBaseEntity *pEntity )
 				m_SeenObjects[i].bResult = false;
 
 				// Check if the object has moved from where it previously was
-				if ( (m_SeenObjects[i].hEntity->GetAbsOrigin() - m_SeenObjects[i].vecLastPosition).LengthSqr() > Square( ai_stealth_obj_min_dist_change.GetFloat() ))
+				if ( (m_SeenObjects[i].hEntity->GetAbsOrigin() - m_SeenObjects[i].vecLastPosition).LengthSqr() > Square( m_SeenObjects[i].flNoticeRadius ))
 					m_SeenObjects[i].bResult = true;
 
 				m_SeenObjects[i].flLastTimeChecked = gpGlobals->curtime + SEEN_OBJECT_CHECK_COOLDOWN;
@@ -1337,12 +1343,26 @@ string_t CAI_StealthManager::GenerateSquadMemberID( StealthSquadInfo_t *pSquadIn
 {
 	const char *pszOverrideID = pSquadmate->GetContextValue( "id" );
 	if ( pszOverrideID && *pszOverrideID )
-		return FindPooledString( pszOverrideID );	// If it's in the NPC's contexts, then it's already going to be in there
+		return MAKE_STRING( pszOverrideID );	// Already a pointer to a pooled string
+
+	const char *pszID = "grunt";
+	if ( pSquadmate->IsNPC() )
+	{
+		CAI_BaseNPC *pNPC = pSquadmate->MyNPCPointer();
+		if ( pNPC->IsMedic() )
+		{
+			pszID = "medic";
+		}
+		else if ( pNPC->IsDesignatedSquadLeader() )
+		{
+			pszID = "commander";
+		}
+	}
 
 	// Generate a new one based on the classname and squad member count
 	// (e.g. "npc_citizen-1", "npc_citizen-2"...)
 	char szNewID[32] = { 0 };
-	V_snprintf( szNewID, sizeof( szNewID ), "%s-%i", pSquadmate->GetClassname(), pSquadInfo->m_Members.Count() );
+	V_snprintf( szNewID, sizeof( szNewID ), "%s-%i", pszID, pSquadInfo->m_Members.Count() );
 
 	// Also add it to the squad member as a context
 	pSquadmate->AddContext( "id", szNewID );

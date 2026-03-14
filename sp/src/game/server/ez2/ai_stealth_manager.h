@@ -73,6 +73,7 @@ struct	StealthObjectState_t
 
 	float		flLastTimeChecked;
 	float		flTimeEnteredArea;
+	float		flNoticeRadius;		// How far away the prop has to be from its last position for it to be noticed
 
 	short		nTimesFound;
 	bool		bResult;

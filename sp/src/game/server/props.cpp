@@ -5289,7 +5289,7 @@ void CBasePropDoor::DoorClose(void)
 #ifdef EZ2
 	// Ideally, we'd be doing this in CEZ2_Player::OnUseEntity(), but we can't because the door doesn't open/close right away
 	if (g_hStealthManager && m_hActivator && m_hActivator->IsPlayer())
-		g_AI_SensedObjectsManager.AddEntity( this );
+		g_hStealthManager->MakePropPerceivable( this );
 #endif
 
 	if (!HasSpawnFlags(SF_DOOR_SILENT))

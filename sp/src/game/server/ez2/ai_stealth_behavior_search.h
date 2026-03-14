@@ -18,6 +18,7 @@
 #endif
 
 class CTriggerStealthArea;
+class CAI_StealthSearchGoal;
 class CInfoStealthRegroup;
 struct AI_EnemyInfo_t;
 
@@ -84,6 +85,10 @@ public:
 
 	//-----------------------------------------------
 
+	CAI_StealthSearchGoal	*GetGoalEntity();
+	void					SetGoalEntity( CAI_StealthSearchGoal *pGoal );
+	void					InitForcedSearch( CInfoStealthRegroup *pRegroupPoint );
+
 	bool					IsAtSearchPoint();
 	CTriggerStealthArea		*GetSearchArea();	// This refers to trigger_stealth_area
 	bool					ShouldSearch();
@@ -118,7 +123,7 @@ public:
 	bool		ShouldSitrep();
 
 	bool		IsWaitingAtRegroup();
-	void		EndRegroup();
+	void		EndRegroup( bool bResetSquad = true );
 	bool		HasRegroupPoint();
 	
 	CInfoStealthRegroup		*FindRegroupPoint( float flMaxDistSqr );
@@ -161,6 +166,7 @@ public:
 	void		AddInterestPoint( StealthInterestType_t nType, const Vector &vecOrigin );
 	void		ReplaceInterestPoints( const CUtlVector<StealthInterestPoint_t> &vecInterestPoints );
 	void		MaintainInterestPoints();
+	bool		HasPotentialInterestPoints( float flCutoffTime );
 
 	//-----------------------------------------------
 
@@ -189,6 +195,7 @@ public:
 
 private:
 
+	CHandle<CAI_StealthSearchGoal>	m_hGoalEntity;
 	bool	m_bForcedSearch;
 
 	// Doing a methodical sweep of every area we can access
@@ -208,6 +215,7 @@ private:
 	StealthSquadOrder_t		m_iPreviousSquadOrder;
 	bool					m_bOrderCarriedOut;
 	bool					m_bOrderQueued;
+	float					m_flOrderReceivedTime;
 
 	CHandle< CTriggerStealthArea >	m_hCurrentSearchArea;
 
@@ -218,6 +226,47 @@ public:
 };
 
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Purpose: A level tool to control the search behavior.
+//-----------------------------------------------------------------------------
+class CAI_StealthSearchGoal : public CAI_GoalEntity
+{
+	DECLARE_CLASS( CAI_StealthSearchGoal, CAI_GoalEntity );
+public:
+	CAI_StealthSearchGoal();
+
+	void		OnOrderIssued( CAI_BaseNPC *pLeader, StealthSquadOrder_t iSquadOrder, variant_t &varOrderData );
+
+protected:
+
+	void		 EnableGoal( CAI_BaseNPC *pAI );
+	void		 DisableGoal( CAI_BaseNPC *pAI );
+
+	// Inputs
+	void		 InputEnableAutoSearch( inputdata_t &inputdata ) { m_bAutoSearchEnabled = true; }
+	void		 InputDisableAutoSearch( inputdata_t &inputdata ) { m_bAutoSearchEnabled = false; }
+	void		 InputStartOrderSweep( inputdata_t &inputdata );
+	//void		 InputSearchThisArea( inputdata_t &inputdata );
+	//void		 InputAddInterestPoint( inputdata_t &inputdata );
+
+	DECLARE_DATADESC();
+	DECLARE_ENT_SCRIPTDESC();
+
+public:
+	bool m_bAutoSearchEnabled;
+	int m_fMinState;
+	int m_fMaxState;
+	float m_flMaxSearchPointDist;
+	float m_flMaxSearchAreaDist;
+	float m_flMaxRegroupDist;
+
+private:
+	// Outputs
+	COutputVariant	m_OnOrderDismiss;
+	COutputVariant	m_OnOrderDismissTense;
+	COutputVariant	m_OnOrderDismissNotTense;
+};
 
 //-----------------------------------------------------------------------------
 // Purpose: 

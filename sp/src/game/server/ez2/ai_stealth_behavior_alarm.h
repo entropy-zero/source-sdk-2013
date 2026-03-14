@@ -29,12 +29,15 @@ public:
 	{
 		// Schedules
 		SCHED_STEALTH_RAISE_ALARM = BaseClass::NEXT_SCHEDULE,
+		SCHED_STEALTH_RAISE_ALARM_WALK,
+		SCHED_STEALTH_PATROL_ALARM,
 		NEXT_SCHEDULE,
 		
 		// Tasks
 		TASK_STEALTH_ALARM_FIND_ALARM = BaseClass::NEXT_TASK,
 		TASK_STEALTH_ALARM_RAISE,
 		TASK_STEALTH_ALARM_FINISH,
+		TASK_STEALTH_GET_NODE_NEAR_ALARM,
 		NEXT_TASK,
 		
 		// Conditions
@@ -45,8 +48,9 @@ public:
 	//-----------------------------------------------
 
 	bool	IsRaisingAlarm();
-	bool	ShouldRaiseAlarm();
+	bool	ShouldRaiseAlarm( bool bOrder = false );
 	bool	ForceRaiseAlarm();
+	void	SetNextAlarm( CAI_Hint *pHint, bool bEscort = false );
 	void	OnFinishRaisingAlarm();
 
 	bool		FValidateHintType( CAI_Hint *pHint );
@@ -75,6 +79,10 @@ private:
 	bool	m_bForceRaiseAlarm;
 	bool	m_bRaisingAlarm;
 	float	m_flNextAlarmRaiseTime;
+
+	// Used to force a next alarm when we can't set our hint node right now (e.g. squad regroups)
+	CHandle<CAI_Hint>	m_hNextAlarm;
+	bool	m_bEscort;	// Escorting someone who's already raising the alarm
 
 	DEFINE_CUSTOM_SCHEDULE_PROVIDER;
 };

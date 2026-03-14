@@ -715,7 +715,10 @@ bool CAI_ActBusyBehavior::IsCurScheduleOverridable( void )
 #ifdef EZ2
 	else if ( IsBeastActBusy() || IsHuskActBusy() )
 	{
-		// Beast and husk actbusies can run in any idle schedule
+		// Beast and husk actbusies can run in any idle schedule except stealth search
+		if ( GetOuter()->GetRunningBehavior() && FStrEq( GetOuter()->GetRunningBehavior()->GetName(), "Stealth Search" ) )
+			return false;
+
 		return (GetOuter()->GetState() == NPC_STATE_IDLE);
 	}
 #endif

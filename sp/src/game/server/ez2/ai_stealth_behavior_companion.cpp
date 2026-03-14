@@ -80,7 +80,7 @@ int CAI_Companion_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 						{
 							// Only when we saw something moving
 							if ( pSound->SoundChannel() == SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS
-								&& pSound->m_hOwner != NULL && !pSound->m_hOwner->IsAlive() )
+								&& ( pSound->m_hOwner == NULL || !pSound->m_hOwner->IsAlive() ) )
 								break;
 
 							Vector vecTarget = pSound->GetSoundReactOrigin() + Vector(0,0,32);
@@ -101,13 +101,10 @@ int CAI_Companion_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 
 							if ( GetOuter()->CanThrowGrenade( vecTarget ) )
 							{
-								NDebugOverlay::Cross3D( vecTarget, 5.0f, 0, 255, 0, true, 5.0f );
 								GetOuter()->StopAiming();
 								GetOuter()->DelayGrenadeCheck( 6 );
 								return SCHED_STEALTH_THROW_GRENADE_AT_SOUND;
 							}
-							else
-								NDebugOverlay::Cross3D( vecTarget, 5.0f, 255, 0, 0, true, 5.0f );
 						}
 					}
 				}

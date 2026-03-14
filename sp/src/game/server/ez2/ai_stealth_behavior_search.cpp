@@ -37,7 +37,7 @@ ConVar	ai_stealth_search_point_default_wait_min( "ai_stealth_search_point_defaul
 ConVar	ai_stealth_search_point_default_wait_max( "ai_stealth_search_point_default_wait_max", "5.0" );
 
 ConVar	ai_stealth_regroup_max_dist( "ai_stealth_regroup_max_dist", "2500" );
-ConVar	ai_stealth_regroup_max_wait( "ai_stealth_regroup_max_wait", "60" );
+ConVar	ai_stealth_regroup_max_wait( "ai_stealth_regroup_max_wait", "120" );
 ConVar	ai_stealth_regroup_stop_dist( "ai_stealth_regroup_stop_dist", "64" );
 ConVar	ai_stealth_sweep_max_dist( "ai_stealth_sweep_max_dist", "3000" );
 ConVar	ai_stealth_sweep_min_enemy_time( "ai_stealth_sweep_min_enemy_time", "20" );
@@ -87,8 +87,10 @@ BEGIN_DATADESC( CAI_StealthSearchBehavior )
 	DEFINE_FIELD( m_iTargetGender, FIELD_INTEGER ),
 
 	DEFINE_FIELD( m_iSquadOrder, FIELD_INTEGER ),
+	DEFINE_FIELD( m_iPreviousSquadOrder, FIELD_INTEGER ),
 	DEFINE_FIELD( m_bOrderCarriedOut, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bOrderQueued, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_flOrderReceivedTime, FIELD_TIME ),
 
 	DEFINE_FIELD( m_hCurrentSearchArea, FIELD_EHANDLE ),
 
@@ -101,6 +103,7 @@ CTriggerStealthArea *CAI_StealthSearchBehavior::m_pHintSearchArea = NULL;
 //-----------------------------------------------------------------------------
 CAI_StealthSearchBehavior::CAI_StealthSearchBehavior()
 {
+	m_hGoalEntity = NULL;
 	m_bForcedSearch = false;
 
 	m_bLoneSweep = false;
@@ -114,6 +117,35 @@ CAI_StealthSearchBehavior::CAI_StealthSearchBehavior()
 	m_iTargetGender = GENDER_NONE;
 
 	m_hCurrentSearchArea = NULL;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CAI_StealthSearchGoal *CAI_StealthSearchBehavior::GetGoalEntity( void )
+{
+	return m_hGoalEntity;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchBehavior::SetGoalEntity( CAI_StealthSearchGoal *pGoal )
+{
+	if ( m_hGoalEntity != pGoal )
+	{
+		m_hGoalEntity = pGoal;
+		SetCondition( COND_STEALTH_SEARCH_FORCE );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchBehavior::InitForcedSearch( CInfoStealthRegroup *pRegroupPoint )
+{
+	m_bForcedSearch = true;
+	m_hRegroupPoint = pRegroupPoint;
 }
 
 //-----------------------------------------------------------------------------
@@ -137,24 +169,45 @@ CTriggerStealthArea *CAI_StealthSearchBehavior::GetSearchArea( void )
 //-----------------------------------------------------------------------------
 bool CAI_StealthSearchBehavior::ShouldSearch()
 {
-	switch ( GetNpcState() )
+	// If we've been dismissed, then we've already searched and didn't find anything
+	// Don't search again until we have a reason to
+	if ( GetSquadOrder() == STEALTH_SQUAD_ORDER_DISMISS && !m_bForcedSearch )
 	{
-		// Only in these states
-		case NPC_STATE_IDLE:
-			{
-				if ( !IsSweeping() )
-				{
-					if ( !m_bForcedSearch && !ai_stealth_search_always.GetBool() )
-						return false;
-
-					if ( g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
-						return false;
-				}
-			}
-		case NPC_STATE_ALERT:
-			break;
-		default:
+		if ( !m_hRegroupPoint && !HasPotentialInterestPoints( m_flOrderReceivedTime ) )
 			return false;
+	}
+
+	if ( m_hGoalEntity )
+	{
+		int iNPCState = GetNpcState();
+		if ( iNPCState < m_hGoalEntity->m_fMinState || iNPCState > m_hGoalEntity->m_fMaxState )
+			return false;
+
+		if ( !m_hGoalEntity->m_bAutoSearchEnabled && !m_bForcedSearch )
+			return false;
+	}
+	else
+	{
+		// Default state rules
+		switch ( GetNpcState() )
+		{
+			// Only in these states
+			case NPC_STATE_IDLE:
+				{
+					if ( !IsSweeping() )
+					{
+						if ( !m_bForcedSearch && !ai_stealth_search_always.GetBool() )
+							return false;
+
+						if ( g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
+							return false;
+					}
+				}
+			case NPC_STATE_ALERT:
+				break;
+			default:
+				return false;
+		}
 	}
 
 	// Patrol dumbly for a few seconds
@@ -248,6 +301,9 @@ float CAI_StealthSearchBehavior::GetAreaSearchDist()
 	if ( IsSweeping() )
 		return ai_stealth_sweep_max_dist.GetFloat();
 
+	if ( m_hGoalEntity && m_hGoalEntity->m_flMaxSearchPointDist != 0.0f )
+		return m_hGoalEntity->m_flMaxSearchPointDist;
+
 	return ai_stealth_search_point_max_dist.GetFloat();
 }
 
@@ -260,6 +316,7 @@ bool CAI_StealthSearchBehavior::FValidateHintType( CAI_Hint *pHint )
 	{
 	case HINT_STEALTH_SEARCH_POINT:
 	case HINT_STEALTH_REGROUP_POINT:
+	case HINT_STEALTH_ALARM:	// Need to understand this type for the alarm order
 		return true;
 		break;
 
@@ -302,7 +359,11 @@ CAI_Hint *CAI_StealthSearchBehavior::FindSearchPointHint( float flMaxDist, CTrig
 	// Try finding an area first
 	if ( !ai_stealth_search_prioritize_areas.GetBool() && ppArea )
 	{
-		*ppArea = g_hStealthManager->FindBestStealthArea( GetOuter(), ai_stealth_search_area_max_dist.GetFloat(), &m_InterestPoints, IsOrderFindSubject() );
+		float flMaxSearchDist = ai_stealth_search_area_max_dist.GetFloat();
+		if ( m_hGoalEntity && m_hGoalEntity->m_flMaxSearchAreaDist != 0.0f )
+			flMaxSearchDist = m_hGoalEntity->m_flMaxSearchAreaDist;
+
+		*ppArea = g_hStealthManager->FindBestStealthArea( GetOuter(), flMaxSearchDist, &m_InterestPoints, IsOrderFindSubject() );
 		if ( *ppArea )
 		{
 			CAI_Hint *pHint = FindSearchPointHintInArea( *ppArea );
@@ -505,10 +566,18 @@ void CAI_StealthSearchBehavior::CallToRegroup( CInfoStealthRegroup *pRegroupPoin
 void CAI_StealthSearchBehavior::FinishActiveOrder()
 {
 	SearchDbgMsg( "%s [%i]: Finished active order \"%s\"\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( GetSquadOrder() ) );
+	
+	if ( GetSquadOrder() != STEALTH_SQUAD_ORDER_DISMISS )
+	{
+		EndRegroup();
+		SetSquadOrder( STEALTH_SQUAD_ORDER_NONE );
+	}
+	else
+	{
+		// Can't reset squad because we'd still be giving dismiss orders at this point
+		EndRegroup( false );
+	}
 
-	EndRegroup();
-
-	SetSquadOrder( STEALTH_SQUAD_ORDER_NONE );
 	SetCondition( COND_STEALTH_REGROUP_FINISH );
 	m_flNextSquadSweepTime = gpGlobals->curtime + ai_stealth_sweep_squad_cooldown.GetFloat();
 	m_flNextSitrepTime = gpGlobals->curtime + ai_stealth_sitrep_cooldown.GetFloat();
@@ -522,7 +591,7 @@ void CAI_StealthSearchBehavior::FinishActiveOrder()
 //-----------------------------------------------------------------------------
 void CAI_StealthSearchBehavior::CancelActiveOrder()
 {
-	SearchDbgMsg( "%s [%i]: Canceled active order (%i)\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( GetSquadOrder() ) );
+	SearchDbgMsg( "%s [%i]: Canceled active order (%s)\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( GetSquadOrder() ) );
 
 	EndRegroup();
 
@@ -565,7 +634,7 @@ bool CAI_StealthSearchBehavior::IsOrderSitrep() const
 //-----------------------------------------------------------------------------
 bool CAI_StealthSearchBehavior::ShouldSitrep()
 {
-	if ( !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_GUARD, STEALTH_LEVEL_TENSE ) )
+	if ( !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_GUARD, STEALTH_LEVEL_TENSE ) && ( !m_hGoalEntity || m_hGoalEntity->m_fMinState > NPC_STATE_IDLE ) )
 		return false;
 
 	if ( gpGlobals->curtime < m_flNextSitrepTime )
@@ -604,13 +673,14 @@ bool CAI_StealthSearchBehavior::IsWaitingAtRegroup()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CAI_StealthSearchBehavior::EndRegroup()
+void CAI_StealthSearchBehavior::EndRegroup( bool bResetSquad )
 {
 	SearchDbgMsg( "%s [%i]: Ending regroup\n", GetOuter()->GetDebugName(), GetOuter()->entindex() );
 
 	if ( m_hRegroupPoint )
 	{
-		m_hRegroupPoint->ResetSquad();
+		if ( bResetSquad )
+			m_hRegroupPoint->ResetSquad();
 		m_hRegroupPoint = NULL;
 	}
 }
@@ -632,7 +702,7 @@ CInfoStealthRegroup *CAI_StealthSearchBehavior::FindRegroupPoint( float flMaxDis
 	{
 		CInfoStealthRegroup *pInfoRegroup = static_cast<CInfoStealthRegroup *>(IStealthRegroupAutoList::AutoList()[i]);
 		if ( pInfoRegroup->IsEnabled() &&
-			( !pInfoRegroup->HasSquadName() || Matcher_NamesMatch( pInfoRegroup->GetSquadName(), GetOuter()->GetSquad()->GetName() ) ) )
+			( !pInfoRegroup->HasSquadName() || ( GetOuter()->GetSquad() && Matcher_NamesMatch( pInfoRegroup->GetSquadName(), GetOuter()->GetSquad()->GetName() ) ) ) )
 		{
 			float flDistSqr = (GetAbsOrigin() - pInfoRegroup->GetAbsOrigin()).LengthSqr();
 			if ( flDistSqr > flMaxDistSqr )
@@ -674,9 +744,14 @@ void CAI_StealthSearchBehavior::SetSquadOrder( StealthSquadOrder_t iSquadOrder )
 {
 	SearchDbgMsg( "%s [%i]: New squad order: \"%s\"\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( iSquadOrder ) );
 
-	m_iPreviousSquadOrder = m_iSquadOrder;
-	m_iSquadOrder = iSquadOrder;
+	if ( iSquadOrder != m_iSquadOrder )
+	{
+		m_iPreviousSquadOrder = m_iSquadOrder;
+		m_iSquadOrder = iSquadOrder;
+	}
+
 	m_bOrderCarriedOut = false;
+	m_flOrderReceivedTime = gpGlobals->curtime;
 }
 
 //-----------------------------------------------------------------------------
@@ -715,9 +790,31 @@ StealthSquadOrder_t CAI_StealthSearchBehavior::SelectBestOrder( CUtlVector< CHan
 	{
 		// Update everyone's last sound location and do a sweep
 		if ( pVarOrderData )
+		{
 			pVarOrderData->SetVector3D( vecBestSoundLocation );
 
+			if ( g_hStealthManager )
+				g_hStealthManager->ResetAreaSearches( vecBestSoundLocation, 1000 );
+		}
+
 		return STEALTH_SQUAD_ORDER_SWEEP;
+	}
+
+	if ( GetPreviousSquadOrder() == STEALTH_SQUAD_ORDER_SWEEP || GetPreviousSquadOrder() == STEALTH_SQUAD_ORDER_LOCATE_SQUADMATE )
+	{
+		// See if we can pull an alarm
+		CAI_StealthAlarmBehavior *pBehavior;
+		if ( GetOuter()->GetBehavior( &pBehavior ) && pBehavior->ShouldRaiseAlarm( true ) )
+		{
+			CAI_Hint *pAlarm = pBehavior->FindAlarmHint( NULL );
+			if ( pAlarm )
+			{
+				if ( pVarOrderData )
+					pVarOrderData->SetEntity( pAlarm );
+
+				return STEALTH_SQUAD_ORDER_ALARM;
+			}
+		}
 	}
 
 	return STEALTH_SQUAD_ORDER_NONE;
@@ -792,6 +889,8 @@ const char *CAI_StealthSearchBehavior::GetStringForOrder( StealthSquadOrder_t iS
 			return "locate_entity";
 		case STEALTH_SQUAD_ORDER_SITREP:
 			return "sitrep";
+		case STEALTH_SQUAD_ORDER_ALARM:
+			return "alarm";
 	}
 
 	return "none";
@@ -806,8 +905,19 @@ bool CAI_StealthSearchBehavior::ShoutSquadOrder( StealthSquadOrder_t iSquadOrder
 
 	if ( m_iPreviousSquadOrder != STEALTH_SQUAD_ORDER_NONE )
 		modifiers.AppendCriteria( "order_prev", GetStringForOrder( m_iPreviousSquadOrder ) );
-
-	bool bSpoke = SpeakStealthConcept( TLK_SQUAD_ORDER, &modifiers, true );
+	
+	bool bSpoke = false;
+	if ( iSquadOrder == STEALTH_SQUAD_ORDER_SITREP )
+	{
+		modifiers.AppendCriteria( "report_as_leader", "1" );
+		bSpoke = SpeakStealthConcept( TLK_SQUAD_REPORT, &modifiers, true );
+		if ( !bSpoke )
+			bSpoke = SpeakStealthConcept( TLK_SQUAD_ORDER, &modifiers, true );
+	}
+	else
+	{
+		bSpoke = SpeakStealthConcept( TLK_SQUAD_ORDER, &modifiers, true );
+	}
 
 	/*if ( iSquadOrder == STEALTH_SQUAD_ORDER_SITREP )
 	{
@@ -818,6 +928,11 @@ bool CAI_StealthSearchBehavior::ShoutSquadOrder( StealthSquadOrder_t iSquadOrder
 			m_hRegroupPoint;
 		}
 	}*/
+
+	if ( bSpoke && m_hGoalEntity )
+	{
+		m_hGoalEntity->OnOrderIssued( GetOuter(), iSquadOrder, varOrderData );
+	}
 
 	return bSpoke;
 }
@@ -832,7 +947,9 @@ void CAI_StealthSearchBehavior::ReceiveSquadOrder( CAI_BaseNPC *pLeader, Stealth
 	switch ( iSquadOrder )
 	{
 		case STEALTH_SQUAD_ORDER_DISMISS:
+			SetSquadOrder( STEALTH_SQUAD_ORDER_DISMISS );
 			FinishActiveOrder();
+			m_bForcedSearch = false;
 			TaskComplete();
 			return;
 
@@ -885,6 +1002,26 @@ void CAI_StealthSearchBehavior::ReceiveSquadOrder( CAI_BaseNPC *pLeader, Stealth
 			break;
 
 		case STEALTH_SQUAD_ORDER_SITREP:
+			break;
+
+		case STEALTH_SQUAD_ORDER_ALARM:
+			{
+				CAI_StealthAlarmBehavior *pBehavior;
+				if ( GetOuter()->GetBehavior( &pBehavior ) && varOrderData.FieldType() == FIELD_EHANDLE )
+				{
+					CAI_Hint *pHint = assert_cast<CAI_Hint*>( varOrderData.Entity().Get() );
+					if ( pLeader == GetOuter() )
+					{
+						// We're the one pulling the alarm
+						pBehavior->SetNextAlarm( pHint );
+					}
+					else
+					{
+						// Patrol there
+						pBehavior->SetNextAlarm( pHint, true );
+					}
+				}
+			}
 			break;
 	}
 
@@ -1022,7 +1159,7 @@ void CAI_StealthSearchBehavior::MaintainInterestPoints()
 			int i = 0;
 			for ( ; i < m_InterestPoints.Count(); i++ )
 			{
-				if ( m_InterestPoints[i].nType == STEALTH_INTEREST_SOUND )
+				if ( m_InterestPoints[i].nType == STEALTH_INTEREST_ENEMY )
 				{
 					if ( m_InterestPoints[i].flExpireTime == flLastEnemyTimeEnd )
 						break;
@@ -1050,8 +1187,38 @@ void CAI_StealthSearchBehavior::MaintainInterestPoints()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CAI_StealthSearchBehavior::HasPotentialInterestPoints( float flCutoffTime )
+{
+	// First check actual interest points
+	FOR_EACH_VEC( m_InterestPoints, i )
+	{
+		if ( m_InterestPoints[i].flExpireTime - g_hStealthManager->GetInterestTypeDuration( m_InterestPoints[i].nType ) > flCutoffTime )
+			return true;
+	}
+
+	// Then check conditions that we may add as interest points
+	if ( GetStealthSenses()->IsLastSoundRelevant() )
+	{
+		if ( GetStealthSenses()->GetLastSoundTime() > flCutoffTime )
+			return true;
+	}
+
+	if ( GetOuter()->GetLastEnemyTime() > flCutoffTime )
+		return true;
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CAI_StealthSearchBehavior::ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet )
 {
+	if ( m_hGoalEntity )
+	{
+		criteriaSet.Merge( m_hGoalEntity->GetConceptModifiers() );
+	}
+
 	if ( IsWaitingAtRegroup() )
 	{
 		criteriaSet.AppendCriteria( "at_regroup", "1" );
@@ -1066,6 +1233,21 @@ void CAI_StealthSearchBehavior::ModifyOrAppendCriteria( AI_CriteriaSet& criteria
 	{
 		criteriaSet.AppendCriteria( "search_target", STRING( m_iszTargetClass ) );
 		criteriaSet.AppendCriteria( "search_target_gender", UTIL_VarArgs( "%i", m_iTargetGender ) );
+	}
+
+	if ( m_InterestPoints.Count() > 0 )
+	{
+		int nNumSoundPoints = 0;
+
+		FOR_EACH_VEC( m_InterestPoints, j )
+		{
+			if ( m_InterestPoints[j].nType == STEALTH_INTEREST_SOUND && m_InterestPoints[j].flExpireTime > gpGlobals->curtime )
+			{
+				nNumSoundPoints++;
+			}
+		}
+
+		criteriaSet.AppendCriteria( "interest_sound_count", UTIL_VarArgs( "%i", nNumSoundPoints ) );
 	}
 
 	// Search areas already covered by stealth manager
@@ -1102,6 +1284,13 @@ int CAI_StealthSearchBehavior::DrawDebugTextOverlays( int text_offset )
 			GetOuter()->EntityText( offset, tempstr, 0, 224, 255, 224 );
 			offset++;
 
+			if ( GetPreviousSquadOrder() != STEALTH_SQUAD_ORDER_NONE )
+			{
+				V_snprintf( tempstr, sizeof( tempstr ), "Prev Order: [%i] %s", GetPreviousSquadOrder(), GetStringForOrder( GetPreviousSquadOrder() ) );
+				GetOuter()->EntityText( offset, tempstr, 0, 224, 255, 224 );
+				offset++;
+			}
+
 			if ( m_hRegroupPoint )
 			{
 				V_snprintf( tempstr, sizeof( tempstr ), "Regroup Point: %s (%s)", m_hRegroupPoint->GetDebugName(), IsWaitingAtRegroup() ? "waiting" : "not waiting" );
@@ -1131,7 +1320,7 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 
 	MaintainInterestPoints();
 
-	if ( m_hRegroupPoint && !HasActiveOrder() )
+	if ( m_hRegroupPoint )
 	{
 		bool bShouldBeAtRegroup = false;
 		if ( GetOuter()->GetSquad() )
@@ -1139,17 +1328,26 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 			CAI_BaseNPC *pLeader = GetOuter()->GetSquad()->GetLeader();
 			if ( pLeader != GetOuter() )
 			{
-				CAI_StealthSearchBehavior *pBehavior = NULL;
-				if ( pLeader->GetBehavior( &pBehavior ) )
+				if ( IsWaitingAtRegroup() )
 				{
-					// Leader has arrived
-					if (pBehavior->IsWaitingAtRegroup())
+					// Already at regroup, wait for leader to arrive
+					CAI_StealthSearchBehavior *pBehavior = NULL;
+					if ( pLeader->GetBehavior( &pBehavior ) )
 					{
-						bShouldBeAtRegroup = true;
+						// Leader has arrived
+						if (pBehavior->IsWaitingAtRegroup())
+						{
+							bShouldBeAtRegroup = true;
+						}
 					}
 				}
+				else if ( !HasActiveOrder() )
+				{
+					// Go to regroup if we've carried out our order
+					bShouldBeAtRegroup = true;
+				}
 			}
-			else
+			else if ( !HasActiveOrder() )
 			{
 				// Leader always goes straight to the regroup point
 				bShouldBeAtRegroup = true;
@@ -1171,6 +1369,11 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 				if ( !GetHintNode() )
 				{
 					SearchDbgMsg( "%s [%i]::SelectSchedule: No hint node, waiting within regroup area\n", GetOuter()->GetDebugName(), GetOuter()->entindex() );
+					if ( ( GetAbsOrigin() - m_hRegroupPoint->GetAbsOrigin() ).LengthSqr() > Square( m_hRegroupPoint->GetRadius() ) )
+					{
+						return SCHED_STEALTH_GO_TO_REGROUP;
+					}
+
 					return SCHED_STEALTH_WAIT_AT_REGROUP;
 				}
 
@@ -1190,10 +1393,13 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 			}
 		}
 
-		// We've been called to regroup
-		SetHintNode( FindRegroupPointHint( m_hRegroupPoint ) );
-		SearchDbgMsg( "%s [%i]::SelectSchedule: Not at regroup point but have one with no active order, moving to regroup\n", GetOuter()->GetDebugName(), GetOuter()->entindex() );
-		return SCHED_STEALTH_GO_TO_REGROUP;
+		if ( bShouldBeAtRegroup )
+		{
+			// We've been called to regroup
+			SetHintNode( FindRegroupPointHint( m_hRegroupPoint ) );
+			SearchDbgMsg( "%s [%i]::SelectSchedule: Not at regroup point but have one with no active order, moving to regroup\n", GetOuter()->GetDebugName(), GetOuter()->entindex() );
+			return SCHED_STEALTH_GO_TO_REGROUP;
+		}
 	}
 
 	if ( GetHintNode() )
@@ -1244,6 +1450,7 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 			// Done with our sweep
 			if ( IsOrderSquadSweeping() )
 			{
+				SearchDbgMsg( "%s [%i]: Sweep done, order carried out\n", GetOuter()->GetDebugName(), GetOuter()->entindex() );
 				MarkOrderCarriedOut();
 
 				// Return to the regroup point
@@ -1274,7 +1481,11 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 
 			if ( bSweep || bSitrep )
 			{
-				CInfoStealthRegroup *pRegroupPoint = FindRegroupPoint( Square( ai_stealth_regroup_max_dist.GetFloat() ) );
+				float flMaxSearchDist = ai_stealth_regroup_max_dist.GetFloat();
+				if ( m_hGoalEntity && m_hGoalEntity->m_flMaxRegroupDist != 0.0f )
+					flMaxSearchDist = m_hGoalEntity->m_flMaxRegroupDist;
+
+				CInfoStealthRegroup *pRegroupPoint = FindRegroupPoint( Square( flMaxSearchDist ) );
 				if ( pRegroupPoint )
 				{
 					AI_CriteriaSet modifiers;
@@ -1672,9 +1883,14 @@ void CAI_StealthSearchBehavior::StartTask( const Task_t *pTask )
 				if ( GetHintNode() )
 				{
 					OnArrivedAtSearchPoint( GetHintNode() );
-				}
 
-				ChainStartTask( TASK_PLAY_HINT_ACTIVITY );
+					ChainStartTask( TASK_PLAY_HINT_ACTIVITY );
+				}
+				else
+				{
+					TaskFail( FAIL_NO_HINT_NODE );
+					break;
+				}
 
 				if ( m_hCurrentSearchArea )
 				{
@@ -1919,7 +2135,7 @@ void CAI_StealthSearchBehavior::RunTask( const Task_t *pTask )
 								{
 									// Every squad member is supposed to know about the regroup point, but they might not have
 									// if they spawned later.
-									// Just discount them rather than trying to force them into this at this stage
+									// Just discount them rather than trying to force them into it at this stage
 									nNumPossibleMembers--;
 								}
 							}
@@ -1994,7 +2210,9 @@ void CAI_StealthSearchBehavior::RunTask( const Task_t *pTask )
 						}
 						else
 						{
-							iOrder = STEALTH_SQUAD_ORDER_DISMISS;
+							// Dismissing would imply there is nothing to search for
+							// So for now, just go on without them
+							iOrder = STEALTH_SQUAD_ORDER_SITREP;	// STEALTH_SQUAD_ORDER_DISMISS
 						}
 					}
 
@@ -2006,7 +2224,7 @@ void CAI_StealthSearchBehavior::RunTask( const Task_t *pTask )
 
 					if ( iOrder != STEALTH_SQUAD_ORDER_NONE )
 					{
-						SearchDbgMsg( "%s [%i]: Starting regroup order \"%s\" (%i)\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( GetSquadOrder() ), GetSquadOrder() );
+						SearchDbgMsg( "%s [%i]: Starting regroup order \"%s\" (%i)\n", GetOuter()->GetDebugName(), GetOuter()->entindex(), GetStringForOrder( iOrder ), iOrder );
 
 						ReceiveSquadOrder( GetOuter(), iOrder, varOrderData );
 
@@ -2214,6 +2432,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 		"		TASK_STEALTH_GET_PATH_TO_NODE_NEAR_REGROUP	200"
 		"		TASK_WALK_PATH					0"
 		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"		TASK_WAIT						3"
 		""
 		"	Interrupts"
 		"		COND_STEALTH_REGROUP_LEADER_ARRIVES"
@@ -2259,6 +2478,149 @@ AI_END_CUSTOM_SCHEDULE_PROVIDER()
 
 
 //-------------------------------------
+
+
+//-----------------------------------------------------------------------------
+// Purpose: A level tool to control the search behavior.
+//-----------------------------------------------------------------------------
+LINK_ENTITY_TO_CLASS( ai_stealth_goal_search, CAI_StealthSearchGoal );
+
+BEGIN_DATADESC( CAI_StealthSearchGoal )
+	DEFINE_KEYFIELD( m_bAutoSearchEnabled, FIELD_BOOLEAN, "AutoSearchEnabled" ),
+	DEFINE_KEYFIELD( m_fMinState, FIELD_INTEGER, "MinimumState" ),
+	DEFINE_KEYFIELD( m_fMaxState, FIELD_INTEGER, "MaximumState" ),
+	DEFINE_INPUT( m_flMaxSearchPointDist, FIELD_FLOAT, "SetMaxSearchPointDist" ),
+	DEFINE_INPUT( m_flMaxSearchAreaDist, FIELD_FLOAT, "SetMaxSearchAreaDist" ),
+	DEFINE_INPUT( m_flMaxRegroupDist, FIELD_FLOAT, "SetMaxRegroupDist" ),
+
+	// Inputs
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableAutoSearch", InputEnableAutoSearch ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableAutoSearch", InputDisableAutoSearch ),
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "StartOrderSweep", InputStartOrderSweep ),
+
+	// Outputs
+	DEFINE_OUTPUT( m_OnOrderDismiss, "OnOrderDismiss" ),
+	DEFINE_OUTPUT( m_OnOrderDismissTense, "OnOrderDismissTense" ),
+	DEFINE_OUTPUT( m_OnOrderDismissNotTense, "OnOrderDismissNotTense" ),
+END_DATADESC()
+
+BEGIN_ENT_SCRIPTDESC( CAI_StealthSearchGoal, CAI_GoalEntity, "A goal entity which controls stealth search behavior." )
+
+	// TODO: Hook to override orders?
+
+END_SCRIPTDESC();
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CAI_StealthSearchGoal::CAI_StealthSearchGoal()
+{
+	m_bAutoSearchEnabled = true;
+	m_fMinState = NPC_STATE_ALERT;
+	m_fMaxState = NPC_STATE_COMBAT;
+	m_flMaxSearchPointDist = 0.0f;
+	m_flMaxSearchAreaDist = 0.0f;
+	m_flMaxRegroupDist = 0.0f;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchGoal::OnOrderIssued( CAI_BaseNPC *pLeader, StealthSquadOrder_t iSquadOrder, variant_t &varOrderData )
+{
+	switch ( iSquadOrder )
+	{
+		case STEALTH_SQUAD_ORDER_DISMISS:
+			{
+				m_OnOrderDismiss.Set( varOrderData, pLeader, this );
+
+				if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_TENSE, STEALTH_LEVEL_LOUD ) )
+				{
+					m_OnOrderDismissTense.Set( varOrderData, pLeader, this );
+				}
+				else
+				{
+					m_OnOrderDismissNotTense.Set( varOrderData, pLeader, this );
+				}
+			}
+			break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchGoal::EnableGoal( CAI_BaseNPC *pAI )
+{
+	BaseClass::EnableGoal( pAI );
+
+	// Now use this actor to lookup the Behavior
+	CAI_StealthSearchBehavior *pBehavior;
+	if ( pAI->GetBehavior( &pBehavior ) )
+	{
+		pBehavior->SetGoalEntity( this );
+	}
+	else
+	{
+		DevMsg( "Stealth Search goal entity activated for an NPC (%s) that doesn't have the Stealth Search behavior\n", pAI->GetDebugName() );
+		return;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchGoal::DisableGoal( CAI_BaseNPC *pAI )
+{
+	BaseClass::DisableGoal( pAI );
+
+	// Now use this actor to lookup the Behavior
+	CAI_StealthSearchBehavior *pBehavior;
+	if ( pAI->GetBehavior( &pBehavior ) )
+	{
+		if ( pBehavior->GetGoalEntity() == this )
+			pBehavior->SetGoalEntity( NULL );
+	}
+	else
+	{
+		DevMsg( "Stealth Search goal entity deactivated for an NPC (%s) that doesn't have the Stealth Search behavior\n", pAI->GetDebugName() );
+		return;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthSearchGoal::InputStartOrderSweep( inputdata_t &inputdata )
+{
+	CInfoStealthRegroup *pRegroupPoint = dynamic_cast<CInfoStealthRegroup*>( inputdata.value.Entity().Get() );
+
+	variant_t var;
+	for( int i = 0 ; i < NumActors() ; i++ )
+	{
+		CAI_BaseNPC *pActor = GetActor( i );
+
+		if ( pActor )
+		{
+			// Now use this actor to lookup the Behavior
+			CAI_StealthSearchBehavior *pBehavior;
+			if ( pActor->GetBehavior( &pBehavior ) )
+			{
+				// If there is no explicit regroup point, use the one selected by the first actor
+				if ( !pRegroupPoint )
+					pRegroupPoint = pBehavior->FindRegroupPoint( Square( m_flMaxRegroupDist != 0.0f ? m_flMaxRegroupDist : ai_stealth_regroup_max_dist.GetFloat() ) );
+
+				pBehavior->InitForcedSearch( pRegroupPoint );
+				pBehavior->ReceiveSquadOrder( NULL, STEALTH_SQUAD_ORDER_SWEEP, var );
+			}
+			else
+			{
+				DevMsg( "Stealth Search goal entity ordering an NPC that doesn't have the Stealth Search behavior\n" );
+				return;
+			}
+		}
+	}
+}
 
 
 //---------------------------------------------------------
@@ -2361,32 +2723,44 @@ void CInfoStealthRegroup::OrderSpeechQueueThink()
 							variant_t var;
 							StealthSquadOrder_t iNewOrder = pBehavior->SelectBestOrder( &m_hSquadMembers, &var );
 
+							AI_CriteriaSet modifiers;
+							modifiers.AppendCriteria( "from_sitrep", "1" );
+
 							if ( iNewOrder != STEALTH_SQUAD_ORDER_NONE )
 							{
-								AI_CriteriaSet modifiers;
-								modifiers.AppendCriteria( "from_sitrep", "1" );
+								SearchDbgMsg( "%s [%i]: Sitrep done, giving order \"%s\" (%i)\n", m_hSquadMembers[0]->GetDebugName(), m_hSquadMembers[0]->entindex(), pBehavior->GetStringForOrder( iNewOrder ), iNewOrder );
 
-								if ( iNewOrder != STEALTH_SQUAD_ORDER_NONE )
+								if ( pBehavior->ShoutSquadOrder( iNewOrder, modifiers, var ) )
 								{
-									if ( pBehavior->ShoutSquadOrder( iNewOrder, modifiers, var ) )
-									{
-										m_iSquadOrder = iNewOrder;
-										pExpresser = m_hSquadMembers[0]->GetExpresser();
-										pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], iNewOrder, var );
+									m_iSquadOrder = iNewOrder;
+									pExpresser = m_hSquadMembers[0]->GetExpresser();
+									pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], iNewOrder, var );
 
-										for ( int i = 1; i < m_hSquadMembers.Count(); i++ )
+									for ( int i = 1; i < m_hSquadMembers.Count(); i++ )
+									{
+										if ( m_hSquadMembers[i]->GetBehavior( &pBehavior ) )
 										{
-											if ( m_hSquadMembers[i]->GetBehavior( &pBehavior ) )
-											{
-												pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], iNewOrder, var );
-											}
+											pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], iNewOrder, var );
 										}
 									}
 								}
-								else
+							}
+							else
+							{
+								SearchDbgMsg( "%s [%i]: Sitrep done, dismissing\n", m_hSquadMembers[0]->GetDebugName(), m_hSquadMembers[0]->entindex() );
+
+								// Not doing anything
+								if ( pBehavior->ShoutSquadOrder( STEALTH_SQUAD_ORDER_DISMISS, modifiers, var ) )
 								{
-									// Not doing anything
-									pBehavior->ShoutSquadOrder( STEALTH_SQUAD_ORDER_DISMISS, modifiers, var );
+									pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], STEALTH_SQUAD_ORDER_DISMISS, var );
+
+									for ( int i = 1; i < m_hSquadMembers.Count(); i++ )
+									{
+										if ( m_hSquadMembers[i]->GetBehavior( &pBehavior ) )
+										{
+											pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], STEALTH_SQUAD_ORDER_DISMISS, var );
+										}
+									}
 								}
 							}
 						}

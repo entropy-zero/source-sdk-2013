@@ -27,8 +27,12 @@ ConVar	g_debug_stealth_alarm( "g_debug_stealth_alarm", "0" );
 //---------------------------------------------------------
 BEGIN_DATADESC( CAI_StealthAlarmBehavior )
 
+	DEFINE_FIELD( m_bForceRaiseAlarm, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bRaisingAlarm, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flNextAlarmRaiseTime, FIELD_TIME ),
+
+	DEFINE_FIELD( m_hNextAlarm, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_bEscort, FIELD_BOOLEAN ),
 
 END_DATADESC()
 
@@ -53,12 +57,12 @@ bool CAI_StealthAlarmBehavior::IsRaisingAlarm( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_StealthAlarmBehavior::ShouldRaiseAlarm( void )
+bool CAI_StealthAlarmBehavior::ShouldRaiseAlarm( bool bOrder )
 {
 	if ( !g_hStealthManager || !g_hStealthManager->GetAlarmsEnabled() || g_hStealthManager->IsAlarmRaised() )
 		return false;
 
-	if ( m_bForceRaiseAlarm )
+	if ( m_bForceRaiseAlarm || m_hNextAlarm )
 		return true;
 
 	if ( m_flNextAlarmRaiseTime > gpGlobals->curtime )
@@ -98,6 +102,13 @@ bool CAI_StealthAlarmBehavior::ShouldRaiseAlarm( void )
 			return true;
 	}
 
+	if ( bOrder )
+	{
+		// If we've found at least one body, and we're having trouble investigating it, we may want assistance
+		if ( GetStealthSenses()->GetNumBodiesFound() > 0 )
+			return true;
+	}
+
 	return false;
 }
 
@@ -116,6 +127,15 @@ bool CAI_StealthAlarmBehavior::ForceRaiseAlarm( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CAI_StealthAlarmBehavior::SetNextAlarm( CAI_Hint *pHint, bool bEscort )
+{
+	m_hNextAlarm = pHint;
+	m_bEscort = bEscort;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CAI_StealthAlarmBehavior::OnFinishRaisingAlarm( void )
 {
 	if ( !g_hStealthManager )
@@ -128,6 +148,8 @@ void CAI_StealthAlarmBehavior::OnFinishRaisingAlarm( void )
 		GetHintNode()->Unlock();
 		SetHintNode( NULL );
 	}
+
+	m_hNextAlarm = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -155,6 +177,9 @@ CAI_Hint *CAI_StealthAlarmBehavior::FindAlarmHint( CBaseEntity *pEnemy )
 {
 	if ( !g_hStealthManager )
 		return NULL;
+
+	if ( m_hNextAlarm )
+		return m_hNextAlarm;
 
 	CHintCriteria hintCriteria;
 	hintCriteria.SetHintType( HINT_STEALTH_ALARM );
@@ -231,7 +256,16 @@ void CAI_StealthAlarmBehavior::ModifyOrAppendCriteria( AI_CriteriaSet& criteriaS
 int CAI_StealthAlarmBehavior::SelectSchedule()
 {
 	if ( ShouldRaiseAlarm() )
+	{
+		if ( m_bEscort )
+			return SCHED_STEALTH_PATROL_ALARM;
+
+		// TODO: Proper mood check?
+		if ( m_hNextAlarm != NULL )
+			return SCHED_STEALTH_RAISE_ALARM_WALK;
+
 		return SCHED_STEALTH_RAISE_ALARM;
+	}
 
 	return BaseClass::SelectSchedule();
 }
@@ -319,11 +353,11 @@ void CAI_StealthAlarmBehavior::OnScheduleChange( void )
 	{
 		OnFinishRaisingAlarm();
 		m_bRaisingAlarm = false;
-
-		if ( GetHintNode() )
-		{
-			Msg( "have hint node\n" );
-		}
+	}
+	else if ( m_bEscort )
+	{
+		// Don't escort again unless we're told to
+		m_bEscort = false;
 	}
 
 	BaseClass::OnScheduleChange();
@@ -352,10 +386,19 @@ void CAI_StealthAlarmBehavior::StartTask( const Task_t *pTask )
 	{
 	case TASK_STEALTH_ALARM_FIND_ALARM:
 		{
-			CAI_Hint *pHint = FindAlarmHint( GetEnemy() );
-			if (pHint)
+			CAI_Hint *pHint = NULL;
+			if ( GetHintNode() && GetHintNode()->HintType() == HINT_STEALTH_ALARM )
 			{
-				SetHintNode( pHint );
+				// The AI already gave us a hint
+				pHint = GetHintNode();
+			}
+			else
+			{
+				pHint = FindAlarmHint( GetEnemy() );
+				if ( pHint )
+				{
+					SetHintNode( pHint );
+				}
 			}
 
 			ChainStartTask( TASK_GET_PATH_TO_HINTNODE );
@@ -369,7 +412,12 @@ void CAI_StealthAlarmBehavior::StartTask( const Task_t *pTask )
 
 					m_bRaisingAlarm = true;
 
-					SpeakStealthConcept( TLK_ALARM_RAISE );
+					// Call it out if this wasn't a squad order
+					if ( GetOuter()->GetExpresser() && GetOuter()->GetExpresser()->IsSpeaking()
+						&& CompareConcepts( GetOuter()->GetExpresser()->GetLastSpokeConcept(), TLK_SQUAD_ORDER ) )
+					{
+						SpeakStealthConcept( TLK_ALARM_RAISE );
+					}
 
 					if ( g_hStealthManager )
 						g_hStealthManager->NPCRaisingAlarm( GetOuter() );
@@ -423,6 +471,19 @@ void CAI_StealthAlarmBehavior::StartTask( const Task_t *pTask )
 			TaskComplete();
 		} break;
 
+	case TASK_STEALTH_GET_NODE_NEAR_ALARM:
+		{
+			if ( m_hNextAlarm )
+			{
+				if ( GetNavigator()->SetRandomGoal( m_hNextAlarm->GetAbsOrigin(), pTask->flTaskData ) )
+					TaskComplete();
+				else
+					TaskFail( FAIL_NO_REACHABLE_NODE );
+			}
+			else
+				TaskFail( FAIL_NO_TARGET );
+		} break;
+
 	default:
 		BaseClass::StartTask( pTask );
 	}
@@ -454,6 +515,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthAlarmBehavior )
 	DECLARE_TASK( TASK_STEALTH_ALARM_FIND_ALARM )
 	DECLARE_TASK( TASK_STEALTH_ALARM_RAISE )
 	DECLARE_TASK( TASK_STEALTH_ALARM_FINISH )
+	DECLARE_TASK( TASK_STEALTH_GET_NODE_NEAR_ALARM )
 
 	//---------------------------------
 
@@ -471,6 +533,53 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthAlarmBehavior )
 		""
 		"	Interrupts"
 		"		COND_STEALTH_ALARM_INVALID"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_RAISE_ALARM_WALK,
+
+		"	Tasks"
+		"		TASK_STEALTH_ALARM_FIND_ALARM		0"
+		"		TASK_WALK_PATH			0"
+		"		TASK_WAIT_FOR_MOVEMENT	0"
+		"		TASK_STOP_MOVING		1"
+		"		TASK_STEALTH_ALARM_RAISE		0"
+		"		TASK_STEALTH_ALARM_FINISH		0"
+		""
+		"	Interrupts"
+		"		COND_STEALTH_ALARM_INVALID"
+		"		COND_HEAR_COMBAT"
+		"		COND_HEAR_DANGER"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_PATROL_ALARM,
+
+		"	Tasks"
+		"		TASK_STEALTH_GET_NODE_NEAR_ALARM		0"
+		"		TASK_WALK_PATH			0"
+		"		TASK_WAIT_FOR_MOVEMENT	0"
+		"		TASK_STOP_MOVING		1"
+		"		TASK_WAIT				5"
+		""
+		"	Interrupts"
+		"		COND_HEAR_COMBAT"
+		"		COND_HEAR_DANGER"
+		"		COND_HEAR_PLAYER"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_SMELL"
+		"		COND_PROVOKED"
 	)
 
 AI_END_CUSTOM_SCHEDULE_PROVIDER()

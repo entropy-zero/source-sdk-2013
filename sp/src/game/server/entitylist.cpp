@@ -27,6 +27,7 @@
 #endif // HL2_DLL
 #ifdef EZ2
 #include "ez2/npc_wilson.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -697,6 +698,10 @@ CBaseEntity *CGlobalEntityList::FindEntityProcedural( const char *szName, CBaseE
 			}
 
 			return CNPC_Wilson::GetBestWilson( flBestDistSqr, pSearchFrom ? &pSearchFrom->GetAbsOrigin() : NULL );
+		}
+		else if ( FStrEq( pName, "stealth_manager" ) )
+		{
+			return g_hStealthManager;
 		}
 #endif
 		else if (strchr(pName, ':'))

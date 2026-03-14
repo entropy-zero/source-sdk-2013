@@ -51,12 +51,14 @@ public:
 	//-----------------------------------------------
 
 	virtual void	OnListened();
+	virtual bool	ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea );
 
 	CSound			*GetInvestigatingSound();
 	virtual void	StartInvestigatingSound( CSound *pSound );
 	virtual bool	IsInvestigatingSound();
 
 	virtual bool	IsCuriousObject( CBaseEntity *pEntity );
+	virtual bool	IsCuriousObjectMoving( CBaseEntity *pEntity );
 
 	virtual void	ResetLastSound();
 	virtual bool	IsLastSoundRelevant();
@@ -94,6 +96,7 @@ private:
 	int				m_nLastSoundType;
 	int				m_nLastSoundChannel;
 	EHANDLE			m_hLastSoundOwner;
+	string_t		m_iszLastSoundModel;
 	float			m_flLastSoundTime;
 
 	int				m_nLastDamageType;

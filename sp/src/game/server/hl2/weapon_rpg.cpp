@@ -2478,10 +2478,15 @@ CLaserDot *CLaserDot::Create( const Vector &origin, CBaseEntity *pOwner, bool bV
 	{
 		pLaserDot->MakeInvisible();
 	}
+
 #ifdef EZ2
-	else if ( g_hStealthManager )
+	if ( g_hStealthManager )
 	{
-		g_AI_SensedObjectsManager.AddEntity( pLaserDot );
+		if ( bVisibleDot )
+			g_AI_SensedObjectsManager.AddEntity( pLaserDot );
+
+		// TODO: This will need the new Mapbase thing
+		//pLaserDot->m_bExcludeFromColCorrect = true;
 	}
 #endif
 
@@ -2509,7 +2514,7 @@ void CLaserDot::LaserThink( void )
 	SetScale( scale );
 
 #ifdef EZ2
-	if ( m_bIsOn && GetOwnerEntity()->IsPlayer() )
+	if ( m_bIsOn && GetOwnerEntity()->IsPlayer() && g_hStealthManager )
 	{
 		CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(GetOwnerEntity());
 		if ( pEZ2Player->GetCloakFactor() > 0.0f )

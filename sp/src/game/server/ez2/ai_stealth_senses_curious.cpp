@@ -38,6 +38,7 @@ BEGIN_DATADESC( CAI_CuriousStealthSenses )
 	DEFINE_FIELD( m_nLastSoundType, FIELD_INTEGER ),
 	DEFINE_FIELD( m_nLastSoundChannel, FIELD_INTEGER ),
 	DEFINE_FIELD( m_hLastSoundOwner, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_iszLastSoundModel, FIELD_STRING ),
 	DEFINE_FIELD( m_flLastSoundTime, FIELD_TIME ),
 
 	DEFINE_FIELD( m_nLastDamageType, FIELD_INTEGER ),
@@ -58,6 +59,7 @@ CAI_CuriousStealthSenses::CAI_CuriousStealthSenses( CAI_BaseNPC *pOuter )
 	m_nLastSoundType = 0;
 	m_nLastSoundChannel = 0;
 	m_hLastSoundOwner = NULL;
+	m_iszLastSoundModel = NULL_STRING;
 	m_flLastSoundTime = 0.0f;
 
 	m_nLastDamageType = 0;
@@ -217,6 +219,35 @@ void CAI_CuriousStealthSenses::OnListened()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CAI_CuriousStealthSenses::ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea )
+{
+	if ( !BaseClass::ShouldSeeInArea( pEntity, pArea ) )
+		return false;
+
+	if ( !pEntity->IsCombatCharacter() && g_hStealthManager->GetStealthObjectType( pEntity ) == STEALTH_OBJ_PROP )
+	{
+		StealthAreaMemory_t *pMemory = GetAreaMemory( pArea );
+		if ( pMemory )
+		{
+			// Check if this prop was placed here since the last time we visited
+			// If it wasn't, assume it was always there and ignore it
+			StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pEntity );
+			if ( !pObjState || pObjState->flTimeEnteredArea < pMemory->flLastTimeEntered )
+			{
+				//CuriousDbgMsg( "---- Will ignore prop (%.2f < %.2f)\n", pObjState ? pObjState->flTimeEnteredArea : 0.0f, pMemory->flLastTimeEntered );
+				return false;
+			}
+			//else
+			//	CuriousDbgMsg( "---- Prop is new (%.2f < %.2f)\n", pObjState->flTimeEnteredArea, pMemory->flLastTimeEntered );
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 CSound *CAI_CuriousStealthSenses::GetInvestigatingSound()
 {
 	CSound *pSound = NULL;
@@ -272,9 +303,6 @@ bool CAI_CuriousStealthSenses::IsCuriousObject( CBaseEntity *pEntity )
 	if (!(pEntity->GetFlags() & FL_OBJECT) || pEntity->IsCombatCharacter())
 		return false;
 
-	if (!g_hStealthManager || !g_hStealthManager->ShouldSeeObject( pEntity ))
-		return false;
-
 	int nObjType = g_hStealthManager->GetStealthObjectType( pEntity );
 	if ( nObjType == STEALTH_OBJ_NONE )
 		return false;
@@ -290,6 +318,20 @@ bool CAI_CuriousStealthSenses::IsCuriousObject( CBaseEntity *pEntity )
 	}
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_CuriousStealthSenses::IsCuriousObjectMoving( CBaseEntity *pEntity )
+{
+	Vector vecVelocity;
+	pEntity->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
+
+	if ( vecVelocity.LengthSqr() > Square( 4.0f ) )
+		return true;
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -340,6 +382,11 @@ void CAI_CuriousStealthSenses::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 		{
 			set.AppendCriteria( "last_sound_owner", m_hLastSoundOwner->GetClassname() );
 			m_hLastSoundOwner->AppendContextToCriteria( set, "last_sound_owner_" );
+		}
+
+		if ( m_iszLastSoundModel != NULL_STRING )
+		{
+			set.AppendCriteria( "last_sound_model", STRING( m_iszLastSoundModel ) );
 		}
 	}
 }
@@ -413,6 +460,8 @@ void CAI_CuriousStealthSenses::UpdateLastSound( CSound *pSound )
 	m_nLastSoundType = pSound->SoundType();
 	m_nLastSoundChannel = pSound->SoundChannel();
 	m_hLastSoundOwner = pSound->m_hOwner;
+	if ( pSound->m_hOwner )
+		m_iszLastSoundModel = pSound->m_hOwner->GetModelName();
 	m_flLastSoundTime = gpGlobals->curtime;
 }
 

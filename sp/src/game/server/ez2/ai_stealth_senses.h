@@ -29,7 +29,10 @@ struct StealthAreaMemory_t;
 
 enum StealthFlags_t
 {
-	STEALTH_F_CIVILIAN = ( 1 << 0 ),		// Busy/not on guard, won't be as curious
+	STEALTH_F_SLOW					= ( 1 << 0 ),	// Slower alertness
+	STEALTH_F_EXTRA_DANGER			= ( 1 << 1 ),	// Alert indicators more extreme
+	STEALTH_F_DONT_NOTICE_PROP		= ( 1 << 2 ),	// Won't notice strange prop placement
+	STEALTH_F_DONT_NOTICE_DOOR		= ( 1 << 3 ),	// Won't notice strange doors
 };
 
 //-----------------------------------------------------------------------------
@@ -129,8 +132,9 @@ public:
 	static const char	*GetStealthSoundChannelName( int nSoundChannel );
 
 	virtual bool	IsCuriousObject( CBaseEntity *pEntity ) { return false; }
+	virtual bool	IsCuriousObjectMoving( CBaseEntity *pEntity ) { return false; }
 
-	bool	HasStealthFlags( int iFlags );
+	bool	HasStealthFlags( int iFlags ) const;
 
 	virtual void	ResetLastSound() {}
 	virtual bool	IsLastSoundRelevant() { return false; }
@@ -159,7 +163,7 @@ public:
 	virtual void	GetStealthLookVectors( Vector &vecPos, Vector &vecDir );
 	virtual float	GetDotToSee( int eNPCState );
 
-	bool	ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea );
+	virtual bool	ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea );
 	bool	ShouldSeeInDark( CBaseEntity *pEntity );
 	bool	ShouldSeeInWater( CBaseEntity *pEntity, int nWaterLevel );
 
@@ -183,7 +187,7 @@ public:
 	const float			GetAlertLevelForTarget( CBaseEntity *pTarget ) const;
 	float				GetHighestAlertLevel() const;
 
-	virtual int		GetAlertSourceType() const { return ALERT_SOURCE_TYPE_NONE; }
+	virtual int		GetAlertSourceType() const;
 
 	virtual float	GetAlertFaceThreshold( CBaseEntity *pTarget, int i ) const;
 	virtual bool	ShouldEmitSawSuspicious( CBaseEntity *pTarget, int i );

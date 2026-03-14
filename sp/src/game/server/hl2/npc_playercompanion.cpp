@@ -819,7 +819,7 @@ bool CNPC_PlayerCompanion::SelectQuestionAndAnswerSpeech( AISpeechSelection_t *p
 		}
 
 		StealthSquadInfo_t *stealthSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
-		if ( g_hStealthManager->GetDistanceFromSquad( GetAbsOrigin(), stealthSquadInfo, this ) < 1000.0f ) // TODO: new cvar?
+		if ( stealthSquadInfo && g_hStealthManager->GetDistanceFromSquad( GetAbsOrigin(), stealthSquadInfo, this ) < 1000.0f ) // TODO: new cvar?
 		{
 			if ( SpeakIfAllowed( TLK_SQUAD_CHECK ) )
 				return true;
@@ -841,7 +841,7 @@ void CNPC_PlayerCompanion::InputAnswerSquadCheck( inputdata_t &inputdata )
  	if ( SpeakIfAllowed( TLK_SQUAD_REPORT ) )
 	{
 		// Prevent idle speech for a while
-		DeferAllIdleSpeech( random->RandomFloat( TALKER_DEFER_IDLE_SPEAK_MIN, TALKER_DEFER_IDLE_SPEAK_MAX ), GetSpeechTarget()->MyNPCPointer() );
+		DeferAllIdleSpeech( random->RandomFloat( TALKER_DEFER_IDLE_SPEAK_MIN, TALKER_DEFER_IDLE_SPEAK_MAX ), GetSpeechTarget() ? GetSpeechTarget()->MyNPCPointer() : NULL );
 	}
 }
 
@@ -850,7 +850,8 @@ void CNPC_PlayerCompanion::InputAnswerSquadCheck( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CNPC_PlayerCompanion::InputAnswerSquadReport( inputdata_t &inputdata )
 {
-	if ( !inputdata.pActivator || !inputdata.pActivator->IsNPC() )
+	if ( !inputdata.pActivator || !inputdata.pActivator->IsNPC() || inputdata.pActivator->MyNPCPointer()->GetSquad() != GetSquad()
+		|| m_StealthSearchBehavior.IsWaitingAtRegroup() || m_StealthSearchBehavior.GetSquadOrder() != STEALTH_SQUAD_ORDER_NONE )
 		return;
 
 	CUtlVector<AIHANDLE>		vecRelevantSquad;

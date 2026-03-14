@@ -224,10 +224,7 @@ void CAI_StealthCuriousBehavior::OnSeeRagdoll( CBaseEntity *pEntity )
 		AI_CriteriaSet modifiers;
 		
 		// Check if the body is moving. If it is, we should be VERY concerned
-		Vector vecVelocity;
-		pEntity->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
-
-		bool bIsMoving = vecVelocity.LengthSqr() > Square( 4.0f );
+		bool bIsMoving = GetStealthSenses()->IsCuriousObjectMoving( pEntity );
 		if (bIsMoving)
 		{
 			// TODO: Should instead alert immediately if it's close enough
@@ -294,6 +291,12 @@ void CAI_StealthCuriousBehavior::OnSeeDoor( CBaseEntity *pEntity )
 
 	CuriousDbgMsg( "OnSeeDoor\n" );
 
+	if ( GetStealthSenses()->HasStealthFlags( STEALTH_F_DONT_NOTICE_DOOR ) )
+	{
+		CuriousDbgMsg( "- Set to ignore doors\n" );
+		return;
+	}
+
 	if ( g_hStealthManager )
 	{
 		CBasePropDoor *pDoor = assert_cast<CBasePropDoor *>(pEntity);
@@ -325,7 +328,7 @@ void CAI_StealthCuriousBehavior::OnSeeDoor( CBaseEntity *pEntity )
 					CuriousDbgMsg( "--- Has enemy and can't see it\n" );
 
 					// Aha! Our enemy must've gone inside!
-					GetOuter()->UpdateEnemyMemory( GetEnemy(), vecTargetPosition/*, GetEnemy()*/ );
+					GetOuter()->UpdateEnemyMemory( GetEnemy(), vecTargetPosition, pDoor );
 
 					AI_CriteriaSet modifiers;
 					SetSpeechTarget( pEntity );
@@ -385,7 +388,7 @@ void CAI_StealthCuriousBehavior::OnSeeDoor( CBaseEntity *pEntity )
 						CuriousDbgMsg( "---- Chasing enemy through door\n" );
 
 						// Aha! Our enemy must've gone inside!
-						GetOuter()->UpdateEnemyMemory( GetEnemy(), vecSoundPosition/*, GetEnemy()*/ );
+						GetOuter()->UpdateEnemyMemory( GetEnemy(), vecSoundPosition, pDoor );
 
 						// Even though we didn't fully lose the enemy, this calls out that they've been seen again
 						// and that the door was responsible for that
@@ -420,11 +423,15 @@ void CAI_StealthCuriousBehavior::OnSeeProp( CBaseEntity *pEntity, bool bPickup )
 {
 	CuriousDbgMsg( "OnSeeProp\n" );
 
+	if ( GetStealthSenses()->HasStealthFlags( STEALTH_F_DONT_NOTICE_PROP ) )
+	{
+		CuriousDbgMsg( "- Set to ignore props\n" );
+		return;
+	}
+
 	if (GetOuter()->GetState() != NPC_STATE_COMBAT)
 	{
-		Vector vecVelocity;
-		pEntity->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
-		bool bIsMoving = vecVelocity.LengthSqr() > Square( 4.0f );
+		bool bIsMoving = GetStealthSenses()->IsCuriousObjectMoving( pEntity );
 
 		if (bIsMoving)
 		{
@@ -443,45 +450,11 @@ void CAI_StealthCuriousBehavior::OnSeeProp( CBaseEntity *pEntity, bool bPickup )
 
 			MarkAsSeen( pEntity );
 		}
-		else if (!GetStealthSenses()->HasStealthFlags( STEALTH_F_CIVILIAN ))
+		else
 		{
-			if (g_hStealthManager && !bPickup)
-			{
-				CuriousDbgMsg( "- Can observe props\n" );
-
-				CTriggerStealthArea *pArea = g_hStealthManager->GetStealthAreaForEntity( pEntity );
-				if ( pArea )
-				{
-					CuriousDbgMsg( "-- Prop is in area (%s)\n", pArea->GetAreaContext() );
-
-					StealthAreaMemory_t *pMemory = GetStealthSenses()->GetAreaMemory( pArea );
-					if ( pMemory )
-					{
-						CuriousDbgMsg( "--- Have memory of area (last visited %.2f ago)\n", pMemory->flLastTimeEntered );
-
-						// Check if this prop was placed here since the last time we visited
-						// If it wasn't, assume it was always there and ignore it
-						StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pEntity );
-						if ( !pObjState || pObjState->flTimeEnteredArea < pMemory->flLastTimeEntered )
-						{
-							CuriousDbgMsg( "---- Will ignore prop (%.2f < %.2f)\n", pObjState ? pObjState->flTimeEnteredArea : 0.0f, pMemory->flLastTimeEntered );
-							return;
-						}
-						else
-							CuriousDbgMsg( "---- Prop is new (%.2f < %.2f)\n", pObjState->flTimeEnteredArea, pMemory->flLastTimeEntered );
-					}
-					else
-					{
-						// If this is our first time entering this area, ignore suspicious props
-						CuriousDbgMsg( "--- No memory of area, ignoring\n" );
-						return;
-					}
-				}
-			}
-
 			m_hSuspiciousTarget = pEntity;
 
-			CuriousDbgMsg( "- Commenting on prop" );
+			CuriousDbgMsg( "- Commenting on prop\n" );
 
 			SetSpeechTarget( pEntity );
 			SpeakStealthConcept( TLK_FOUND_PROP );
@@ -651,6 +624,10 @@ int CAI_StealthCuriousBehavior::SelectFailSchedule( int failedSchedule, int fail
 	{
 		SetCondition( COND_STEALTH_SOUND_UNREACHABLE );
 		return SCHED_ALERT_FACE_BESTSOUND;
+	}
+	else if ( failedSchedule == SCHED_PATROL_WALK )
+	{
+		return SCHED_IDLE_WANDER;
 	}
 
 	return BaseClass::SelectFailSchedule( failedSchedule, failedTask, taskFailCode );
@@ -1016,8 +993,9 @@ void CAI_StealthCuriousBehavior::RunTask( const Task_t *pTask )
 						{
 							SetSpeechTarget( GetTarget() );
 
-							// Get a simplified model name
-							modifiers.AppendCriteria( "speechtarget_modelname", V_GetFileName( STRING( GetTarget()->GetModelName() ) ) );
+							// UNDONE: Get a simplified model name
+							// (we now use m_iszLastSoundModel for this)
+							//modifiers.AppendCriteria( "speechtarget_modelname", V_GetFileName( STRING( GetTarget()->GetModelName() ) ) );
 						}
 						else
 						{
@@ -1102,6 +1080,34 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 		"		COND_LIGHT_DAMAGE"
 		"		COND_HEAVY_DAMAGE"
 		"		COND_HEAR_DANGER"
+	);
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_WANDER,
+
+		"	Tasks"
+	//	"		TASK_SET_TOLERANCE_DISTANCE		48"
+		"		TASK_WANDER						480240" // 48 units to 240 units.
+		"		TASK_WALK_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		""
+		"	Interrupts"
+		"		COND_CAN_RANGE_ATTACK1 "
+		"		COND_CAN_RANGE_ATTACK2 "
+		"		COND_CAN_MELEE_ATTACK1 "
+		"		COND_CAN_MELEE_ATTACK2"
+		"		COND_GIVE_WAY"
+		"		COND_HEAR_COMBAT"
+		"		COND_HEAR_DANGER"
+		"		COND_HEAR_PLAYER"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_SMELL"
+		"		COND_PROVOKED"
 	);
 
 AI_END_CUSTOM_SCHEDULE_PROVIDER()
