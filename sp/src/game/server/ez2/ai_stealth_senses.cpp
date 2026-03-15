@@ -11,6 +11,7 @@
 #include "ai_stealth_senses.h"
 #include "ai_stealth_manager.h"
 #include "ai_stealth_area.h"
+#include "ai_stealth_utils.h"
 #include "ai_basenpc.h"
 #include "ai_behavior_actbusy.h"
 #include "ai_hint.h"
@@ -1101,20 +1102,6 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 	
 	if (pTarget->IsPlayer())
 	{
-		// TODO: Cloak factor
-		// Make the laser actually reduce player's cloak instead of doing this
-		/*if (pTarget->GetScriptScope().m_flCloakFactor > 0.0)
-		{
-			local cloakFactor = pTarget->GetScriptScope().m_flCloakFactor;
-			if (rawin("TargetCrossingLaser") && TargetCrossingLaser(target))
-			{
-				// If we have a laser the player is crossing, act like cloak is at less effectiveness
-				cloakFactor *= 0.4;
-			}
-		
-			flAlertLevelIncrease *= (1.0 - cloakFactor);
-		}*/
-
 		CBasePlayer *pPlayer = ToBasePlayer( pTarget );
 		if ( pPlayer )
 		{
@@ -1124,11 +1111,15 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 			if (pPlayer->GetUseEntity())
 				flAlertLevelIncrease += 0.1;
 
-			/*CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pPlayer);
+			CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pPlayer);
 			if ( pEZ2Player->GetCloakFactor() > 0.0f )
 			{
-				flAlertLevelIncrease *= (1.0 - pEZ2Player->GetCloakFactor());
-			}*/
+				// TODO: dynamic_cast is a bit icky with how often this could run
+				ICloakCompromisable *pCloakCompromisable = dynamic_cast<ICloakCompromisable *>(GetOuter());
+				int iCompromiseType = COMPROMISE_TYPE_SIGHT;
+				if ( !pCloakCompromisable || !pCloakCompromisable->CanSeeThroughCloak( pEZ2Player, pEZ2Player->GetCloakFactor(), iCompromiseType ) )
+					flAlertLevelIncrease *= (1.0 - pEZ2Player->GetCloakFactor());
+			}
 		}
 			
 		if (pTarget->GetFlags() & FL_DUCKING)

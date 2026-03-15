@@ -133,6 +133,11 @@ void CHudStealthCloak::Paint()
 		{
 			nCloakLabel = CLOAK_LABEL_VISIBLE;
 		}
+		/*else if ( pEZ2Player->GetCloakCompromiseType() == COMPROMISE_TYPE_SIGHT && pEZ2Player->GetCloakFactor() < 1.0f )
+		{
+			// Still let the cloak label appear slightly
+			nCloakLabel = CLOAK_LABEL_VISIBLE;
+		}*/
 
 		if ( nCloakLabel != CLOAK_LABEL_NONE )
 		{
@@ -145,6 +150,9 @@ void CHudStealthCloak::Paint()
 					{
 						pszCloakLabel = "#Suit_HUD_Cloak_WarnVisible";
 						clrCloakLabel = m_clrCaution;
+
+						if ( pEZ2Player->GetCloakCompromiseType() == COMPROMISE_TYPE_SIGHT )
+							clrCloakLabel[3] = RemapValClamped( pEZ2Player->GetCloakFactor() + 0.2f, 0.0f, 1.0f, 255, 0 );
 					}
 					break;
 				case CLOAK_LABEL_COMPROMISED:
