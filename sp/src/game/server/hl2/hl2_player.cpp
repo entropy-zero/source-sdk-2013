@@ -2852,7 +2852,11 @@ void CHL2_Player::SuitPower_Update( void )
 		if( !SuitPower_Drain( flPowerLoad * gpGlobals->frametime ) )
 		{
 			// TURN OFF ALL DEVICES!!
+#ifdef EZ2
+			if( IsSprinting() && sv_infinite_sprint_power.GetInt() != INFINITE_SPRINT_TRUE )
+#else
 			if( IsSprinting() )
+#endif
 			{
 				StopSprinting();
 			}
