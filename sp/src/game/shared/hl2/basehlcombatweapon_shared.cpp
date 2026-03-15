@@ -701,6 +701,19 @@ float CBaseHLCombatWeapon::CalcViewmodelBob( void )
 	//Find the speed of the player
 	float speed = player->GetLocalVelocity().Length2D();
 
+#ifdef EZ2
+	// Don't bob while sliding
+	if ( player->m_Local.m_bDuckSliding )
+	{
+		speed = FLerp( 0.0f, speed, player->m_Local.m_flDuckSlideTime / 500.0f );
+	}
+	else if ( player->m_Local.m_flDuckSlideTime > 0.0f )
+	{
+		// Getting out of a slide
+		speed = FLerp( 0.0f, speed, 1.0f - player->m_Local.m_flDuckSlideTime / 500.0f );
+	}
+#endif
+
 	//FIXME: This maximum speed value must come from the server.
 	//		 MaxSpeed() is not sufficient for dealing with sprinting - jdw
 

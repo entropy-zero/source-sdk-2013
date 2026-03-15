@@ -48,6 +48,11 @@ public:
 	bool					m_bInDuckJump;
 	float					m_flDucktime;
 	float					m_flDuckJumpTime;
+#ifdef EZ2
+	bool					m_bDuckSliding;
+	float					m_flDuckSlideTime;
+	float					m_flDuckSlideEndTime;
+#endif
 	float					m_flJumpTime;
 	int						m_nStepside;
 	float					m_flFallVelocity;

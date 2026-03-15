@@ -66,7 +66,6 @@ public:
 	// allows derived classes to exclude entities from trace
 	virtual void	TryTouchGround( const Vector& start, const Vector& end, const Vector& mins, const Vector& maxs, unsigned int fMask, int collisionGroup, trace_t& pm );
 
-
 #define BRUSH_ONLY true
 	virtual unsigned int PlayerSolidMask( bool brushOnly = false );	///< returns the solid mask for the given player, so bots can have a more-restrictive set
 	CBasePlayer		*player;
@@ -229,6 +228,9 @@ protected:
 	void			FinishUnDuckJump( trace_t &trace );
 	void			SetDuckedEyeOffset( float duckFraction );
 	void			FixPlayerCrouchStuck( bool moveup );
+#ifdef EZ2
+	void			StopDuckSlide();
+#endif
 
 	float			SplineFraction( float value, float scale );
 

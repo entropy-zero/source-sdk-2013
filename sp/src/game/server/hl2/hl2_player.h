@@ -292,6 +292,14 @@ public:
 	void StopWalking( void );
 	bool IsWalking( void ) { return m_fIsWalking; }
 
+#ifdef EZ2
+	// Duck Sliding
+	void StartDuckSliding( void );
+	void StopDuckSliding( void );
+	void InitializeDuckSlideSound( void );
+	bool IsDuckSliding( void ) { return m_fIsDuckSliding; }
+#endif
+
 	// Aiming heuristics accessors
 	virtual float		GetIdleTime( void ) const { return ( m_flIdleTime - m_flMoveTime ); }
 	virtual float		GetMoveTime( void ) const { return ( m_flMoveTime - m_flIdleTime ); }
@@ -479,6 +487,11 @@ private:
 
 	CNetworkVar( bool, m_fIsSprinting );
 	CNetworkVarForDerived( bool, m_fIsWalking );
+#ifdef EZ2
+	bool				m_fIsDuckSliding;	// This controls max speed and sprint state in relation to m_Local.m_bDuckSliding
+	bool				m_fIsDuckSlidingOnGround;
+	CSoundPatch			*m_pDuckSlideSound;
+#endif
 
 protected:	// Jeep: Portal_Player needs access to this variable to overload PlayerUse for picking up objects through portals
 	bool				m_bPlayUseDenySound;		// Signaled by PlayerUse, but can be unset by HL2 ladder code...

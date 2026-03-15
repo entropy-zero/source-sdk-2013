@@ -1193,6 +1193,10 @@ public:
 	void					ToggleDuck( void );
 	float					GetStickDist( void );
 
+#ifdef EZ2
+	float					GetDuckSlideDecay();
+#endif
+
 	float					m_flForwardMove;
 	float					m_flSideMove;
 	int						m_nNumCrateHudHints;

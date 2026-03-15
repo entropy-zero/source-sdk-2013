@@ -59,6 +59,20 @@ ConVar option_duck_method("option_duck_method", "1", FCVAR_REPLICATED|FCVAR_ARCH
 ConVar player_crouch_multiplier( "player_crouch_multiplier", "0.33333333", FCVAR_NONE );
 #endif
 
+#ifdef EZ2
+#define GAMEMOVEMENT_DUCK_SLIDE_TIME				500.0f		// ms
+
+ConVar player_duck_slide( "player_duck_slide", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
+ConVar player_duck_slide_sticky( "player_duck_slide_sticky", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
+ConVar player_duck_slide_time_base( "player_duck_slide_time_base", "500", FCVAR_REPLICATED );
+ConVar player_duck_slide_time( "player_duck_slide_time", "1500", FCVAR_REPLICATED );
+ConVar player_duck_slide_angle_base( "player_duck_slide_angle_base", "3", FCVAR_REPLICATED );
+ConVar player_duck_slide_angle( "player_duck_slide_angle", "5", FCVAR_REPLICATED );
+ConVar player_duck_slide_angle_on_vm( "player_duck_slide_angle_on_vm", "1", FCVAR_REPLICATED );
+ConVar player_duck_slide_hit_max_mass( "player_duck_slide_hit_max_mass", "25", FCVAR_REPLICATED );
+ConVar player_duck_slide_hit_max_angle( "player_duck_slide_hit_max_angle", "0.5", FCVAR_REPLICATED ); // 60 degrees
+#endif
+
 #ifdef STAGING_ONLY
 #ifdef CLIENT_DLL
 ConVar debug_latch_reset_onduck( "debug_latch_reset_onduck", "1", FCVAR_CHEAT );
@@ -1117,6 +1131,24 @@ void CGameMovement::ReduceTimers( void )
 			player->m_Local.m_flDuckJumpTime = 0;
 		}
 	}
+#ifdef EZ2
+	if ( player->m_Local.m_flDuckSlideTime > 0 )
+	{
+		player->m_Local.m_flDuckSlideTime -= frame_msec;
+		if ( player->m_Local.m_flDuckSlideTime < 0 )
+		{
+			player->m_Local.m_flDuckSlideTime = 0;
+		}
+	}
+	if ( player->m_Local.m_flDuckSlideEndTime > 0 )
+	{
+		player->m_Local.m_flDuckSlideEndTime -= frame_msec;
+		if ( player->m_Local.m_flDuckSlideEndTime < 0 )
+		{
+			player->m_Local.m_flDuckSlideEndTime = 0;
+		}
+	}
+#endif
 	if ( player->m_Local.m_flJumpTime > 0 )
 	{
 		player->m_Local.m_flJumpTime -= frame_msec;
@@ -1653,7 +1685,11 @@ void CGameMovement::Friction( void )
 		if ( IsX360() )
 #endif
 		{
+#ifdef EZ2
+			if( player->m_Local.m_bDucked && !player->m_Local.m_bDuckSliding )
+#else
 			if( player->m_Local.m_bDucked )
+#endif
 			{
 				control = (speed < sv_stopspeed.GetFloat()) ? sv_stopspeed.GetFloat() : speed;
 			}
@@ -1954,6 +1990,48 @@ void CGameMovement::WalkMove( void )
 
 	for (i=0 ; i<2 ; i++)       // Determine x and y parts of velocity
 		wishvel[i] = forward[i]*fmove + right[i]*smove;
+
+#ifdef EZ2
+	if ( player->m_Local.m_bDuckSliding )
+	{
+		if ( !player_duck_slide_sticky.GetBool() && fmove <= 0.0f && smove == 0.0f )
+		{
+			// If we're not moving forwards or sideways, stop sliding
+			StopDuckSlide();
+		}
+		else
+		{
+			// Keep sliding in the original direction
+			Vector movedir = mv->m_vecVelocity;
+			VectorNormalize( movedir );
+
+			if ( movedir.IsZero() || mv->m_vecVelocity.LengthSqr() <= ( mv->m_flMaxSpeed * player_crouch_multiplier.GetFloat() ) )
+			{
+				StopDuckSlide();
+			}
+			else
+			{
+				// Allow minimal steering
+				const float DUCK_SLIDE_STEER_INFLUENCE = 0.5f;
+				wishdir = wishvel;
+				VectorNormalize( wishdir );
+
+				// If we've met our base time, start decelerating
+				float flSlideDecay = player->GetDuckSlideDecay();
+				if ( flSlideDecay != 1.0f )
+				{
+					wishvel *= 1.0f - flSlideDecay;
+					wishvel += ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) ).Normalized() * mv->m_flMaxSpeed * flSlideDecay;
+				}
+				else
+				{
+					// Keep accelerating
+					wishvel = ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) ).Normalized() * mv->m_flMaxSpeed;
+				}
+			}
+		}
+	}
+#endif
 	
 	wishvel[2] = 0;             // Zero out z part of velocity
 
@@ -2023,6 +2101,28 @@ void CGameMovement::WalkMove( void )
 		VectorSubtract( mv->m_vecVelocity, player->GetBaseVelocity(), mv->m_vecVelocity );
 		return;
 	}
+
+#ifdef EZ2
+	if ( player->m_Local.m_bDuckSliding )
+	{
+		// Possibly hit something
+		// Don't stop if we just started sliding
+		if ( player->m_Local.m_flDuckSlideTime == 0.0f )
+		{
+			// Don't stop if it's a small-ish moveable object
+			if ( !pm.m_pEnt || !pm.m_pEnt->VPhysicsGetObject()
+				|| !pm.m_pEnt->VPhysicsGetObject()->IsMoveable()
+				|| pm.m_pEnt->VPhysicsGetObject()->GetMass() > player_duck_slide_hit_max_mass.GetFloat() )
+			{
+				// Don't stop if it's not in our angle threshold
+				if ( wishdir.Dot( pm.plane.normal ) < player_duck_slide_hit_max_angle.GetFloat() )
+				{
+					StopDuckSlide();
+				}
+			}
+		}
+	}
+#endif
 
 	StepMove( dest, pm );
 
@@ -2462,7 +2562,11 @@ bool CGameMovement::CheckJumpButton( void )
 	// Acclerate upward
 	// If we are ducking...
 	float startz = mv->m_vecVelocity[2];
+#ifdef EZ2
+	if ( ( ( player->m_Local.m_bDucking ) || (  player->GetFlags() & FL_DUCKING ) ) && !player->m_Local.m_bDuckSliding )
+#else
 	if ( (  player->m_Local.m_bDucking ) || (  player->GetFlags() & FL_DUCKING ) )
+#endif
 	{
 		// d = 0.5 * g * t^2		- distance traveled with linear accel
 		// t = sqrt(2.0 * 45 / g)	- how long to fall 45 units
@@ -2489,7 +2593,11 @@ bool CGameMovement::CheckJumpButton( void )
 		
 		// We give a certain percentage of the current forward movement as a bonus to the jump speed.  That bonus is clipped
 		// to not accumulate over time.
+#ifdef EZ2
+		float flSpeedBoostPerc = ( !pMoveData->m_bIsSprinting && (!player->m_Local.m_bDucked || player->m_Local.m_bDuckSliding) ) ? 0.5f : 0.1f;
+#else
 		float flSpeedBoostPerc = ( !pMoveData->m_bIsSprinting && !player->m_Local.m_bDucked ) ? 0.5f : 0.1f;
+#endif
 		float flSpeedAddition = fabs( mv->m_flForwardMove * flSpeedBoostPerc );
 		float flMaxSpeed = mv->m_flMaxSpeed + ( mv->m_flMaxSpeed * flSpeedBoostPerc );
 		float flNewSpeed = ( flSpeedAddition + mv->m_vecVelocity.Length2D() );
@@ -4425,6 +4533,23 @@ void CGameMovement::Duck( void )
 			{
 				player->m_Local.m_flDucktime = GAMEMOVEMENT_DUCK_TIME;
 				player->m_Local.m_bDucking = true;
+
+#ifdef EZ2
+				if ( player_duck_slide.GetBool() )
+				{
+					CHLMoveData *pMoveData = (CHLMoveData *)mv;
+					if ( pMoveData->m_bIsSprinting )
+					{
+						// Duck slide if we're moving forwards or sideways
+						if ( mv->m_flForwardMove >= 0.0f )
+						{
+							player->m_Local.m_bDuckSliding = true;
+							player->m_Local.m_flDuckSlideTime = GAMEMOVEMENT_DUCK_SLIDE_TIME;
+							player->m_Local.m_flDuckSlideEndTime = player_duck_slide_time_base.GetFloat() + player_duck_slide_time.GetFloat();
+						}
+					}
+				}
+#endif
 			}
 			
 			// The player is in duck transition and not duck-jumping.
@@ -4466,6 +4591,14 @@ void CGameMovement::Duck( void )
 						}
 					}
 				}
+
+#ifdef EZ2
+				if ( player->m_Local.m_bDuckSliding )
+				{
+					// Stop sliding
+					StopDuckSlide();
+				}
+#endif
 			}
 		}
 		// UNDUCK (or attempt to...)
@@ -4543,6 +4676,13 @@ void CGameMovement::Duck( void )
 							SetDuckedEyeOffset( flDuckFraction );
 							player->m_Local.m_bDucking = true;
 						}
+
+#ifdef EZ2
+						if ( player->m_Local.m_bDuckSliding )
+						{
+							StopDuckSlide();
+						}
+#endif
 					}
 				}
 				else
@@ -4583,6 +4723,26 @@ void CGameMovement::Duck( void )
 		}
 	}
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CGameMovement::StopDuckSlide( void )
+{
+	player->m_Local.m_bDuckSliding = false;
+
+	if ( player->m_Local.m_flDuckSlideTime != 0.0f )
+	{
+		// Interrupting a slide transition, so go backwards
+		player->m_Local.m_flDuckSlideTime = (GAMEMOVEMENT_DUCK_SLIDE_TIME - player->m_Local.m_flDuckSlideTime);
+	}
+	else
+	{
+		player->m_Local.m_flDuckSlideTime = GAMEMOVEMENT_DUCK_SLIDE_TIME;
+	}
+}
+#endif
 
 static ConVar sv_optimizedmovement( "sv_optimizedmovement", "1", FCVAR_REPLICATED | FCVAR_DEVELOPMENTONLY );
 

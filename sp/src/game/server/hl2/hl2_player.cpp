@@ -65,6 +65,7 @@
 #include "ez2/ez2_player.h"
 #include "CRagdollMagnet.h"
 #include "ez2/ai_stealth_manager.h"
+#include "decals.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -99,6 +100,7 @@ ConVar hl2_walkspeed( "hl2_walkspeed", "150" );
 ConVar hl2_normspeed( "hl2_normspeed", "190" );
 #ifdef EZ2
 ConVar hl2_sprintspeed("hl2_sprintspeed", "285");		// 1upD - Changing default from 320
+ConVar hl2_duckslidespeed("hl2_duckslidespeed", "385");
 #else
 ConVar hl2_sprintspeed( "hl2_sprintspeed", "320" );
 #endif
@@ -157,6 +159,8 @@ enum
 };
 
 ConVar sv_infinite_sprint_power( "sv_infinite_sprint_power", "1", FCVAR_CHEAT );
+
+ConVar sv_sprint_during_unduck( "sv_sprint_during_unduck", "1", FCVAR_NONE );
 
 ConVar sv_infinite_flashlight_power( "sv_infinite_flashlight_power", "0", FCVAR_CHEAT );
 ConVar sv_player_death_smell( "sv_player_death_smell", "1", FCVAR_REPLICATED );
@@ -630,6 +634,11 @@ BEGIN_DATADESC( CHL2_Player )
 	DEFINE_FIELD( m_flTimeAllSuitDevicesOff, FIELD_TIME ),
 	DEFINE_FIELD( m_fIsSprinting, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_fIsWalking, FIELD_BOOLEAN ),
+#ifdef EZ2
+	DEFINE_FIELD( m_fIsDuckSliding, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_fIsDuckSlidingOnGround, FIELD_BOOLEAN ),
+	DEFINE_SOUNDPATCH( m_pDuckSlideSound ),
+#endif
 
 	/*
 	// These are initialized every time the player calls Activate()
@@ -885,6 +894,9 @@ void CHL2_Player::Precache( void )
 	PrecacheScriptSound( "EZ2Player.KickHit" );
 	PrecacheScriptSound( "EZ2Player.KickMiss" );
 
+	PrecacheScriptSound( "EZ2Player.Slide_Start" );
+	PrecacheScriptSound( "EZ2Player.Slide_Loop" );
+
 	if ( m_LegModelName == NULL_STRING )
 	{
 		m_LegModelName = AllocPooledString( sv_player_kick_default_modelname.GetString() );
@@ -976,6 +988,16 @@ void CHL2_Player::HandleSpeedChanges( void )
 	bool bCanSprint = CanSprint();
 	bool bIsSprinting = IsSprinting();
 	bool bWantSprint = ( bCanSprint && IsSuitEquipped() && (m_nButtons & IN_SPEED) );
+
+#ifdef EZ2
+	if ( sv_sprint_during_unduck.GetBool() && !bIsSprinting )
+	{
+		// If we were already holding the sprint key while ducking, start sprinting when we unduck
+		if ( bWantSprint && !(m_nButtons & IN_DUCK) && m_Local.m_flDucktime != 0.0f )
+			buttonsChanged |= IN_SPEED;
+	}
+#endif
+
 	if ( bIsSprinting != bWantSprint && (buttonsChanged & IN_SPEED) )
 	{
 		// If someone wants to sprint, make sure they've pressed the button to do so. We want to prevent the
@@ -1027,6 +1049,17 @@ void CHL2_Player::HandleSpeedChanges( void )
 			StopWalking();
 		}
 	}
+
+#ifdef EZ2
+	if ( m_Local.m_bDuckSliding && !IsDuckSliding() )
+	{
+		StartDuckSliding();
+	}
+	else if ( !m_Local.m_bDuckSliding && IsDuckSliding() )
+	{
+		StopDuckSliding();
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1145,6 +1178,9 @@ void CHL2_Player::PreThink(void)
 		// If we're ducked and not in the air
 		if( IsDucked() && GetGroundEntity() != NULL )
 		{
+#ifdef EZ2
+			if ( !sv_sprint_during_unduck.GetBool() || m_nButtons & IN_DUCK || !(m_nButtons & IN_SPEED) || m_Local.m_flDucktime == 0.0f )
+#endif
 			StopSprinting();
 		}
 		// Stop sprinting if the player lets off the stick for a moment.
@@ -1166,6 +1202,9 @@ void CHL2_Player::PreThink(void)
 		// Disable sprint while ducked unless we're in the air (jumping)
 		if ( IsDucked() && ( GetGroundEntity() != NULL ) )
 		{
+#ifdef EZ2
+			if ( !sv_sprint_during_unduck.GetBool() || m_nButtons & IN_DUCK || !(m_nButtons & IN_SPEED) || m_Local.m_flDucktime == 0.0f )
+#endif
 			StopSprinting();
 		}
 	}
@@ -1433,6 +1472,60 @@ void CHL2_Player::PostThink( void )
 		{
 			ProcessSceneEvents();
 		}
+	}
+#endif
+
+#ifdef EZ2
+	if ( m_fIsDuckSliding && m_Local.m_flDuckSlideTime == 0.0f )
+	{
+		if ( m_pDuckSlideSound )
+		{
+			CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+			if ( GetGroundEntity() != NULL )
+			{
+				if ( !m_fIsDuckSlidingOnGround )
+					m_fIsDuckSlidingOnGround = true;
+
+				controller.SoundChangeVolume( m_pDuckSlideSound, GetDuckSlideDecay(), 0.2f );
+			}
+			else if ( m_fIsDuckSlidingOnGround )
+			{
+				controller.SoundChangeVolume( m_pDuckSlideSound, 0.0f, 0.2f );
+				m_fIsDuckSlidingOnGround = false;
+			}
+		}
+
+		// UNDONE: Check surface and create sparks if appropriate
+		/*if ( GetCloakFactor() <= 0.0f && IsAlive() )
+		{
+			if ( m_pSurfaceData && GetGroundEntity() )
+			{
+				switch ( m_pSurfaceData->game.material )
+				{
+					case CHAR_TEX_CONCRETE:
+					case CHAR_TEX_GRATE:
+					case CHAR_TEX_PLASTIC:
+					case CHAR_TEX_METAL:
+					case CHAR_TEX_COMPUTER:
+					case CHAR_TEX_TILE:
+					case CHAR_TEX_VENT:
+					case CHAR_TEX_WOOD:
+					case CHAR_TEX_GLASS:
+						{
+							Vector vecSparkDir = GetAbsVelocity();
+							VectorNormalize( vecSparkDir );
+
+							Vector vecSparkOrigin = GetAbsOrigin() + (vecSparkDir * 32.0f);
+
+							// Create sparks
+							CRecipientFilter filter;
+							filter.AddRecipientsByPVS( vecSparkOrigin );
+							te->Sparks( filter, 0.0f, &vecSparkOrigin, 1, 2, &vecSparkDir );
+						}
+						break;
+				}
+			}
+		}*/
 	}
 #endif
 }
@@ -2027,6 +2120,13 @@ void CHL2_Player::StartSprinting( void )
 //-----------------------------------------------------------------------------
 void CHL2_Player::StopSprinting( void )
 {
+#ifdef EZ2
+	// Don't stop sprinting while duck sliding
+	// It's a bit heavy-handed to stop it here, but game movement has to keep its max speed
+	if ( m_Local.m_bDuckSliding )
+		return;
+#endif
+
 	if ( m_HL2Local.m_bitsActiveDevices & SuitDeviceSprint.GetDeviceID() )
 	{
 		SuitPower_RemoveDevice( SuitDeviceSprint );
@@ -2081,6 +2181,70 @@ void CHL2_Player::StopWalking( void )
 	SetMaxSpeed( HL2_NORM_SPEED );
 	m_fIsWalking = false;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CHL2_Player::StartDuckSliding( void )
+{
+	SetMaxSpeed( hl2_duckslidespeed.GetFloat() );
+	m_fIsDuckSliding = true;
+	m_fIsDuckSlidingOnGround = true;
+
+	EmitSound( "EZ2Player.Slide_Start" );
+	
+	if ( !m_pDuckSlideSound )
+		InitializeDuckSlideSound();
+
+	if ( m_pDuckSlideSound )
+	{
+		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+		controller.Play( m_pDuckSlideSound, 0.0f, 100.0f );
+		controller.SoundChangeVolume( m_pDuckSlideSound, 1.0f, 0.4f );
+	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CHL2_Player::StopDuckSliding( void )
+{
+	m_fIsDuckSliding = false;
+
+	// If we're still sprinting, start sprinting
+	if ( /*m_fIsSprinting ||*/ ( m_nButtons & IN_SPEED && CanSprint() ) )
+	{
+		StartSprinting();
+	}
+	else
+	{
+		StopSprinting();
+		SetMaxSpeed( HL2_NORM_SPEED );
+	}
+
+	if ( m_pDuckSlideSound )
+	{
+		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+		controller.SoundFadeOut( m_pDuckSlideSound, 0.25f, true );
+		m_pDuckSlideSound = NULL;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Purpose :
+// Input   :
+// Output  :
+//------------------------------------------------------------------------------
+void CHL2_Player::InitializeDuckSlideSound( void )
+{
+	if ( !m_pDuckSlideSound )
+	{
+		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+		CPASAttenuationFilter filter( this );
+
+		m_pDuckSlideSound = controller.SoundCreate( filter, entindex(), CHAN_STATIC, "EZ2Player.Slide_Loop", ATTN_NORM );
+	}
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -5696,6 +5860,14 @@ void CHL2_Player::StopLoopingSounds( void )
 		 (CSoundEnvelopeController::GetController()).SoundDestroy( m_sndWaterSplashes );
 		 m_sndWaterSplashes = NULL;
 	}
+
+#ifdef EZ2
+	if ( m_pDuckSlideSound != NULL )
+	{
+		 (CSoundEnvelopeController::GetController()).SoundDestroy( m_pDuckSlideSound );
+		 m_pDuckSlideSound = NULL;
+	}
+#endif
 
 	BaseClass::StopLoopingSounds();
 }

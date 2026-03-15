@@ -32,6 +32,11 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt		(SENDINFO(m_bInDuckJump),	1, SPROP_UNSIGNED ),
 	SendPropFloat	(SENDINFO(m_flDucktime), 12, SPROP_ROUNDDOWN|SPROP_CHANGES_OFTEN, 0.0f, 2048.0f ),
 	SendPropFloat	(SENDINFO(m_flDuckJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
+#ifdef EZ2
+	SendPropBool	(SENDINFO(m_bDuckSliding)),
+	SendPropFloat	(SENDINFO(m_flDuckSlideTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
+	SendPropFloat	(SENDINFO(m_flDuckSlideEndTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
+#endif
 	SendPropFloat	(SENDINFO(m_flJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
 #if PREDICTION_ERROR_CHECK_LEVEL > 1 
 	SendPropFloat	(SENDINFO(m_flFallVelocity), 32, SPROP_NOSCALE ),
@@ -175,6 +180,11 @@ BEGIN_SIMPLE_DATADESC( CPlayerLocalData )
 	DEFINE_FIELD( m_bInDuckJump, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flDucktime, FIELD_TIME ),
 	DEFINE_FIELD( m_flDuckJumpTime, FIELD_TIME ),
+#ifdef EZ2
+	DEFINE_FIELD( m_bDuckSliding, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_flDuckSlideTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flDuckSlideEndTime, FIELD_TIME ),
+#endif
 	DEFINE_FIELD( m_flJumpTime, FIELD_TIME ),
 	DEFINE_FIELD( m_nStepside, FIELD_INTEGER ),
 	DEFINE_FIELD( m_flFallVelocity, FIELD_FLOAT ),

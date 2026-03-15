@@ -683,6 +683,11 @@ void CBasePlayer::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, flo
 	if ( !psurface )
 		return;
 
+#ifdef EZ2
+	if ( m_Local.m_bDuckSliding )
+		return;
+#endif
+
 	int nSide = m_Local.m_nStepside;
 	unsigned short stepSoundName = nSide ? psurface->sounds.stepleft : psurface->sounds.stepright;
 	if ( !stepSoundName )
@@ -818,6 +823,24 @@ void CBasePlayer::SetStepSoundTime( stepsoundtimes_t iStepSoundTime, bool bWalki
 		m_flStepSoundTime += 100;
 	}
 }
+
+#ifdef EZ2
+extern ConVar player_duck_slide_time_base;
+extern ConVar player_duck_slide_time;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CBasePlayer::GetDuckSlideDecay()
+{
+	if ( m_Local.m_flDuckSlideEndTime < player_duck_slide_time.GetFloat() )
+	{
+		return SimpleSpline( m_Local.m_flDuckSlideEndTime / player_duck_slide_time.GetFloat() );
+	}
+
+	return 1.0f;
+}
+#endif
 
 Vector CBasePlayer::Weapon_ShootPosition( )
 {
@@ -1788,6 +1811,54 @@ float CBasePlayer::CalcRoll (const QAngle& angles, const Vector& velocity, float
 	{
 		side = value;
 	}
+
+#ifdef EZ2
+	if ( ( m_Local.m_bDuckSliding || m_Local.m_flDuckSlideTime > 0.0f ) && IsAlive() )
+	{
+		extern ConVar player_duck_slide_angle;
+		extern ConVar player_duck_slide_angle_base;
+
+		float flSlideValue = player_duck_slide_angle.GetFloat();
+
+		Vector vecVelocityNorm = GetAbsVelocity().Normalized();
+		QAngle angVelocity;
+		VectorAngles( vecVelocityNorm, angVelocity );
+
+		float flDiff = AngleDiff( angles.y, angVelocity.y );
+		if ( flDiff > 90.0f )
+			flDiff = 90.0f - (flDiff - 90.0f);
+		else if ( flDiff < -90.0f )
+			flDiff = -90.0f - (flDiff + 90.0f);
+
+		float flFrac = flDiff * (1.0f/90.0f);
+		//Msg("slide frac: %.2f\n", flFrac);
+		flFrac = clamp( flFrac, -1.0f, 1.0f );
+
+		flSlideValue *= flFrac;
+		flSlideValue += player_duck_slide_angle_base.GetFloat();
+
+		if ( m_Local.m_flDuckSlideTime > 0.0f )
+		{
+			float flProgress = SimpleSpline( m_Local.m_flDuckSlideTime * 0.002f );
+			if ( m_Local.m_bDuckSliding )
+			{
+				flSlideValue *= RemapValClamped( flProgress, 0.0f, 0.75f, 1.0f, 0.0f );
+			}
+			else
+			{
+				flSlideValue *= flProgress;
+			}
+		}
+
+		float flDecay = GetDuckSlideDecay();
+		if ( flDecay < 0.5f )
+		{
+			flSlideValue *= SimpleSpline( flDecay * 2.0f );
+		}
+
+		return (side*sign) + flSlideValue;
+	}
+#endif
 
 	// Scale by right/left sign
     return side*sign;

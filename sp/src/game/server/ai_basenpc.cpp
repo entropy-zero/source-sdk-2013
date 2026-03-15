@@ -11724,8 +11724,14 @@ Vector CAI_BaseNPC::GetActualShootPosition( const Vector &shootOrigin )
 	// If using stealth senses, allow the player to evade shots if they're moving quickly
 	if ( IsUsingStealthSenses() && GetEnemy()->IsPlayer() )
 	{
-		const float flSpeedMinSqr = Square( ai_stealth_miss_speed_min.GetFloat() );
+		/*const*/ float flSpeedMinSqr = Square( ai_stealth_miss_speed_min.GetFloat() );
 		const float flSpeedMaxSqr = Square( ai_stealth_miss_speed_max.GetFloat() );
+
+		if ( ToBasePlayer( GetEnemy() )->m_Local.m_bDuckSliding )
+		{
+			// Artifically miss more when they're duck sliding
+			flSpeedMinSqr *= 0.5f;
+		}
 
 		float flSpeedSqr = vecVelocity.LengthSqr();
 		if ( flSpeedSqr > flSpeedMinSqr )

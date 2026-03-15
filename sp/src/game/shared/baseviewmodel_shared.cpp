@@ -591,6 +591,16 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		// Ignore the below
 		return;
 	}
+
+	if ( GetOwner() && GetOwner()->IsPlayer() )
+	{
+		extern ConVar player_duck_slide_angle_on_vm;
+		CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
+		if ( ( pPlayer->m_Local.m_bDuckSliding || pPlayer->m_Local.m_flDuckSlideTime != 0.0f ) && player_duck_slide_angle_on_vm.GetBool() )
+		{
+			angles[ROLL] += pPlayer->CalcRoll( angles, pPlayer->GetAbsVelocity(), 0.0f, 0.0f );
+		}
+	}
 #endif
 
 	//FIXME: These are the old settings that caused too many exposed polys on some models

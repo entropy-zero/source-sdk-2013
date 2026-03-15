@@ -373,6 +373,10 @@ public:
 
 	virtual void OnEmitFootstepSound( const CSoundParameters& params, const Vector& vecOrigin, float fVolume ) {}
 
+#ifdef EZ2
+	float		GetDuckSlideDecay();
+#endif
+
 	// Called by prediction when it detects a prediction correction.
 	// vDelta is the line from where the client had predicted the player to at the usercmd in question,
 	// to where the server says the client should be at said usercmd.
