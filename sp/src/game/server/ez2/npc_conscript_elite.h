@@ -88,6 +88,8 @@ private:
 	bool			m_bLaserAimsAtEnemy;
 	float			m_flLaserTargetTime;
 
+	CNetworkVar( Vector, m_vecGunLaserDir );
+
 	DEFINE_CUSTOM_AI;
 };
 

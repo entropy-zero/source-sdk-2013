@@ -43,6 +43,7 @@ int	AE_CONSCRIPT_DISABLE_LASER;
 //---------------------------------------------------------
 IMPLEMENT_SERVERCLASS_ST( CNPC_ConscriptElite, DT_NPC_ConscriptElite )
 	SendPropEHandle( SENDINFO( m_hGunLaser ) ),
+	SendPropVector( SENDINFO( m_vecGunLaserDir ) ),
 END_SEND_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -58,6 +59,7 @@ BEGIN_DATADESC( CNPC_ConscriptElite )
 
 	DEFINE_FIELD( m_bLaserAimsAtEnemy, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flLaserTargetTime, FIELD_TIME ),
+	DEFINE_FIELD( m_vecGunLaserDir, FIELD_VECTOR ),
 
 	DEFINE_THINKFUNC( LaserThink ),
 
@@ -648,6 +650,9 @@ void CNPC_ConscriptElite::LaserThink( void )
 		
 		m_hGunLaserEnd->SetAbsOrigin( tr.endpos );
 		m_hGunLaserHitTarget = tr.m_pEnt;
+
+		m_vecGunLaserDir = tr.endpos - tr.startpos;
+		VectorNormalize( m_vecGunLaserDir.GetForModify() );
 	}
 
 	float flNextThink = 0.5f;
