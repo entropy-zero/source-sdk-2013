@@ -230,6 +230,11 @@ void CBase_CSS_HL2_Pistol::PrimaryAttack( void )
 	// player "shoot" animation
 	pOwner->SetAnimation( PLAYER_ATTACK1 );
 
+#ifndef CLIENT_DLL
+	// Register a muzzleflash for the AI
+	pOwner->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );
+#endif
+
 	FireBulletsInfo_t info;
 	info.m_vecSrc	 = pOwner->Weapon_ShootPosition( );
 	
@@ -405,7 +410,16 @@ void CBase_CSS_HL2_Pistol::ItemPostFrame( void )
 //-----------------------------------------------------------------------------
 Activity CBase_CSS_HL2_Pistol::GetPrimaryAttackActivity( void )
 {
-	return ACT_VM_PRIMARYATTACK;
+	if ( m_nNumShotsFired < 1 || SelectWeightedSequence( ACT_VM_RECOIL1 ) <= 0 )
+		return ACT_VM_PRIMARYATTACK;
+
+	if ( m_nNumShotsFired < 2 )
+		return ACT_VM_RECOIL1;
+
+	if ( m_nNumShotsFired < 3 )
+		return ACT_VM_RECOIL2;
+
+	return ACT_VM_RECOIL3;
 }
 
 //-----------------------------------------------------------------------------
