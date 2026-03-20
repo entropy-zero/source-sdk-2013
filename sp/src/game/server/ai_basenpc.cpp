@@ -6647,6 +6647,17 @@ bool CAI_BaseNPC::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position
 		{
 			if ( !GetStealthSenses()->UpdateEnemyMemory( pEnemy, position, pInformer ) )
 				return false;
+
+			if ( !IsAlive() || GetHealth() <= 0 )
+			{
+				// Do not update our own memory, but update our squad's
+				// This ensures standard stealth enemy memory runs without affecting the memory on death
+				if ( firstHand && pEnemy && m_pSquad )
+				{
+					m_pSquad->UpdateEnemyMemory( this, pEnemy, position );
+				}
+				return false;
+			}
 		}
 #endif
 
@@ -6664,6 +6675,14 @@ bool CAI_BaseNPC::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position
 
 		if ( !firstHand && pEnemy && result && GetState() == NPC_STATE_IDLE ) // if it's a new potential enemy
 			ForceDecisionThink();
+		
+#ifdef EZ2
+		if ( IsUsingStealthSenses() && result && pEnemy && pEnemy->IsPlayer() )
+		{
+			// Players should never be forgotten in stealth
+			GetEnemies()->SetUnforgettable( pEnemy, true );
+		}
+#endif
 
 		if ( firstHand && pEnemy && m_pSquad )
 		{

@@ -1387,6 +1387,11 @@ void CEZ2_Player::ModifyOrAppendEnemyCriteria(AI_CriteriaSet& set, CBaseEntity *
 				set.AppendCriteria( "enemy_attacking_me", "1" );
 				set.AppendCriteria( "enemy_sees_me", pNPC->HasCondition( COND_SEE_ENEMY ) ? "1" : "0" );
 			}
+			else if (/*m_flCloakFactor > 0.0f &&*/ !pNPC->QuerySeeEntity(this))
+			{
+				// They could not have seen us
+				set.AppendCriteria( "enemy_sees_me", "0" );
+			}
 			else
 			{
 				// Some NPCs have tunnel vision and lose sight of their enemies often.
