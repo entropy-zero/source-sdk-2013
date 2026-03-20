@@ -65,7 +65,7 @@ ConVar player_crouch_multiplier( "player_crouch_multiplier", "0.33333333", FCVAR
 ConVar player_duck_slide( "player_duck_slide", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 ConVar player_duck_slide_sticky( "player_duck_slide_sticky", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 ConVar player_duck_slide_time_base( "player_duck_slide_time_base", "500", FCVAR_REPLICATED );
-ConVar player_duck_slide_time( "player_duck_slide_time", "1500", FCVAR_REPLICATED );
+ConVar player_duck_slide_time( "player_duck_slide_time", "1250", FCVAR_REPLICATED );
 ConVar player_duck_slide_angle_base( "player_duck_slide_angle_base", "3", FCVAR_REPLICATED );
 ConVar player_duck_slide_angle( "player_duck_slide_angle", "5", FCVAR_REPLICATED );
 ConVar player_duck_slide_angle_on_vm( "player_duck_slide_angle_on_vm", "1", FCVAR_REPLICATED );
@@ -1950,6 +1950,7 @@ void CGameMovement::WalkMove( void )
 	float fmove, smove;
 	Vector wishdir;
 	float wishspeed;
+	float accel = sv_accelerate.GetFloat();
 
 	Vector dest;
 	trace_t pm;
@@ -2005,7 +2006,8 @@ void CGameMovement::WalkMove( void )
 			Vector movedir = mv->m_vecVelocity;
 			VectorNormalize( movedir );
 
-			if ( movedir.IsZero() || mv->m_vecVelocity.LengthSqr() <= ( mv->m_flMaxSpeed * player_crouch_multiplier.GetFloat() ) )
+
+			if ( movedir.IsZero() || mv->m_vecVelocity.LengthSqr() <= Square( mv->m_flMaxSpeed * player_crouch_multiplier.GetFloat() ) )
 			{
 				StopDuckSlide();
 			}
@@ -2027,6 +2029,7 @@ void CGameMovement::WalkMove( void )
 				{
 					// Keep accelerating
 					wishvel = ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) ).Normalized() * mv->m_flMaxSpeed;
+					accel *= 2.0f;
 				}
 			}
 		}
@@ -2049,7 +2052,7 @@ void CGameMovement::WalkMove( void )
 
 	// Set pmove velocity
 	mv->m_vecVelocity[2] = 0;
-	Accelerate ( wishdir, wishspeed, sv_accelerate.GetFloat() );
+	Accelerate ( wishdir, wishspeed, accel );
 	mv->m_vecVelocity[2] = 0;
 
 	// Add in any base velocity to the current velocity.
@@ -4540,8 +4543,8 @@ void CGameMovement::Duck( void )
 					CHLMoveData *pMoveData = (CHLMoveData *)mv;
 					if ( pMoveData->m_bIsSprinting )
 					{
-						// Duck slide if we're moving forwards or sideways
-						if ( mv->m_flForwardMove >= 0.0f )
+						// Duck slide if we're moving
+						if ( mv->m_flForwardMove != 0.0f || mv->m_flSideMove != 0.0f )
 						{
 							player->m_Local.m_bDuckSliding = true;
 							player->m_Local.m_flDuckSlideTime = GAMEMOVEMENT_DUCK_SLIDE_TIME;
