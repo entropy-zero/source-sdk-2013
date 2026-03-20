@@ -2674,6 +2674,16 @@ int CNPC_Citizen::TranslateSuppressingFireSchedule(int scheduleType)
 	}
 #endif
 
+#ifdef EZ2
+	if ( IsUsingStealthSenses() && gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy ) > 8.0f )
+	{
+		// Eventually abandon if we haven't seen them in a while
+		if (ai_debug_rebel_suppressing_fire.GetBool())
+			DevMsg("NPC_Citizen::TranslateSuppressingFireSchedule: %s not using suppressing fire due to not seeing enemy in a while\n", GetDebugName());
+		return scheduleType;
+	}
+#endif
+
 	m_vecDecoyObjectTarget = vec3_invalid;
 	if (FindDecoyObject() || FindEnemyCoverTarget()) {
 		if (ai_debug_rebel_suppressing_fire.GetBool())
