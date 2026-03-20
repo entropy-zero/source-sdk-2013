@@ -220,6 +220,9 @@ namespace ResponseRules
 		void		ParseResponse_DisplayLast( ParserResponse &newResponse, ResponseGroup& group, AI_ResponseParams *rp );
 		void		ParseResponse_Fire( ParserResponse &newResponse, ResponseGroup& group, AI_ResponseParams *rp );
 		void		ParseResponse_Then( ParserResponse &newResponse, ResponseGroup& group, AI_ResponseParams *rp );
+#ifdef MAPBASE
+		void		ParseResponse_Apply( ParserResponse &newResponse, ResponseGroup &group, AI_ResponseParams *rp );
+#endif
 
 		void		ParseResponseGroup_Start( char const *responseGroupName, ResponseGroup &newGroup, AI_ResponseParams &groupResponseParams );
 		void		ParseResponseGroup_PreDelay( char const *responseGroupName, ResponseGroup &newGroup, AI_ResponseParams &groupResponseParams );

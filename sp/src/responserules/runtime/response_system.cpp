@@ -1770,6 +1770,21 @@ void CResponseSystem::ParseResponse_Fire( ParserResponse &newResponse, ResponseG
 		ResponseWarning( "FIRE token in response needs exactly three parameters." );
 		return;
 	}
+
+#ifdef MAPBASE
+	// Parameter support
+	const char *pszDelim = V_strnchr( token, ':', sizeof( token ) );
+	if (pszDelim)
+	{
+		// Can't use strtok in case parameter uses colons too (e.g. AddContext)
+		const char *pszParam = pszDelim + 1;
+		*(char *)pszDelim = '\0';
+		
+		newResponse.m_followup.followup_entityioinput = ResponseCopyString(token);
+		newResponse.m_followup.followup_contexts = ResponseCopyString(pszParam);
+	}
+	else
+#endif
 	newResponse.m_followup.followup_entityioinput = ResponseCopyString(token);
 
 	bSuc = ParseToken();
@@ -1840,6 +1855,51 @@ void CResponseSystem::ParseResponse_Then( ParserResponse &newResponse, ResponseG
 
 	newResponse.m_followup.followup_delay = atof( token );
 }
+
+#ifdef MAPBASE
+void CResponseSystem::ParseResponse_Apply( ParserResponse &newResponse, ResponseGroup& group, AI_ResponseParams *rp )
+{
+	// get target name
+	bool bSuc = ParseToken();
+	if (!bSuc)
+	{
+		ResponseWarning( "APPLY token in response needs exactly three parameters." );
+		return;
+	}
+	newResponse.m_followup.followup_entityiotarget = ResponseCopyString(token);
+
+	bSuc = ParseToken();
+	if (!bSuc)
+	{
+		ResponseWarning( "APPLY token in response needs exactly three parameters." );
+		return;
+	}
+
+	// Check if the context is meant to be removed
+	if (token[0] == '~')
+	{
+		newResponse.m_followup.followup_contexts = ResponseCopyString(token+1);
+		newResponse.m_followup.followup_entityioinput = "RemoveContext";
+	}
+	else
+	{
+		newResponse.m_followup.followup_contexts = ResponseCopyString(token);
+		newResponse.m_followup.followup_entityioinput = "AddContext";
+	}
+
+	bSuc = ParseToken();
+	if (!bSuc)
+	{
+		ResponseWarning( "APPLY token in response needs exactly three parameters." );
+		return;
+	}
+	newResponse.m_followup.followup_entityiodelay = atof( token );
+	/*
+	m_followup.followup_entityioinput = ResponseCopyString(src.m_followup.followup_entityioinput);
+	m_followup.followup_entityiotarget = ResponseCopyString(src.m_followup.followup_entityiotarget);
+	*/
+}
+#endif
 
 void CResponseSystem::ParseOneResponse( const char *responseGroupName, ResponseGroup& group, ResponseParams *defaultParams )
 {
@@ -2672,6 +2732,9 @@ void CResponseSystem::BuildDispatchTables()
 	m_ResponseDispatch.Insert( RR_HASH( "displaylast" ), &CResponseSystem::ParseResponse_DisplayLast );
 	m_ResponseDispatch.Insert( RR_HASH( "fire" ), &CResponseSystem::ParseResponse_Fire );
 	m_ResponseDispatch.Insert( RR_HASH( "then" ), &CResponseSystem::ParseResponse_Then );
+#ifdef MAPBASE
+	m_ResponseDispatch.Insert( RR_HASH( "apply" ), &CResponseSystem::ParseResponse_Apply );
+#endif
 
 	m_ResponseGroupDispatch.Insert( RR_HASH( "{" ), &CResponseSystem::ParseResponseGroup_Start );
 	m_ResponseGroupDispatch.Insert( RR_HASH( "predelay" ), &CResponseSystem::ParseResponseGroup_PreDelay );

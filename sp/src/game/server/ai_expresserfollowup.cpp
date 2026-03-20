@@ -336,13 +336,22 @@ bool CAI_ExpresserWithFollowup::SpeakDispatchResponse( AIConcept_t concept, AI_R
 		{
 #ifdef MAPBASE
 			CBaseEntity * RESTRICT pTarget = ResolveFollowupTargetToEntity( concept, *criteria, followup->followup_entityiotarget, response ).m_hHandle;
+			if ( pTarget )
+			{
+				// followup_contexts used for parameter
+				variant_t var;
+				if ( followup->followup_contexts && *followup->followup_contexts )
+					var.SetString( AllocPooledString( followup->followup_contexts ) );
+
+				g_EventQueue.AddEvent( pTarget, followup->followup_entityioinput, var, followup->followup_entityiodelay, GetOuter(), GetOuter() );
+			}
 #else
 			CBaseEntity * RESTRICT pTarget = gEntList.FindEntityByName( NULL, followup->followup_entityiotarget );
-#endif
 			if ( pTarget )
 			{
 				g_EventQueue.AddEvent( pTarget, followup->followup_entityioinput, variant_t(), followup->followup_entityiodelay, GetOuter(), GetOuter() );
 			}
+#endif
 		}
 		if ( followup->IsValid() )
 		{
