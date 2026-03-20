@@ -3006,7 +3006,7 @@ CAmmoDef *GetAmmoDef()
 		def.AddAmmoType("ammo_proto1",			DMG_BULLET,				TRACER_LINE,			0, 0, 10, 0, 0 );
 #endif // HL2_EPISODIC
 #ifdef MAPBASE
-		def.AddAmmoType("slam",				DMG_BURN,					TRACER_NONE,			0,			0,			5,			0,							0 );
+		def.AddAmmoType("slam",				DMG_BURN,					TRACER_NONE,			0,			0,			"sk_max_slam",			0,							0 );
 #endif
 
 #ifdef CSS_WEAPONS_IN_HL2
