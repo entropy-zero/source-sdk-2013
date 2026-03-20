@@ -135,6 +135,13 @@ Activity CMapbasePlayerAnimState::CalcMainActivity()
 
             if ( bDucking )
 			{
+#ifdef EZ2
+				if ( m_pPlayer->m_Local.m_bDuckSliding )
+				{
+					idealActivity = ACT_HL2MP_SLIDE;
+				}
+				else
+#endif
 				if ( speed > 0 )
 				{
 					idealActivity = ACT_HL2MP_WALK_CROUCH;

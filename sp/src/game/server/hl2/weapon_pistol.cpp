@@ -306,6 +306,9 @@ acttable_t	CWeaponPistol::m_acttable[] =
 	{ ACT_HL2MP_WALK,					ACT_HL2MP_WALK_PISTOL,						false },
 	{ ACT_HL2MP_GESTURE_RANGE_ATTACK2,	ACT_HL2MP_GESTURE_RANGE_ATTACK2_PISTOL,		false },
 #endif
+#ifdef EZ2
+	{ ACT_HL2MP_SLIDE,					ACT_HL2MP_SLIDE_PISTOL,					false },
+#endif
 #endif
 };
 

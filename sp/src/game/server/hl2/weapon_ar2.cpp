@@ -197,6 +197,9 @@ acttable_t	CWeaponAR2::m_acttable[] =
 	{ ACT_HL2MP_WALK,					ACT_HL2MP_WALK_AR2,						false },
 	{ ACT_HL2MP_GESTURE_RANGE_ATTACK2,	ACT_HL2MP_GESTURE_RANGE_ATTACK2_AR2,	false },
 #endif
+#ifdef EZ2
+	{ ACT_HL2MP_SLIDE,					ACT_HL2MP_SLIDE_AR2,					false },
+#endif
 #endif
 };
 

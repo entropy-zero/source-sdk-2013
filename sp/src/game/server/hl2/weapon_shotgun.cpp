@@ -249,6 +249,9 @@ acttable_t	CWeaponShotgun::m_acttable[] =
 	{ ACT_HL2MP_WALK,					ACT_HL2MP_WALK_SHOTGUN,						false },
 	{ ACT_HL2MP_GESTURE_RANGE_ATTACK2,	ACT_HL2MP_GESTURE_RANGE_ATTACK2_SHOTGUN,	false },
 #endif
+#ifdef EZ2
+	{ ACT_HL2MP_SLIDE,					ACT_HL2MP_SLIDE_SHOTGUN,					false },
+#endif
 #endif
 };
 

@@ -3351,6 +3351,33 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 
 			if (GetFlags() & FL_DUCKING || m_Local.m_flDucktime > 0.0f)
 			{
+#ifdef EZ2
+				if ( ( m_Local.m_bDuckSliding || m_Local.m_flDuckSlideTime > 0.0f ) && IsLocalPlayer() )
+				{
+					// HACKHACK using constants from game movement
+					float flPerc = SimpleSpline( RemapValClamped( m_Local.m_flDuckSlideTime, 0.0f, 500.0f, 1.0f, 0.0f ) );
+
+					if (m_Local.m_bDuckSliding)
+					{
+						// Ducking
+						//Msg( "Ducking sliding with perc %f (%f)\n", flPerc, m_Local.m_flDuckSlideTime );
+						if (m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckUp != FLT_MAX)
+							flNeckPivotUp = FLerp( m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckUp, flNeckPivotUp, flPerc );
+						if (m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckFwd != FLT_MAX)
+							flNeckPivotFwd = FLerp( m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckFwd, flNeckPivotFwd, flPerc );
+					}
+					else
+					{
+						// Unducking
+						//Msg( "Unducking sliding with perc %f (%f)\n", flPerc, m_Local.m_flDuckSlideTime );
+						if (m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckUp != FLT_MAX)
+							flNeckPivotUp = FLerp( flNeckPivotUp, m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckUp, flPerc );
+						if (m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckFwd != FLT_MAX)
+							flNeckPivotFwd = FLerp( flNeckPivotFwd, m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckFwd, flPerc );
+					}
+				}
+				else
+#endif
 				if (!IsLocalPlayer() || m_Local.m_flDucktime <= 0.0f)
 				{
 					if (m_FirstPersonModelData.m_flFirstPersonNeckPivotDuckUp != FLT_MAX)

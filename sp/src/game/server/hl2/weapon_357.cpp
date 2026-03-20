@@ -240,6 +240,9 @@ acttable_t	CWeapon357::m_acttable[] =
 	{ ACT_HL2MP_GESTURE_RELOAD,			ACT_HL2MP_GESTURE_RELOAD_PISTOL,        false },
 	{ ACT_HL2MP_JUMP,					ACT_HL2MP_JUMP_PISTOL,                    false },
 #endif
+#ifdef EZ2
+	{ ACT_HL2MP_SLIDE,					ACT_HL2MP_SLIDE_PISTOL,					false },
+#endif
 #endif
 };
 
