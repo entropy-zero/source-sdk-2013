@@ -4443,6 +4443,12 @@ int CNPC_Combine::SelectFailSchedule( int failedSchedule, int failedTask, AI_Tas
 		return SCHED_COMBINE_ATTACK_TARGET;
 	}
 	m_hObstructor = NULL;
+
+	if ( failedSchedule == SCHED_COMBINE_ASSAULT && IsUsingStealthSenses() )
+	{
+		// Take cover and wait
+		return SCHED_COMBINE_TAKE_COVER1;
+	}
 #endif
 
 	if( failedSchedule == SCHED_COMBINE_TAKE_COVER1 )

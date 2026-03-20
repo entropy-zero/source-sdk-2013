@@ -711,7 +711,8 @@ void CNPC_ConscriptElite::OnScheduleChange( void )
 		{
 			if ( GetState() != NPC_STATE_COMBAT )
 			{
-				if ( GetState() == NPC_STATE_IDLE && ( !IsUsingStealthSenses() || gpGlobals->curtime - GetStealthSenses()->GetLastSoundTime() > 20.0f ) )
+				if ( GetState() == NPC_STATE_IDLE && GetEnemies()->NumEnemies() == 0 &&
+					( !IsUsingStealthSenses() || gpGlobals->curtime - GetStealthSenses()->GetLastSoundTime() > 20.0f ) )
 				{
 					// Nobody left to look out for
 					iLaserLayer = AddGesture( (Activity)ACT_LASER_DISABLE );
@@ -755,6 +756,21 @@ int CNPC_ConscriptElite::TranslateSchedule( int scheduleType )
 					{
 						return SCHED_COMBINE_ASSAULT;
 					}
+					else if ( HasStrategySlot( SQUAD_SLOT_ATTACK1 ) )
+					{
+						// Be the hero and wander into the unknown
+						return SCHED_COMBINE_ASSAULT;
+					}
+				}
+			}
+			break;
+
+		case SCHED_COMBINE_WAIT_IN_COVER:
+			{
+				if ( m_bLaserOn && !HasCondition( COND_SEE_ENEMY ) )
+				{
+					// Ensure we retain LOS
+					return SCHED_COMBAT_FACE;
 				}
 			}
 			break;
