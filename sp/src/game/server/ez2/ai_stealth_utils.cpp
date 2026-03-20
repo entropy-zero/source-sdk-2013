@@ -14,6 +14,7 @@
 #include "ai_node.h"
 #include "ai_memory.h"
 #include "ai_network.h"
+#include "ai_link.h"
 #include "BasePropDoor.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -38,7 +39,8 @@ ConVar	g_debug_stealth_predictpos( "g_debug_stealth_predictpos", "0" );
 class CStealthPredictNodeFilter : public INearestNodeFilter
 {
 public:
-	CStealthPredictNodeFilter( CAI_BaseNPC *pOuter, const Vector &vecOrigin, const Vector &vecAvoidDir, int nLastNode, int nIteration, CUtlVector<CTriggerStealthArea*> *pNodeAreas )
+	CStealthPredictNodeFilter( CAI_BaseNPC *pOuter, const Vector &vecOrigin, const Vector &vecAvoidDir,
+		int nLastNode, int nIteration, CUtlVector<CTriggerStealthArea*> *pNodeAreas, const Vector &vecDistOrigin, float flMaxDist )
 	{
 		m_pOuter = pOuter;
 		m_vecOrigin = vecOrigin;
@@ -46,6 +48,17 @@ public:
 		m_nLastNode = nLastNode;
 		m_nIteration = nIteration;
 		m_bFoundValidNode = false;
+
+		if ( flMaxDist != FLT_MAX )
+		{
+			m_vecDistOrigin = vecDistOrigin;
+			m_flMaxDist = flMaxDist;
+		}
+		else
+		{
+			m_vecDistOrigin = vec3_origin;
+			m_flMaxDist = PREDICTED_ENEMY_POS_NODE_DIST;
+		}
 		
 		if ( pNodeAreas && pNodeAreas->Count() > 0 )
 			m_pNodeAreas = pNodeAreas;
@@ -67,11 +80,17 @@ public:
 		// Must be close enough and not facing the previous direction
 		Vector vecDir = (pNode->GetOrigin() - m_vecOrigin);
 		float flDist = VectorNormalize( vecDir );
-		if ( flDist > PREDICTED_ENEMY_POS_NODE_DIST || DotProduct( vecDir, m_vecAvoidDir ) > PREDICTED_ENEMY_POS_NODE_DOT_TOLERANCE )
+		if ( m_vecDistOrigin != vec3_origin )
+		{
+			// Use another origin to determine distance
+			flDist = (pNode->GetOrigin() - m_vecDistOrigin).Length();
+		}
+
+		if ( flDist > m_flMaxDist || DotProduct( vecDir, m_vecAvoidDir ) > PREDICTED_ENEMY_POS_NODE_DOT_TOLERANCE )
 		{
 			if ( g_debug_stealth_predictpos.GetInt() == 2 )
 			{
-				if ( flDist < PREDICTED_ENEMY_POS_NODE_DIST )
+				if ( flDist < m_flMaxDist )
 				{
 					NDebugOverlay::Line( m_vecOrigin, pNode->GetOrigin(), 255, 0, 255, true, 5.0f );
 
@@ -122,6 +141,27 @@ public:
 			}
 
 			return false;
+		}
+
+		// And a place we could navigate to
+		// (player can jump to unreachable places, but this is important for navigating properly)
+		if ( m_nLastNode != -1 )
+		{
+			CAI_Link *pLink = pNode->HasLink( m_nLastNode );
+			if ( !pLink || !(pLink->m_iAcceptedMoveTypes[m_pOuter->GetHullType()] & m_pOuter->CapabilitiesGet()) )
+				return false;
+
+			if ( m_pOuter->CapabilitiesGet() & bits_CAP_MOVE_JUMP && !(pLink->m_iAcceptedMoveTypes[m_pOuter->GetHullType()] & bits_CAP_MOVE_GROUND) )
+			{
+				// Make sure the jump is legal if we have to jump
+				Vector vecLastNodePos = g_pBigAINet->GetNodePosition( m_pOuter->GetHullType(), m_nLastNode );
+				Vector vecApex = pNode->GetOrigin();
+				if ( vecApex.z < vecLastNodePos.z )
+					vecApex = vecLastNodePos;
+
+				if ( !m_pOuter->IsJumpLegal( vecLastNodePos, vecLastNodePos, pNode->GetOrigin() ) )
+					return false;
+			}
 		}
 
 		// And not in a place we could see
@@ -184,13 +224,17 @@ private:
 	int m_nLastNode;
 	int m_nIteration;
 	CUtlVector<CTriggerStealthArea *> *m_pNodeAreas;
+
+	Vector m_vecDistOrigin;
+	float m_flMaxDist;
+
 	bool m_bFoundValidNode;
 };
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool DoFindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecPos, const Vector &vecDelta, int &nNode, int i )
+static bool DoFindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecPos, const Vector &vecDelta, int &nNode, int i, const Vector &vecDistOrigin, float flMaxDist )
 {
 	Vector vecDir = vecDelta;
 	float flDist = VectorNormalize( vecDir );
@@ -232,7 +276,7 @@ bool DoFindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &ve
 			Vector vecDirToArea = (vecAreaTestPos - vecPos);
 			float flDistToArea = VectorNormalize( vecDirToArea );
 
-			if ( flDistToArea > 256.0f )
+			if ( flDistToArea > MIN( 256.0f, flMaxDist ) )
 				continue;
 
 			// Reduce distance based on dot product
@@ -250,7 +294,7 @@ bool DoFindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &ve
 		}
 	}
 
-	CStealthPredictNodeFilter nodeFilter( pNPC, vecPos, -vecDir, nNode, i, &vecNodeAreas );
+	CStealthPredictNodeFilter nodeFilter( pNPC, vecPos, -vecDir, nNode, i, &vecNodeAreas, vecDistOrigin, flMaxDist );
 	nNode = g_pBigAINet->NearestNodeToPoint( pNPC, vecPos, vecNodeAreas.Count() == 0, &nodeFilter );
 	if ( nNode == NO_NODE )
 	{
@@ -273,7 +317,7 @@ bool DoFindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &ve
 	return true;
 }
 
-bool FindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecOutPos )
+bool FindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecOutPos, float flMaxDist, const Vector *vecStartPos )
 {
 	AI_EnemyInfo_t *pMemory = pNPC->GetEnemies()->Find( pEnemy );
 	if ( !pMemory || gpGlobals->curtime - pMemory->timeLastSeen > PREDICTED_ENEMY_POS_MAX_TIME )
@@ -281,7 +325,7 @@ bool FindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecO
 
 	// Try to ascertain which direction the enemy was going in
 	Vector vecGuessDir = pMemory->vLastKnownLocation - pMemory->vLastSeenLocation;
-	Vector vecLastPos = pMemory->vLastKnownLocation;
+	Vector vecLastPos = vecStartPos ? *vecStartPos : pMemory->vLastKnownLocation;
 
 	trace_t tr;
 	Vector vecGuessOrigin = vecLastPos + (vecGuessDir.Normalized() * PREDICTED_ENEMY_POS_PROJECT_DIST);
@@ -295,26 +339,27 @@ bool FindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecO
 	vecOutPos = tr.endpos;
 
 	int nLastNode = -1;
-	if ( !DoFindPredictedEnemyPos( pNPC, pEnemy, vecOutPos, vecGuessDir, nLastNode, 0 ) )
+	if ( !DoFindPredictedEnemyPos( pNPC, pEnemy, vecOutPos, vecGuessDir, nLastNode, 0, vecLastPos, flMaxDist ) )
 		return false;
 	
 	// Subsequent iterations
+	Vector vecLastIterPos = vecLastPos;
 	int i = 1;
 	const int MAX_ITERATIONS = 8;
 	for ( ; i < MAX_ITERATIONS; i++ )
 	{
 		if ( g_debug_stealth_predictpos.GetInt() == 2 )
-			NDebugOverlay::HorzArrow( vecLastPos, vecOutPos, 4.0f, 0, 0, 255, 128, true, 1.0f );
+			NDebugOverlay::HorzArrow( vecLastIterPos, vecOutPos, 4.0f, 0, 0, 255, 128, true, 1.0f );
 
-		vecGuessDir = vecOutPos - vecLastPos;
+		vecGuessDir = vecOutPos - vecLastIterPos;
 		vecGuessDir.z = 0.0f; // Ignore Z for subsequent iterations
-		vecLastPos = vecOutPos;
+		vecLastIterPos = vecOutPos;
 
-		if ( !DoFindPredictedEnemyPos( pNPC, pEnemy, vecOutPos, vecGuessDir, nLastNode, i ) )
+		if ( !DoFindPredictedEnemyPos( pNPC, pEnemy, vecOutPos, vecGuessDir, nLastNode, i, vecLastPos, flMaxDist ) )
 		{
 			if ( g_debug_stealth_predictpos.GetBool() )
 			{
-				NDebugOverlay::Line( vecLastPos, vecOutPos, 255, 0, 0, true, 5.0f );
+				NDebugOverlay::Line( vecLastIterPos, vecOutPos, 255, 0, 0, true, 5.0f );
 
 				char szTemp[128] = { 0 };
 				V_snprintf( szTemp, sizeof( szTemp ), "Failed at %i", i );
@@ -324,7 +369,7 @@ bool FindPredictedEnemyPos( CAI_BaseNPC *pNPC, CBaseEntity *pEnemy, Vector &vecO
 		}
 
 		if ( g_debug_stealth_predictpos.GetBool() )
-			NDebugOverlay::Line( vecLastPos, vecOutPos, 255, 255 / i, 255 / i, true, 5.0f );
+			NDebugOverlay::Line( vecLastIterPos, vecOutPos, 255, 255 / i, 255 / i, true, 5.0f );
 	}
 
 	return true;

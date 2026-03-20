@@ -6879,12 +6879,40 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 				}
 			}
 		}
-		else
+		else if ( !GetEnemies()->HasPredictedPosition( pEnemy ) )
 		{
 			// Try to predict where the enemy would be at this point
+			const float MAX_PREDICT_DIST_INIT		= 480.0f;
+			const float MAX_PREDICT_DIST_EXPANDED	= 3200.0f;
+
 			Vector vecUpdatePos = GetEnemyLKP();
-			if ( /*( vecUpdatePos - GetAbsOrigin() ).LengthSqr() < Square( 32 ) ||*/ FindPredictedEnemyPos( this, GetEnemy(), vecUpdatePos ) )
+			if ( /*( vecUpdatePos - GetAbsOrigin() ).LengthSqr() < Square( 32 ) ||*/ FindPredictedEnemyPos( this, GetEnemy(), vecUpdatePos, MAX_PREDICT_DIST_INIT ) )
+			{
+				if (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT)
+					NDebugOverlay::HorzArrow( GetEnemyLKP(), vecUpdatePos, 4.0f, 0, 255, 0, 128, true, 4.0f );
+
+				// Predict another position for us to use later if needed
+				Vector vecPredictPos = vecUpdatePos;
+				if ( FindPredictedEnemyPos( this, GetEnemy(), vecPredictPos, MAX_PREDICT_DIST_EXPANDED, &vecUpdatePos ) )
+				{
+					GetEnemies()->SetPredictedPosition( pEnemy, vecPredictPos );
+
+					if (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT)
+						NDebugOverlay::HorzArrow( vecUpdatePos, vecPredictPos, 2.0f, 0, 0, 255, 128, true, 4.0f );
+
+					if ( CAI_Squad *pSquad = GetSquad() )
+					{
+						// Broadcast to all members of the squad
+						AISquadIter_t iter;
+						for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
+						{
+							pSquadmate->GetEnemies()->SetPredictedPosition( pEnemy, vecPredictPos );
+						}
+					}
+				}
+
 				UpdateEnemyMemory( pEnemy, vecUpdatePos, pEnemy );
+			}
 		}
 	}
 #endif
@@ -6948,6 +6976,34 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 		if (((flEnemyLKP - GetAbsOrigin()).Length2D() < 48) &&
 			!HasCondition(COND_SEE_ENEMY))
 		{
+#ifdef EZ2
+			if ( GetEnemies()->HasPredictedPosition( pEnemy ) )
+			{
+				// There's still another place the enemy could be at
+				GetEnemies()->CommitPredictedPosition( pEnemy );
+
+				if ( CAI_Squad *pSquad = GetSquad() )
+				{
+					// Broadcast to all members of the squad
+					AISquadIter_t iter;
+					for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
+					{
+						if ( pSquadmate != this )
+						{
+							if ( pSquadmate->GetEnemies()->HasPredictedPosition( pEnemy ) )
+								pSquadmate->GetEnemies()->CommitPredictedPosition( pEnemy );
+							/*else
+							{
+								// UNDONE: Share our predicted position
+								pSquadmate->GetEnemies()->SetPredictedPosition( pEnemy, GetEnemyLKP() );
+								pSquadmate->GetEnemies()->CommitPredictedPosition( pEnemy );
+							}*/
+						}
+					}
+				}
+			}
+			else
+#endif
 			MarkEnemyAsEluded();
 		}
 		//-------------------------------------------------------------------
@@ -6956,6 +7012,34 @@ void CAI_BaseNPC::GatherEnemyConditions( CBaseEntity *pEnemy )
 		// ------------------------------------------------------------------
 		if (!HasCondition(COND_SEE_ENEMY) && HasCondition(COND_ENEMY_UNREACHABLE))
 		{
+#ifdef EZ2
+			if ( GetEnemies()->HasPredictedPosition( pEnemy ) )
+			{
+				// There's still another place the enemy could be at
+				GetEnemies()->CommitPredictedPosition( pEnemy );
+
+				if ( CAI_Squad *pSquad = GetSquad() )
+				{
+					// Broadcast to all members of the squad
+					AISquadIter_t iter;
+					for (CAI_BaseNPC *pSquadmate = pSquad->GetFirstMember( &iter ); pSquadmate; pSquadmate = pSquad->GetNextMember( &iter ))
+					{
+						if ( pSquadmate != this )
+						{
+							if ( pSquadmate->GetEnemies()->HasPredictedPosition( pEnemy ) )
+								pSquadmate->GetEnemies()->CommitPredictedPosition( pEnemy );
+							/*else
+							{
+								// UNDONE: Share our predicted position
+								pSquadmate->GetEnemies()->SetPredictedPosition( pEnemy, GetEnemyLKP() );
+								pSquadmate->GetEnemies()->CommitPredictedPosition( pEnemy );
+							}*/
+						}
+					}
+				}
+			}
+			else
+#endif
 			if ( !FVisible( flEnemyLKP ) )
 			{
 				MarkEnemyAsEluded();

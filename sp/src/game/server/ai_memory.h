@@ -45,6 +45,12 @@ struct AI_EnemyInfo_t
 	bool			bUnforgettable;
 	bool			bMobbedMe;			// True if enemy was part of a mob at some point
 
+#ifdef EZ2
+	// A location the enemy could be at based on the direction they were heading in when we last saw them.
+	// Replaces vLastKnownLocation when they would normally be eluded.
+	Vector			vPredictedLocation;
+#endif
+
 	DECLARE_SIMPLE_DATADESC();
 };
 
@@ -80,6 +86,10 @@ public:
 
 	const Vector &	LastKnownPosition( CBaseEntity *pEnemy );
 	const Vector &	LastSeenPosition( CBaseEntity *pEnemy );
+#ifdef EZ2
+	const Vector &	PredictedPosition( CBaseEntity *pEnemy );
+	bool			HasPredictedPosition( CBaseEntity *pEnemy );
+#endif
 
 	float			TimeLastReacquired( CBaseEntity *pEnemy );
 	float			LastTimeSeen( CBaseEntity *pEnemy, bool bCheckDangerMemory = true );
@@ -97,6 +107,10 @@ public:
 
 	void			SetUnforgettable( CBaseEntity *pEnemy, bool bUnforgettable = true );
 	void			SetMobbedMe( CBaseEntity *pEnemy, bool bMobbedMe = true );
+#ifdef EZ2
+	void			SetPredictedPosition( CBaseEntity *pEnemy, const Vector &vPosition );
+	void			CommitPredictedPosition( CBaseEntity *pEnemy );
+#endif
 	
 	void			SetFreeKnowledgeDuration( float flDuration );
 	void			SetEnemyDiscardTime( float flTime );

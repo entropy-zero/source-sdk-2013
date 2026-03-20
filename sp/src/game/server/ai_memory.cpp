@@ -39,6 +39,9 @@ AI_EnemyInfo_t::AI_EnemyInfo_t(void)
 	bEludedMe = 0;
 	bUnforgettable = 0;
 	bMobbedMe = 0;
+#ifdef EZ2
+	vPredictedLocation	= vec3_origin;
+#endif
 }
 
  
@@ -143,6 +146,9 @@ BEGIN_SIMPLE_DATADESC( AI_EnemyInfo_t )
 	DEFINE_FIELD( bEludedMe, 		FIELD_BOOLEAN ),
 	DEFINE_FIELD( bUnforgettable,	FIELD_BOOLEAN ),
 	DEFINE_FIELD( bMobbedMe,		FIELD_BOOLEAN ),
+#ifdef EZ2
+	DEFINE_FIELD( vPredictedLocation, FIELD_POSITION_VECTOR ),
+#endif
 	// NOT SAVED nextEMemory
 END_DATADESC()
 
@@ -361,6 +367,11 @@ bool CAI_Enemies::UpdateMemory(CAI_Network* pAINet, CBaseEntity *pEnemy, const V
 		{
 			pMemory->vLastKnownLocation = vPosition;
 
+#ifdef EZ2
+			// Clear predicted location
+			if ( pMemory->vPredictedLocation != vec3_origin )
+				pMemory->vPredictedLocation = vec3_origin;
+#endif
 		}
 
 		// Update the time at which we first saw him firsthand
@@ -483,6 +494,39 @@ const Vector &CAI_Enemies::LastSeenPosition( CBaseEntity *pEnemy )
 	}
 	return m_vecDefaultLSP;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const Vector &CAI_Enemies::PredictedPosition( CBaseEntity *pEnemy )
+{
+	AI_EnemyInfo_t *pMemory = Find( pEnemy, true );
+	if ( pMemory )
+	{
+		return pMemory->vPredictedLocation;
+	}
+	else
+	{
+		DevWarning( 2,"Asking PredictedPosition for enemy that's not in my memory!!\n");
+	}
+	return vec3_origin;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_Enemies::HasPredictedPosition( CBaseEntity *pEnemy )
+{
+	AI_EnemyInfo_t *pMemory = Find( pEnemy, true );
+	if ( pMemory )
+	{
+		if ( pMemory->vPredictedLocation != vec3_origin )
+			return true;
+	}
+	return false;
+}
+#endif
 
 float CAI_Enemies::TimeLastReacquired( CBaseEntity *pEnemy )
 {
@@ -632,6 +676,29 @@ void CAI_Enemies::SetMobbedMe( CBaseEntity *pEnemy, bool bMobbedMe )
 	if ( pMemory )
 		pMemory->bMobbedMe = bMobbedMe;
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+void CAI_Enemies::SetPredictedPosition( CBaseEntity *pEnemy, const Vector &vPosition )
+{
+	AI_EnemyInfo_t *pMemory = Find( pEnemy );
+	if ( pMemory )
+		pMemory->vPredictedLocation = vPosition;
+}
+
+//-----------------------------------------------------------------------------
+void CAI_Enemies::CommitPredictedPosition( CBaseEntity *pEnemy )
+{
+	Assert( HasPredictedPosition( pEnemy ) );
+
+	AI_EnemyInfo_t *pMemory = Find( pEnemy );
+	if ( pMemory )
+	{
+		pMemory->vLastKnownLocation = pMemory->vPredictedLocation;
+		pMemory->vPredictedLocation = vec3_origin;
+	}
+}
+#endif
 
 //-----------------------------------------------------------------------------
 
