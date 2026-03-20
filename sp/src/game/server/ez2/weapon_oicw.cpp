@@ -176,6 +176,9 @@ acttable_t	CWeaponOICW::m_acttable[] =
 	{ ACT_HL2MP_JUMP,                    ACT_HL2MP_JUMP_AR1,                    false },
 	{ ACT_HL2MP_WALK,					ACT_HL2MP_WALK_AR1,					false },
 	{ ACT_HL2MP_GESTURE_RANGE_ATTACK2,	ACT_HL2MP_GESTURE_RANGE_ATTACK2_AR1,    false },
+#ifdef EZ2
+	{ ACT_HL2MP_SLIDE,					ACT_HL2MP_SLIDE_AR1,					false },
+#endif
 #endif
 #endif
 };
