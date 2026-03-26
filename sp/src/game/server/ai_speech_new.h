@@ -227,7 +227,7 @@ public:
 	void ClearSpokeConcept( const AIConcept_t &concept );
 
 #ifdef MAPBASE
-	AIConcept_t GetLastSpokeConcept( AIConcept_t excludeConcept = NULL );
+	AIConcept_t GetLastSpokeConcept( AIConcept_t excludeConcept = "" );
 #endif
 	
 	// --------------------------------

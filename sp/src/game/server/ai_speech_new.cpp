@@ -1593,7 +1593,7 @@ AIConcept_t CAI_Expresser::GetLastSpokeConcept( AIConcept_t excludeConcept /* = 
 		ConceptHistory_t *h = &m_ConceptHistories[ i ];
 
 		// If an 'exclude concept' was provided, skip over this entry in the history if it matches the exclude concept
-		if ( excludeConcept != NULL && FStrEq( m_ConceptHistories.GetElementName( i ), excludeConcept ) )
+		if ( *excludeConcept.GetStringConcept() && FStrEq( m_ConceptHistories.GetElementName( i ), excludeConcept ) )
 			continue;
 
 		if ( h->timeSpoken >= flLast )
@@ -1603,7 +1603,7 @@ AIConcept_t CAI_Expresser::GetLastSpokeConcept( AIConcept_t excludeConcept /* = 
 		}
 	}
 
-	return iLastSpokenIndex != m_ConceptHistories.InvalidIndex() ? m_ConceptHistories.GetElementName( iLastSpokenIndex ) : NULL;
+	return iLastSpokenIndex != m_ConceptHistories.InvalidIndex() ? m_ConceptHistories.GetElementName( iLastSpokenIndex ) : "";
 }
 #endif
 
