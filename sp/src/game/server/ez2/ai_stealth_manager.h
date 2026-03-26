@@ -252,6 +252,7 @@ public:
 	CTriggerStealthArea		*FindBestStealthArea( CAI_BaseNPC *pNPC, float flMaxDist, const CUtlVector<StealthInterestPoint_t> *vecInterestPoints = NULL, bool bInterestOnly = false );
 	CTriggerStealthArea		*GetStealthAreaForEntity( CBaseEntity *pEntity );
 	CTriggerStealthArea		*GetStealthAreaForPoint( const Vector &vecOrigin );
+	CTriggerStealthArea		*GetStealthAreaInBox( const Vector &vecOrigin, const Vector &vecMins, const Vector &vecMaxs );
 	CTriggerStealthArea		*GetStealthAreaForHint( CAI_Hint *pHint );
 	CTriggerStealthArea		*GetStealthAreaForDoor( CBasePropDoor *pDoor, int *iIndex = NULL, bool *bShouldBeOpen = NULL );
 	const Vector			*GetInteriorPositionThroughDoor( CAI_BaseNPC *pNPC, CBasePropDoor *pDoor );

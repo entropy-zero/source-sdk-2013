@@ -1669,6 +1669,41 @@ CTriggerStealthArea *CAI_StealthManager::GetStealthAreaForPoint( const Vector &v
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+CTriggerStealthArea *CAI_StealthManager::GetStealthAreaInBox( const Vector &vecOrigin, const Vector &vecMins, const Vector &vecMaxs )
+{
+	Ray_t ray;
+	ray.Init( vecOrigin, vecOrigin, vecMins, vecMaxs );
+
+	// Since multiple areas can be involved, we have to measure which one is closest
+	CTriggerStealthArea *pBestArea = NULL;
+	float flBestDistSqr = FLT_MAX;
+	for ( int i = 0; i < m_StealthAreas.Count(); i++ )
+	{
+		trace_t tr;
+		ICollideable *pCollide = m_StealthAreas[i]->CollisionProp();
+		enginetrace->ClipRayToCollideable( ray, MASK_ALL, pCollide, &tr );
+		if ( tr.startsolid )
+		{
+			// If the point is actually inside of the area, then early out
+			if ( m_StealthAreas[i]->PointIsWithin( vecOrigin ) )
+				return m_StealthAreas[i];
+
+			// TODO: Would be better to get the nearest point within the area, rather than its origin
+			float flDistSqr = (vecOrigin - m_StealthAreas[i]->GetAbsOrigin()).LengthSqr();
+			if ( flDistSqr < flBestDistSqr )
+			{
+				pBestArea = m_StealthAreas[i];
+				flBestDistSqr = flDistSqr;
+			}
+		}
+	}
+
+	return pBestArea;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 CTriggerStealthArea *CAI_StealthManager::GetStealthAreaForHint( CAI_Hint *pHint )
 {
 	for ( int i = 0; i < m_StealthAreas.Count(); i++ )
