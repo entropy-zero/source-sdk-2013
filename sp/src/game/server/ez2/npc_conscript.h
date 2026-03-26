@@ -62,6 +62,7 @@ public:
 
 	void			ModifyOrAppendCriteria( AI_CriteriaSet &set );
 	virtual void	ModifyEmitSoundParams( EmitSound_t &params );
+	const char		*GetSquadIDPrefix();
 
 	bool			GetDataForHeadwear( const char **ppszModelName, const char **ppszType );
 	static CBaseEntity		*SpawnHeadGib( CAI_BaseNPC *pNPC, const CTakeDamageInfo &info, string_t iszModelName, const char *pszType );

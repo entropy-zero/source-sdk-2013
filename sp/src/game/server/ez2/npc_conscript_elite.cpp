@@ -317,6 +317,18 @@ void CNPC_ConscriptElite::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+const char *CNPC_ConscriptElite::GetSquadIDPrefix()
+{
+	const char *pszID = BaseClass::GetSquadIDPrefix();
+	if ( pszID != NULL )
+		return pszID;
+
+	return "elite";
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CNPC_ConscriptElite::Event_Killed( const CTakeDamageInfo &info )
 {
 	BaseClass::Event_Killed( info );

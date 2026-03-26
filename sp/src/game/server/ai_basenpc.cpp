@@ -12843,6 +12843,23 @@ void CAI_BaseNPC::HighFrequencyLookThink()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+const char *CAI_BaseNPC::GetSquadIDPrefix()
+{
+	if ( IsDesignatedSquadLeader() )
+	{
+		return "leader";
+	}
+	else if ( IsMedic() )
+	{
+		return "medic";
+	}
+
+	return NULL;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CAI_BaseNPC::InputUpdateInformedStealthMemory( inputdata_t &inputdata )
 {
 	if (inputdata.pActivator && inputdata.pActivator->IsAlive())

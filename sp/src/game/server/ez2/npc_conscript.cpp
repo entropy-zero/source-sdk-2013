@@ -680,6 +680,27 @@ void CNPC_Conscript::ModifyEmitSoundParams( EmitSound_t &params )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const char *CNPC_Conscript::GetSquadIDPrefix()
+{
+	const char *pszID = BaseClass::GetSquadIDPrefix();
+	if ( pszID != NULL )
+		return pszID;
+
+	switch ( m_Subtype )
+	{
+		case CST_BRUTE:
+			return "brute";
+		case CST_RIOT:
+			return "riot";
+	}
+
+	// Always fall back to generic grunt type
+	return "grunt";
+}
+
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 bool CNPC_Conscript::GetDataForHeadwear( const char **ppszModelName, const char **ppszType )
 {

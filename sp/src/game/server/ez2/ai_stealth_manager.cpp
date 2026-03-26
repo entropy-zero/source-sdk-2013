@@ -54,7 +54,7 @@ ConVar	g_debug_stealth_search_weight( "g_debug_stealth_search_weight", "0" );
 #define STEALTH_MANAGER_DEBUG_SHOW_DURATION		1.03f
 
 // How much time in the beginning and end of a response to ignore them being interrupted
-#define RESPONSE_ALERT_PADDING	0.25f
+#define RESPONSE_ALERT_PADDING	1.0f
 
 // Response contexts used by the stealth manager to identify certain entities
 // TODO: Actual lists?
@@ -1345,24 +1345,35 @@ string_t CAI_StealthManager::GenerateSquadMemberID( StealthSquadInfo_t *pSquadIn
 	if ( pszOverrideID && *pszOverrideID )
 		return MAKE_STRING( pszOverrideID );	// Already a pointer to a pooled string
 
-	const char *pszID = "grunt";
-	if ( pSquadmate->IsNPC() )
+	const char *pszID = pSquadmate->IsNPC() ? pSquadmate->MyNPCPointer()->GetSquadIDPrefix() : NULL;
+	if ( pszID == NULL )
 	{
-		CAI_BaseNPC *pNPC = pSquadmate->MyNPCPointer();
-		if ( pNPC->IsMedic() )
-		{
-			pszID = "medic";
-		}
-		else if ( pNPC->IsDesignatedSquadLeader() )
-		{
-			pszID = "commander";
-		}
+		// Default to clipped classname (e.g. npc_citizen -> citizen)
+		pszID = pSquadmate->GetClassname();
+		if ( V_strncmp( pszID, "npc_", 4 ) == 0 )
+			pszID += 4;
 	}
 
 	// Generate a new one based on the classname and squad member count
-	// (e.g. "npc_citizen-1", "npc_citizen-2"...)
+	// (e.g. "citizen-1", "citizen-2"...)
+
+	// How many already have this ID?
+	// (no longer uses direct squad member count)
+	int nNumID = 1; // pSquadInfo->m_Members.Count()
+	int nIDLen = V_strlen( pszID );
+	for ( int i = 0; i < pSquadInfo->m_Members.Count(); i++ )
+	{
+		if ( pSquadInfo->m_Members[i].hEntity == pSquadmate )
+			continue;
+
+		if ( V_strncmp( STRING( pSquadInfo->m_Members[i].iszID ), pszID, nIDLen ) == 0 )
+		{
+			nNumID++;
+		}
+	}
+
 	char szNewID[32] = { 0 };
-	V_snprintf( szNewID, sizeof( szNewID ), "%s-%i", pszID, pSquadInfo->m_Members.Count() );
+	V_snprintf( szNewID, sizeof( szNewID ), "%s-%i", pszID, nNumID );
 
 	// Also add it to the squad member as a context
 	pSquadmate->AddContext( "id", szNewID );

@@ -41,6 +41,7 @@ public:
 	void			TurnOffLaser();
 
 	void			ModifyOrAppendCriteria( AI_CriteriaSet &set );
+	const char		*GetSquadIDPrefix();
 
 	virtual void	Event_Killed( const CTakeDamageInfo &info );
 	virtual bool	IsLightDamage( const CTakeDamageInfo &info );

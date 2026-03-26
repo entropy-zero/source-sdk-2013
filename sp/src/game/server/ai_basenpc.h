@@ -2218,6 +2218,9 @@ public:
 	void			SetUsingHighFrequencyLook( bool bEnabled );
 	void			HighFrequencyLookThink();
 
+	// Used by stealth squad info to determine what ID to use
+	virtual const char		*GetSquadIDPrefix();
+
 	void			InputEnableStealthSenses( inputdata_t &inputdata ) { SetUsingStealthSenses( true ); }
 	void			InputDisableStealthSenses( inputdata_t &inputdata ) { SetUsingStealthSenses( false ); }
 	void			InputUpdateInformedStealthMemory( inputdata_t &inputdata );
