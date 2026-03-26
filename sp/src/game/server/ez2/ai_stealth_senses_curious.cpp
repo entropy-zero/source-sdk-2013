@@ -371,7 +371,12 @@ void CAI_CuriousStealthSenses::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 		{
 			CTriggerStealthArea *pArea = g_hStealthManager->GetStealthAreaForPoint( m_vecLastSoundLocation );
 			if ( pArea )
-				set.AppendCriteria( "last_sound_area", pArea->GetAreaContext() );
+			{
+				set.AppendCriteria( "last_sound_area", "1" );
+
+				// Overwrite the area criterion so that we can use the same definitions
+				set.AppendCriteria( "area", pArea->GetAreaContext() );
+			}
 		}
 
 		set.AppendCriteria( "last_sound_type", UTIL_VarArgs( "%i", m_nLastSoundType ) );

@@ -42,6 +42,7 @@
 #include "ez2/ai_stealth_senses.h"
 #include "ez2/ai_stealth_manager.h"
 #include "ez2/ez2_player.h"
+#include "eventqueue.h"
 #endif
 
 ConVar ai_debug_readiness("ai_debug_readiness", "0" );
@@ -185,6 +186,7 @@ BEGIN_DATADESC( CNPC_PlayerCompanion )
 #ifdef EZ2
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadCheck", InputAnswerSquadCheck ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadReport", InputAnswerSquadReport ),
+	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadNoResponse", InputAnswerSquadNoResponse ),
 #endif
 
 END_DATADESC()
@@ -819,10 +821,54 @@ bool CNPC_PlayerCompanion::SelectQuestionAndAnswerSpeech( AISpeechSelection_t *p
 		}
 
 		StealthSquadInfo_t *stealthSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
-		if ( stealthSquadInfo && g_hStealthManager->GetDistanceFromSquad( GetAbsOrigin(), stealthSquadInfo, this ) < 1000.0f ) // TODO: new cvar?
+		if ( stealthSquadInfo )
 		{
-			if ( SpeakIfAllowed( TLK_SQUAD_CHECK ) )
-				return true;
+			int iBestSquadMemberIdx = -1;
+			float flBestDistSqr = Square( 1000.0f );
+			for ( int i = 0; i < stealthSquadInfo->m_Members.Count(); i++ )
+			{
+				if ( !stealthSquadInfo->m_Members[i].bKnownAlive || stealthSquadInfo->m_Members[i].hEntity == this )
+					continue;
+
+				// Cheat a bit. If the squadmate is alive and isn't actually in our radius, don't consider them
+				// But if they're dead, use their actual last known location
+				Vector vecSquadmateLocation = stealthSquadInfo->m_Members[i].hEntity ?
+					stealthSquadInfo->m_Members[i].hEntity->GetAbsOrigin() : stealthSquadInfo->m_Members[i].vecLastKnownLocation;
+				float flDistSqr = (vecSquadmateLocation - GetAbsOrigin()).LengthSqr();
+
+				if (flDistSqr < flBestDistSqr)
+				{
+					if ( !stealthSquadInfo->m_Members[i].hEntity || !stealthSquadInfo->m_Members[i].hEntity->IsAlive()
+						|| IsValidSpeechTarget( 0, stealthSquadInfo->m_Members[i].hEntity ) )
+					{
+						flBestDistSqr = flDistSqr;
+						iBestSquadMemberIdx = i;
+					}
+				}
+			}
+
+			if ( iBestSquadMemberIdx != -1 )
+			{
+				const StealthSquadMemberInfo_t *pSquadMemberInfo = &stealthSquadInfo->m_Members[iBestSquadMemberIdx];
+				if ( pSquadMemberInfo->hEntity && pSquadMemberInfo->hEntity->IsAlive() )
+				{
+					// Squad member is alive
+					if ( SelectSpeechResponse( TLK_SQUAD_CHECK, NULL, pSquadMemberInfo->hEntity, pSelection ) )
+						return true;
+				}
+				else
+				{
+					// Squad member is not alive, so fake the speech target
+					CFmtStrN<512> modifiers( "speechtarget_id:%s", STRING( pSquadMemberInfo->iszID ) );
+					if ( SelectSpeechResponse( TLK_SQUAD_CHECK, modifiers, NULL, pSelection ) )
+					{
+						variant_t var;
+						var.SetInt( iBestSquadMemberIdx );
+						g_EventQueue.AddEvent( this, "AnswerSquadNoResponse", var, RandomFloat( 4.0f, 5.0f ), this, this );
+						return true;
+					}
+				}
+			}
 		}
 	}
 #endif
@@ -860,13 +906,36 @@ void CNPC_PlayerCompanion::InputAnswerSquadReport( inputdata_t &inputdata )
 
 	variant_t var;
 	StealthSquadOrder_t iSquadOrder = m_StealthSearchBehavior.SelectBestOrder( &vecRelevantSquad, &var );
+
 	AI_CriteriaSet modifiers;
+	modifiers.AppendCriteria( "order_src", "qa" );
 
 	if ( iSquadOrder != STEALTH_SQUAD_ORDER_NONE && m_StealthSearchBehavior.ShoutSquadOrder( iSquadOrder, modifiers, var ) )
 	{
 		// TODO: Initiate regroup if needed?
 		m_StealthSearchBehavior.GiveSquadOrder( this, &vecRelevantSquad, iSquadOrder, &var );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::InputAnswerSquadNoResponse( inputdata_t &inputdata )
+{
+	StealthSquadInfo_t *pSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
+	if ( !pSquadInfo || pSquadInfo->m_Members.Count() <= inputdata.value.Int() )
+		return;
+
+	StealthSquadMemberInfo_t &squadMemberInfo = pSquadInfo->m_Members[ inputdata.value.Int() ];
+
+	// Squad member is not alive, so fake the speech target
+	AI_CriteriaSet modifiers;
+	modifiers.AppendCriteria( "speechtarget_id", STRING( squadMemberInfo.iszID ) );
+	modifiers.AppendCriteria( "callout", "urgent" );
+
+	SpeakIfAllowed( TLK_SQUAD_CHECK, modifiers );
+
+	m_StealthSearchBehavior.ReceiveSquadOrder( this, STEALTH_SQUAD_ORDER_LOCATE_SQUADMATE, inputdata.value );
 }
 #endif
 

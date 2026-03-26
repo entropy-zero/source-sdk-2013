@@ -1915,6 +1915,7 @@ void CNPC_Citizen::BuildScheduleTestBits()
 			// Allow combat to break patrol in stealth senses
 			SetCustomInterruptCondition( COND_HEAR_COMBAT );
 			SetCustomInterruptCondition( COND_HEAR_BULLET_IMPACT );
+			SetCustomInterruptCondition( COND_PROVOKED );
 		}
 	}
 #endif

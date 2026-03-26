@@ -165,7 +165,8 @@ void CAI_StealthCuriousBehavior::ModifyOrAppendCriteria( AI_CriteriaSet& criteri
 //-----------------------------------------------------------------------------
 void CAI_StealthCuriousBehavior::MarkAsSeen( CBaseEntity *pEntity )
 {
-	g_hStealthManager->AddSeenObject( pEntity );
+	if ( g_hStealthManager )
+		g_hStealthManager->AddSeenObject( pEntity );
 }
 
 //-----------------------------------------------------------------------------
@@ -712,6 +713,16 @@ bool CAI_StealthCuriousBehavior::CanSelectSchedule( void )
 			return false;
 	}
 
+	if ( !HasCondition( COND_HEAR_COMBAT ) && !HasCondition( COND_HEAR_BULLET_IMPACT ) )
+	{
+		CAI_ActBusyBehavior *pBehavior;
+		if ( GetOuter()->GetBehavior( &pBehavior ) )
+		{
+			if ( pBehavior->NeedsToResume() )
+				return false;
+		}
+	}
+
 	return BaseClass::CanSelectSchedule();
 }
 
@@ -931,6 +942,27 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_STEALTH_SUGGEST_STATE_FOR_SOUND:
+			{
+				// Become idle when returning if we're quiet and it wasn't an important sound
+				if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) && GetNpcState() == NPC_STATE_ALERT )
+				{
+					switch ( GetStealthSenses()->GetLastSoundChannel() )
+					{
+						case SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS:
+						case SOUNDENT_CHANNEL_STEALTH_PROP_IMPACT:
+						case SOUNDENT_CHANNEL_STEALTH_PROP_SMALL_BREAK:
+							{
+								GetOuter()->SetIdealState( NPC_STATE_IDLE );
+								break;
+							}
+					}
+				}
+
+				TaskComplete();
+			}
+			break;
+
 		default:
 			BaseClass::StartTask( pTask );
 	}
@@ -1025,6 +1057,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 	DECLARE_TASK( TASK_STEALTH_GET_PATH_TO_BESTSOUND )
 	DECLARE_TASK( TASK_STEALTH_BESTSOUND_PAUSE )
 	DECLARE_TASK( TASK_STEALTH_MOVE_TO_BESTSOUND )
+	DECLARE_TASK( TASK_STEALTH_SUGGEST_STATE_FOR_SOUND )
 
 	//---------------------------------
 	DEFINE_SCHEDULE
@@ -1042,6 +1075,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 		"		TASK_STOP_MOVING					0"
 		"		TASK_FACE_REASONABLE				0"
 		"		TASK_WAIT							5"
+		"		TASK_STEALTH_SUGGEST_STATE_FOR_SOUND	0"
 		"		TASK_GET_PATH_TO_LASTPOSITION		0"
 		"		TASK_WALK_PATH						0"
 		"		TASK_WAIT_FOR_MOVEMENT				0"

@@ -448,11 +448,11 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 bool CAI_StealthSenses::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &position, CBaseEntity *pInformer )
 {
-	if (!GetOuter()->IsAlive() && GetOuter()->GetState() == NPC_STATE_IDLE)
+	if ((!GetOuter()->IsAlive() || GetOuter()->GetHealth() <= 0) && GetOuter()->GetState() == NPC_STATE_IDLE)
 	{
 		// UNDONE: Do not inform if we just died while idle
 		//printl("Died while idle")
-		//return false;
+		return false;
 	}
 	else if (pInformer && pInformer != GetOuter() && pInformer->IsNPC() && !GetEnemies()->Find(pEnemy) && pInformer->MyNPCPointer()->GetEnemies()->Find(pEnemy) && GetOuter()->GetState() != NPC_STATE_COMBAT)
 	{
@@ -496,11 +496,8 @@ bool CAI_StealthSenses::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &po
 	{
 		if (pInformer->IsPlayer())
 		{
-			// Don't update from cloaked player sounds
-			// UNDONE: unless we're not moving
-			//if (GetOuter()->IsMoving() && pInformer->GetScriptScope().m_flCloakFactor > 0.5)
-			//if (pInformer->GetScriptScope().m_flCloakFactor > 0.5)
-			if (!GetOuter()->QuerySeeEntity(pInformer))
+			// Don't update from cloaked player sounds unless we're in combat
+			if (!GetOuter()->QuerySeeEntity(pInformer) && GetOuter()->GetState() != NPC_STATE_COMBAT)
 				return false;
 		}
 		else if (GetOuter()->GetSquad() && pEnemy && pEnemy->IsAlive() && pEnemy->IsPlayer())
@@ -509,6 +506,9 @@ bool CAI_StealthSenses::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &po
 				g_hStealthManager->SquadSawPlayer( GetOuter(), GetOuter()->GetSquad() );
 		}
 	}
+
+	if ( !pEnemy )
+		return false;
 	
 	return true;
 }
@@ -1106,7 +1106,7 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 		if ( pPlayer )
 		{
 			if (gpGlobals->curtime - pPlayer->MuzzleFlashTime() < 0.5)
-				flAlertLevelIncrease += 0.5;
+				flAlertLevelIncrease += 0.75;
 			
 			if (pPlayer->GetUseEntity())
 				flAlertLevelIncrease += 0.1;

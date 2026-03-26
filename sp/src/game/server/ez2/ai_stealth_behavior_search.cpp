@@ -44,6 +44,7 @@ ConVar	ai_stealth_sweep_min_enemy_time( "ai_stealth_sweep_min_enemy_time", "20" 
 ConVar	ai_stealth_sweep_lone_cooldown( "ai_stealth_sweep_lone_cooldown", "30" );
 ConVar	ai_stealth_sweep_squad_cooldown( "ai_stealth_sweep_squad_cooldown", "120" );
 ConVar	ai_stealth_sitrep_cooldown( "ai_stealth_sitrep_cooldown", "30" );
+ConVar	ai_stealth_sitrep_leader_calls_individuals( "ai_stealth_sitrep_leader_calls_individuals", "0" );
 
 ConVar	g_debug_stealth_search( "g_debug_stealth_search", "0" );
 
@@ -204,6 +205,13 @@ bool CAI_StealthSearchBehavior::ShouldSearch()
 					}
 				}
 			case NPC_STATE_ALERT:
+				{
+					if ( !IsSweeping() )
+					{
+						if ( g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
+							return false;
+					}
+				}
 				break;
 			default:
 				return false;
@@ -557,6 +565,7 @@ void CAI_StealthSearchBehavior::CallToRegroup( CInfoStealthRegroup *pRegroupPoin
 	m_hRegroupPoint = pRegroupPoint;
 	m_bLoneSweep = false;
 	SetCondition( COND_STEALTH_REGROUP_START );
+	SetCondition( COND_PROVOKED ); // TODO: This is meant to break citizens out of SCHED_CITIZEN_PATROL. Could have something better?
 	CancelAreaSearch();
 }
 
@@ -642,6 +651,10 @@ bool CAI_StealthSearchBehavior::ShouldSitrep()
 
 	// Only when we don't currently hear anything
 	if ( GetOuter()->GetStealthSenses()->GetLastSoundTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetStealthSenses()->GetLastSoundTime() < 5.0f )
+		return false;
+
+	// Only when we've had enough time to consider a sweep
+	if ( gpGlobals->curtime - GetOuter()->GetLastEnemyTime() < ai_stealth_sweep_min_enemy_time.GetFloat() )
 		return false;
 
 	StealthSquadInfo_t *pSquadInfo = GetStealthSenses()->GetStealthSquadInfo();
@@ -1595,7 +1608,7 @@ int CAI_StealthSearchBehavior::SelectFailSchedule( int failedSchedule, int faile
 {
 	if ( IsCurSchedule( SCHED_STEALTH_SEARCH_ENTER_AREA, false ) || IsCurSchedule( TASK_STEALTH_GET_PATH_OUTSIDE_AREA, false ) )
 	{
-		return SCHED_PATROL_WALK;
+		return SCHED_STEALTH_PATROL_WALK;
 	}
 	else if ( IsCurSchedule( SCHED_STEALTH_GO_TO_REGROUP, false ) )
 	{
@@ -1659,6 +1672,8 @@ int CAI_StealthSearchBehavior::TranslateSchedule( int scheduleType )
 
 					return SCHED_STEALTH_SEARCH_ENTER_AREA;
 				}
+
+				return SCHED_STEALTH_PATROL_WALK;
 			}
 			break;
 	}
@@ -2024,6 +2039,47 @@ void CAI_StealthSearchBehavior::StartTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_STEALTH_GET_PATH_TO_RANDOM_NODE:
+			{
+				if ( GetNavigator()->SetRandomGoal( pTask->flTaskData ) )
+					TaskComplete();
+				else
+				{
+					if ( !GetOuter()->IsLimitingHintGroups() )
+					{
+						// Many stealth NPCs have hintgroups for specific patrol points, but stealth behavior
+						// also relies extensively on the patrol schedule, which only allows navigation to hintgroup nodes
+						// So if we didn't find a route with our hintgroup, then temporarily remove the hint group and look again
+						string_t iszHintGroup = GetOuter()->GetHintGroup();
+						GetOuter()->ClearHintGroup();
+						
+						if ( GetNavigator()->SetRandomGoal( pTask->flTaskData ) )
+						{
+							GetOuter()->SetHintGroup( iszHintGroup );
+							TaskComplete();
+							break;
+						}
+
+						GetOuter()->SetHintGroup( iszHintGroup );
+					}
+
+					TaskFail( FAIL_NO_REACHABLE_NODE );
+				}
+			}
+			break;
+
+		case TASK_STEALTH_SUGGEST_STATE:
+			{
+				if ( !ShouldSearch()
+					&& ( GetStealthSenses()->GetLastSoundTime() == 0.0f || gpGlobals->curtime - GetStealthSenses()->GetLastSoundTime() > 20.0f )
+					&& ( GetOuter()->GetLastEnemyTime() == 0.0f || gpGlobals->curtime - GetOuter()->GetLastEnemyTime() > 20.0f ) )
+				{
+					ChainStartTask( TASK_SUGGEST_STATE, pTask->flTaskData );
+				}
+				TaskComplete();
+			}
+			break;
+
 	default:
 		BaseClass::StartTask( pTask );
 	}
@@ -2319,6 +2375,8 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 	DECLARE_TASK( TASK_STEALTH_GET_PATH_TO_NODE_NEAR_REGROUP )
 	DECLARE_TASK( TASK_STEALTH_WAIT_AT_REGROUP )
 	DECLARE_TASK( TASK_STEALTH_WAIT_FOR_SPEECH )
+	DECLARE_TASK( TASK_STEALTH_GET_PATH_TO_RANDOM_NODE )
+	DECLARE_TASK( TASK_STEALTH_SUGGEST_STATE )
 
 	DECLARE_INTERACTION( g_interactionStealthOrder )
 	DECLARE_INTERACTION( g_interactionStealthRegroup )
@@ -2473,6 +2531,37 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 		"		COND_NEW_ENEMY"
 		"		COND_SEE_ENEMY"
 	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_PATROL_WALK,
+
+		"	Tasks"
+	//	"		TASK_SET_TOLERANCE_DISTANCE		48"
+		"		TASK_SET_ROUTE_SEARCH_TIME		5"	// Spend 5 seconds trying to build a path if stuck
+		"		TASK_STEALTH_GET_PATH_TO_RANDOM_NODE	200"
+		"		TASK_WALK_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"		TASK_WAIT						1"
+		"		TASK_STEALTH_SUGGEST_STATE		STATE:IDLE"
+		""
+		"	Interrupts"
+		"		COND_CAN_RANGE_ATTACK1 "
+		"		COND_CAN_RANGE_ATTACK2 "
+		"		COND_CAN_MELEE_ATTACK1 "
+		"		COND_CAN_MELEE_ATTACK2"
+		"		COND_GIVE_WAY"
+		"		COND_HEAR_COMBAT"
+		"		COND_HEAR_DANGER"
+		"		COND_HEAR_PLAYER"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_SMELL"
+		"		COND_PROVOKED"
+	);
 
 AI_END_CUSTOM_SCHEDULE_PROVIDER()
 
@@ -2694,10 +2783,18 @@ void CInfoStealthRegroup::OrderSpeechQueueThink()
 						m_nCurrentSquadMember++;
 
 						CAI_StealthSearchBehavior *pBehavior = NULL;
-						if ( m_hSquadMembers[0]->GetBehavior( &pBehavior ) )
+						if ( ai_stealth_sitrep_leader_calls_individuals.GetBool() )
 						{
-							pBehavior->SetSpeechTarget( m_hSquadMembers[m_nCurrentSquadMember] );
-							pBehavior->SpeakStealthConcept( TLK_SQUAD_CHECK, NULL, true );
+							if ( m_hSquadMembers[0]->GetBehavior( &pBehavior ) )
+							{
+								pBehavior->SetSpeechTarget( m_hSquadMembers[m_nCurrentSquadMember] );
+								pBehavior->SpeakStealthConcept( TLK_SQUAD_CHECK, NULL, true );
+								pExpresser = m_hSquadMembers[0]->GetExpresser();
+							}
+						}
+						else
+						{
+							// To get the next think to run
 							pExpresser = m_hSquadMembers[0]->GetExpresser();
 						}
 					}
@@ -2724,7 +2821,7 @@ void CInfoStealthRegroup::OrderSpeechQueueThink()
 							StealthSquadOrder_t iNewOrder = pBehavior->SelectBestOrder( &m_hSquadMembers, &var );
 
 							AI_CriteriaSet modifiers;
-							modifiers.AppendCriteria( "from_sitrep", "1" );
+							modifiers.AppendCriteria( "order_src", "sitrep" );
 
 							if ( iNewOrder != STEALTH_SQUAD_ORDER_NONE )
 							{

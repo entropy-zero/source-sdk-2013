@@ -413,8 +413,8 @@ void CAI_StealthAlarmBehavior::StartTask( const Task_t *pTask )
 					m_bRaisingAlarm = true;
 
 					// Call it out if this wasn't a squad order
-					if ( GetOuter()->GetExpresser() && GetOuter()->GetExpresser()->IsSpeaking()
-						&& CompareConcepts( GetOuter()->GetExpresser()->GetLastSpokeConcept(), TLK_SQUAD_ORDER ) )
+					if ( !GetOuter()->GetExpresser() || !GetOuter()->GetExpresser()->IsSpeaking()
+						|| !CompareConcepts( GetOuter()->GetExpresser()->GetLastSpokeConcept(), TLK_SQUAD_ORDER ) )
 					{
 						SpeakStealthConcept( TLK_ALARM_RAISE );
 					}

@@ -287,6 +287,7 @@ public:
 
 	void			InputAnswerSquadCheck( inputdata_t &inputdata );
 	void			InputAnswerSquadReport( inputdata_t &inputdata );
+	void			InputAnswerSquadNoResponse( inputdata_t &inputdata );
 #endif
 
 	//---------------------------------
