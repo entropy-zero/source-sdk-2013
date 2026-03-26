@@ -30,6 +30,7 @@
 
 #ifdef EZ2
 	#include "hl2_gamerules.h"
+	#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1238,6 +1239,11 @@ void CNPC_FloorTurret::Shoot( const Vector &vecSrc, const Vector &vecDirToEnemy,
 	FireBullets( info );
 	EmitSound( "NPC_FloorTurret.ShotSounds", m_ShotSounds );
 	DoMuzzleFlash();
+
+#ifdef EZ2
+	if ( g_hStealthManager )
+		CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, vecSrc, 1024, 0.2f, this, SOUNDENT_CHANNEL_WEAPON, GetEnemy() );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1627,6 +1633,11 @@ bool CNPC_FloorTurret::PreThink( turretState_e state )
 
 #ifdef MAPBASE
 			m_OnStartTipped.FireOutput( this, this );
+#endif
+
+#ifdef EZ2
+			if ( g_hStealthManager )
+				CSoundEnt::InsertSound( SOUND_COMBAT, EyePosition(), 1024, 2.0f, NULL, SOUNDENT_CHANNEL_WEAPON, this );
 #endif
 
 			//Stop being targetted
