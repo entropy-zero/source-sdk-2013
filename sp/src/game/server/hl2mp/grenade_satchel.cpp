@@ -138,6 +138,10 @@ void CSatchelCharge::CreateEffects( void )
 	m_hGlowSprite->SetBrightness( 255, 1.0f );
 	m_hGlowSprite->SetScale( 0.2f, 0.5f );
 	m_hGlowSprite->TurnOn();
+
+#ifdef EZ2
+	UTIL_EZ2_ExcludeFromCloakCC( m_hGlowSprite );
+#endif
 }
 
 //-----------------------------------------------------------------------------

@@ -444,6 +444,11 @@ void UTIL_PrecacheXenVariant( const char *szClassname );
 void UTIL_PrecacheEZVariant( const char *szClassname, int ezvariant );
 #endif
 
+#ifdef EZ2
+// Excludes generic entities from the assassin cloak's color correction
+void	UTIL_EZ2_ExcludeFromCloakCC( CBaseEntity *pEntity );
+#endif
+
 // prints a message to each client
 void			UTIL_ClientPrintAll( int msg_dest, const char *msg_name, const char *param1 = NULL, const char *param2 = NULL, const char *param3 = NULL, const char *param4 = NULL );
 inline void		UTIL_CenterPrintAll( const char *msg_name, const char *param1 = NULL, const char *param2 = NULL, const char *param3 = NULL, const char *param4 = NULL ) 

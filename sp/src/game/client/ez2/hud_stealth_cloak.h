@@ -40,6 +40,8 @@ public:
 		CLOAK_LABEL_COMPROMISED,	// Enemies already see us
 	};
 
+	void	MsgFunc_CloakExcludeFromCC( bf_read &msg );
+
 private:
 
 	vgui::Label *m_pCloakLabel;

@@ -49,6 +49,10 @@
 #include "ai_basenpc.h"
 #endif
 
+#ifdef EZ2
+#include "ez2/ez2_player.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -1952,6 +1956,38 @@ void UTIL_PrecacheEZVariant( const char *szClassname, int ezvariant )
 		pEntity->Precache();
 
 	UTIL_RemoveImmediate( pEntity );
+}
+#endif
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void UTIL_EZ2_ExcludeFromCloakCC( CBaseEntity *pEntity )
+{
+	CRecipientFilter filter;
+
+	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CEZ2_Player *pEZ2Player = (CEZ2_Player*)UTIL_PlayerByIndex( i );
+		if ( !pEZ2Player )
+			continue;
+
+		// Only send to players that can cloak
+		if ( !pEZ2Player->IsCloakEnabled() )
+			continue;
+
+		filter.AddRecipient( pEZ2Player );
+	}
+
+	if ( filter.GetRecipientCount() == 0 )
+		return;
+
+	filter.MakeReliable();
+
+	UserMessageBegin( filter, "CloakExcludeFromCC" );
+		WRITE_ENTITY( pEntity->entindex() );
+	MessageEnd();
 }
 #endif
 

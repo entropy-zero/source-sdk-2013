@@ -56,6 +56,7 @@ void RegisterUserMessages( void )
 	usermessages->Register( "SLAMExploded", 1 );
 	usermessages->Register( "AlertTargetUpdate", 7 );
 	usermessages->Register( "AlertTargetEntersCombat", 3 );
+	usermessages->Register( "CloakExcludeFromCC", 2 );
 #endif
 
 #ifdef EZ

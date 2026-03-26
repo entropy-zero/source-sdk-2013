@@ -14,6 +14,9 @@
 #ifdef MAPBASE
 #include "mapbase/ai_grenade.h"
 #endif
+#ifdef EZ2
+#include "ez2/ez2_player.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -216,6 +219,10 @@ void CGrenadeFrag::CreateEffects( void )
 		m_pMainGlow->SetTransparency( kRenderGlow, 255, 255, 255, 200, kRenderFxNoDissipation );
 		m_pMainGlow->SetScale( 0.2f );
 		m_pMainGlow->SetGlowProxySize( 4.0f );
+
+#ifdef EZ2
+		UTIL_EZ2_ExcludeFromCloakCC( m_pMainGlow );
+#endif
 	}
 
 	// Start up the eye trail
@@ -234,6 +241,10 @@ void CGrenadeFrag::CreateEffects( void )
 		m_pGlowTrail->SetStartWidth( 8.0f );
 		m_pGlowTrail->SetEndWidth( 1.0f );
 		m_pGlowTrail->SetLifeTime( 0.5f );
+
+#ifdef EZ2
+		UTIL_EZ2_ExcludeFromCloakCC( m_pGlowTrail );
+#endif
 	}
 }
 

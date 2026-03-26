@@ -566,6 +566,7 @@ bool SMGGrenadeWarnTest( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
 bool SMGGrenadeWarn( CEZ2_Player *pPlayer, CBaseEntity *pActivator )
 {
 	pPlayer->SetWarningTarget( pActivator );
+	UTIL_EZ2_ExcludeFromCloakCC( pActivator );
 
 	IGameEvent *event = gameeventmanager->CreateEvent( "player_target_warning" );
 	if (event)

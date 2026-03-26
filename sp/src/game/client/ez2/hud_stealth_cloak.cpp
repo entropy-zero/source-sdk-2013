@@ -22,6 +22,7 @@
 #include "tier0/memdbgon.h"
 
 DECLARE_HUDELEMENT( CHudStealthCloak );
+DECLARE_HUD_MESSAGE( CHudStealthCloak, CloakExcludeFromCC );
 
 using namespace vgui;
 
@@ -79,6 +80,8 @@ void CHudStealthCloak::ApplySchemeSettings( IScheme *pScheme )
 //-----------------------------------------------------------------------------
 void CHudStealthCloak::Init( void )
 {
+	HOOK_HUD_MESSAGE( CHudStealthCloak, CloakExcludeFromCC );
+
 	SetBgColor( Color( 0, 0, 0, 0 ) );
 	SetPaintBackgroundType( 0 );
 }
@@ -191,6 +194,19 @@ void CHudStealthCloak::Paint()
 		{
 			m_pCloakLabel->SetVisible( false );
 		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CHudStealthCloak::MsgFunc_CloakExcludeFromCC( bf_read &msg )
+{
+	C_BaseEntity *pEntity = C_BaseEntity::Instance( msg.ReadShort() );
+
+	if ( pEntity )
+	{
+		g_pColorCorrectionMgr->RegisterExclusionObject( pEntity );
 	}
 }
 

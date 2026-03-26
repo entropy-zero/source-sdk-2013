@@ -17,6 +17,7 @@
 #endif
 #ifdef EZ2
 #include "hl2_player.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -311,6 +312,12 @@ void CTripmineGrenade::MakeBeam( void )
 	m_pBeam->SetColor( m_TripmineColor.r, m_TripmineColor.g, m_TripmineColor.b );
 	m_pBeam->SetScrollRate( 25.6 );
 	m_pBeam->SetBrightness( m_TripmineColor.a );
+
+	// Make beams look less obvious when in stealth
+	if ( g_hStealthManager && GetThrower() && GetThrower()->IsPlayer() )
+		m_pBeam->SetBeamFlags( FBEAM_SHADEIN );
+
+	UTIL_EZ2_ExcludeFromCloakCC( m_pBeam );
 #else
 	m_pBeam->SetColor( 255, 55, 52 );
 	m_pBeam->SetScrollRate( 25.6 );

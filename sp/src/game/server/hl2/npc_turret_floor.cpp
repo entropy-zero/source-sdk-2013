@@ -1680,6 +1680,10 @@ void CNPC_FloorTurret::SetEyeState( eyeState_t state )
 
 		m_hEyeGlow->SetTransparency( kRenderWorldGlow, 255, 0, 0, 128, kRenderFxNoDissipation );
 		m_hEyeGlow->SetAttachment( this, m_iEyeAttachment );
+
+#ifdef EZ2
+		UTIL_EZ2_ExcludeFromCloakCC( m_hEyeGlow );
+#endif
 	}
 
 	// Add the laser if it doesn't already exist
@@ -1704,6 +1708,10 @@ void CNPC_FloorTurret::SetEyeState( eyeState_t state )
 		m_hLaser->SetEndWidth( 1.0f );
 		m_hLaser->SetBrightness( 160 );
 		m_hLaser->SetBeamFlags( SF_BEAM_SHADEIN );
+
+#ifdef EZ2
+		UTIL_EZ2_ExcludeFromCloakCC( m_hLaser );
+#endif
 	}
 
 	m_iEyeState = state;
