@@ -2380,6 +2380,12 @@ void CNPC_CScanner::AdjustScannerVelocity( void )
 //-----------------------------------------------------------------------------
 bool CNPC_CScanner::OverrideMove( float flInterval )
 {
+#ifdef MAPBASE
+	// Don't override move at all while disabled
+	if ( m_bFlightDisabled )
+		return false;
+#endif
+
 	// ----------------------------------------------
 	//	If dive bombing
 	// ----------------------------------------------

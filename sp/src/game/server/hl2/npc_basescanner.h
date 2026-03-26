@@ -123,6 +123,11 @@ public:
 	void			InputSetFlightSpeed( inputdata_t &inputdata );
 	void			InputSetDistanceOverride( inputdata_t &inputdata );
 
+#ifdef MAPBASE
+	void			InputEnableFlight( inputdata_t &inputdata );
+	void			InputDisableFlight( inputdata_t &inputdata );
+#endif
+
 protected:
 	virtual char		*GetEngineSound( void ) { return NULL; }
 	void				PlayFlySound(void);
@@ -206,6 +211,8 @@ protected:
 #ifdef MAPBASE
 	// Custom max speed for mappers to control
 	float				m_flCustomMaxSpeed;
+
+	bool				m_bFlightDisabled;
 #endif
 
 private:

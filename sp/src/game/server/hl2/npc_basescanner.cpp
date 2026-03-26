@@ -43,6 +43,7 @@ BEGIN_DATADESC( CNPC_BaseScanner )
 
 #ifdef MAPBASE
 	DEFINE_KEYFIELD( m_flCustomMaxSpeed, FIELD_FLOAT, "CustomFlightSpeed" ),
+	DEFINE_KEYFIELD( m_bFlightDisabled, FIELD_BOOLEAN, "FlightDisabled" ),
 #endif
 
 	DEFINE_FIELD( m_nPoseTail,				FIELD_INTEGER ),
@@ -58,6 +59,8 @@ BEGIN_DATADESC( CNPC_BaseScanner )
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetDistanceOverride", InputSetDistanceOverride ),
 #ifdef MAPBASE
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFlightSpeed", InputSetFlightSpeed ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableFlight", InputEnableFlight ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableFlight", InputDisableFlight ),
 #else
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetFlightSpeed", InputSetFlightSpeed ),
 #endif
@@ -354,6 +357,15 @@ void CNPC_BaseScanner::StartTask( const Task_t *pTask )
 
 	case TASK_SCANNER_SET_FLY_DIVE:
 		{
+#ifdef MAPBASE
+			// Don't dive bomb while flight is disabled
+			if ( m_bFlightDisabled )
+			{
+				TaskComplete();
+				break;
+			}
+#endif
+
 			// Pick a direction to divebomb.
 			if ( GetEnemy() != NULL )
 			{
@@ -881,6 +893,33 @@ void CNPC_BaseScanner::InputSetFlightSpeed(inputdata_t &inputdata)
 #endif
 }
 
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_BaseScanner::InputEnableFlight( inputdata_t &inputdata )
+{
+	m_bFlightDisabled = false;
+
+	m_vCurrentVelocity.Init();
+	m_vCurrentBanking.Init();
+	m_vNoiseMod.Init();
+
+	if ( VPhysicsGetObject() )
+	{
+		VPhysicsGetObject()->SetPosition( GetAbsOrigin(), GetAbsAngles(), true );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_BaseScanner::InputDisableFlight( inputdata_t &inputdata )
+{
+	m_bFlightDisabled = true;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -1029,6 +1068,12 @@ bool CNPC_BaseScanner::OverridePathMove( CBaseEntity *pMoveTarget, float flInter
 //-----------------------------------------------------------------------------
 bool CNPC_BaseScanner::OverrideMove( float flInterval )
 {
+#ifdef MAPBASE
+	// Don't override move at all while disabled
+	if ( m_bFlightDisabled )
+		return false;
+#endif
+
 	// ----------------------------------------------
 	//	If dive bombing
 	// ----------------------------------------------
