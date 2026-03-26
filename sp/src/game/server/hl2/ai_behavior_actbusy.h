@@ -132,6 +132,7 @@ public:
 	int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	void	GatherConditions( void );
 	void	BuildScheduleTestBits( void );
+	void	BeginScheduleSelection( void );
 	void	EndScheduleSelection( void );
 	Activity NPC_TranslateActivity( Activity nActivity );
 	void	HandleAnimEvent( animevent_t *pEvent );
@@ -172,6 +173,9 @@ public:
 
 #ifdef MAPBASE
 	CAI_ActBusyGoal	*GetActBusyGoal() const { return m_hActBusyGoal; }
+
+	// If we have an actbusy we need to get back to
+	bool	NeedsToResume() const { return m_hPausedHint != NULL; }
 #endif
 
 private:
@@ -208,6 +212,9 @@ private:
 #ifdef MAPBASE
 	// So exit animations can play
 	CHandle<CAI_ActBusyGoal> m_hNextActBusyGoal;
+
+	// The hint we should return to when idle again
+	CHandle<CAI_Hint>	m_hPausedHint;
 #endif
 	bool			m_bNeedToSetBounds;
 	EHANDLE			m_hSeeEntity;
@@ -258,6 +265,7 @@ public:
 
 #ifdef MAPBASE
 	interval_t &NextBusySearchInterval();
+	bool ShouldResumeWhenInterrupted() const { return m_bResumeWhenInterrupted; }
 #endif
 
 #ifdef MAPBASE_VSCRIPT
@@ -295,6 +303,7 @@ protected:
 	bool			m_bAllowCombatActBusyTeleport;
 #ifdef MAPBASE
 	interval_t		m_NextBusySearch;
+	bool			m_bResumeWhenInterrupted;
 #endif
 
 public:

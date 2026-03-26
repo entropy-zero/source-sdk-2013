@@ -63,6 +63,7 @@ BEGIN_DATADESC( CAI_ActBusyBehavior )
 	DEFINE_FIELD( m_hActBusyGoal, FIELD_EHANDLE ),
 #ifdef MAPBASE
 	DEFINE_FIELD( m_hNextActBusyGoal, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hPausedHint, FIELD_EHANDLE ),
 #endif
 	DEFINE_FIELD( m_bNeedToSetBounds, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_hSeeEntity, FIELD_EHANDLE ),
@@ -683,7 +684,11 @@ bool CAI_ActBusyBehavior::CanSelectSchedule( void )
 	if ( m_bBusy || m_bForceActBusy || m_bNeedsToPlayExitAnim )
 		return true;
 
+#ifdef MAPBASE
+	if ( !m_bEnabled && !m_hPausedHint )
+#else
 	if ( !m_bEnabled )
+#endif
 		return false;
 
 	if ( m_flDeferUntil > gpGlobals->curtime )
@@ -698,6 +703,12 @@ bool CAI_ActBusyBehavior::CanSelectSchedule( void )
 
 	if ( !IsCurScheduleOverridable() )
 		return false;
+
+#ifdef MAPBASE
+	// Return as soon as we are ready
+	if ( m_hPausedHint )
+		return true;
+#endif
 
 	// Don't select actbusy if we're not going to search for a node anyway
 	return (m_flNextBusySearchTime < gpGlobals->curtime);
@@ -1018,6 +1029,33 @@ void CAI_ActBusyBehavior::GatherConditions( void )
 			NDebugOverlay::Box( vecBoxOrigin, vecBoxMins, vecBoxMaxs, 255, 0, 255, 64, 0.2f );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_ActBusyBehavior::BeginScheduleSelection( void )
+{
+	BaseClass::BeginScheduleSelection();
+
+#ifdef MAPBASE
+	if ( m_hPausedHint )
+	{
+		if ( m_bForceActBusy && GetHintNode() != m_hPausedHint )
+		{
+			// We have a new node now
+			m_hPausedHint = NULL;
+		}
+		else
+		{
+			// Return to this node immediately
+			m_bEnabled = true;
+			SetHintNode( m_hPausedHint );
+			m_flNextBusySearchTime = 0.0f;
+			m_hPausedHint = NULL;
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1594,12 +1632,18 @@ void CAI_ActBusyBehavior::OnScheduleChange()
 		}
 
 #ifdef MAPBASE
-		if ( m_bNeedsToPlayExitAnim && m_flEndBusyAt > gpGlobals->curtime )
+		if ( (m_flEndBusyAt > gpGlobals->curtime || m_flEndBusyAt == 0.0f) && ActBusyNodeStillActive() )
 		{
-			// If we were interrupted, check if we should skip exit anim
-			busyanim_t *pBusyAnim = g_ActBusyAnimDataSystem.GetBusyAnim( m_iCurrentBusyAnim );
-			if ( pBusyAnim && pBusyAnim->bSkipExitOnInterrupt )
-				m_bNeedsToPlayExitAnim = false;
+			if ( m_bNeedsToPlayExitAnim && GetEnemy() )
+			{
+				// If we were interrupted by an enemy, check if we should skip exit anim
+				busyanim_t *pBusyAnim = g_ActBusyAnimDataSystem.GetBusyAnim( m_iCurrentBusyAnim );
+				if ( pBusyAnim && pBusyAnim->bSkipExitOnInterrupt )
+					m_bNeedsToPlayExitAnim = false;
+			}
+
+			if ( m_hActBusyGoal && m_hActBusyGoal->ShouldResumeWhenInterrupted() )
+				m_hPausedHint = GetHintNode();
 		}
 #endif
 	}
@@ -2344,6 +2388,20 @@ void CAI_ActBusyBehavior::RunTask( const Task_t *pTask )
 				NotifyBusyEnding();
 				TaskComplete();
 			}
+#ifdef MAPBASE
+			else if ( GetEnemy() )
+			{
+				// If we were interrupted by an enemy, check if we should skip exit anim
+				busyanim_t *pBusyAnim = g_ActBusyAnimDataSystem.GetBusyAnim( m_iCurrentBusyAnim );
+				if ( pBusyAnim && pBusyAnim->bSkipExitOnInterrupt )
+				{
+					m_bNeedsToPlayExitAnim = false;
+					GetOuter()->RemoveFlag( FL_FLY );
+					NotifyBusyEnding();
+					TaskComplete();
+				}
+			}
+#endif
 		}
 		break;
 
@@ -2537,6 +2595,7 @@ BEGIN_DATADESC( CAI_ActBusyGoal )
 	// so it's either an unused field type or something used in the engine. It appears to be functional either way.
 	// I added built-in keyvalue support as an experiment, and this keyvalue is part of said experiment.
 	DEFINE_KEYFIELD( m_NextBusySearch, FIELD_INTERVAL, "NextBusy" ),
+	DEFINE_KEYFIELD( m_bResumeWhenInterrupted, FIELD_BOOLEAN, "ResumeWhenInterrupted" ),
 #endif
 	DEFINE_KEYFIELD( m_iszSeeEntityName, FIELD_STRING, "SeeEntity" ),
 	DEFINE_KEYFIELD( m_flSeeEntityTimeout, FIELD_FLOAT, "SeeEntityTimeout" ),
