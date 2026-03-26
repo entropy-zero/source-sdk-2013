@@ -34,6 +34,7 @@
 
 #ifdef EZ2
 #include "ez2/npc_basepredator.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1238,6 +1239,26 @@ void CNPC_Barnacle::LiftPhysicsObject( float flBiteZOffset )
 			if (GetActivity() == curAct)
 				SetActivity( (Activity)ACT_BARNACLE_TASTE_SPIT );
 		}
+#ifdef EZ2
+		else if ( g_hStealthManager && pVictim->ClassMatches( "prop_ragdoll*" ) )
+		{
+			// Allow barnacles to help clean up the evidence
+			m_hRagdoll = assert_cast<CRagdollProp *>(pVictim);
+			m_flVictimHeight = pVictim->WorldAlignSize().z;
+
+			const Vector &vecSize = pVictim->CollisionProp()->OBBSize();
+			if ( vecSize.z < 40 )
+			{
+				// Start the bite animation. The anim event in it will finish the job.
+				SetActivity( (Activity)ACT_BARNACLE_BITE_SMALL_THINGS );
+			}
+			else
+			{
+				// Start the bite animation. The anim event in it will finish the job.
+				SetActivity( (Activity)ACT_BARNACLE_BITE_HUMAN );
+			}
+		}
+#endif
 		else
 		{
 			// Start the spit animation.
