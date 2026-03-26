@@ -643,6 +643,18 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 	{
 		if (m_AlertIcons[i] && m_AlertIcons[i]->GetSource() == pEntity)
 		{
+			// Stop the ambient sound
+			switch ( m_AlertIcons[i]->GetType() )
+			{
+				case ALERT_SOURCE_TYPE_EXTRA:
+				case ALERT_SOURCE_TYPE_HELICOPTER:
+					pEntity->StopSound( "EZ2Player.AlertTarget_Extra.Begin_Amb" );
+					break;
+				default:
+					pEntity->StopSound( "EZ2Player.AlertTarget.Begin_Amb" );
+					break;
+			}
+
 			m_AlertIcons[i]->SetCombatTime( gpGlobals->curtime );
 			m_AlertIcons[i]->SetTargetingPlayer( bTargetingMe );
 			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( m_AlertIconParents[i], "StealthAlertSpotted" );
