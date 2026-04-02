@@ -22,6 +22,7 @@
 #include "npcevent.h"
 #include "physics_prop_ragdoll.h"
 #include "BasePropDoor.h"
+#include "ai_behavior_tripmine_place.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -719,6 +720,14 @@ bool CAI_StealthCuriousBehavior::CanSelectSchedule( void )
 		if ( GetOuter()->GetBehavior( &pBehavior ) )
 		{
 			if ( pBehavior->NeedsToResume() )
+				return false;
+		}
+
+		CAI_TripminePlaceBehavior *pTripmineBehavior;
+		if ( GetOuter()->GetBehavior( &pTripmineBehavior ) )
+		{
+			// TODO: Need to have something more specific than "is tripmine capable"
+			if ( pTripmineBehavior->IsTripmineCapable() )
 				return false;
 		}
 	}

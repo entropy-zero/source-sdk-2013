@@ -19,6 +19,7 @@
 #include "mapbase_matchers_base.h"
 #include "saverestore_utlvector.h"
 #include "ai_interactions.h"
+#include "ai_behavior_tripmine_place.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1714,6 +1715,13 @@ bool CAI_StealthSearchBehavior::CanSelectSchedule( void )
 	{
 		// Defer to alarm behavior if there's an alarm we should raise
 		if ( pBehavior->ShouldRaiseAlarm() )
+			return false;
+	}
+
+	CAI_TripminePlaceBehavior *pTripmineBehavior;
+	if ( GetOuter()->GetBehavior( &pTripmineBehavior ) )
+	{
+		if ( pTripmineBehavior->ShouldPlaceTripmine() )
 			return false;
 	}
 

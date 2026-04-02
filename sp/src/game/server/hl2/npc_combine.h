@@ -24,6 +24,9 @@
 #ifdef EZ
 #include "npc_playercompanion.h"
 #endif
+#ifdef EZ2
+#include "ez2/ai_behavior_tripmine_place.h"
+#endif
 #ifdef MAPBASE
 #include "mapbase/ai_grenade.h"
 #include "ai_behavior_police.h"
@@ -572,6 +575,8 @@ private:
 	// Used by the Arbeit helicopter
 	virtual bool HasRappelBehavior() { return true; }
 	virtual void StartWaitingForRappel() { m_RappelBehavior.StartWaitingForRappel(); }
+
+	void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget ) { m_TripminePlaceBehavior.ForcePlaceTripmineOnTarget( pTarget ); }
 #endif
 
 private:
@@ -645,6 +650,9 @@ protected:
 	CCombineFollowBehavior		m_FollowBehavior;
 	CAI_FuncTankBehavior		m_FuncTankBehavior;
 	CAI_RappelBehavior			m_RappelBehavior;
+#ifdef EZ2
+	CAI_TripminePlaceBehavior	m_TripminePlaceBehavior;
+#endif
 #else
 	CAI_AssaultBehavior			m_AssaultBehavior;
 	CCombineStandoffBehavior	m_StandoffBehavior;

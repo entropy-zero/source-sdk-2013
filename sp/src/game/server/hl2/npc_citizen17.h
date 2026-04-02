@@ -17,6 +17,7 @@
 #endif
 #ifdef EZ2
 #include "ez2/ai_behavior_surrender.h"
+#include "ez2/ai_behavior_tripmine_place.h"
 #endif
 
 struct SquadCandidate_t;
@@ -245,6 +246,7 @@ public:
 	void			AimGun();
 
 	const char*		GetSquadSlotDebugName(int iSquadSlot); // Debug names for new squad slots
+	const int		GetEngineerSlot();
 
 	float			m_flLastWillpowerMsgTime;
 	Vector			m_vecDecoyObjectTarget;
@@ -520,6 +522,8 @@ private:
 	// Used by the Arbeit helicopter
 	virtual bool HasRappelBehavior() { return true; }
 	virtual void StartWaitingForRappel() { m_RappelBehavior.StartWaitingForRappel(); }
+
+	void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget ) { m_TripminePlaceBehavior.ForcePlaceTripmineOnTarget( pTarget ); }
 #endif
 
 #ifdef EZ2
@@ -546,6 +550,14 @@ protected:
 private:
 
 	CCitizenSurrenderBehavior	m_SurrenderBehavior;
+
+	//-----------------------------------
+
+protected:
+	virtual CAI_TripminePlaceBehavior &GetTripminePlaceBehavior( void ) { return m_TripminePlaceBehavior; }
+private:
+
+	CAI_TripminePlaceBehavior	m_TripminePlaceBehavior;
 #endif
 
 	CHandle<CAI_FollowGoal>	m_hSavedFollowGoalEnt;
@@ -560,8 +572,10 @@ private:
 	DECLARE_ENT_SCRIPTDESC();
 #endif
 	DECLARE_DATADESC();
-#if defined(_XBOX) || defined(EZ2)
+#if defined(_XBOX)
 protected:
+#elif defined(EZ2)
+public:
 #endif
 	DEFINE_CUSTOM_AI;
 };

@@ -184,6 +184,8 @@ BEGIN_DATADESC( CNPC_PlayerCompanion )
 #endif
 
 #ifdef EZ2
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "ForcePlaceTripmineOnTarget", InputForcePlaceTripmineOnTarget ),
+
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadCheck", InputAnswerSquadCheck ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadReport", InputAnswerSquadReport ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadNoResponse", InputAnswerSquadNoResponse ),

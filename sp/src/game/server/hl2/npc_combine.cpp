@@ -2154,6 +2154,9 @@ bool CNPC_Combine::CreateBehaviors()
 	AddBehavior( &m_FollowBehavior );
 	AddBehavior( &m_FuncTankBehavior );
 #endif
+#ifdef EZ2
+	AddBehavior( &m_TripminePlaceBehavior );
+#endif
 #ifdef MAPBASE
 	AddBehavior( &m_PolicingBehavior );
 #endif

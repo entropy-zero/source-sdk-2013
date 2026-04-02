@@ -1054,6 +1054,23 @@ int CNPC_Conscript::TranslateSchedule( int scheduleType )
 				}
 			}
 			break;
+		case SCHED_CHASE_ENEMY:
+		case SCHED_ESTABLISH_LINE_OF_FIRE:
+			{
+				if ( m_Subtype == CST_ENGINEER )
+				{
+					if ( !HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) )
+					{
+						// Do not establish LOF if we can't attack but can place tripmines
+						if ( GetTripminePlaceBehavior().ShouldPlaceTripmine() )
+						{
+							DeferSchedulingToBehavior( &GetTripminePlaceBehavior() );
+							return BaseClass::TranslateSchedule( scheduleType );
+						}
+					}
+				}
+			}
+			break;
 	}
 
 	return BaseClass::TranslateSchedule( scheduleType );

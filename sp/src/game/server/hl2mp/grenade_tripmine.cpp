@@ -264,13 +264,40 @@ int CTripmineGrenade::UpdateTransmitState()
 		return BaseClass::UpdateTransmitState();
 	}
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Custom trace filter used for tripmine laser traces
+//-----------------------------------------------------------------------------
+CTraceFilterTripmineBeam::CTraceFilterTripmineBeam( CTripmineGrenade *pTripmine, int collisionGroup ) :
+	CTraceFilterSimple( pTripmine, collisionGroup )
+{
+	m_pTripmine = pTripmine;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CTraceFilterTripmineBeam::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+{
+	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+	
+	if ( !m_pTripmine->TargetShouldDetonate( pEntity ) )
+		return false;
+
+	return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
+}
 #endif
 
 void CTripmineGrenade::MakeBeam( void )
 {
 	trace_t tr;
 
+#ifdef EZ2
+	CTraceFilterTripmineBeam traceFilter( this, COLLISION_GROUP_NONE );
+	UTIL_TraceLine( GetAbsOrigin(), m_vecEnd, MASK_SHOT, &traceFilter, &tr );
+#else
 	UTIL_TraceLine( GetAbsOrigin(), m_vecEnd, MASK_SHOT, this, COLLISION_GROUP_NONE, &tr );
+#endif
 
 	m_flBeamLength = tr.fraction;
 
@@ -348,7 +375,12 @@ void CTripmineGrenade::BeamBreakThink( void  )
 	trace_t tr;
 
 	// NOT MASK_SHOT because we want only simple hit boxes
+#ifdef EZ2
+	CTraceFilterTripmineBeam traceFilter( this, COLLISION_GROUP_NONE );
+	UTIL_TraceLine( GetAbsOrigin(), m_vecEnd, MASK_SOLID, &traceFilter, &tr );
+#else
 	UTIL_TraceLine( GetAbsOrigin(), m_vecEnd, MASK_SOLID, this, COLLISION_GROUP_NONE, &tr );
+#endif
 
 	// ALERT( at_console, "%f : %f\n", tr.flFraction, m_flBeamLength );
 
@@ -363,14 +395,6 @@ void CTripmineGrenade::BeamBreakThink( void  )
 
 	CBaseEntity *pEntity = tr.m_pEnt;
 	CBaseCombatCharacter *pBCC  = ToBaseCombatCharacter( pEntity );
-
-#ifdef EZ2
-	if ( pBCC && !TargetShouldDetonate(pBCC) )
-	{
-		SetNextThink( gpGlobals->curtime + 0.05f );
-		return;
-	}
-#endif
 
 	if (pBCC || fabs( m_flBeamLength - tr.fraction ) > 0.001)
 	{
@@ -503,19 +527,30 @@ void CTripmineGrenade::InputDeactivate( inputdata_t &inputdata )
 #endif
 
 #ifdef EZ2
-bool CTripmineGrenade::TargetShouldDetonate(CBaseCombatCharacter* pTarget)
+bool CTripmineGrenade::TargetShouldDetonate(CBaseEntity* pTarget)
 {
-	if ( pTarget && sk_tripmine_use_owner_relations.GetBool() && GetOwnerEntity() && GetOwnerEntity()->IsCombatCharacter() )
+	if ( sk_tripmine_use_owner_relations.GetBool() && GetOwnerEntity() && GetOwnerEntity()->IsCombatCharacter() )
 	{
 		return GetOwnerEntity()->MyCombatCharacterPointer()->IRelationType(pTarget) < D_LI;
 	}
 
-	// Tripmines do not detonate when tripped by entities that treat their class as friendly or by the owner
-	if ((pTarget && pTarget->GetDefaultRelationshipDisposition(m_nTripmineClass) == D_LI) || (GetOwnerEntity() && GetOwnerEntity() == pTarget))
+	if ( pTarget->IsCombatCharacter() )
 	{
-		return false;
+		// Tripmines do not detonate when tripped by entities that treat their class as friendly or by the owner
+		if (pTarget->MyCombatCharacterPointer()->GetDefaultRelationshipDisposition(m_nTripmineClass) == D_LI || (GetOwnerEntity() && GetOwnerEntity() == pTarget))
+		{
+			return false;
+		}
 	}
 
+	// Do not detonate children of entities we shouldn't detonate
+	if ( pTarget->GetParent() && pTarget->GetParent()->IsCombatCharacter()
+		&& !TargetShouldDetonate( pTarget->GetParent()->MyCombatCharacterPointer() ) )
+		return false;
+
+	// Do not detonate tripmines of the same class
+	if ( pTarget->m_iClassname == m_iClassname && static_cast<CTripmineGrenade*>(pTarget)->m_nTripmineClass == m_nTripmineClass )
+		return false;
 
 	return true;
 }

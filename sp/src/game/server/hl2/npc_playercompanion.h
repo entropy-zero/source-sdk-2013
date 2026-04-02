@@ -334,6 +334,10 @@ public:
 	static bool		IsGunship( CBaseEntity *pEntity );
 #ifdef EZ
 	virtual bool		UseAttackSquadSlots() { return !IsCommandable(); } // All non-commandable "companions" should use attack squad slots
+
+	// NPC-specific squad slot used by tripmine and turret behaviors for engineering tasks
+	virtual const int	GetEngineerSlot() { return SQUAD_SLOT_SPECIAL_ATTACK; }
+	inline bool			IsEngineerSlotOccupied() { return IsStrategySlotRangeOccupied( GetEngineerSlot(), GetEngineerSlot() ); }
 #endif
 	//---------------------------------
 	// Damage handling
@@ -397,6 +401,9 @@ public:
 	virtual bool	ShouldDropGrenades() { return (m_iGrenadeDropCapabilities & GRENDROPCAP_GRENADE) != 0 && BaseClass::ShouldDropGrenades(); }
 	virtual bool	ShouldDropInterruptedGrenades() { return (m_iGrenadeDropCapabilities & GRENDROPCAP_INTERRUPTED) != 0 && BaseClass::ShouldDropInterruptedGrenades(); }
 	virtual bool	ShouldDropAltFire() { return (m_iGrenadeDropCapabilities & GRENDROPCAP_ALTFIRE) != 0 && BaseClass::ShouldDropAltFire(); }
+
+	virtual void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget ) {}
+	void			InputForcePlaceTripmineOnTarget( inputdata_t &inputdata ) { ForcePlaceTripmineOnTarget( inputdata.value.Entity() ); }
 
 private:
 
@@ -589,6 +596,9 @@ protected:
 	CStopwatch		m_SpeechWatch_PlayerLooking;
 
 	DECLARE_DATADESC();
+#ifdef EZ2
+public: // Needed for CAI_TripminePlaceBehavior
+#endif
 	DEFINE_CUSTOM_AI;
 };
 

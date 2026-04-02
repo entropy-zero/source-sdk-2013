@@ -59,7 +59,7 @@ public:
 #endif
 
 #ifdef EZ2
-	virtual bool	TargetShouldDetonate(CBaseCombatCharacter* pTarget);
+	virtual bool	TargetShouldDetonate(CBaseEntity* pTarget);
 #endif
 
 
@@ -93,5 +93,20 @@ private:
 
 	DECLARE_DATADESC();
 };
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: Custom trace filter used for tripmine laser traces
+//-----------------------------------------------------------------------------
+class CTraceFilterTripmineBeam : public CTraceFilterSimple
+{
+public:
+	CTraceFilterTripmineBeam( CTripmineGrenade *pTripmine, int collisionGroup );
+	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+
+private:
+	CTripmineGrenade	*m_pTripmine;
+};
+#endif
 
 #endif // GRENADE_TRIPMINE_H

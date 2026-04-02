@@ -170,7 +170,8 @@ enum SquadSlot_T
 	SQUAD_SLOT_CITIZEN_RPG2,
 #ifdef EZ
 	SQUAD_SLOT_CITIZEN_INVESTIGATE,
-	SQUAD_SLOT_CITIZEN_ADVANCE
+	SQUAD_SLOT_CITIZEN_ADVANCE,
+	SQUAD_SLOT_CITIZEN_ENGINEER,		// Used to set up tripmines, move turrets, etc.
 #endif
 };
 
@@ -552,6 +553,7 @@ bool CNPC_Citizen::CreateBehaviors()
 #endif
 #ifdef EZ2
 	AddBehavior( &m_SurrenderBehavior );
+	AddBehavior( &m_TripminePlaceBehavior );
 #endif
 	
 	return true;
@@ -1526,9 +1528,19 @@ const char* CNPC_Citizen::GetSquadSlotDebugName(int iSquadSlot)
 		break;
 	case SQUAD_SLOT_CITIZEN_ADVANCE:		return "SQUAD_SLOT_CITIZEN_ADVANCE";
 		break;
+	case SQUAD_SLOT_CITIZEN_ENGINEER:		return "SQUAD_SLOT_CITIZEN_ENGINEER";
+		break;
 	}
 
 	return BaseClass::GetSquadSlotDebugName(iSquadSlot);
+}
+
+//-----------------------------------------------------------------------------
+//
+//-----------------------------------------------------------------------------
+const int CNPC_Citizen::GetEngineerSlot()
+{
+	return SQUAD_SLOT_CITIZEN_ENGINEER;
 }
 #endif
 
@@ -6686,6 +6698,7 @@ AI_BEGIN_CUSTOM_NPC( npc_citizen, CNPC_Citizen )
 	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_RPG2)
 	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_ADVANCE)
 	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_INVESTIGATE)
+	DECLARE_SQUADSLOT(SQUAD_SLOT_CITIZEN_ENGINEER)
 #endif
 
 	//Events
