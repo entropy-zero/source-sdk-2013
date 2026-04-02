@@ -131,6 +131,7 @@ public:
 #endif
 	virtual bool	IsGrenadeCapable() { return true; }
 	inline bool		HasGrenades() { return m_iNumGrenades > 0; }
+	inline int		NumGrenades() { return m_iNumGrenades; }
 
 	void InputSetGrenades( inputdata_t &inputdata ) { AddGrenades( inputdata.value.Int() - m_iNumGrenades ); }
 	void InputAddGrenades( inputdata_t &inputdata ) { AddGrenades( inputdata.value.Int() ); }
