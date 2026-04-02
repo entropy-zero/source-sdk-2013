@@ -78,6 +78,9 @@ static const char *g_pszStealthSoundChannels[NUM_STEALTH_SOUND_CHANNELS] = {
 	"Announce Attacked",		//	SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ATTACKED,
 
 	"Saw Suspicious",			//	SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS,
+
+	"Turret Deploy",			//	SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY,
+	"Turret Tipped",			//	SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED,
 };
 
 //-----------------------------------------------------------------------------
@@ -650,6 +653,8 @@ bool CAI_StealthSenses::ShouldStayAtSound( CSound *pSound )
 	switch (soundChannel)
 	{
 		case SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY:
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED:
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY:
 			return true;
 	}
 
@@ -685,6 +690,8 @@ float CAI_StealthSenses::GetSoundStopDistance( CSound *pSound )
 				// Otherwise fall through
 			}
 
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY:
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED:
 		case SOUNDENT_CHANNEL_STEALTH_PROP_BREAK:
 		case SOUNDENT_CHANNEL_STEALTH_PROP_SMALL_BREAK:
 			return 32.0f;
