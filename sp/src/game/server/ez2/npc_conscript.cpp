@@ -29,6 +29,7 @@
 
 #define CONSCRIPT_BODY_EYEWEAR_SUNGLASSES		1
 #define CONSCRIPT_BODY_EYEWEAR_GLASSES			2
+#define CONSCRIPT_BODY_EYEWEAR_GOGGLES			3
 
 #define CONSCRIPT_MIN_CROUCH_DISTANCE_SQR	(384*384)
 #define CONSCRIPT_MIN_SIGNAL_DISTANCE_SQR	(256*256)
@@ -318,6 +319,10 @@ void CNPC_Conscript::Spawn()
 				{
 					SetBodygroup( nGlassesBody, CONSCRIPT_BODY_EYEWEAR_SUNGLASSES );
 				}
+				else if ( m_Subtype == CST_ENGINEER )
+				{
+					SetBodygroup( nGlassesBody, CONSCRIPT_BODY_EYEWEAR_GOGGLES );
+				}
 					
 				// Otherwise, 50% chance of regular glasses
 				else if (RandomInt(1,2) == 1)
@@ -345,6 +350,16 @@ void CNPC_Conscript::Spawn()
 				if (nGlassesBody != -1)
 					SetBodygroup( nGlassesBody, CONSCRIPT_BODY_EYEWEAR_SUNGLASSES );
 			}
+			else if ( m_Subtype == CST_ENGINEER )
+			{
+				int nGlassesBody = FindBodygroupByName( "eyewear" );
+				if (nGlassesBody != -1)
+					SetBodygroup( nGlassesBody, CONSCRIPT_BODY_EYEWEAR_GOGGLES );
+
+				// Always wear helmet
+				if (nHelmetBody != -1)
+					SetBodygroup( nHelmetBody, nDesiredHelmet );
+			}
 			else if ( m_nHelmetPreference == TRS_NONE )
 			{
 				// 75% chance of helmet
@@ -369,6 +384,12 @@ void CNPC_Conscript::Spawn()
 		{
 			m_hHeadwear = CPropConscriptHeadwear::CreateConscriptHeadwear( this, pszModelName, pszType );
 		}
+	}
+
+	if ( m_Subtype == CST_ENGINEER )
+	{
+		// Engineers can always place tripmines
+		GetTripminePlaceBehavior().KeyValue( "CanUseTripmines", "1" );
 	}
 }
 
@@ -640,6 +661,10 @@ int CNPC_Conscript::CalculateWillpower()
 	// Shield gives even more confidence
 	if ( HasPropShield() )
 		l_iWillpower += 2;
+
+	// Engineers don't rush as much
+	if ( m_Subtype == CST_ENGINEER )
+		l_iWillpower -= 2;
 
 	return l_iWillpower;
 }

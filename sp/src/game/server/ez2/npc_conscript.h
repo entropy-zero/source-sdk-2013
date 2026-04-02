@@ -93,6 +93,7 @@ public:
 		CST_BRUTE,
 		CST_GASMASK,
 		CST_RIOT,
+		CST_ENGINEER,
 	};
 
 	int				GetConscriptSubtype() { return m_Subtype; }
