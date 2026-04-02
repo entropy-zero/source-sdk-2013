@@ -2092,6 +2092,8 @@ public:
 	// Used by the Arbeit helicopter
 	virtual bool		HasRappelBehavior() { return false; }
 	virtual void		StartWaitingForRappel() {}
+
+	virtual bool		IsPropShieldEquipped() const { return false; }
 #endif
 
 	// override to change the chase location of an enemy
