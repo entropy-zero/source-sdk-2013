@@ -264,6 +264,16 @@ protected:
 	bool	m_bNoAlarmSounds;
 	bool	m_bSelfDestructing;	// Going to blow up
 
+#ifdef MAPBASE
+	// You may be wondering: Why do we have m_bNoAutoStart when m_bAutoStart is right there?
+	// Well, if you look at CNPC_FloorTurret::Spawn, you'll see that m_bAutoStart is set by SF_FLOOR_TURRET_AUTOACTIVATE.
+	// However, immediately above that, SF_FLOOR_TURRET_AUTOACTIVATE is always set, meaning there is no way to toggle m_bAutoStart by default.
+	// Additionally, if we do somehow turn off m_bAutoStart, it causes the turret to run DisabledThink by default, which prevents tipping and other behaviors
+	// that aren't necessarily connected to automatically starting and can already be disabled by SF_FLOOR_TURRET_STARTINACTIVE.
+	// So this is here to act as a simple "do not look for enemies when retracted" flag that cuts off that part and nothing else.
+	bool	m_bNoAutoStart;
+#endif
+
 	float	m_flDestructStartTime;
 	float	m_flShotTime;
 	float	m_flLastSight;

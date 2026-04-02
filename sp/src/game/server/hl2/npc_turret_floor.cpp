@@ -130,6 +130,10 @@ BEGIN_DATADESC( CNPC_FloorTurret )
 	DEFINE_FIELD( m_hLaser,			FIELD_EHANDLE ),
 	DEFINE_FIELD( m_bSelfDestructing,	FIELD_BOOLEAN ),
 
+#ifdef MAPBASE
+	DEFINE_KEYFIELD( m_bNoAutoStart,	FIELD_BOOLEAN, "NoAutoStart" ),
+#endif
+
 	DEFINE_FIELD( m_hPhysicsAttacker, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_flLastPhysicsInfluenceTime, FIELD_TIME ),
 
@@ -1705,6 +1709,15 @@ bool CNPC_FloorTurret::PreThink( turretState_e state )
 			return true;
 		}
 	}
+
+#ifdef MAPBASE
+	if ( state == TURRET_AUTO_SEARCHING && m_bNoAutoStart )
+	{
+		// Don't search for enemies, but still run regular turret functions
+		SetNextThink( gpGlobals->curtime + random->RandomFloat( 0.2f, 0.4f ) );
+		return true;
+	}
+#endif
 
 	//Do not interrupt current think function
 	return false;
