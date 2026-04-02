@@ -30,7 +30,10 @@
 
 #ifdef EZ2
 	#include "hl2_gamerules.h"
+	#include "ez2/ez2_player.h"
 	#include "ez2/ai_stealth_manager.h"
+	#include "ez2/ai_stealth_senses.h"
+	#include "ez2/prop_turret_mine.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -174,6 +177,10 @@ BEGIN_DATADESC( CNPC_FloorTurret )
 	// DEFINE_FIELD( m_ShotSounds, FIELD_SHORT ),
 
 END_DATADESC()
+
+#ifdef EZ2
+IMPLEMENT_AUTO_LIST( IFloorTurretAutoList );
+#endif
 
 LINK_ENTITY_TO_CLASS( npc_turret_floor, CNPC_FloorTurret );
 
@@ -516,6 +523,10 @@ void CNPC_FloorTurret::Retire( void )
 			SetEyeState( TURRET_EYE_DISABLED );
 			SetThink( &CNPC_FloorTurret::DisabledThink );
 		}
+
+#ifdef EZ2
+		CPropTurretMine::OnTurretRetire( this );
+#endif
 	}
 }
 
@@ -543,6 +554,10 @@ void CNPC_FloorTurret::Deploy( void )
 
 		//Notify we're deploying
 		m_OnDeploy.FireOutput( NULL, this );
+
+#ifdef EZ2
+		CPropTurretMine::OnTurretActivate( this );
+#endif
 	}
 
 	//If we're done, then start searching
@@ -1200,6 +1215,11 @@ void CNPC_FloorTurret::AutoSearchThink( void )
 		if ( !m_bNoAlarmSounds )
 		{
 			EmitSound( "NPC_FloorTurret.Alert" );
+
+#ifdef EZ2
+			if ( g_hStealthManager )
+				CSoundEnt::InsertSound( SOUND_COMBAT, EyePosition(), 1024, 2.0f, NULL, SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY, this );
+#endif
 		}
 	}
 }
@@ -1241,7 +1261,7 @@ void CNPC_FloorTurret::Shoot( const Vector &vecSrc, const Vector &vecDirToEnemy,
 	DoMuzzleFlash();
 
 #ifdef EZ2
-	if ( g_hStealthManager )
+	if ( g_hStealthManager && IsAlive() )
 		CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, vecSrc, 1024, 0.2f, this, SOUNDENT_CHANNEL_WEAPON, GetEnemy() );
 #endif
 }
@@ -1263,6 +1283,19 @@ bool CNPC_FloorTurret::IsValidEnemy( CBaseEntity *pEnemy )
 	// If our eye is stuck in something, don't shoot
 	if ( UTIL_PointContents(EyePosition()) & MASK_SHOT )
 		return false;
+
+#ifdef EZ2
+	if ( pEnemy->IsPlayer() )
+	{
+		// Need to do a manual cloak factor check here because turrets work differently when already attacking
+		CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player*>(pEnemy);
+		if ( pEZ2Player->IsCloaking() )
+		{
+			if ( pEZ2Player->GetCloakFactor() > 0.8f )
+				return false;
+		}
+	}
+#endif
 
 	// Turrets have limited vertical aim capability
 	//	- Can only aim +-15 degrees, + the 10 degree slop they're allowed.
@@ -1504,6 +1537,10 @@ void CNPC_FloorTurret::ReturnToLife( void )
 	m_lifeState = LIFE_ALIVE;
 	SetCollisionGroup( COLLISION_GROUP_NONE );
 
+#ifdef EZ2
+	CPropTurretMine::OnTurretRevive( this );
+#endif
+
 	// Become active again
 	Enable();
 }	
@@ -1637,7 +1674,9 @@ bool CNPC_FloorTurret::PreThink( turretState_e state )
 
 #ifdef EZ2
 			if ( g_hStealthManager )
-				CSoundEnt::InsertSound( SOUND_COMBAT, EyePosition(), 1024, 2.0f, NULL, SOUNDENT_CHANNEL_WEAPON, this );
+				CSoundEnt::InsertSound( SOUND_COMBAT, EyePosition(), 1024, 2.0f, NULL, SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED, this );
+
+			CPropTurretMine::OnTurretDeath( this );
 #endif
 
 			//Stop being targetted

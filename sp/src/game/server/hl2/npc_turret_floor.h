@@ -54,6 +54,8 @@ class CTurretTipController;
 class CBeam;
 class CSprite;
 #ifdef EZ2
+class CPropTurretMine;
+
 //-----------------------------------------------------------------------------
 // A new abstract class that allows us to use CTurretTipController on Wilson.
 // -Blixibon
@@ -77,7 +79,8 @@ public:
 // Purpose: Floor turret
 //-----------------------------------------------------------------------------
 #ifdef EZ2
-class CNPC_FloorTurret : public CNPCBaseInteractive<CAI_BaseNPC>, public CDefaultPlayerPickupVPhysics, public ITippableTurret
+DECLARE_AUTO_LIST( IFloorTurretAutoList );
+class CNPC_FloorTurret : public CNPCBaseInteractive<CAI_BaseNPC>, public CDefaultPlayerPickupVPhysics, public ITippableTurret, public IFloorTurretAutoList
 #else
 class CNPC_FloorTurret : public CNPCBaseInteractive<CAI_BaseNPC>, public CDefaultPlayerPickupVPhysics
 #endif
@@ -245,6 +248,8 @@ protected:
 
 #ifdef EZ2
 	virtual float	GetRange();
+
+	friend class CPropTurretMine;
 #endif
 
 protected:
