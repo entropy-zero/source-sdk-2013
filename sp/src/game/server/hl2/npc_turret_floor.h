@@ -55,6 +55,7 @@ class CBeam;
 class CSprite;
 #ifdef EZ2
 class CPropTurretMine;
+class CAI_TurretSetupBehavior;
 
 //-----------------------------------------------------------------------------
 // A new abstract class that allows us to use CTurretTipController on Wilson.
@@ -249,7 +250,10 @@ protected:
 #ifdef EZ2
 	virtual float	GetRange();
 
+	void	SetStandPositionThink();
+
 	friend class CPropTurretMine;
+	friend class CAI_TurretSetupBehavior;
 #endif
 
 protected:
@@ -291,6 +295,15 @@ protected:
 	float	m_flKnockOverFailedTime;						// Time at which we should tell the NPC that he failed to knock me over
 
 	QAngle	m_vecGoalAngles;
+
+#ifdef EZ2
+	// Used by NPCs to right downed turrets
+	Vector	m_vecStandOrigin;
+	QAngle	m_angStandAngles;
+
+	// When we're being carried, we can access as parent, but this is needed for when the NPC is still en route
+	CHandle<CAI_BaseNPC>	m_hNPCCarrier;
+#endif
 
 	int						m_iEyeAttachment;
 	int						m_iMuzzleAttachment;

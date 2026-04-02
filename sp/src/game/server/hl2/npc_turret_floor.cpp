@@ -140,6 +140,14 @@ BEGIN_DATADESC( CNPC_FloorTurret )
 	DEFINE_FIELD( m_bHackedByAlyx, FIELD_BOOLEAN ),
 
 	DEFINE_KEYFIELD( m_iKeySkin, FIELD_INTEGER, "SkinNumber" ),
+
+#ifdef EZ2
+	DEFINE_FIELD( m_vecStandOrigin, FIELD_VECTOR ),
+	DEFINE_FIELD( m_angStandAngles, FIELD_VECTOR ),
+	DEFINE_FIELD( m_hNPCCarrier, FIELD_EHANDLE ),
+
+	DEFINE_THINKFUNC( SetStandPositionThink ),
+#endif
 	
 	DEFINE_THINKFUNC( Retire ),
 	DEFINE_THINKFUNC( Deploy ),
@@ -213,6 +221,10 @@ CNPC_FloorTurret::CNPC_FloorTurret( void ) :
 	m_vecGoalAngles.Init();
 
 	m_vecEnemyLKP = vec3_invalid;
+
+#ifdef EZ2
+	m_vecStandOrigin = vec3_invalid;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -419,6 +431,12 @@ void CNPC_FloorTurret::Spawn( void )
 		SetThink( &CNPC_FloorTurret::DisabledThink );
 		SetEyeState( TURRET_EYE_DISABLED );
 	}
+#ifdef EZ2
+	else
+	{
+		SetContextThink( &CNPC_FloorTurret::SetStandPositionThink, gpGlobals->curtime + 1.0f, "SetStandPosition" );
+	}
+#endif
 
 	//Stagger our starting times
 	SetNextThink( gpGlobals->curtime + random->RandomFloat( 0.1f, 0.3f ) );
@@ -462,6 +480,20 @@ void CNPC_FloorTurret::Activate( void )
 float CNPC_FloorTurret::GetRange()
 {
 	return FLOOR_TURRET_RANGE;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_FloorTurret::SetStandPositionThink()
+{
+	m_vecStandOrigin = GetAbsOrigin();
+	m_angStandAngles = GetAbsAngles();
+
+	// Only use yaw
+	m_angStandAngles.x = m_angStandAngles.z = 0.0f;
+
+	SetContextThink( NULL, TICK_NEVER_THINK, "SetStandPosition" );
 }
 #endif
 
@@ -1486,8 +1518,8 @@ void CNPC_FloorTurret::InactiveThink( void )
 
 	// Wake up if we're not on our side
 #ifdef EZ2
-	// (and not in low gravity)
-	if ( !OnSide() && m_bEnabled && (!InLowGravity() || IsBeingCarriedByPlayer()) )
+	// (and not in low gravity or being carried by a NPC)
+	if ( !OnSide() && m_bEnabled && (!InLowGravity() || IsBeingCarriedByPlayer()) && !GetParent() )
 #else
 	if ( !OnSide() && m_bEnabled )
 #endif
@@ -3230,8 +3262,8 @@ void CNPC_Arbeit_FloorTurret::InactiveThink( void )
 	CheckPVSCondition();
 
 	// Wake up if we're not on our side
-	// (and not in low gravity)
-	if ( !OnSide() && m_bEnabled && (!InLowGravity() || IsBeingCarriedByPlayer()) )
+	// (and not in low gravity or being carried by a NPC)
+	if ( !OnSide() && m_bEnabled && (!InLowGravity() || IsBeingCarriedByPlayer()) && !GetParent() )
 	{
 		m_bLaser = m_bUseLaser;
 		ReturnToLife();

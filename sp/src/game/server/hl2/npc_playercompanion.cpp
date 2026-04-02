@@ -256,6 +256,7 @@ bool CNPC_PlayerCompanion::CreateBehaviors()
 #ifdef EZ2
 	// Citizens are the only surrendering NPCs at the moment and they have their own version of the behavior, so this one doesn't need to be added.
 	//AddBehavior( &m_SurrenderBehavior );
+	AddBehavior( &m_TurretSetupBehavior );
 
 	AddBehavior( &GetStealthAlarmBehavior() );
 	AddBehavior( &GetStealthSearchBehavior() );
@@ -3476,6 +3477,11 @@ bool CNPC_PlayerCompanion::ShouldLookForBetterWeapon()
 		return false;
 #endif
 
+#ifdef EZ2
+	if ( m_TurretSetupBehavior.IsRunning() )
+		return false;
+#endif
+
 	return BaseClass::ShouldLookForBetterWeapon();
 }
 
@@ -4150,6 +4156,8 @@ bool CNPC_PlayerCompanion::OverrideMove( float flInterval )
 				if (tr.fraction == 1.0 && !tr.startsolid)
 				{
 #ifdef EZ
+					bool bPassThroughTurrets = false;
+
 					// Soldiers need to be able to run up behind turrets and punt them, so don't mark turrets they hate or fear as obstacles.
 					// I am, however, allowing them to avoid turrets they like or are neutral towards since I think the original point of this was
 					// to prevent allies from knocking them over while moving.
@@ -4157,7 +4165,20 @@ bool CNPC_PlayerCompanion::OverrideMove( float flInterval )
 					// I don't know what kind of overhead this could have, but it's definitely needed now that soldiers are based on from the companion class.
 					// 
 					// - Blixibon
-					if (!IsCombine() || IRelationType(pEntity) > D_FR)
+					if (IsCombine() || IRelationType(pEntity) <= D_FR)
+						bPassThroughTurrets = true;
+
+#ifdef EZ2
+					// We want to pick up this turret
+					else if ( m_TurretSetupBehavior.IsRunning() /*&& m_TurretSetupBehavior.GetTurret() == pEntity*/ )
+						bPassThroughTurrets = true;
+
+					// In stealth, walk over downed turrets
+					else if ( IsUsingStealthSenses() && pEntity->GetCollisionGroup() == COLLISION_GROUP_DEBRIS_TRIGGER )
+						bPassThroughTurrets = true;
+#endif
+
+					if ( !bPassThroughTurrets )
 					{
 #endif
 					float radius = 1.4 * pEntity->CollisionProp()->BoundingRadius2D(); 

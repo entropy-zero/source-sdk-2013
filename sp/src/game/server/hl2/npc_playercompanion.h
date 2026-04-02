@@ -29,6 +29,7 @@
 
 #ifdef EZ2
 #include "ez2/ai_behavior_surrender.h"
+#include "ez2/ai_behavior_turret_setup.h"
 #include "ez2/ai_stealth_behavior_companion.h"
 #endif
 
@@ -504,6 +505,7 @@ protected:
 #endif
 #ifdef EZ2
 	CAI_SurrenderBehavior			m_SurrenderBehavior;
+	CAI_TurretSetupBehavior			m_TurretSetupBehavior;
 
 	//-----------------------------------------------------
 	
