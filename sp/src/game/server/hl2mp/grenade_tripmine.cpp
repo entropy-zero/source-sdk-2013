@@ -18,6 +18,7 @@
 #ifdef EZ2
 #include "hl2_player.h"
 #include "ez2/ai_stealth_manager.h"
+#include "particle_parse.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -196,6 +197,13 @@ void CTripmineGrenade::Precache( void )
 
 	PrecacheScriptSound( "TripmineGrenade.Place" );
 	PrecacheScriptSound( "TripmineGrenade.Activate" );
+
+#ifdef EZ2
+	PrecacheScriptSound( "TripmineGrenade.DelayedDetonate" );
+
+	PrecacheParticleSystem( "tripmine_flash_activate" );
+	PrecacheParticleSystem( "tripmine_flash_detonate" );
+#endif
 }
 
 
@@ -353,6 +361,14 @@ void CTripmineGrenade::MakeBeam( void )
 	
 	int beamAttach = LookupAttachment("beam_attach");
 	m_pBeam->SetEndAttachment( beamAttach );
+
+#ifdef EZ2
+	Vector vecColor( m_TripmineColor.r, m_TripmineColor.g, m_TripmineColor.b );
+	for ( int i = 0; i < 3; i++ )
+		vecColor[i] /= 255.0f;
+
+	DispatchParticleEffect( "tripmine_flash_activate", PATTACH_POINT, this, "particle_attach", vecColor, vecColor, true );
+#endif
 }
 
 
@@ -446,6 +462,16 @@ void CTripmineGrenade::Event_Killed( const CTakeDamageInfo &info )
 	SetNextThink( gpGlobals->curtime + 0.25 );
 
 	EmitSound( "TripmineGrenade.StopSound" );
+
+#ifdef EZ2
+	EmitSound( "TripmineGrenade.DelayedDetonate" );
+
+	Vector vecColor( m_TripmineColor.r, m_TripmineColor.g, m_TripmineColor.b );
+	for ( int i = 0; i < 3; i++ )
+		vecColor[i] /= 255.0f;
+
+	DispatchParticleEffect( "tripmine_flash_detonate", PATTACH_POINT, this, "particle_attach", vecColor, vecColor, true, true );
+#endif
 }
 
 
@@ -529,13 +555,13 @@ void CTripmineGrenade::InputDeactivate( inputdata_t &inputdata )
 #ifdef EZ2
 bool CTripmineGrenade::TargetShouldDetonate(CBaseEntity* pTarget)
 {
-	if ( sk_tripmine_use_owner_relations.GetBool() && GetOwnerEntity() && GetOwnerEntity()->IsCombatCharacter() )
-	{
-		return GetOwnerEntity()->MyCombatCharacterPointer()->IRelationType(pTarget) < D_LI;
-	}
-
 	if ( pTarget->IsCombatCharacter() )
 	{
+		if ( sk_tripmine_use_owner_relations.GetBool() && GetOwnerEntity() && GetOwnerEntity()->IsCombatCharacter() )
+		{
+			return GetOwnerEntity()->MyCombatCharacterPointer()->IRelationType(pTarget) < D_LI;
+		}
+
 		// Tripmines do not detonate when tripped by entities that treat their class as friendly or by the owner
 		if (pTarget->MyCombatCharacterPointer()->GetDefaultRelationshipDisposition(m_nTripmineClass) == D_LI || (GetOwnerEntity() && GetOwnerEntity() == pTarget))
 		{
@@ -544,12 +570,12 @@ bool CTripmineGrenade::TargetShouldDetonate(CBaseEntity* pTarget)
 	}
 
 	// Do not detonate children of entities we shouldn't detonate
-	if ( pTarget->GetParent() && pTarget->GetParent()->IsCombatCharacter()
-		&& !TargetShouldDetonate( pTarget->GetParent()->MyCombatCharacterPointer() ) )
+	else if ( pTarget->GetParent() && pTarget->GetParent()->IsCombatCharacter()
+		&& !TargetShouldDetonate( pTarget->GetParent() ) )
 		return false;
 
 	// Do not detonate tripmines of the same class
-	if ( pTarget->m_iClassname == m_iClassname && static_cast<CTripmineGrenade*>(pTarget)->m_nTripmineClass == m_nTripmineClass )
+	else if ( pTarget->m_iClassname == m_iClassname && static_cast<CTripmineGrenade*>(pTarget)->m_nTripmineClass == m_nTripmineClass )
 		return false;
 
 	return true;
