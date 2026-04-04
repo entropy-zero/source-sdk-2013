@@ -136,6 +136,7 @@ public:
 	bool 			ShouldAlwaysThink();
 
 	Disposition_t	IRelationType( CBaseEntity *pTarget );
+	int				IRelationPriority( CBaseEntity *pTarget );
 	
 	bool			IsSilentSquadMember() const;
 
@@ -143,6 +144,7 @@ public:
 	// Behavior
 	//---------------------------------
 	void 			GatherConditions();
+	void			GatherEnemyConditions( CBaseEntity *pEnemy );
 	virtual void	PredictPlayerPush();
 	void			BuildScheduleTestBits();
 
@@ -173,6 +175,7 @@ public:
 	bool			IsValidReasonableFacing( const Vector &vecSightDir, float sightDist );
 	
 	int 			TranslateSchedule( int scheduleType );
+	int				SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
 	
 	void 			StartTask( const Task_t *pTask );
 	void 			RunTask( const Task_t *pTask );
@@ -281,6 +284,12 @@ public:
 	CBaseEntity		*GetAlternateMoveShootTarget();
 
 #ifdef EZ2
+	CUtlVector<EHANDLE>	*GetDangerObjectList( int nList );
+	void			MarkDangerObject( CBaseEntity *pObject, const Vector &vecOrigin, int nList );
+	bool			IsDangerObjectBullseye( CBaseEntity *pTarget );
+
+	bool			ModifyTacticalWeaponRange( float &flMinRange, float &flMaxRange );
+
 	//---------------------------------
 	// Stealth
 	//---------------------------------
@@ -554,6 +563,18 @@ protected:
 #ifdef HL2_EPISODIC
 	CHandle<CPhysicsProp>	m_hFlare;
 #endif // HL2_EPISODIC
+
+#ifdef EZ2
+	// Enemy tripmines and satchels we're aware of
+	CUtlVector<EHANDLE>		m_hDangerTripmines;
+	CUtlVector<EHANDLE>		m_hDangerSatchels;
+
+	enum
+	{
+		DANGER_ENT_TRIPMINE,
+		DANGER_ENT_SATCHEL,
+	};
+#endif
 
 	//-----------------------------------------------------
 

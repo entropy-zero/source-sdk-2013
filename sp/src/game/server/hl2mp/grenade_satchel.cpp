@@ -15,6 +15,7 @@
 #include "grenade_satchel.h"
 #ifdef EZ2
 #include "hl2_player.h"
+#include "ai_senses.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -25,6 +26,9 @@
 ConVar    sk_plr_dmg_satchel		( "sk_plr_dmg_satchel", "150" );
 ConVar    sk_npc_dmg_satchel		( "sk_npc_dmg_satchel", "0" );
 ConVar    sk_satchel_radius			( "sk_satchel_radius", "200" );
+#ifdef EZ2
+ConVar    sk_satchel_always_visible_to_npcs( "sk_satchel_always_visible_to_npcs", "0" );
+#endif
 
 BEGIN_DATADESC( CSatchelCharge )
 
@@ -33,6 +37,10 @@ BEGIN_DATADESC( CSatchelCharge )
 	DEFINE_FIELD( m_vLastPosition, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( m_pMyWeaponSLAM, FIELD_CLASSPTR ),
 	DEFINE_KEYFIELD( m_bIsAttached, FIELD_BOOLEAN, "IsAttached" ),
+
+#ifdef EZ2
+	DEFINE_KEYFIELD( m_bVisibleToNPCs, FIELD_BOOLEAN, "VisibleToNPCs" ),
+#endif
 
 	// Function Pointers
 	DEFINE_THINKFUNC( SatchelThink ),
@@ -119,6 +127,16 @@ void CSatchelCharge::Spawn( void )
 	}
 
 	m_hAttacker = NULL;
+
+	if ( sk_satchel_always_visible_to_npcs.GetBool() )
+		m_bVisibleToNPCs = true;
+
+	if ( m_bVisibleToNPCs )
+	{
+		// Allow NPCs to see it
+		SetBlocksLOS( false );
+		AddFlag( FL_OBJECT );
+	}
 #endif
 }
 
@@ -214,6 +232,73 @@ int CSatchelCharge::UpdateTransmitState()
 	{
 		return BaseClass::UpdateTransmitState();
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Allows entities to be 'invisible' to NPC senses.
+//-----------------------------------------------------------------------------
+bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
+{
+	if ( !BaseClass::CanBeSeenBy( pNPC ) )
+		return false;
+
+	//if ( !pNPC->IsPlayerAlly( ToBasePlayer( GetThrower() ) ) )
+	{
+		// Do an extra FOV check
+		Vector vecLookDir = pNPC->HeadDirection3D();
+		Vector vecDelta = EyePosition() - pNPC->EyePosition();
+		float flDist = VectorNormalize( vecDelta );
+
+		// TODO: More standard number
+		if ( flDist > 1024.0f )
+			return false;
+
+		float flDot = vecDelta.Dot( vecLookDir );
+
+		float flThreshold = DOT_45DEGREE;
+		switch ( pNPC->GetState() )
+		{
+			default:
+			case NPC_STATE_IDLE:
+				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE;
+				break;
+
+			case NPC_STATE_ALERT:
+				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
+				break;
+
+			case NPC_STATE_COMBAT:
+				flThreshold = pNPC->IsMoving() ? DOT_45DEGREE : 0.258819f; // 45 or 75 degrees
+				break;
+		}
+
+		// If the satchel is moving, then it's much easier to see it
+		Vector vecVelocity;
+		if ( VPhysicsGetObject() )
+			VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
+
+		if ( vecVelocity.LengthSqr() > Square( 4.0f ) )
+			flThreshold *= 0.2f;
+
+		if ( !pNPC->IsPlayerAlly( ToBasePlayer( GetThrower() ) ) )
+		{
+			// Enemies are less aware on lower difficulties
+			switch ( g_pGameRules->GetSkillLevel() )
+			{
+				case SKILL_EASY:
+					flThreshold *= 2.0f;
+					break;
+				case SKILL_MEDIUM:
+					flThreshold *= 1.5f;
+					break;
+			}
+		}
+
+		if ( flDot < flThreshold )
+			return false;
+	}
+
+	return true;
 }
 #endif
 

@@ -2404,7 +2404,7 @@ int CNPC_Citizen::TranslateSchedule( int scheduleType )
 				return BaseClass::TranslateSchedule( scheduleType );
 			}
 
-			if ( FVisible( GetEnemyLKP() ) )
+			if ( FVisible( GetEnemyLKP() ) && !HasCondition( COND_TOO_CLOSE_TO_ATTACK ) )
 			{
 				// If we already see where the enemy's supposed to be, run to it
 				return SCHED_CHASE_ENEMY;
@@ -2658,6 +2658,13 @@ int CNPC_Citizen::TranslateSuppressingFireSchedule(int scheduleType)
 	{
 		if(ai_debug_rebel_suppressing_fire.GetBool())
 			DevMsg("NPC_Citizen::TranslateSuppressingFireSchedule: %s tried to suppress but couldn't get enemy! \n", GetDebugName());
+		return scheduleType;
+	}
+
+	if (pEnemy->Classify() == CLASS_BULLSEYE && IsDangerObjectBullseye(pEnemy))
+	{
+		if(ai_debug_rebel_suppressing_fire.GetBool())
+			DevMsg("NPC_Citizen::TranslateSuppressingFireSchedule: %s not using suppressive fire because enemy is a danger object bullseye\n", GetDebugName());
 		return scheduleType;
 	}
 

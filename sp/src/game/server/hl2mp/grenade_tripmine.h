@@ -46,6 +46,9 @@ public:
 #ifdef EZ2
 	virtual bool KeyValue( const char *szKeyName, const char *szValue );
 	int UpdateTransmitState();
+
+	bool CanBeSeenBy( CAI_BaseNPC *pNPC );
+	bool IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin );
 #endif
 
 #ifdef MAPBASE
@@ -60,6 +63,14 @@ public:
 
 #ifdef EZ2
 	virtual bool	TargetShouldDetonate(CBaseEntity* pTarget);
+
+	const Vector	&GetEnd() const { return m_vecEnd; }
+	const Vector	&GetDir() const { return m_vecDir; }
+	const Vector	GetActualEnd() const { return GetAbsOrigin() + m_vecDir * (2048 * m_flBeamLength); }
+
+	Class_T			TripmineClassify() { return m_nTripmineClass; }
+
+	void		SetVisibleToNPCs( bool bVisible ) { m_bVisibleToNPCs = bVisible; }
 #endif
 
 
@@ -89,6 +100,8 @@ private:
 	bool		m_bTripped;
 
 	EHANDLE		m_hPlacer;
+
+	bool		m_bVisibleToNPCs;
 #endif
 
 	DECLARE_DATADESC();

@@ -19,6 +19,7 @@
 #include "hl2_player.h"
 #include "ez2/ai_stealth_manager.h"
 #include "particle_parse.h"
+#include "ai_senses.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -30,6 +31,9 @@ ConVar    sk_plr_dmg_tripmine					( "sk_plr_dmg_tripmine","0" );
 ConVar    sk_npc_dmg_tripmine					( "sk_npc_dmg_tripmine","0" );
 ConVar    sk_tripmine_radius					( "sk_tripmine_radius","0" );
 ConVar    sk_tripmine_use_owner_relations		( "sk_tripmine_use_owner_relations", "0" );
+#ifdef EZ2
+ConVar    sk_tripmine_always_visible_to_npcs	( "sk_tripmine_always_visible_to_npcs", "0" );
+#endif
 
 LINK_ENTITY_TO_CLASS( npc_tripmine, CTripmineGrenade );
 
@@ -62,6 +66,7 @@ BEGIN_DATADESC( CTripmineGrenade )
 	DEFINE_KEYFIELD( m_TripmineColor, FIELD_COLOR32, "TripmineColor" ),
 	DEFINE_FIELD( m_bTripped, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_hPlacer, FIELD_EHANDLE ),
+	DEFINE_KEYFIELD( m_bVisibleToNPCs, FIELD_BOOLEAN, "VisibleToNPCs" ),
 #endif
 
 	// Function Pointers
@@ -96,6 +101,8 @@ CTripmineGrenade::CTripmineGrenade()
 	m_TripmineColor.g = 55;
 	m_TripmineColor.b = 52;
 	m_TripmineColor.a = 64;
+	
+	m_bVisibleToNPCs = false;
 #endif
 }
 
@@ -187,6 +194,22 @@ void CTripmineGrenade::Spawn( void )
 	AngleVectors( angles, &m_vecDir );
 	m_vecEnd = GetAbsOrigin() + m_vecDir * 2048;
 
+#ifdef EZ2
+	if ( sk_tripmine_always_visible_to_npcs.GetBool() )
+		m_bVisibleToNPCs = true;
+
+	if ( m_bVisibleToNPCs )
+	{
+		// Allow NPCs to see it
+		SetBlocksLOS( false );
+		AddFlag( FL_OBJECT );
+
+		// Push the eye position out slightly to ensure it isn't too close to the world
+		Vector vecViewOffset = m_vecDir * 2;
+		SetViewOffset( vecViewOffset );
+	}
+#endif
+
 	AddEffects( EF_NOSHADOW );
 }
 
@@ -271,6 +294,76 @@ int CTripmineGrenade::UpdateTransmitState()
 	{
 		return BaseClass::UpdateTransmitState();
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Allows entities to be 'invisible' to NPC senses.
+//-----------------------------------------------------------------------------
+bool CTripmineGrenade::CanBeSeenBy( CAI_BaseNPC *pNPC )
+{
+	if ( !BaseClass::CanBeSeenBy( pNPC ) )
+		return false;
+
+	if ( !IsTripmineVisibleTo( pNPC, EyePosition() ) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Whether the tripmine can be seen when looking at vecOrigin
+//-----------------------------------------------------------------------------
+bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin )
+{
+	//if ( !pNPC->IsPlayerAlly( ToBasePlayer( GetThrower() ) )
+	{
+		// Do an extra FOV check
+		Vector vecLookDir = pNPC->HeadDirection3D();
+		Vector vecDelta = vecOrigin - pNPC->EyePosition();
+		float flDist = VectorNormalize( vecDelta );
+
+		// TODO: More standard number
+		if ( flDist > 1024.0f )
+			return false;
+
+		float flDot = vecDelta.Dot( vecLookDir );
+
+		float flThreshold = DOT_45DEGREE;
+		switch ( pNPC->GetState() )
+		{
+			default:
+			case NPC_STATE_IDLE:
+				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE;
+				break;
+
+			case NPC_STATE_ALERT:
+				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
+				break;
+
+			case NPC_STATE_COMBAT:
+				flThreshold = pNPC->IsMoving() ? DOT_45DEGREE : 0.258819f; // 45 or 75 degrees
+				break;
+		}
+
+		if ( !pNPC->IsPlayerAlly( ToBasePlayer( GetThrower() ) ) )
+		{
+			// Enemies are less aware on lower difficulties
+			switch ( g_pGameRules->GetSkillLevel() )
+			{
+				case SKILL_EASY:
+					flThreshold *= 2.0f;
+					break;
+				case SKILL_MEDIUM:
+					flThreshold *= 1.5f;
+					break;
+			}
+		}
+
+		if ( flDot < flThreshold )
+			return false;
+	}
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -368,6 +461,16 @@ void CTripmineGrenade::MakeBeam( void )
 		vecColor[i] /= 255.0f;
 
 	DispatchParticleEffect( "tripmine_flash_activate", PATTACH_POINT, this, "particle_attach", vecColor, vecColor, true );
+
+	if ( m_bVisibleToNPCs && !(m_pBeam->GetBeamFlags() & FBEAM_SHADEIN) )
+	{
+		// Allow NPCs to see the beam if it wasn't set to shade above
+		//m_pBeam->AddFlag( FL_OBJECT );
+		g_AI_SensedObjectsManager.AddEntity( m_pBeam ); // (need to add directly because beam has already spawned)
+
+		Vector vecViewOffset = -m_vecDir * 4;
+		m_pBeam->SetViewOffset( vecViewOffset );
+	}
 #endif
 }
 

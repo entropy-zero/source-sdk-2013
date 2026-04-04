@@ -43,6 +43,12 @@
 #include "ez2/ai_stealth_manager.h"
 #include "ez2/ez2_player.h"
 #include "eventqueue.h"
+
+#include "hl2mp/grenade_tripmine.h"
+#include "hl2mp/grenade_satchel.h"
+#include "npc_bullseye.h"
+#include "beam_shared.h"
+#include "saverestore_utlvector.h"
 #endif
 
 ConVar ai_debug_readiness("ai_debug_readiness", "0" );
@@ -184,6 +190,9 @@ BEGIN_DATADESC( CNPC_PlayerCompanion )
 #endif
 
 #ifdef EZ2
+	DEFINE_UTLVECTOR( m_hDangerTripmines, FIELD_EHANDLE ),
+	DEFINE_UTLVECTOR( m_hDangerSatchels, FIELD_EHANDLE ),
+
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "ForcePlaceTripmineOnTarget", InputForcePlaceTripmineOnTarget ),
 
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadCheck", InputAnswerSquadCheck ),
@@ -492,6 +501,26 @@ Disposition_t CNPC_PlayerCompanion::IRelationType( CBaseEntity *pTarget )
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+int CNPC_PlayerCompanion::IRelationPriority( CBaseEntity *pTarget )
+{
+	if ( !pTarget )
+		return D_NU;
+
+	int priority = BaseClass::IRelationPriority( pTarget );
+
+	if ( IsDangerObjectBullseye( pTarget ) )
+	{
+		// If our enemy is someone else, and we could see that enemy, deprioritize the bullseye
+		// We can't do a flat deprioritization because NPCs will often try to chase enemies past tripmines/satchels
+		if ( GetEnemy() != pTarget && HasCondition( COND_SEE_ENEMY ) )
+			priority--;
+	}
+
+	return priority;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 bool CNPC_PlayerCompanion::IsSilentSquadMember() const
 {
 	if ( (const_cast<CNPC_PlayerCompanion *>(this))->Classify() == CLASS_PLAYER_ALLY_VITAL && m_pSquad && MAKE_STRING(m_pSquad->GetName()) == GetPlayerSquadName() )
@@ -675,6 +704,159 @@ void CNPC_PlayerCompanion::GatherConditions()
 			ClearCondition( COND_HEAR_PLAYER );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::GatherEnemyConditions( CBaseEntity *pEnemy )
+{
+	BaseClass::GatherEnemyConditions( pEnemy );
+
+#ifdef EZ2
+	if ( pEnemy->Classify() == CLASS_BULLSEYE && pEnemy->GetParent() )
+	{
+		// If this is a satchel or tripmine, then make sure we're not too close to it
+		float flRadiusSqr = 0.0f;
+		if ( m_hDangerTripmines.Find( pEnemy->GetParent() ) != m_hDangerTripmines.InvalidIndex() )
+		{
+			//CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(pEnemy->GetParent());
+			flRadiusSqr = Square( 200.0f ); // TODO: Un-hardcode tripmine radius
+		}
+		else if ( m_hDangerSatchels.Find( pEnemy->GetParent() ) != m_hDangerSatchels.InvalidIndex() )
+		{
+			CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(pEnemy->GetParent());
+			flRadiusSqr = Square( pSatchel->m_DmgRadius.Get() );
+		}
+
+		if ( flRadiusSqr != 0.0f )
+		{
+			if ( (pEnemy->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() < flRadiusSqr )
+			{
+				SetCondition( COND_TOO_CLOSE_TO_ATTACK );
+				ClearCondition( COND_CAN_RANGE_ATTACK1 );
+			}
+			else
+			{
+				if ( GetSquad() )
+				{
+					// Make sure our squad is out of the way as well
+					AISquadIter_t iter;
+					for ( CAI_BaseNPC *pSquadmate = m_pSquad->GetFirstMember(&iter); pSquadmate; pSquadmate = m_pSquad->GetNextMember(&iter) )
+					{
+						if ( pSquadmate != this )
+						{
+							if ( (pEnemy->GetAbsOrigin() - pSquadmate->GetAbsOrigin()).LengthSqr() < flRadiusSqr )
+							{
+								// See if the squadmate would be affected
+								CTraceFilterSkipTwoEntities traceFilter( pEnemy, pEnemy->GetParent(), COLLISION_GROUP_NONE );
+								trace_t tr;
+								UTIL_TraceLine( pEnemy->GetAbsOrigin(), pSquadmate->EyePosition(), MASK_SHOT, &traceFilter, &tr );
+								if ( tr.fraction == 1.0f || tr.m_pEnt == pSquadmate )
+								{
+									//SetCondition( COND_TOO_CLOSE_TO_ATTACK );
+									ClearCondition( COND_CAN_RANGE_ATTACK1 );
+									CSoundEnt::InsertSound( SOUND_MOVE_AWAY | SOUND_CONTEXT_ALLIES_ONLY, pEnemy->GetAbsOrigin(), sqrt( flRadiusSqr ), 1.5, this );
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if ( HasCondition( COND_CAN_RANGE_ATTACK1 ) )
+				{
+					for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+					{
+						CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+						if ( IsPlayerAlly( pPlayer ) )
+						{
+							// Make sure the player is out of the way
+							if ( (pEnemy->GetAbsOrigin() - pPlayer->GetAbsOrigin()).LengthSqr() < flRadiusSqr )
+							{
+								// See if the player would be affected
+								CTraceFilterSkipTwoEntities traceFilter( pEnemy, pEnemy->GetParent(), COLLISION_GROUP_NONE );
+								trace_t tr;
+								UTIL_TraceLine( pEnemy->GetAbsOrigin(), pPlayer->EyePosition(), MASK_SHOT, &traceFilter, &tr );
+								if ( tr.fraction == 1.0f || tr.m_pEnt == pPlayer )
+								{
+									//SetCondition( COND_TOO_CLOSE_TO_ATTACK );
+									ClearCondition( COND_CAN_RANGE_ATTACK1 );
+
+									// Gesture for the player to move away from it
+									Vector vecToPlayer = pPlayer->EyePosition() - EyePosition();
+									VectorNormalize( vecToPlayer );
+									Vector vecToTarget = pEnemy->GetAbsOrigin() - EyePosition();
+									VectorNormalize( vecToTarget );
+
+									Vector vecRight;
+									GetVectors( NULL, &vecRight, NULL );
+
+									if ( DotProduct( vecRight, vecToPlayer ) > DotProduct( vecRight, vecToTarget ) )
+									{
+										AddGesture( ACT_GESTURE_SIGNAL_RIGHT );
+									}
+									else
+									{
+										AddGesture( ACT_GESTURE_SIGNAL_LEFT );
+									}
+
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	else if ( m_hDangerTripmines.Count() > 0 )
+	{
+		// Make sure we're not trying to cross a danger tripmine
+		FOR_EACH_VEC( m_hDangerTripmines, i )
+		{
+			// Create an obstacle at the closest point of the tripmine laser, if that point is visible to the tripmine
+			if ( m_hDangerTripmines[i] )
+			{
+				CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(m_hDangerTripmines[i].Get());
+				Vector vecClosest;
+				float flDist;
+				CalcClosestPointOnLine( GetAbsOrigin(), pTripmine->GetAbsOrigin(), pTripmine->GetEnd(), vecClosest, &flDist );
+
+				if ( flDist < 32.0f )
+				{
+					CTraceFilterTripmineBeam traceFilter( pTripmine, COLLISION_GROUP_NONE );
+					trace_t tr;
+					UTIL_TraceLine( pTripmine->GetAbsOrigin(), vecClosest, MASK_SHOT, &traceFilter, &tr );
+					if ( tr.fraction == 1.0f )
+					{
+						SetCondition( COND_TOO_CLOSE_TO_ATTACK );
+
+						// Get the tripmine's bullseye
+						for ( CBaseEntity *pChild = m_hDangerTripmines[i]->FirstMoveChild(); pChild; pChild = pChild->NextMovePeer() )
+						{
+							if ( pChild->m_iClassname == gm_isz_class_Bullseye )
+							{
+								// A bit trashy to set the enemy here, but it's better than awkwardly rubbing against the laser while chasing someone else
+								SetEnemy( pChild );
+								break;
+							}
+						}
+
+						break;
+					}
+				}
+			}
+		}
+
+		if ( HasCondition( COND_ENEMY_UNREACHABLE ) )
+		{
+			// There could be a tripmine blocking me. Refresh enemy
+			// TODO: Need to better-prevent main enemy from being marked as eluded due to this condition
+			//SetEnemy( BestEnemy() );
+			SetCondition( COND_SEE_HATE );
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1088,6 +1270,44 @@ void CNPC_PlayerCompanion::OnSeeEntity( CBaseEntity *pEntity )
 		// Allow curious stealth to see entities while not running
 		if ( !GetStealthCuriousBehavior().IsRunning() )
 			GetStealthCuriousBehavior().OnSeeEntity( pEntity );
+	}
+
+	if ( pEntity->GetFlags() & FL_OBJECT )
+	{
+		if ( pEntity->ClassMatches( "npc_tripmine" ) )
+		{
+			// Check if it's hostile (and not already tracked)
+			CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(pEntity);
+			if ( pTripmine->TargetShouldDetonate( this ) )
+			{
+				// Aah! Tripmine!
+				MarkDangerObject( pEntity, pEntity->EyePosition(), DANGER_ENT_TRIPMINE );
+			}
+		}
+		else if ( pEntity->ClassMatches( "npc_satchel" ) )
+		{
+			// Check if it's hostile (and not already tracked)
+			CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(pEntity);
+			if ( !pSatchel->GetThrower() || IRelationType( pSatchel->GetThrower() ) != D_LI )
+			{
+				// Aah! Satchel!
+				MarkDangerObject( pEntity, pEntity->WorldSpaceCenter(), DANGER_ENT_SATCHEL );
+			}
+		}
+		else if ( pEntity->ClassMatches( "beam" ) )
+		{
+			CBeam *pBeam = static_cast<CBeam *>(pEntity);
+			if ( pBeam->GetEndEntityPtr() && pBeam->GetEndEntityPtr()->ClassMatches( "npc_tripmine" ) && !(pEntity->GetEffects() & EF_NODRAW) )
+			{
+				// This is a visible tripmine beam. Check its owner
+				CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(pBeam->GetEndEntityPtr());
+				if ( pTripmine->TargetShouldDetonate( this ) && pTripmine->IsTripmineVisibleTo( this, pEntity->EyePosition() ) )
+				{
+					// Aah! Laser that leads to a tripmine!
+					MarkDangerObject( pBeam->GetEndEntityPtr(), pBeam->GetEndEntityPtr()->EyePosition(), DANGER_ENT_TRIPMINE );
+				}
+			}
+		}
 	}
 #endif
 
@@ -1815,6 +2035,23 @@ int CNPC_PlayerCompanion::TranslateSchedule( int scheduleType )
 	}
 
 	return BaseClass::TranslateSchedule( scheduleType );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+int CNPC_PlayerCompanion::SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode )
+{
+#ifdef EZ2
+	if ( failedSchedule == SCHED_BACK_AWAY_FROM_ENEMY )
+	{
+		if ( GetEnemy() && IsDangerObjectBullseye( GetEnemy() ) )
+		{
+			return SCHED_RUN_FROM_ENEMY;
+		}
+	}
+#endif
+
+	return BaseClass::SelectFailSchedule( failedSchedule, failedTask, taskFailCode );
 }
 
 #ifdef MAPBASE
@@ -3260,6 +3497,132 @@ CBaseEntity *CNPC_PlayerCompanion::GetAlternateMoveShootTarget()
 #ifdef EZ2
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+CUtlVector<EHANDLE> *CNPC_PlayerCompanion::GetDangerObjectList( int nList )
+{
+	switch ( nList )
+	{
+		case DANGER_ENT_TRIPMINE:
+			return &m_hDangerTripmines;
+		case DANGER_ENT_SATCHEL:
+			return &m_hDangerSatchels;
+	}
+
+	return NULL;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CNPC_PlayerCompanion::MarkDangerObject( CBaseEntity *pObject, const Vector &vecOrigin, int nList )
+{
+	CUtlVector<EHANDLE> *vecList = GetDangerObjectList( nList );
+	if ( !vecList )
+		return;
+
+	// Check if it's already being tracked
+	if ( vecList->Find( pObject ) != vecList->InvalidIndex() )
+	{
+		// Find its existing bullseye and update
+		for ( CBaseEntity *pChild = pObject->FirstMoveChild(); pChild; pChild = pChild->NextMovePeer() )
+		{
+			if ( pChild->m_iClassname == gm_isz_class_Bullseye )
+			{
+				UpdateEnemyMemory( pChild, pChild->GetAbsOrigin(), this );
+				break;
+			}
+		}
+
+		return;
+	}
+
+	// Create a bullseye for this object
+	CNPC_Bullseye *pTarget = (CNPC_Bullseye *)CreateNoSpawn( "npc_bullseye", vecOrigin, pObject->GetAbsAngles(), pObject );
+	pTarget->SetParent( pObject );
+	pTarget->AddSpawnFlags( SF_BULLSEYE_NONSOLID | SF_BULLSEYE_PERFECTACC );
+	DispatchSpawn( pTarget );
+
+	AddEntityRelationship( pTarget, D_HT, 0 );
+
+	SetSpeechTarget( pObject );
+	SpeakIfAllowed( TLK_DANGER );
+
+	CSoundEnt::InsertSound( SOUND_DANGER, vecOrigin, 256, 1.5, pObject );
+
+	vecList->AddToTail( pObject );
+
+	if ( GetSquad() )
+	{
+		// If we've got squadmates, tell them to stay back
+		if ( GetSquad()->NumMembers() > 1 )
+			AddGesture( ACT_GESTURE_SIGNAL_HALT );
+
+		// Apply it to our squad as well
+		AISquadIter_t iter;
+		for ( CAI_BaseNPC *pSquadmate = m_pSquad->GetFirstMember(&iter); pSquadmate; pSquadmate = m_pSquad->GetNextMember(&iter) )
+		{
+			CNPC_PlayerCompanion *pCompanion = dynamic_cast<CNPC_PlayerCompanion*>(pSquadmate);
+			if( pCompanion && pCompanion != this )
+			{
+				CUtlVector<EHANDLE> *vecCompanionList = pCompanion->GetDangerObjectList( nList );
+				if ( vecCompanionList && vecCompanionList->Find( pObject ) == vecCompanionList->InvalidIndex() )
+				{
+					pCompanion->AddEntityRelationship( pTarget, D_HT, -1 );
+					vecCompanionList->AddToTail( pObject );
+				}
+			}
+		}
+	}
+
+	UpdateEnemyMemory( pTarget, pTarget->GetAbsOrigin(), this );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::IsDangerObjectBullseye( CBaseEntity *pTarget )
+{
+	if ( pTarget->m_iClassname == gm_isz_class_Bullseye && pTarget->GetParent()
+		&& ( m_hDangerTripmines.Find( pTarget->GetParent() ) != m_hDangerTripmines.InvalidIndex()
+			|| m_hDangerSatchels.Find( pTarget->GetParent() ) != m_hDangerSatchels.InvalidIndex() ) )
+	{
+		return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CNPC_PlayerCompanion::ModifyTacticalWeaponRange( float &flMinRange, float &flMaxRange )
+{
+	bool bResult = BaseClass::ModifyTacticalWeaponRange( flMinRange, flMaxRange );
+
+	CBaseEntity *pEnemy = GetEnemy();
+	if ( pEnemy && pEnemy->Classify() == CLASS_BULLSEYE && pEnemy->GetParent() )
+	{
+		// If this is a satchel or tripmine, then make sure we're not too close to it
+		float flMinTargetRange = 0.0f;
+		if ( m_hDangerTripmines.Find( pEnemy->GetParent() ) != m_hDangerTripmines.InvalidIndex() )
+		{
+			//CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(pEnemy->GetParent());
+			flMinTargetRange = 200.0f; // TODO: Un-hardcode tripmine radius
+		}
+		else if ( m_hDangerSatchels.Find( pEnemy->GetParent() ) != m_hDangerSatchels.InvalidIndex() )
+		{
+			CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(pEnemy->GetParent());
+			flMinTargetRange = pSatchel->m_DmgRadius.Get();
+		}
+
+		if ( flMinTargetRange > flMinRange )
+		{
+			flMinRange = flMinTargetRange;
+			bResult = true;
+		}
+	}
+
+	return bResult;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 bool CNPC_PlayerCompanion::AimTargetSoundHintFilter( void *pContext, CAI_Hint *pHint )
 {
 	CAI_BaseNPC *pNPC = (CAI_BaseNPC *)pContext;
@@ -4132,6 +4495,54 @@ bool CNPC_PlayerCompanion::OverrideMove( float flInterval )
 			}
 		}
 
+#ifdef EZ2
+		// Player squad ignores danger objects when ordered
+		if ( GetCommandGoal() == vec3_invalid )
+		{
+			FOR_EACH_VEC( m_hDangerSatchels, i )
+			{
+				// Create an obstacle around the satchel, if the satchel is visible
+				if ( m_hDangerSatchels[i] )
+				{
+					CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(m_hDangerSatchels[i].Get());
+
+					trace_t tr;
+					UTIL_TraceLine( pSatchel->GetAbsOrigin(), WorldSpaceCenter(), MASK_SHOT, pSatchel, COLLISION_GROUP_NONE, &tr );
+					if ( tr.fraction == 1.0f || tr.m_pEnt == this )
+					{
+						// Do not place an obstacle if we're already in the radius
+						float flDistToSatchelSqr = ( WorldSpaceCenter() - pSatchel->GetAbsOrigin() ).LengthSqr();
+						if ( flDistToSatchelSqr > Square( pSatchel->m_DmgRadius.Get() ) )
+							GetLocalNavigator()->AddObstacle( pSatchel->GetAbsOrigin(), pSatchel->m_DmgRadius.Get(), AIMST_AVOID_OBJECT );
+					}
+				}
+			}
+
+			FOR_EACH_VEC( m_hDangerTripmines, i )
+			{
+				// Create an obstacle at the closest point of the tripmine laser, if that point is visible to the tripmine
+				if ( m_hDangerTripmines[i] )
+				{
+					CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade *>(m_hDangerTripmines[i].Get());
+					Vector vecClosest;
+					CalcClosestPointOnLine( GetAbsOrigin(), pTripmine->GetAbsOrigin(), pTripmine->GetEnd(), vecClosest );
+
+					// Check if it's close enough to be within radius
+					if ( (pTripmine->GetAbsOrigin() - vecClosest).LengthSqr() < Square( 200.0f ) ) // TODO: un-hardcode tripmine radius
+					{
+						CTraceFilterTripmineBeam traceFilter( pTripmine, COLLISION_GROUP_NONE );
+						trace_t tr;
+						UTIL_TraceLine( pTripmine->GetAbsOrigin(), vecClosest, MASK_SHOT, &traceFilter, &tr );
+						if ( tr.fraction == 1.0f )
+						{
+							GetLocalNavigator()->AddObstacle( vecClosest, 32.0f, AIMST_AVOID_OBJECT );
+						}
+					}
+				}
+			}
+		}
+#endif
+
 		CBaseEntity *pEntity = NULL;
 		trace_t tr;
 		
@@ -4291,6 +4702,127 @@ bool CNPC_PlayerCompanion::MovementCost( int moveType, const Vector &vecStart, c
 				bResult = true;
 			}
 		}
+
+#ifdef EZ2
+		// Player squad ignores danger objects when ordered
+		if ( GetCommandGoal() == vec3_invalid )
+		{
+			// If we have any enemy tripmines, do not cross them
+			FOR_EACH_VEC_BACK( m_hDangerTripmines, i )
+			{
+				if ( m_hDangerTripmines[i] )
+				{
+					CTripmineGrenade *pTripmine = static_cast<CTripmineGrenade*>(m_hDangerTripmines[i].Get());
+
+					// TODO: Identify vertical tripmines
+
+					Vector vecTripmineOrigin = pTripmine->GetAbsOrigin();
+
+					// First, check if the nodes are on opposite sides (or if the end gets really close to the beam)
+					Vector vecToStart	= (vecTripmineOrigin - vecStart);
+					VectorNormalize( vecToStart );
+					Vector vecToEnd		= (vecTripmineOrigin - vecEnd);
+					VectorNormalize( vecToEnd );
+
+					Vector vecTripmineRight;
+					pTripmine->GetVectors( NULL, &vecTripmineRight, NULL );
+
+					float flToStartDot	= vecTripmineRight.Dot( vecToStart );
+					float flToEndDot	= vecTripmineRight.Dot( vecToEnd );
+
+					Vector vecClosest;
+					CalcClosestPointOnLine( vecEnd, vecTripmineOrigin, pTripmine->GetEnd(), vecClosest/*, &flDistFromEnd*/ );
+
+					float flDistFromEndSqr = ( vecEnd - vecClosest ).LengthSqr();
+
+					if ( ( flToStartDot > 0 && flToEndDot < 0 )
+						|| ( flToStartDot < 0 && flToEndDot > 0 )
+						|| flDistFromEndSqr <= Square( GetHullWidth() ) )
+					{
+						// Check if it's close enough to be within radius
+						if ( (vecTripmineOrigin - vecClosest).LengthSqr() < Square( 200.0f ) ) // TODO: un-hardcode tripmine radius
+						{
+							// Now check if the tripmine would actually see this point on the line
+							CTraceFilterTripmineBeam traceFilter( pTripmine, COLLISION_GROUP_NONE );
+							trace_t tr;
+							UTIL_TraceLine( vecTripmineOrigin, vecClosest, MASK_SHOT, &traceFilter, &tr );
+							if ( tr.fraction == 1.0f )
+							{
+								if ( m_debugOverlays & OVERLAY_NPC_SELECTED_BIT && ai_debug_nav.GetBool() )
+								{
+									NDebugOverlay::HorzArrow( vecStart, vecEnd, 4.0f, 255, 0, 0, 128, true, 3.0f );
+									NDebugOverlay::EntityTextAtPosition( vecEnd, 0, CFmtStr( "dist: %.2f", sqrt( flDistFromEndSqr ) ), 3.0f );
+									NDebugOverlay::EntityTextAtPosition( vecEnd, 1, CFmtStr( "dot 1: %.2f", flToStartDot ), 3.0f );
+									NDebugOverlay::EntityTextAtPosition( vecEnd, 2, CFmtStr( "dot 2: %.2f", flToEndDot ), 3.0f );
+								}
+
+								// Must absolutely avoid
+								// (this should be legal according to CAI_Pathfinder::FindBestPath)
+								*pCost = FLT_MAX;
+								return true;
+							}
+						}
+					}
+
+					if ( m_debugOverlays & OVERLAY_NPC_SELECTED_BIT && ai_debug_nav.GetBool() )
+					{
+						NDebugOverlay::HorzArrow( vecStart, vecEnd, 4.0f, 0, 255, 0, 128, true, 1.0f );
+					}
+				}
+				else
+				{
+					// Remove from the list
+					m_hDangerTripmines.Remove( i );
+				}
+			}
+
+			// If we have any enemy satchels, do not get near them
+			FOR_EACH_VEC_BACK( m_hDangerSatchels, i )
+			{
+				if ( m_hDangerSatchels[i] )
+				{
+					CSatchelCharge *pSatchel = static_cast<CSatchelCharge*>(m_hDangerSatchels[i].Get());
+
+					// Find the closest point to the satchel
+					Vector vecTarget;
+					CalcClosestPointOnLine( pSatchel->GetAbsOrigin(), vecStart, vecEnd, vecTarget );
+
+					Vector vecToTarget = (pSatchel->GetAbsOrigin() - vecTarget);
+					const float flSatchelRadiusSqr = Square( pSatchel->m_DmgRadius.Get() );
+
+					if ( vecToTarget.LengthSqr() < ( flSatchelRadiusSqr * 1.5f ) )
+					{
+						// Check if the satchel would actually see this point
+						trace_t tr;
+						UTIL_TraceLine( pSatchel->GetAbsOrigin(), vecTarget, MASK_SHOT, pSatchel, COLLISION_GROUP_NONE, &tr );
+						if ( tr.fraction == 1.0f )
+						{
+							if ( vecToTarget.LengthSqr() < flSatchelRadiusSqr )
+							{
+								// Must absolutely avoid
+								// (this should be legal according to CAI_Pathfinder::FindBestPath)
+								*pCost = FLT_MAX;
+								return true;
+							}
+							else
+							{
+								// Just prefer to stay away
+								*pCost *= RemapValClamped( vecToTarget.LengthSqr(), flSatchelRadiusSqr, flSatchelRadiusSqr * 1.5f,
+									2.0f, 1.0f );
+
+								bResult = true;
+							}
+						}
+					}
+				}
+				else
+				{
+					// Remove from the list
+					m_hDangerSatchels.Remove( i );
+				}
+			}
+		}
+#endif
 	}
 	return bResult;
 }

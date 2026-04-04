@@ -41,6 +41,8 @@ public:
 	void			Event_Killed( const CTakeDamageInfo &info );
 	void			Explode( trace_t *pTrace, int bitsDamageType );
 	int				UpdateTransmitState();
+	bool			CanBeSeenBy( CAI_BaseNPC *pNPC );
+	void			SetVisibleToNPCs( bool bVisible ) { m_bVisibleToNPCs = bVisible; }
 #endif
 
 	float			m_flNextBounceSoundTime;
@@ -63,6 +65,8 @@ private:
 
 #ifdef EZ2
 	EHANDLE				m_hAttacker;
+
+	bool				m_bVisibleToNPCs;
 #endif
 };
 

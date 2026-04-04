@@ -15,7 +15,7 @@
 #include "ai_playerally.h"
 #include "ai_network.h"
 #include "ai_link.h"
-#include "grenade_tripmine.h"
+#include "hl2mp/grenade_tripmine.h"
 #include "saverestore_utlvector.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -831,6 +831,7 @@ void CAI_TripminePlaceBehavior::HandleAnimEvent( animevent_t *pEvent )
 		}*/
 
 		pMine->SetOwnerEntity( GetOuter() );
+		pMine->SetVisibleToNPCs( true );
 		DispatchSpawn( pMine );
 		pMine->Activate();
 

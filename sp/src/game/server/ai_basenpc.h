@@ -2056,6 +2056,12 @@ public:
 	virtual float		InnateRange1MinRange( void ) { return 0.0f; }
 	virtual float		InnateRange1MaxRange( void ) { return FLT_MAX; }
 
+#ifdef EZ2
+	// Modifies weapon range when running LOS schedules
+	// (does not affect actual weapon range)
+	virtual bool		ModifyTacticalWeaponRange( float &flMinRange, float &flMaxRange ) { return false; }
+#endif
+
 	virtual bool		OnBeginMoveAndShoot( void )	{ return true; }
 	virtual void		OnEndMoveAndShoot( void )	{}
 

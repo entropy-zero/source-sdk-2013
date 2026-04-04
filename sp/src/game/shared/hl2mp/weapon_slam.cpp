@@ -22,8 +22,8 @@
 #else
 	#include "hl2_player.h"
 #endif
-	#include "grenade_tripmine.h"
-	#include "grenade_satchel.h"
+	#include "hl2mp/grenade_tripmine.h"
+	#include "hl2mp/grenade_satchel.h"
 	#include "entitylist.h"
 	#include "eventqueue.h"
 #endif
@@ -132,6 +132,10 @@ ConVar weapon_slam_no_detonator( "weapon_slam_no_detonator",
 	"0",
 #endif
 	FCVAR_REPLICATED, "Should weapon_slam use detonator animations and secondary fire detonator?" );
+#endif
+
+#if defined(EZ2) && !defined(CLIENT_DLL)
+ConVar weapon_slam_visible_to_npcs( "weapon_slam_visible_to_npcs", "1", FCVAR_NONE, "Whether or not tripmines and satchels created by weapon_slam are visible to NPCs" );
 #endif
 
 void CWeapon_SLAM::Spawn( )
@@ -444,6 +448,7 @@ void CWeapon_SLAM::TripmineAttach( void )
 
 #ifdef EZ2
 			pMine->SetOwnerEntity( GetOwnerEntity() );
+			pMine->SetVisibleToNPCs( weapon_slam_visible_to_npcs.GetBool() );
 			DispatchSpawn( pMine );
 			pMine->Activate();
 
@@ -557,7 +562,13 @@ void CWeapon_SLAM::SatchelThrow( void )
 		vecSrc   = pPlayer->WorldSpaceCenter() + vecFacing * 5.0;
 	}	
 
+#ifdef EZ2
+	CSatchelCharge *pSatchel = (CSatchelCharge*)CreateNoSpawn( "npc_satchel", vecSrc, vec3_angle, GetOwner() );
+	pSatchel->SetVisibleToNPCs( weapon_slam_visible_to_npcs.GetBool() );
+	DispatchSpawn( pSatchel );
+#else
 	CSatchelCharge *pSatchel = (CSatchelCharge*)Create( "npc_satchel", vecSrc, vec3_angle, GetOwner() );
+#endif
 
 	if ( pSatchel )
 	{
@@ -652,7 +663,13 @@ void CWeapon_SLAM::SatchelAttach( void )
 #ifdef EZ
 			EmitSound( "Weapon_SLAM.SatchelAttach" );
 #endif
+#ifdef EZ2
+			CSatchelCharge *pSatchel	= (CSatchelCharge*)CBaseEntity::CreateNoSpawn( "npc_satchel", tr.endpos + tr.plane.normal * 3, angles, NULL );
+			pSatchel->SetVisibleToNPCs( weapon_slam_visible_to_npcs.GetBool() );
+			DispatchSpawn( pSatchel );
+#else
 			CSatchelCharge *pSatchel	= (CSatchelCharge*)CBaseEntity::Create( "npc_satchel", tr.endpos + tr.plane.normal * 3, angles, NULL );
+#endif
 			pSatchel->SetMoveType( MOVETYPE_FLY ); // no gravity
 			pSatchel->m_bIsAttached		= true;
 			pSatchel->m_bIsLive			= true;
