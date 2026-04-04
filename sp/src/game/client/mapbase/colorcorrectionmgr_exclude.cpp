@@ -15,6 +15,9 @@
 #include "glow_overlay.h"
 #include "materialsystem/imaterialvar.h"
 #include "materialsystem/itexture.h"
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
 
 // NOTE: This has to be the last file included!
 #include "tier0/memdbgon.h"
@@ -149,6 +152,11 @@ void CColorCorrectionMgr::ColCorrectExcludeDefinition_t::DrawModel()
 
 extern ConVar mat_colcorrection_mask;
 
+#ifdef EZ2
+// Used in glow_outline_effect.cpp to prevent tinting while drawing exclusion glow
+bool g_bDrawingExclusionGlows = false;
+#endif
+
 void CColorCorrectionMgr::RenderExclusionObjects( const CViewSetup *pSetup )
 {
 	if ( m_nActiveMaskWeightCount > 0 && g_pMaterialSystemHardwareConfig->SupportsPixelShaders_2_0() )
@@ -221,6 +229,17 @@ void CColorCorrectionMgr::RenderExclusionModels( ITexture *pRenderTarget, const 
 
 	CGlowOverlay::DrawCCExcludeOverlays();
 
+#ifdef EZ2
+	// Exclude glow effects while cloaking
+	// TODO: Consider allowing this in Mapbase proper
+	if ( C_BasePlayer::GetLocalPlayer() && ToEZ2Player( C_BasePlayer::GetLocalPlayer() )->GetCloakFactor() > 0.0f )
+	{
+		g_bDrawingExclusionGlows = true;
+		g_GlowObjectManager.RenderGlowEffects( pSetup, 0 );
+		g_bDrawingExclusionGlows = false;
+	}
+#endif
+
 	if ( g_bDumpRenderTargets )
 	{
 		DumpTGAofRenderTarget( pSetup->width, pSetup->height, "ColCorrectMask" );
@@ -284,6 +303,11 @@ void CColorCorrectionMgr::ApplyColCorrectExclusionObjects( const CViewSetup *pSe
 
 		iNumGlowObjects++;
 	}
+
+#ifdef EZ2
+	if ( g_GlowObjectManager.m_GlowObjectDefinitions.Count() > 0 )
+		iNumGlowObjects++;
+#endif
 
 	pRenderContext->OverrideDepthEnable( false, false );
 	render->SetBlend( flSavedBlend );

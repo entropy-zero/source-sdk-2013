@@ -22,6 +22,11 @@ ConVar glow_outline_effect_width( "glow_outline_width", "10.0f", FCVAR_CHEAT, "W
 
 extern bool g_bDumpRenderTargets; // in viewpostprocess.cpp
 
+#ifdef EZ2
+// See colorcorrectionmgr_exclude.cpp
+extern bool g_bDrawingExclusionGlows;
+#endif
+
 CGlowObjectManager g_GlowObjectManager;
 
 struct ShaderStencilState_t
@@ -130,8 +135,20 @@ void CGlowObjectManager::RenderGlowModels( const CViewSetup *pSetup, int nSplitS
 			continue;
 
 		render->SetBlend( m_GlowObjectDefinitions[i].m_flGlowAlpha );
-		Vector vGlowColor = m_GlowObjectDefinitions[i].m_vGlowColor * m_GlowObjectDefinitions[i].m_flGlowAlpha;
-		render->SetColorModulation( &vGlowColor[0] ); // This only sets rgb, not alpha
+
+#ifdef EZ2
+		// When drawing exclusion glows, always tint full white
+		if ( g_bDrawingExclusionGlows )
+		{
+			Vector vGlowColor = Vector( 1.0f, 1.0f, 1.0f ) * m_GlowObjectDefinitions[i].m_flGlowAlpha;
+			render->SetColorModulation( &vGlowColor[0] );
+		}
+		else
+#endif
+		{
+			Vector vGlowColor = m_GlowObjectDefinitions[i].m_vGlowColor * m_GlowObjectDefinitions[i].m_flGlowAlpha;
+			render->SetColorModulation( &vGlowColor[0] ); // This only sets rgb, not alpha
+		}
 
 		m_GlowObjectDefinitions[i].DrawModel();
 	}	
