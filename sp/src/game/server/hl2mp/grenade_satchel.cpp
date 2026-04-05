@@ -294,6 +294,10 @@ bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
 			}
 		}
 
+		// Rely more on stealth senses for appropriate alertness
+		if ( pNPC->IsUsingStealthSenses() )
+			flThreshold *= 0.5f;
+
 		if ( flDot < flThreshold )
 			return false;
 	}

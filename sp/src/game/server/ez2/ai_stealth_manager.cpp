@@ -19,6 +19,7 @@
 #include "ai_hint.h"
 #include "ai_senses.h"
 #include "BasePropDoor.h"
+#include "basegrenade_shared.h"
 #include "saverestore_utlvector.h"
 #include "eventqueue.h"
 #include "con_nprint.h"
@@ -1231,6 +1232,16 @@ StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEnti
 					return STEALTH_OBJ_PROP_PICKUP;
 
 				return STEALTH_OBJ_PROP;
+			}
+		}
+		else if ( V_strncmp( pszClassname, "npc_", 4 ) == 0 ) // npc_tripmine/satchel
+		{
+			if ( FStrEq( pszClassname+4, "tripmine" ) || FStrEq( pszClassname+4, "satchel" ) )
+			{
+				// For now, only SLAMs placed by the player are valid curiosities
+				CBaseGrenade *pGrenade = static_cast<CBaseGrenade *>(pEntity);
+				if ( pGrenade->GetThrower() && pGrenade->GetThrower()->IsPlayer() )
+					return STEALTH_OBJ_SLAM;
 			}
 		}
 	}

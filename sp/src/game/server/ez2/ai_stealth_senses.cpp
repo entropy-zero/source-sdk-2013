@@ -378,8 +378,10 @@ bool CAI_StealthSenses::QuerySeeEntity( CBaseEntity *pEntity )
 
 			trace_t tr;
 			Vector vecEndPos = pEntity->EyePosition() + Vector( 0, 0, flDim );
-			UTIL_TraceHull( vecLookPos, vecEndPos, vecHullMins, vecHullMaxs, MASK_BLOCKLOS_AND_NPCS, GetOuter(), COLLISION_GROUP_NONE, &tr );
-			if (tr.fraction != 1.0 && tr.m_pEnt != pEntity)
+
+			CTraceFilterLOS traceFilter( GetOuter(), COLLISION_GROUP_NONE, pEntity );
+			UTIL_TraceHull( vecLookPos, vecEndPos, vecHullMins, vecHullMaxs, MASK_BLOCKLOS_AND_NPCS, &traceFilter, &tr );
+			if (tr.fraction != 1.0)
 			{
 				/*if ( g_debug_stealth_senses.GetBool() )
 				{
@@ -1098,7 +1100,9 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 	{
 		pTarget->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
 
-		flAlertLevelIncrease *= (pTarget->BoundingRadius() / ALERT_LEVEL_RADIUS_AVG);
+		// Be more perceptive of satchels and tripmines
+		if ( !g_hStealthManager || g_hStealthManager->GetStealthObjectType( pTarget ) != STEALTH_OBJ_SLAM )
+			flAlertLevelIncrease *= (pTarget->BoundingRadius() / ALERT_LEVEL_RADIUS_AVG);
 	}
 	
 	if (vecVelocity.LengthSqr() > 0)
