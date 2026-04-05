@@ -217,7 +217,7 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 			return false;
 		}
 	}
-	
+
 	if (pSound->SoundChannel() == SOUNDENT_CHANNEL_INJURY)
 	{
 		// Ignore injury sounds we don't see (unless we're really close to it)
@@ -233,13 +233,7 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 		if ( !pSound->m_hOwner || pSound->m_hOwner->Classify() == CLASS_BULLSEYE )
 			return false;
 	}
-	
-	// For now, ignore scents (the guards keep smelling bodies they shouldn't know about, but that means they go alert; maybe they should just investigate instead?)
-	if (pSound->FIsScent())
-	{
-		return false;
-	}
-	
+
 	// Don't hear stealth sounds if we have a real combat or danger sound
 	if (IsStealthSound(pSound) && (GetOuter()->HasCondition(COND_HEAR_COMBAT) || GetOuter()->HasCondition(COND_HEAR_DANGER)))
 	{
