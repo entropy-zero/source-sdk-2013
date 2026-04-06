@@ -34,4 +34,25 @@ enum CompromiseType_t
 
 //-----------------------------------------------------------------------------
 
+//=============================================================================
+// >> ENEMYMARKDATA_T
+// Used to track enemies when using enemy marking mode.
+//=============================================================================
+struct EnemyMarkData_t
+{
+#ifndef CLIENT_DLL
+	DECLARE_SIMPLE_DATADESC();
+#endif
+
+	CHandle<CBaseCombatCharacter>	hEnemy;
+	float							flLastTimeSeen;
+#ifdef CLIENT_DLL
+	Vector4D						clrOutline;
+	Vector4D						clrLastOutline;
+	float							flOutlineChangeTime;
+#else
+	Color							clrOutline;
+#endif
+};
+
 #endif

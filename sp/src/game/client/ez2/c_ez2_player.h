@@ -6,6 +6,7 @@
 
 #include "c_basehlplayer.h"
 #include "colorcorrectionmgr.h"
+#include "ez2/ai_stealth_shared.h"
 
 class C_PointDetonatable : public C_BaseEntity
 {
@@ -52,6 +53,10 @@ public:
 	void UpdateSLAMGlowEffect( void );
 	void DestroySLAMGlowEffect( void );
 
+	void	UpdateEnemyGlowEffect( void );
+	void	DestroyEnemyGlowEffect( void );
+	void	EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, int r, int g, int b, int a );
+
 	bool m_bBonusChallengeUpdate;
 	
 	EHANDLE m_hWarningTarget;
@@ -61,6 +66,10 @@ public:
 	CUtlVector<EHANDLE>	m_hActiveTripmines;
 	CUtlVector< CHandle<C_PointDetonatable> >	m_hActiveDetonatables;
 	CUtlVector<CGlowObject*>	m_pSLAMGlowEffects;
+
+	CUtlVector<EnemyMarkData_t>	m_MarkedEnemies;
+	CUtlVector<CGlowObject*>	m_pEnemyGlowEffects;
+	float						m_flNextMarkSightTime;
 
 	inline float	GetCloakFactor() const { return m_flCloakFactor; }
 	inline float	GetCloakCompromiseTime() const { return m_flCloakCompromiseTime; }

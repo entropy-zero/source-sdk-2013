@@ -24,6 +24,7 @@ class CAI_PlayerNPCDummy;
 class CEZ2_Player;
 class CTriggerStealthArea;
 struct SightEvent_t;
+struct EnemyMarkData_t;
 
 #define GLOBAL_PLAYER_ORDER_SURRENDER "player_ordered_surrenders"
 
@@ -267,6 +268,12 @@ public:
 	bool				CanBeSeenBy( CAI_BaseNPC *pNPC );
 	bool				ShouldShootMissTarget( CBaseCombatCharacter *pAttacker );
 
+	// Enemy marking
+	bool				IsMarkingEnemies() const { return m_bMarkEnemies; }
+	void				SetMarkEnemies( bool bEnabled );
+	const Color			&DetermineColorForEnemy( CBaseCombatCharacter *pEnemy, bool &bAlarm );
+	void				EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate = false );
+
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();
 	void				RemoveNPCComponent();
@@ -349,6 +356,11 @@ private:
 	int					m_flLastCloakCompromiseTypeChange;
 	CNetworkVar( float, m_flCloakTransitionStartTime );
 	float				m_flLastTouchEnemyTime;
+
+	// Enemy Marking
+	bool			m_bMarkEnemies;
+	float			m_flNextEnemyMarkTime;
+	CUtlVector<EnemyMarkData_t>	m_MarkedEnemies;
 
 	// Stealth system
 	float			m_flTimeEnteredStealthArea;

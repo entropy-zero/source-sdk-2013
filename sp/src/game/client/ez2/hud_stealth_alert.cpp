@@ -21,6 +21,7 @@
 DECLARE_HUDELEMENT( CHudStealthAlert );
 DECLARE_HUD_MESSAGE( CHudStealthAlert, AlertTargetUpdate );
 DECLARE_HUD_MESSAGE( CHudStealthAlert, AlertTargetEntersCombat );
+DECLARE_HUD_MESSAGE( CHudStealthAlert, EnemyMarkUpdate );
 
 using namespace vgui;
 
@@ -517,6 +518,7 @@ void CHudStealthAlert::Init( void )
 {
 	HOOK_HUD_MESSAGE( CHudStealthAlert, AlertTargetUpdate );
 	HOOK_HUD_MESSAGE( CHudStealthAlert, AlertTargetEntersCombat );
+	HOOK_HUD_MESSAGE( CHudStealthAlert, EnemyMarkUpdate );
 
 	SetBgColor( Color( 0, 0, 0, 0 ) );
 	SetPaintBackgroundType( 0 );
@@ -677,6 +679,22 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 		pEntity->EmitSound( "EZ2Player.AlertTarget.Spot" );
 		m_flNextAlertSoundTime = gpGlobals->curtime + 0.5f;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CHudStealthAlert::MsgFunc_EnemyMarkUpdate( bf_read &msg )
+{
+	C_BaseEntity *pEntity = C_BaseEntity::Instance( msg.ReadShort() );
+	float flLastTimeSeen = msg.ReadFloat();
+	int r = msg.ReadByte();
+	int g = msg.ReadByte();
+	int b = msg.ReadByte();
+	int a = msg.ReadByte();
+
+	C_EZ2_Player *pEZ2Player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+	pEZ2Player->EnemyMarkUpdate( pEntity, flLastTimeSeen, r, g, b, a );
 }
 
 //-----------------------------------------------------------------------------

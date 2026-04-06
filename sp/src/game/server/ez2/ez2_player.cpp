@@ -35,6 +35,7 @@
 #include "ai_stealth_manager.h"
 #include "ai_stealth_area.h"
 #include "ai_stealth_utils.h"
+#include "ai_stealth_behavior_alarm.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -46,6 +47,8 @@ ConVar player_dummy( "player_dummy", "1", FCVAR_NONE, "Enables the player NPC du
 ConVar player_use_instructor( "player_use_instructor", "1", FCVAR_NONE, "Enables game instructor hints instead of HL2 HUD hints" );
 
 ConVar player_silent_surrender( "player_silent_surrender", "1" );
+
+ConVar player_enemy_mark_mode( "player_enemy_mark_mode", "2" );
 
 extern ConVar sv_bonus_challenge;
 
@@ -76,6 +79,10 @@ BEGIN_DATADESC(CEZ2_Player)
 	DEFINE_FIELD( m_flLastCloakCompromiseTypeChange, FIELD_TIME ),
 	DEFINE_FIELD( m_flCloakTransitionStartTime, FIELD_TIME ),
 	DEFINE_FIELD( m_flLastTouchEnemyTime, FIELD_TIME ),
+
+	DEFINE_KEYFIELD( m_bMarkEnemies, FIELD_BOOLEAN, "MarkEnemies" ),
+	DEFINE_FIELD( m_flNextEnemyMarkTime, FIELD_TIME ),
+	DEFINE_UTLVECTOR( m_MarkedEnemies, FIELD_EMBEDDED ),
 
 	DEFINE_FIELD( m_flTimeEnteredStealthArea, FIELD_TIME ),
 
@@ -116,6 +123,9 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 	DEFINE_SCRIPTFUNC_NAMED( VScriptGetEnemy, "GetEnemy", "Gets the player's current enemy." )
 	DEFINE_SCRIPTFUNC( GetVisibleEnemies, "Gets the player's visible enemies." )
 	DEFINE_SCRIPTFUNC( GetCloseEnemies, "Gets the player's close enemies." )
+
+	DEFINE_SCRIPTFUNC( IsMarkingEnemies, "Returns true if marking enemies." )
+	DEFINE_SCRIPTFUNC( SetMarkEnemies, "Sets whether to mark enemies." )
 
 	DEFINE_SCRIPTFUNC( IsInAScript, "Returns true if the player is in a script." )
 
@@ -158,6 +168,14 @@ BEGIN_SIMPLE_DATADESC( SightEvent_t )
 
 END_DATADESC()
 */
+
+BEGIN_SIMPLE_DATADESC( EnemyMarkData_t )
+
+	DEFINE_FIELD( hEnemy, FIELD_EHANDLE ),
+	DEFINE_FIELD( flLastTimeSeen, FIELD_TIME ),
+	DEFINE_FIELD( clrOutline, FIELD_COLOR32 ),
+
+END_DATADESC()
 
 #define PLAYER_MIN_ENEMY_CONSIDER_DIST Square(4096)
 #define PLAYER_MIN_MOB_DIST_SQR Square(192)
@@ -204,6 +222,11 @@ REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerCloakDataT
 #define CLOAK_INVISIBLE_TO_NPCS_CANCEL_DIST		32
 
 #define CLOAK_ATTACK_DRAIN_MULT					0.25
+
+// Enemy Marking
+#define MARK_ENEMY_TICK_NORMAL			0.2
+#define MARK_ENEMY_TICK_NO_ENEMIES		0.5
+#define MARK_ENEMY_TICK_ALARM_INCOMING	0.05
 
 //-----------------------------------------------------------------------------
 // Purpose: Allow post-frame adjustments on the player
@@ -272,6 +295,61 @@ void CEZ2_Player::PostThink(void)
 						// Just check again in X seconds if we can't find what we're looking for
 						m_SightEvents[i]->flNextHintTime = gpGlobals->curtime + m_SightEvents[i]->flFailedCooldown;
 					}
+				}
+			}
+		}
+
+		if (m_bMarkEnemies && m_flNextEnemyMarkTime < gpGlobals->curtime)
+		{
+			// Go through our enemies
+			CAI_Enemies *pEnemies = GetNPCComponent()->GetEnemies();
+			if ( pEnemies->NumEnemies() > 0 )
+			{
+				bool bAnyAlarmIncoming = false;
+				AIEnemiesIter_t iter;
+				for ( AI_EnemyInfo_t *pEMemory = pEnemies->GetFirst(&iter); pEMemory != NULL; pEMemory = pEnemies->GetNext(&iter) )
+				{
+					CBaseCombatCharacter *pBCC = pEMemory->hEnemy->MyCombatCharacterPointer();
+					if (!pBCC)
+						continue;
+
+					if (pBCC->HasContext("no_glow:1"))
+						continue;
+
+					float flLastTimeSeen = pEMemory->timeLastSeen;
+					bool bAlarmIncoming = false;
+					const Color clrOutline = DetermineColorForEnemy( pBCC, bAlarmIncoming );
+					if ( bAlarmIncoming )
+					{
+						// Pretend they're visible now
+						flLastTimeSeen = gpGlobals->curtime;
+						bAnyAlarmIncoming = true;
+					}
+
+					EnemyMarkUpdate( pBCC, clrOutline, flLastTimeSeen, pEMemory->timeFirstSeen, bAlarmIncoming );
+				}
+
+				if ( bAnyAlarmIncoming )
+				{
+					m_flNextEnemyMarkTime = gpGlobals->curtime + MARK_ENEMY_TICK_ALARM_INCOMING;
+				}
+				else
+				{
+					m_flNextEnemyMarkTime = gpGlobals->curtime + MARK_ENEMY_TICK_NORMAL;
+				}
+			}
+			else
+			{
+				// Wait for enemies to appear
+				m_flNextEnemyMarkTime = gpGlobals->curtime + MARK_ENEMY_TICK_NO_ENEMIES;
+			}
+
+			// Clean up any invalid marks
+			FOR_EACH_VEC_BACK( m_MarkedEnemies, i )
+			{
+				if ( !m_MarkedEnemies[i].hEnemy || !pEnemies->Find( m_MarkedEnemies[i].hEnemy ) )
+				{
+					m_MarkedEnemies.Remove( i );
 				}
 			}
 		}
@@ -3288,6 +3366,231 @@ bool CEZ2_Player::ShouldShootMissTarget( CBaseCombatCharacter *pAttacker )
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::SetMarkEnemies( bool bEnabled )
+{
+	m_bMarkEnemies = bEnabled;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const Color &CEZ2_Player::DetermineColorForEnemy( CBaseCombatCharacter *pEnemy, bool &bAlarm )
+{
+	static const Color clrIdle		( 0, 255, 0, 255 );
+	static const Color clrAlert		( 255, 255, 0, 255 );
+	static const Color clrCombat	( 255, 0, 0, 255 );
+	static const Color clrNone		( 0, 0, 0, 0 );
+
+	if ( pEnemy->IsNPC() )
+	{
+		CAI_BaseNPC *pNPC = pEnemy->MyNPCPointer();
+
+		if ( pNPC->GetHintNode() )
+		{
+			// Check if they're raising the alarm
+			CAI_StealthAlarmBehavior *pBehavior;
+			if ( pNPC->GetBehavior( &pBehavior ) )
+			{
+				if ( pBehavior->IsRaisingAlarm() )
+				{
+					bAlarm = true;
+
+					// Alternate between red and white
+					int nCurDS = (int)(gpGlobals->curtime * 10);
+					if ( (nCurDS % 4) < 2 )
+					{
+						static const Color clrWhite( 255, 255, 255, 255 );
+						return clrWhite;
+					}
+					else
+					{
+						return clrCombat;
+					}
+				}
+			}
+		}
+
+		const char *pszCustomGlowClr = pNPC->GetContextValue( "glowColor" );
+		if ( pszCustomGlowClr && *pszCustomGlowClr )
+		{
+			int nRed = 0;
+			int nGreen = 0;
+			int nBlue = 0;
+
+			sscanf( pszCustomGlowClr, "%d %d %d", &nRed, &nGreen, &nBlue );
+
+			static Color clrCustom;
+			clrCustom.SetColor( nRed, nGreen, nBlue, 255 );
+			return clrCustom;
+		}
+
+		// Determine from state
+		switch ( pNPC->GetState() )
+		{
+			case NPC_STATE_COMBAT:
+				{
+					CBaseEntity *pEnemy = pNPC->GetEnemy();
+					if ( !pEnemy )
+						return clrAlert;
+
+					// Red if they are in combat with me
+					if ( pEnemy == this )
+						return clrCombat;
+
+					// Check for cases where they should be considered to be in combat with me
+					if ( pEnemy->Classify() == CLASS_BULLSEYE )
+					{
+						// UNDONE: Explicit suppressive fire check
+						//CNPC_Citizen *pCitizen = dynamic_cast<CNPC_Citizen *>(pEnemy);
+						//if ( pCitizen && pCitizen->IsInSupressingFire() )
+						{
+							// If we're shooting at a bullseye and they last acquired us less than 10 seconds ago,
+							// assume we are still their main target
+							AI_EnemyInfo_t *pMemoryOfMe = pNPC->GetEnemies()->Find( this );
+							if ( pMemoryOfMe && (gpGlobals->curtime - pMemoryOfMe->timeLastReacquired) < 10.0f )
+								return clrCombat;
+						}
+					}
+					
+					// Yellow if it's anyone else
+					return clrAlert;
+				}
+				break;
+			case NPC_STATE_ALERT:
+				{
+					// UNDONE: Orange when prepared to raise the alarm
+					return clrAlert;
+				}
+				break;
+			case NPC_STATE_IDLE:
+				{
+					if ( pNPC->ClassMatches("npc*turret_floor") )
+					{
+						// Turrets don't use NPC states, so we need special handling
+						if ( pNPC->GetEnemy() == this )
+							return clrCombat;
+						else if ( FStrEq( pNPC->GetActivityName( GetActivity() ), "ACT_FLOOR_TURRET_OPEN_IDLE" ) )
+							return clrAlert;
+
+						static const Color clrTurretIdle( 128, 153, 128, 255 );
+						return clrTurretIdle;
+					}
+
+					return clrIdle;
+				}
+				break;
+		}
+
+		// Maintain current color
+		return clrNone;
+	}
+
+	// TODO: Handling for non-NPCs?
+	return clrCombat;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate )
+{
+	// Find our existing data
+	int nIdx = m_MarkedEnemies.InvalidIndex();
+	FOR_EACH_VEC( m_MarkedEnemies, i )
+	{
+		if ( m_MarkedEnemies[i].hEnemy == pEnemy )
+		{
+			nIdx = i;
+			break;
+		}
+	}
+
+	if ( nIdx == m_MarkedEnemies.InvalidIndex() )
+	{
+		// Add a new one
+		nIdx = m_MarkedEnemies.AddToTail();
+		m_MarkedEnemies[nIdx].hEnemy = pEnemy;
+		m_MarkedEnemies[nIdx].flLastTimeSeen = gpGlobals->curtime;
+
+		// MP note: This transmits to all players, even if they don't have the enemy marked
+		// This is fine if we expect most players to mark the same enemies at once, but if this becomes a problem,
+		// consider adding a case for marking in CAI_BaseNPC::ShouldTransmit() instead
+		pEnemy->SetTransmitState( FL_EDICT_ALWAYS );
+	}
+	else if ( !bAlwaysUpdate )
+	{
+		// Since player NPC component can't look behind itself, do a straight visibility check rather than using enemy memory
+		if ( FVisible( pEnemy ) )
+			m_MarkedEnemies[nIdx].flLastTimeSeen = flLastTimeSeen = gpGlobals->curtime;
+		else
+			flLastTimeSeen = m_MarkedEnemies[nIdx].flLastTimeSeen;
+	}
+
+	Color clrNewOutline = clrOutline;
+
+	// No color = Use previous
+	if ( clrNewOutline.GetRawColor() == 0 )
+		clrNewOutline = m_MarkedEnemies[nIdx].clrOutline;
+
+	switch ( player_enemy_mark_mode.GetInt() )
+	{
+		// Always appear
+		case 0:
+			if ( gpGlobals->curtime - flLastTimeSeen <= 0.2f )
+				bAlwaysUpdate = true;
+			break;
+
+		// Only appear through walls and while cloaking or being alerted
+		case 1:
+			// If we are currently visible and we don't have an alert level for the player, and the player isn't cloaking, fade out
+			// Further updates to last time seen are not relevant until we're not visible again
+			if ( gpGlobals->curtime - flLastTimeSeen <= 0.2f && flLastTimeSeen - flFirstTimeSeen > 0.2f )
+			{
+				if (IsCloaking())
+					bAlwaysUpdate = true;
+				else if ( pEnemy->IsNPC() && pEnemy->MyNPCPointer()->IsUsingStealthSenses()
+					&& pEnemy->MyNPCPointer()->GetStealthSenses()->GetAlertLevelForTarget( this ) != 0.0f )
+					bAlwaysUpdate = true;
+				else if ( !bAlwaysUpdate )
+					clrNewOutline[3] = 0;
+			}
+			break;
+
+		// Only appear while cloaking or being alerted
+		case 2:
+			if (IsCloaking())
+				bAlwaysUpdate = true;
+			else if ( pEnemy->IsNPC() && pEnemy->MyNPCPointer()->IsUsingStealthSenses()
+				&& pEnemy->MyNPCPointer()->GetStealthSenses()->GetAlertLevelForTarget( this ) != 0.0f )
+				bAlwaysUpdate = true;
+			else if ( !bAlwaysUpdate )
+				clrNewOutline[3] = 0;
+
+			break;
+	}
+
+	// See if the color has changed
+	if ( m_MarkedEnemies[nIdx].clrOutline != clrNewOutline || bAlwaysUpdate )
+	{
+		// Send the message
+		CSingleUserRecipientFilter user( this );
+		user.MakeReliable();
+		UserMessageBegin( user, "EnemyMarkUpdate" );
+			WRITE_ENTITY( pEnemy->entindex() );
+			WRITE_FLOAT( flLastTimeSeen );
+			WRITE_BYTE( clrNewOutline.r() );
+			WRITE_BYTE( clrNewOutline.g() );
+			WRITE_BYTE( clrNewOutline.b() );
+			WRITE_BYTE( clrNewOutline.a() );
+		MessageEnd();
+
+		m_MarkedEnemies[nIdx].clrOutline = clrNewOutline;
+	}
 }
 
 //-----------------------------------------------------------------------------

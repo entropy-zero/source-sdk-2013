@@ -79,6 +79,7 @@ C_EZ2_Player::~C_EZ2_Player()
 {
 	DestroyGlowTargetEffect();
 	DestroySLAMGlowEffect();
+	DestroyEnemyGlowEffect();
 
 	g_pColorCorrectionMgr->RemoveColorCorrection( m_NVGCCHandle );
 	g_pColorCorrectionMgr->RemoveColorCorrection( m_CloakCCHandle );
@@ -158,6 +159,7 @@ void C_EZ2_Player::OnDataChanged( DataUpdateType_t updateType )
 
 	UpdateGlowTargetEffect();
 	UpdateSLAMGlowEffect();
+	UpdateEnemyGlowEffect();
 }
 
 //-----------------------------------------------------------------------------
@@ -370,6 +372,116 @@ void C_EZ2_Player::UpdateSLAMGlowEffect( void )
 void C_EZ2_Player::DestroySLAMGlowEffect( void )
 {
 	m_pSLAMGlowEffects.PurgeAndDeleteElements();
+}
+
+#define ENEMY_MARK_OUTLINE_TRANSITION	0.5f
+#define ENEMY_MARK_OUTLINE_TRANSITION	0.5f
+#define ENEMY_MARK_TIME					90.0f
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::UpdateEnemyGlowEffect( void )
+{
+	// destroy the existing effects
+	if ( m_pEnemyGlowEffects.Count() > 0 )
+	{
+		DestroyEnemyGlowEffect();
+	}
+
+	FOR_EACH_VEC_BACK( m_MarkedEnemies, i )
+	{
+		if ( !m_MarkedEnemies[i].hEnemy )
+		{
+			m_MarkedEnemies.Remove( i );
+			continue;
+		}
+
+		float flTimeSinceSeen = (gpGlobals->curtime - m_MarkedEnemies[i].flLastTimeSeen);
+		if ( flTimeSinceSeen > ENEMY_MARK_TIME )
+			continue;
+
+		Vector4D vecColor = m_MarkedEnemies[i].clrOutline;
+		if ( m_MarkedEnemies[i].flOutlineChangeTime > gpGlobals->curtime )
+		{
+			// Transition from the last color
+			float flTime = m_MarkedEnemies[i].flOutlineChangeTime - gpGlobals->curtime;
+			float flProgress = RemapVal( flTime, 0.0f, ENEMY_MARK_OUTLINE_TRANSITION, 0.0f, 1.0f );
+
+			//for ( int j = 0; j < 4; j++ )
+			// No need to do multiple at/m. Change if we ever transition more than alpha
+			{
+				vecColor[3] = Lerp( flProgress, m_MarkedEnemies[i].clrOutline[3], m_MarkedEnemies[i].clrLastOutline[3] );
+				//vecColor[j] = Lerp( flProgress, m_MarkedEnemies[i].clrOutline[j], m_MarkedEnemies[i].clrLastOutline[j] );
+			}
+		}
+
+		// Fade out as time goes on
+		vecColor.w *= 1.0f - (flTimeSinceSeen / ENEMY_MARK_TIME);
+
+		if ( vecColor.w == 0.0f )
+			continue;
+
+		// Add the glow effect
+		int iNewGlow = m_pEnemyGlowEffects.AddToTail();
+		m_pEnemyGlowEffects[iNewGlow] = new CGlowObject( m_MarkedEnemies[i].hEnemy, vecColor.AsVector3D(), vecColor.w, true, true );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::DestroyEnemyGlowEffect( void )
+{
+	m_pEnemyGlowEffects.PurgeAndDeleteElements();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, int r, int g, int b, int a )
+{
+	if ( !pEnemy )
+		return;
+
+	// Find our existing data
+	int nIdx = m_MarkedEnemies.InvalidIndex();
+	FOR_EACH_VEC( m_MarkedEnemies, i )
+	{
+		if ( m_MarkedEnemies[i].hEnemy == pEnemy )
+		{
+			nIdx = i;
+			break;
+		}
+	}
+
+	if ( nIdx == m_MarkedEnemies.InvalidIndex() )
+	{
+		// Add a new one
+		nIdx = m_MarkedEnemies.AddToTail();
+		m_MarkedEnemies[nIdx].hEnemy = pEnemy->MyCombatCharacterPointer();
+		m_MarkedEnemies[nIdx].flLastTimeSeen = gpGlobals->curtime;
+		m_MarkedEnemies[nIdx].clrOutline.Init();
+
+		Assert( pEnemy->IsBaseCombatCharacter() );
+	}
+	else
+		m_MarkedEnemies[nIdx].flLastTimeSeen = flLastTimeSeen;
+
+	Vector4D vecNewColor;
+	vecNewColor[0] = ((float)r) * (1.0f / 255.0f);
+	vecNewColor[1] = ((float)g) * (1.0f / 255.0f);
+	vecNewColor[2] = ((float)b) * (1.0f / 255.0f);
+	vecNewColor[3] = ((float)a) * (1.0f / 255.0f);
+
+	if ( vecNewColor != m_MarkedEnemies[nIdx].clrOutline )
+	{
+		m_MarkedEnemies[nIdx].clrLastOutline = m_MarkedEnemies[nIdx].clrOutline;
+		m_MarkedEnemies[nIdx].clrOutline = vecNewColor;
+
+		if ( m_MarkedEnemies[nIdx].clrOutline[3] != m_MarkedEnemies[nIdx].clrLastOutline[3] )
+			m_MarkedEnemies[nIdx].flOutlineChangeTime = gpGlobals->curtime + ENEMY_MARK_OUTLINE_TRANSITION;
+	}
 }
 
 //-----------------------------------------------------------------------------

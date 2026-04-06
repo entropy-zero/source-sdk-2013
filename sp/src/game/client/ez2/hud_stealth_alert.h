@@ -114,6 +114,7 @@ public:
 
 	void MsgFunc_AlertTargetUpdate( bf_read &msg );
 	void MsgFunc_AlertTargetEntersCombat( bf_read &msg );
+	void MsgFunc_EnemyMarkUpdate( bf_read &msg );
 
 	int CreateAlertTarget( CBaseEntity *pEntity, AlertSourceType_t iType, float flLevel, float flCombatTime, bool bTargetingPlayer );
 
