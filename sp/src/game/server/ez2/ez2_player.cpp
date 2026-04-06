@@ -3910,6 +3910,21 @@ void CAI_PlayerNPCDummy::OnStateChange( NPC_STATE OldState, NPC_STATE NewState )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CAI_PlayerNPCDummy::GetSoundInterests()
+{
+	// Base class's sound interests include combat and danger
+	int nMask = BaseClass::GetSoundInterests() | SOUND_PHYSICS_DANGER;
+
+	// Only smell while not in combat or stealth
+	if ( GetState() != NPC_STATE_COMBAT && ( !g_hStealthManager || g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_NONE ) ) )
+		nMask |= (SOUND_CARCASS | SOUND_MEAT);
+
+	return nMask;
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Return true if this NPC can hear the specified sound
 //-----------------------------------------------------------------------------
 bool CAI_PlayerNPCDummy::QueryHearSound( CSound *pSound )

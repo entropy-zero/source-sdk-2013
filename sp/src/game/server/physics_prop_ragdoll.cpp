@@ -27,6 +27,7 @@
 #ifdef EZ2
 #include "gib.h"
 #include "particle_parse.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -43,6 +44,7 @@ ConVar ragdoll_always_allow_use( "ragdoll_always_allow_use", "0", FCVAR_NONE, "A
 #ifdef EZ2
 ConVar ragdoll_ai_scent_radius( "ragdoll_ai_scent_radius", "2048", FCVAR_NONE, "Radius for server ragdoll AI scents" );
 ConVar ragdoll_ai_scent_time( "ragdoll_ai_scent_time", "15", FCVAR_NONE, "Duration for server ragdoll AI scents" );
+ConVar ragdoll_ai_scent_optimize( "ragdoll_ai_scent_optimize", "0", FCVAR_NONE, "Ragdolls only emit AI scents when interested NPCs are around to smell them" );
 ConVar ragdoll_gibs( "ragdoll_gibs", "1", FCVAR_NONE, "Should death ragdolls be destructible?" );
 #endif
 
@@ -347,6 +349,42 @@ void CRagdollProp::EmitScent()
 		if ( gpGlobals->curtime >= m_flNextScentTime )
 		{
 			int flags = SOUND_MEAT;
+
+			if ( g_hStealthManager || ragdoll_ai_scent_optimize.GetBool() )
+			{
+				// If a carcass rots and nobody's around to smell it, does it have a scent?
+				// (This is important to cut down on occupied slots in the sound list when there's lots of bodies around)
+				bool bNPCCanSmell = false;
+				CAI_BaseNPC **ppAIs = g_AI_Manager.AccessAIs();
+				int nAIs = g_AI_Manager.NumAIs();
+				float flMinRadiusSqr = Square( ragdoll_ai_scent_radius.GetFloat() * 1.25f ); // Slightly above the scent's radius
+				for ( int i = 0; i < nAIs; i++ )
+				{
+					CAI_BaseNPC *pNPC = ppAIs[ i ];
+
+					if ( pNPC->GetSoundInterests() & flags && pNPC->IsAlive()
+						&& pNPC->GetEfficiency() < AIE_DORMANT && pNPC->GetSleepState() == AISS_AWAKE )
+					{
+						// Check if they might get close enough
+						Vector vecToNPC = (GetAbsOrigin() - pNPC->GetAbsOrigin());
+						if ( vecToNPC.LengthSqr() < flMinRadiusSqr )
+						{
+							// Someone's around to smell it
+							bNPCCanSmell = true;
+							break;
+						}
+					}
+				}
+
+				if ( !bNPCCanSmell )
+				{
+					// Wait until someone can smell it
+					m_flNextScentTime = gpGlobals->curtime + 5.0f;
+					SetNextThink( m_flNextScentTime, "RagdollScentContext" );
+					return;
+				}
+			}
+
 			// The 'exlude zombies' thing is a little bit weird. Gonomes spawn these when they create headcrabs, plus headcrabs spawn them.
 			// For that reason, it would be awkward if gonomes could eat these. Maybe that can be improved.
 			if ( GetSourceClassification() == CLASS_ZOMBIE || GetSourceClassification() == CLASS_HEADCRAB )

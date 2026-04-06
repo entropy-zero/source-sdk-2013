@@ -412,8 +412,7 @@ public:
 	int 	TranslateSchedule( int scheduleType );
 	void 	OnStateChange( NPC_STATE OldState, NPC_STATE NewState );
 
-	// Base class's sound interests include combat and danger, add relevant scents onto it
-	int		GetSoundInterests( void ) { return BaseClass::GetSoundInterests() | SOUND_PHYSICS_DANGER | SOUND_CARCASS | SOUND_MEAT; }
+	int		GetSoundInterests( void );
 	bool	QueryHearSound( CSound *pSound );
 	bool	QuerySeeEntity( CBaseEntity *pEntity, bool bOnlyHateOrFearIfNPC = false );
 

@@ -2657,7 +2657,7 @@ int CNPC_PlayerCompanion::GetSoundInterests()
 			SOUND_MOVE_AWAY			|
 	// Companions can comment on smells unless in stealth mode
 	#ifdef EZ2
-		( IsUsingStealthSenses() ? 0 : (
+		( ( GetState() == NPC_STATE_COMBAT || IsUsingStealthSenses() ) ? 0 : (
 			SOUND_CARCASS	|
 			SOUND_MEAT		|
 			SOUND_GARBAGE ) )	|
