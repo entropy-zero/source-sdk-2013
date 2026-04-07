@@ -46,7 +46,6 @@
 #include "npcevent.h"
 #include "ai_squad.h"
 #include "ai_moveprobe.h"
-#include "collisionutils.h"
 #include "RagdollBoogie.h"
 #include "IEffects.h"
 #include "ai_interactions.h"
@@ -679,20 +678,6 @@ int CNPC_Assassin::SelectSchedule()
 {
 	CheckCloak();
 
-#ifdef EZ2
-	if ( HasCondition( COND_ASSASSIN_INCOMING_PROJECTILE ) )
-	{
-		if ( FVisible( m_hDodgeTarget ) )
-		{
-			if ( g_debug_assassin_dodge.GetBool() )
-			{
-				Msg( "Assassin %d try dodge projectile\n", entindex() );
-			}
-			return SCHED_ASSASSIN_DODGE_FLIP;
-		}
-	}
-#endif
-
 	return BaseClass::SelectSchedule();
 }
 
@@ -1051,22 +1036,6 @@ void CNPC_Assassin::StartTask( const Task_t *pTask )
 			break;
 		}
 
-		case TASK_ASSASSIN_FIND_DODGE_POSITION:
-		{
-			TaskFindDodgeActivity();
-			break;
-		}
-
-		case TASK_ASSASSIN_DODGE_FLIP:
-		{
-			if ( g_debug_assassin_dodge.GetBool() )
-			{
-				Msg( "Assassin %d dodging\n", entindex() );
-			}
-			SetActivity( ACT_ASSASSIN_FLIP );
-			break;
-		}
-
 		case TASK_DEFER_DODGE:
 			// Assassins can dodge again sooner
 			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.25f);
@@ -1132,17 +1101,6 @@ void CNPC_Assassin::RunTask( const Task_t *pTask )
 			CheckCloak();
 			break;
 		}
-
-		case TASK_ASSASSIN_DODGE_FLIP:
-			{
-				AutoMovement();
-
-				if ( IsActivityFinished() )
-				{
-					TaskComplete();
-				}
-				break;
-			}
 
 		default:
 			BaseClass::RunTask( pTask );
@@ -1354,240 +1312,46 @@ void CNPC_Assassin::OnChangeActivity( Activity eNewActivity )
 }
 
 #ifdef EZ2
-// From npc_hunter.cpp
-extern CUtlVector<CBaseEntity *> g_pDodgeableProjectiles;
-
-extern void HunterTraceHull_SkipPhysics_Extern( const Vector &vecAbsStart, const Vector &vecAbsEnd, const Vector &hullMin,
-	const Vector &hullMax, unsigned int mask, const CBaseEntity *ignore,
-	int collisionGroup, trace_t *ptr, float minMass );
-
 //-----------------------------------------------------------------------------
-// Purpose: Extremely experimental code for dodging numerous types of entities
+// Purpose: 
 //-----------------------------------------------------------------------------
-bool CNPC_Assassin::CheckDodgeConditions( bool bSeeEnemy )
+bool CNPC_Assassin::ShouldDodgeProjectile( CBaseEntity *pProjectile )
 {
-	// Attempt to dodge relevant projectiles, e.g. Combine balls
-	for (int i = 0; i < g_pDodgeableProjectiles.Count(); i++)
-	{
-		CBaseEntity *pProjectile = g_pDodgeableProjectiles[i];
-		if (pProjectile /*&& pProjectile->GetOwnerEntity() && IRelationType(pProjectile->GetOwnerEntity()) <= D_FR*/)
-		{
-			if (pProjectile->GetAbsOrigin().AsVector2D().DistToSqr(GetAbsOrigin().AsVector2D()) <= Square(1024))
-			{
-				if (CheckDodge(pProjectile))
-					return true;
-			}
-		}
-	}
-
-	return false;
+	// Disregard base class viewcone check
+	// Assassins have super reflexes
+	return true;
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CNPC_Assassin::CheckDodge( CBaseEntity *pVehicle )
+Activity CNPC_Assassin::GetDodgeActivity()
 {
-	static float timeDrawnArrow;
-
-	// Extrapolate the position of the vehicle and see if it's heading toward us.
-	float predictTime = sk_assassin_dodge_warning.GetFloat();
-	Vector2D vecFuturePos = pVehicle->GetAbsOrigin().AsVector2D() + pVehicle->GetSmoothedVelocity().AsVector2D() * predictTime;
-	if ( pVehicle->GetSmoothedVelocity().LengthSqr() > Square( 200 ) )
-	{
-		float t = 0;
-		Vector2D vDirMovement = pVehicle->GetSmoothedVelocity().AsVector2D();
-		if ( g_debug_assassin_dodge.GetBool() )
-		{
-			NDebugOverlay::Line( pVehicle->GetAbsOrigin(), pVehicle->GetAbsOrigin() + pVehicle->GetSmoothedVelocity(), 255, 255, 255, true, .1 );
-		}
-		vDirMovement.NormalizeInPlace();
-		Vector2D vDirToHunter = GetAbsOrigin().AsVector2D() - pVehicle->GetAbsOrigin().AsVector2D();
-		vDirToHunter.NormalizeInPlace();
-		if ( DotProduct2D( vDirMovement, vDirToHunter ) > sk_assassin_dodge_warning_cone.GetFloat() &&
-			 CalcDistanceSqrToLine2D( GetAbsOrigin().AsVector2D(), pVehicle->GetAbsOrigin().AsVector2D(), vecFuturePos, &t ) < Square( sk_assassin_dodge_warning_width.GetFloat() * .5 ) &&
-			 t > 0.0 && t < 1.0 )
-		{
-			if ( fabs( predictTime - sk_assassin_dodge_warning.GetFloat() ) < .05 || random->RandomInt( 0, 3 ) )
-			{
-				SetCondition( COND_ASSASSIN_INCOMING_PROJECTILE );
-				m_hDodgeTarget = pVehicle;
-			}
-			else
-			{
-				if ( g_debug_assassin_dodge. GetBool() )
-				{
-					Msg( "Assassin %d failing dodge (ignore)\n", entindex() );
-				}
-			}
-
-			if ( g_debug_assassin_dodge. GetBool() )
-			{
-				NDebugOverlay::Cross3D( EyePosition(), 100, 255, 255, 255, true, .1 );
-				if ( timeDrawnArrow != gpGlobals->curtime )
-				{
-					timeDrawnArrow = gpGlobals->curtime;
-					Vector vEndpoint( vecFuturePos.x, vecFuturePos.y, UTIL_GetLocalPlayer()->WorldSpaceCenter().z - 24 );
-					NDebugOverlay::HorzArrow( UTIL_GetLocalPlayer()->WorldSpaceCenter() - Vector(0, 0, 24), vEndpoint, sk_assassin_dodge_warning_width.GetFloat(), 255, 0, 0, 64, true, .1 );
-				}
-			}
-		}
-		else if ( g_debug_assassin_dodge.GetBool() )
-		{
-			if ( t <= 0 )
-			{
-				NDebugOverlay::Cross3D( EyePosition(), 100, 0, 0, 255, true, .1 );
-			}
-			else
-			{
-				NDebugOverlay::Cross3D( EyePosition(), 100, 0, 255, 255, true, .1 );
-			}
-		}
-	}
-	else if ( g_debug_assassin_dodge.GetBool() )
-	{
-		NDebugOverlay::Cross3D( EyePosition(), 100, 0, 255, 0, true, .1 );
-	}
-	if ( g_debug_assassin_dodge.GetBool() )
-	{
-		if ( timeDrawnArrow != gpGlobals->curtime )
-		{
-			timeDrawnArrow = gpGlobals->curtime;
-			Vector vEndpoint( vecFuturePos.x, vecFuturePos.y, UTIL_GetLocalPlayer()->WorldSpaceCenter().z - 24 );
-			NDebugOverlay::HorzArrow( UTIL_GetLocalPlayer()->WorldSpaceCenter() - Vector(0, 0, 24), vEndpoint, sk_assassin_dodge_warning_width.GetFloat(), 127, 127, 127, 64, true, .1 );
-		}
-	}
-
-	return m_hDodgeTarget.Get() != NULL;
+	return ACT_ASSASSIN_FLIP;
 }
 
 //-----------------------------------------------------------------------------
-// The player is speeding toward us in a vehicle! Find a good activity for dodging.
+// Purpose: 
 //-----------------------------------------------------------------------------
-void CNPC_Assassin::TaskFindDodgeActivity()
+float CNPC_Assassin::GetDodgeWarning()
 {
-	CBaseEntity *pDodgeTarget = m_hDodgeTarget;
-	Vector vecDodgeTargetVel;
-	if (pDodgeTarget == NULL)
-	{
-		// See if there's an AI target to jump away from instead
-		// In this situation, direction is used and velocity is ignored
-		pDodgeTarget = GetTarget();
-		if (pDodgeTarget)
-		{
-			pDodgeTarget->GetVectors( &vecDodgeTargetVel, NULL, NULL );
-			vecDodgeTargetVel *= 100.0f;
-		}
-	}
-	else
-	{
-		vecDodgeTargetVel = pDodgeTarget->GetSmoothedVelocity();
-	}
-	
-	if (pDodgeTarget == NULL )
-	{
-		TaskFail( "No target to dodge" );
-		return;
-	}
+	return sk_assassin_dodge_warning.GetFloat();
+}
 
-	Vector vecUp;
-	Vector vecRight;
-	GetVectors( NULL, &vecRight, &vecUp );
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Assassin::GetDodgeWarningCone()
+{
+	return sk_assassin_dodge_warning_cone.GetFloat();
+}
 
-	// TODO: find most perpendicular 8-way dodge when we get the anims
-	Vector vecEnemyDir = pDodgeTarget->GetAbsOrigin() - GetAbsOrigin();
-	//Vector vecDir = CrossProduct( vecEnemyDir, vecUp );
-	VectorNormalize( vecEnemyDir );
-	/*
-	if ( fabs( DotProduct( vecEnemyDir, vecRight ) ) > 0.7 )
-	{
-		TaskFail( "Can't dodge, enemy approaching perpendicularly" );
-		return;
-	}
-	*/
-
-	float flDodgeDirection;
-	bool bStartLeft = false;
-	{
-		Ray_t enemyRay;
-		Ray_t perpendicularRay;
-		enemyRay.Init( pDodgeTarget->GetAbsOrigin(), pDodgeTarget->GetAbsOrigin() + vecDodgeTargetVel );
-		Vector vPerpendicularPt = vecEnemyDir;
-		vPerpendicularPt.y = -vPerpendicularPt.y;
-		perpendicularRay.Init( GetAbsOrigin(), GetAbsOrigin() + vPerpendicularPt );
-
-		enemyRay.m_Start.z = enemyRay.m_Delta.z = enemyRay.m_StartOffset.z;
-		perpendicularRay.m_Start.z = perpendicularRay.m_Delta.z = perpendicularRay.m_StartOffset.z;
-
-		float t, s;
-
-		IntersectRayWithRay( perpendicularRay, enemyRay, t, s );
-
-		QAngle angDodgeAngle;
-		VectorAngles( vecEnemyDir, angDodgeAngle );
-
-		flDodgeDirection = GetAbsAngles().y - angDodgeAngle.y;
-		if (t > 0)
-		{
-			flDodgeDirection += 90.0f;
-			bStartLeft = true;
-		}
-		else
-			flDodgeDirection -= 90.0f;
-
-		if (g_debug_assassin_dodge.GetBool())
-			Msg( "Dodge direction is %f\n", flDodgeDirection );
-	}
-
-	bool bFoundDir = false;
-	int nTries = 0;
-
-	while ( !bFoundDir && ( nTries < 3 ) )
-	{
-		SetPoseParameter( LookupPoseMoveYaw(), flDodgeDirection );
-
-		// See where the dodge will put us.
-		Vector vecLocalDelta;
-		int nSeq = SelectWeightedSequence( ACT_ASSASSIN_FLIP );
-		GetSequenceLinearMotion( nSeq, &vecLocalDelta );
-
-		// Transform the sequence delta into local space.
-		matrix3x4_t fRotateMatrix;
-		AngleMatrix( GetLocalAngles(), fRotateMatrix );
-		Vector vecDelta;
-		VectorRotate( vecLocalDelta, fRotateMatrix, vecDelta );
-
-		// Trace a bit high so this works better on uneven terrain.
-		Vector testHullMins = GetHullMins();
-		testHullMins.z += ( StepHeight() * 2 );
-
-		// See if all is clear in that direction.
-		trace_t tr;
-		HunterTraceHull_SkipPhysics_Extern( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), MASK_NPCSOLID, this, GetCollisionGroup(), &tr, VPhysicsGetObject()->GetMass() * 0.5f );
-
-		// TODO: dodge anyway if we'll make it a certain percentage of the way through the dodge?
-		if ( tr.fraction == 1.0f )
-		{
-			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 0, 255, 0, 128, 5 );
-			bFoundDir = true;
-			TaskComplete();
-		}
-		else
-		{
-			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 255, 0, 0, 128, 5 );
-			nTries++;
-			flDodgeDirection += (bStartLeft ? 90.0f : -90.0f);
-		}
-	}
-
-	if ( nTries < 3 )
-	{
-		TaskComplete();
-	}
-	else
-	{
-		TaskFail( "Couldn't find dodge position\n" );
-	}
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Assassin::GetDodgeWarningWidth()
+{
+	return sk_assassin_dodge_warning_width.GetFloat();
 }
 #endif
 
@@ -1597,17 +1361,6 @@ void CNPC_Assassin::TaskFindDodgeActivity()
 void CNPC_Assassin::GatherConditions()
 {
 	BaseClass::GatherConditions();
-
-#ifdef EZ2
-	ClearCondition( COND_ASSASSIN_INCOMING_PROJECTILE );
-
-	m_hDodgeTarget = NULL;
-	if ( m_IgnoreProjectileTimer.Expired() )
-	{
-		bool bEnemyCondition = (GetEnemy() && HasCondition( COND_SEE_ENEMY ));
-		CheckDodgeConditions( bEnemyCondition );
-	}
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1671,12 +1424,6 @@ void CNPC_Assassin::BuildScheduleTestBits( void )
 	{
 		SetCustomInterruptCondition( COND_ASSASSIN_CLOAK_RETREAT );
 	}
-
-	// Interrupt everything if we need to dodge.
-	if ( !IsCurSchedule( SCHED_ASSASSIN_DODGE_FLIP, false ) )
-	{
-		SetCustomInterruptCondition( COND_ASSASSIN_INCOMING_PROJECTILE );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1732,7 +1479,7 @@ bool CNPC_Assassin::FCanCheckAttacks( void )
 //-----------------------------------------------------------------------------
 bool CNPC_Assassin::CanBeHitByMeleeAttack( CBaseEntity *pAttacker )
 {
-	if( IsCurSchedule(SCHED_DUCK_DODGE) || IsCurSchedule(SCHED_ASSASSIN_DODGE_FLIP) )
+	if( IsCurSchedule(SCHED_DUCK_DODGE) )
 	{
 		return false;
 	}
@@ -1770,7 +1517,7 @@ bool CNPC_Assassin::HandleInteraction(int interactionType, void *data, CBaseComb
 			{
 				UpdateEnemyMemory( sourceEnt, sourceEnt->GetAbsOrigin(), this );
 				SetTarget( sourceEnt );
-				SetSchedule( SCHED_ASSASSIN_DODGE_FLIP );
+				SetSchedule( SCHED_COMBINE_DODGE );
 			}
 		}
 
@@ -2183,15 +1930,12 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 
 	DECLARE_CONDITION( COND_ASSASSIN_ENEMY_TARGETING_ME )
 	DECLARE_CONDITION( COND_ASSASSIN_CLOAK_RETREAT )
-	DECLARE_CONDITION( COND_ASSASSIN_INCOMING_PROJECTILE )
 
 	DECLARE_TASK( TASK_ASSASSIN_WAIT_FOR_CLOAK )
 	DECLARE_TASK( TASK_ASSASSIN_WAIT_FOR_CLOAK_RECHARGE )
 	DECLARE_TASK( TASK_ASSASSIN_CHECK_CLOAK )
 	DECLARE_TASK( TASK_ASSASSIN_START_PERCHING )
 	DECLARE_TASK( TASK_ASSASSIN_PERCH )
-	DECLARE_TASK( TASK_ASSASSIN_FIND_DODGE_POSITION )
-	DECLARE_TASK( TASK_ASSASSIN_DODGE_FLIP )
 
 	DEFINE_SCHEDULE
 	(
@@ -2394,17 +2138,6 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 		//"		COND_HEAVY_DAMAGE"
 		"		COND_ENEMY_OCCLUDED"
 		//"		COND_ASSASSIN_CLOAK_RETREAT"
-	)
-
-	DEFINE_SCHEDULE
-	(
-		SCHED_ASSASSIN_DODGE_FLIP,
-
-		"	Tasks"
-		"		TASK_ASSASSIN_FIND_DODGE_POSITION		0"
-		"		TASK_ASSASSIN_DODGE_FLIP				0"
-		""
-		"	Interrupts"
 	)
 
 AI_END_CUSTOM_NPC()

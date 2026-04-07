@@ -55,9 +55,13 @@ public:
 	Vector		GetActualShootPosition( const Vector &shootOrigin );
 
 #ifdef EZ2
-	void		TaskFindDodgeActivity();
-	bool		CheckDodgeConditions( bool bSeeEnemy );
-	bool		CheckDodge( CBaseEntity *pTarget );
+	bool		ShouldDodgeProjectile( CBaseEntity *pProjectile );
+	bool		CanDodgeSounds() { return true; }
+	bool		CanDodgeProjectiles() { return true; }
+	Activity	GetDodgeActivity();
+	float		GetDodgeWarning();
+	float		GetDodgeWarningCone();
+	float		GetDodgeWarningWidth();
 #endif
 
 	void		GatherConditions();
@@ -121,7 +125,6 @@ private:
 	{
 		COND_ASSASSIN_ENEMY_TARGETING_ME = BaseClass::NEXT_CONDITION,
 		COND_ASSASSIN_CLOAK_RETREAT,
-		COND_ASSASSIN_INCOMING_PROJECTILE,
 
 		SCHED_ASSASSIN_RANGE_ATTACK1 = BaseClass::NEXT_SCHEDULE,
 		SCHED_ASSASSIN_MELEE_ATTACK1,
@@ -133,15 +136,12 @@ private:
 		SCHED_ASSASSIN_FLANK_RANDOM,
 		SCHED_ASSASSIN_FLANK_FALLBACK,
 		SCHED_ASSASSIN_DODGE_KICK,
-		SCHED_ASSASSIN_DODGE_FLIP,
 
 		TASK_ASSASSIN_WAIT_FOR_CLOAK = BaseClass::NEXT_TASK,
 		TASK_ASSASSIN_WAIT_FOR_CLOAK_RECHARGE,
 		TASK_ASSASSIN_CHECK_CLOAK,
 		TASK_ASSASSIN_START_PERCHING,
 		TASK_ASSASSIN_PERCH,
-		TASK_ASSASSIN_FIND_DODGE_POSITION,
-		TASK_ASSASSIN_DODGE_FLIP,
 	};
 
 	bool						m_bDualWeapons;
@@ -155,13 +155,6 @@ private:
 	bool						m_bUseEyeTrail;
 
 	float		m_flLastFlipEndTime;
-
-#ifdef EZ2
-	// Borrowed from hunters
-	Activity		m_eDodgeActivity;
-	EHANDLE			m_hDodgeTarget;
-	CSimpleSimTimer m_IgnoreProjectileTimer;
-#endif
 
 	bool		m_bCanCloakDuringAI;	// Whether we can automatically cloak while in combat
 	bool		m_bNoCloakSound;		// Turns off default cloak/uncloak sounds

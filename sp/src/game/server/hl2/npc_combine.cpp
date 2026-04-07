@@ -47,6 +47,7 @@
 #ifdef EZ2
 #include "ez2/ez2_player.h"
 #include "npc_citizen17.h"
+#include "collisionutils.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -75,6 +76,13 @@ ConVar npc_combine_give_stare_time( "npc_combine_give_stare_time", "1", FCVAR_NO
 ConVar npc_combine_order_surrender_max_dist( "npc_combine_order_surrender_max_dist", "224", FCVAR_NONE, "The maximum distance a soldier can order surrenders from. Beyond that, they will only pursue." );
 ConVar npc_combine_order_surrender_min_tlk_surrender( "npc_combine_order_surrender_min_tlk_surrender", "2.0", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_SURRENDER before being considered for surrenders, assuming they haven't already spoken TLK_BEG." );
 ConVar npc_combine_order_surrender_min_tlk_beg( "npc_combine_order_surrender_min_tlk_beg", "0.5", FCVAR_NONE, "The minimum amount of time that must pass after a citizen speaks TLK_BEG before being considered for surrenders, assuming they haven't already spoken TLK_SURRENDER." );
+
+ConVar	g_debug_combine_dodge( "g_debug_combine_dodge", "0" );
+ConVar	sk_combine_dodge_sounds( "sk_combine_dodge_sounds", "1" );
+ConVar	sk_combine_dodge_projectiles( "sk_combine_dodge_projectiles", "1" );
+ConVar	sk_combine_dodge_warning( "sk_combine_dodge_warning", "1.1" );
+ConVar	sk_combine_dodge_warning_width( "sk_combine_dodge_warning_width", "180" );
+ConVar	sk_combine_dodge_warning_cone( "sk_combine_dodge_warning_cone", ".5" );
 
 ConVar	sk_combine_heal_player( "sk_combine_heal_player", "25" );
 ConVar	sk_combine_heal_player_delay( "sk_combine_heal_player_delay", "25" );
@@ -242,6 +250,9 @@ Activity ACT_TURRET_CARRY_RUN;
 #ifdef EZ
 extern int ACT_METROPOLICE_DEPLOY_MANHACK;
 #endif
+#ifdef EZ2
+Activity ACT_DODGE_HOP;
+#endif
 
 // -----------------------------------------------
 //	> Squad slots
@@ -325,6 +336,7 @@ DEFINE_KEYFIELD( m_iAmmoAmount, FIELD_INTEGER, "ammoamount" ),
 DEFINE_INPUT( m_bTossesMedkits, FIELD_BOOLEAN, "SetTossMedkits" ),
 #endif
 #ifdef EZ2
+DEFINE_FIELD( m_hDodgeTarget, FIELD_EHANDLE ),
 DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
 DEFINE_FIELD( m_flTimeSinceObstructed, FIELD_TIME ),
 #endif
@@ -1336,6 +1348,341 @@ bool CNPC_Combine::IsGiveableItem( CBaseEntity *pItem )
 
 	return false;
 }
+
+#ifdef EZ2
+// From npc_hunter.cpp
+extern CUtlVector<CBaseEntity *> g_pDodgeableProjectiles;
+
+extern void HunterTraceHull_SkipPhysics_Extern( const Vector &vecAbsStart, const Vector &vecAbsEnd, const Vector &hullMin,
+	const Vector &hullMax, unsigned int mask, const CBaseEntity *ignore,
+	int collisionGroup, trace_t *ptr, float minMass );
+
+//-----------------------------------------------------------------------------
+// Purpose: Extremely experimental code for dodging numerous types of entities
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CheckDodgeConditions( bool bSeeEnemy )
+{
+	// Attempt to dodge relevant projectiles, e.g. Combine balls
+	for (int i = 0; i < g_pDodgeableProjectiles.Count(); i++)
+	{
+		CBaseEntity *pProjectile = g_pDodgeableProjectiles[i];
+		if (pProjectile /*&& pProjectile->GetOwnerEntity() && IRelationType(pProjectile->GetOwnerEntity()) <= D_FR*/)
+		{
+			if (pProjectile->GetAbsOrigin().AsVector2D().DistToSqr(GetAbsOrigin().AsVector2D()) <= Square(1024))
+			{
+				if (ShouldDodgeProjectile(pProjectile) && CheckDodge(pProjectile))
+					return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CheckDodge( CBaseEntity *pVehicle )
+{
+	static float timeDrawnArrow;
+
+	// Extrapolate the position of the vehicle and see if it's heading toward us.
+	float predictTime = GetDodgeWarning();
+	Vector2D vecFuturePos = pVehicle->GetAbsOrigin().AsVector2D() + pVehicle->GetSmoothedVelocity().AsVector2D() * predictTime;
+	if ( pVehicle->GetSmoothedVelocity().LengthSqr() > Square( 100 ) ) // Square( 200 )
+	{
+		float t = 0;
+		Vector2D vDirMovement = pVehicle->GetSmoothedVelocity().AsVector2D();
+		if ( g_debug_combine_dodge.GetBool() )
+		{
+			NDebugOverlay::Line( pVehicle->GetAbsOrigin(), pVehicle->GetAbsOrigin() + pVehicle->GetSmoothedVelocity(), 255, 255, 255, true, .1 );
+		}
+		vDirMovement.NormalizeInPlace();
+		Vector2D vDirToHunter = GetAbsOrigin().AsVector2D() - pVehicle->GetAbsOrigin().AsVector2D();
+		vDirToHunter.NormalizeInPlace();
+		if ( DotProduct2D( vDirMovement, vDirToHunter ) > GetDodgeWarningCone() &&
+			 CalcDistanceSqrToLine2D( GetAbsOrigin().AsVector2D(), pVehicle->GetAbsOrigin().AsVector2D(), vecFuturePos, &t ) < Square( GetDodgeWarningWidth() * .5 ) &&
+			 t > 0.0 && t < 1.0 )
+		{
+			if ( fabs( predictTime - GetDodgeWarning() ) < .05 || random->RandomInt( 0, 3 ) )
+			{
+				SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+				m_hDodgeTarget = pVehicle;
+			}
+			else
+			{
+				if ( g_debug_combine_dodge.GetBool() )
+				{
+					Msg( "Soldier %d failing dodge (ignore)\n", entindex() );
+				}
+			}
+
+			if ( g_debug_combine_dodge.GetBool() )
+			{
+				NDebugOverlay::Cross3D( EyePosition(), 100, 255, 255, 255, true, .1 );
+				if ( timeDrawnArrow != gpGlobals->curtime )
+				{
+					timeDrawnArrow = gpGlobals->curtime;
+					Vector vEndpoint( vecFuturePos.x, vecFuturePos.y, UTIL_GetLocalPlayer()->WorldSpaceCenter().z - 24 );
+					NDebugOverlay::HorzArrow( UTIL_GetLocalPlayer()->WorldSpaceCenter() - Vector(0, 0, 24), vEndpoint, GetDodgeWarningWidth(), 255, 0, 0, 64, true, .1 );
+				}
+			}
+		}
+		else if ( g_debug_combine_dodge.GetBool() )
+		{
+			if ( t <= 0 )
+			{
+				NDebugOverlay::Cross3D( EyePosition(), 100, 0, 0, 255, true, .1 );
+			}
+			else
+			{
+				NDebugOverlay::Cross3D( EyePosition(), 100, 0, 255, 255, true, .1 );
+			}
+		}
+	}
+	else if ( g_debug_combine_dodge.GetBool() )
+	{
+		NDebugOverlay::Cross3D( EyePosition(), 100, 0, 255, 0, true, .1 );
+	}
+	if ( g_debug_combine_dodge.GetBool() )
+	{
+		if ( timeDrawnArrow != gpGlobals->curtime )
+		{
+			timeDrawnArrow = gpGlobals->curtime;
+			Vector vEndpoint( vecFuturePos.x, vecFuturePos.y, UTIL_GetLocalPlayer()->WorldSpaceCenter().z - 24 );
+			NDebugOverlay::HorzArrow( UTIL_GetLocalPlayer()->WorldSpaceCenter() - Vector(0, 0, 24), vEndpoint, GetDodgeWarningWidth(), 127, 127, 127, 64, true, .1 );
+		}
+	}
+
+	return m_hDodgeTarget.Get() != NULL;
+}
+
+//-----------------------------------------------------------------------------
+// The player is speeding toward us in a vehicle! Find a good activity for dodging.
+//-----------------------------------------------------------------------------
+void CNPC_Combine::TaskFindDodgeActivity()
+{
+	CBaseEntity *pDodgeTarget = m_hDodgeTarget;
+	Vector vecDodgeTargetVel;
+	if (pDodgeTarget == NULL)
+	{
+		// See if there's an AI target to jump away from instead
+		// In this situation, direction is used and velocity is ignored
+		pDodgeTarget = GetTarget();
+		if (pDodgeTarget)
+		{
+			pDodgeTarget->GetVectors( &vecDodgeTargetVel, NULL, NULL );
+			vecDodgeTargetVel *= 100.0f;
+		}
+	}
+	else
+	{
+		vecDodgeTargetVel = pDodgeTarget->GetSmoothedVelocity();
+	}
+	
+	if (pDodgeTarget == NULL )
+	{
+		TaskFail( "No target to dodge" );
+		return;
+	}
+
+	Vector vecUp;
+	Vector vecRight;
+	GetVectors( NULL, &vecRight, &vecUp );
+
+	// TODO: find most perpendicular 8-way dodge when we get the anims
+	Vector vecEnemyDir = pDodgeTarget->GetAbsOrigin() - GetAbsOrigin();
+	//Vector vecDir = CrossProduct( vecEnemyDir, vecUp );
+	VectorNormalize( vecEnemyDir );
+	/*
+	if ( fabs( DotProduct( vecEnemyDir, vecRight ) ) > 0.7 )
+	{
+		TaskFail( "Can't dodge, enemy approaching perpendicularly" );
+		return;
+	}
+	*/
+
+	float flDodgeDirection;
+	bool bStartLeft = false;
+	{
+		if ( pDodgeTarget->GetServerVehicle() )
+		{
+			Ray_t enemyRay;
+			Ray_t perpendicularRay;
+			enemyRay.Init( pDodgeTarget->GetAbsOrigin(), pDodgeTarget->GetAbsOrigin() + vecDodgeTargetVel );
+			Vector vPerpendicularPt = vecEnemyDir;
+			vPerpendicularPt.y = -vPerpendicularPt.y;
+			perpendicularRay.Init( GetAbsOrigin(), GetAbsOrigin() + vPerpendicularPt );
+
+			enemyRay.m_Start.z = enemyRay.m_Delta.z = enemyRay.m_StartOffset.z;
+			perpendicularRay.m_Start.z = perpendicularRay.m_Delta.z = perpendicularRay.m_StartOffset.z;
+
+			float t, s;
+
+			IntersectRayWithRay( perpendicularRay, enemyRay, t, s );
+
+			QAngle angDodgeAngle;
+			VectorAngles( vecEnemyDir, angDodgeAngle );
+
+			flDodgeDirection = GetAbsAngles().y - angDodgeAngle.y;
+
+			if (t > 0)
+			{
+				flDodgeDirection += 90.0f;
+				bStartLeft = true;
+			}
+			else
+				flDodgeDirection -= 90.0f;
+		}
+		else
+		{
+			// Use a simpler algorithm for non-vehicles
+			Vector vecEnemyMoveDir = vecDodgeTargetVel;
+			VectorNormalize( vecEnemyMoveDir );
+
+			QAngle angDodgeAngle;
+			VectorAngles( vecEnemyMoveDir, angDodgeAngle );
+
+			flDodgeDirection = (angDodgeAngle.y - GetAbsAngles().y) + 180.0f;
+
+			// TODO: Obtain right vector from vecEnemyMoveDir instead
+			Vector vecMoveDirRight;
+			AngleVectors( angDodgeAngle, NULL, &vecMoveDirRight, NULL );
+
+			if (DotProduct(vecMoveDirRight, vecEnemyDir) <= 0)
+			{
+				flDodgeDirection += 90.0f;
+				bStartLeft = true;
+			}
+			else
+				flDodgeDirection -= 90.0f;
+		}
+
+		flDodgeDirection = AngleNormalize( flDodgeDirection );
+
+		if ( g_debug_combine_dodge.GetBool() )
+			Msg( "Dodge direction is %f\n", flDodgeDirection );
+	}
+
+	bool bFoundDir = false;
+	int nTries = 0;
+
+	while ( !bFoundDir && ( nTries < 3 ) )
+	{
+		SetPoseParameter( LookupPoseMoveYaw(), flDodgeDirection );
+
+		// See where the dodge will put us.
+		Vector vecLocalDelta;
+		int nSeq = SelectWeightedSequence( GetDodgeActivity() );
+		GetSequenceLinearMotion( nSeq, &vecLocalDelta );
+
+		// Transform the sequence delta into local space.
+		matrix3x4_t fRotateMatrix;
+		AngleMatrix( GetLocalAngles(), fRotateMatrix );
+		Vector vecDelta;
+		VectorRotate( vecLocalDelta, fRotateMatrix, vecDelta );
+
+		// Trace a bit high so this works better on uneven terrain.
+		Vector testHullMins = GetHullMins();
+		testHullMins.z += ( StepHeight() * 2 );
+
+		// See if all is clear in that direction.
+		trace_t tr;
+		HunterTraceHull_SkipPhysics_Extern( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), MASK_NPCSOLID, this, GetCollisionGroup(), &tr, VPhysicsGetObject()->GetMass() * 0.5f );
+
+		// TODO: dodge anyway if we'll make it a certain percentage of the way through the dodge?
+		if ( tr.fraction == 1.0f )
+		{
+			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 0, 255, 0, 128, 5 );
+			bFoundDir = true;
+			TaskComplete();
+		}
+		else
+		{
+			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 255, 0, 0, 128, 5 );
+			nTries++;
+			flDodgeDirection += (bStartLeft ? 90.0f : -90.0f);
+		}
+	}
+
+	if ( nTries < 3 )
+	{
+		TaskComplete();
+	}
+	else
+	{
+		TaskFail( "Couldn't find dodge position\n" );
+
+		// Try again in a bit
+		m_flNextDodgeTime = gpGlobals->curtime + 5.0f;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::ShouldDodgeProjectile( CBaseEntity *pProjectile )
+{
+	if ( !FInViewCone( pProjectile ) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanDodgeSounds()
+{
+	if ( !sk_combine_dodge_sounds.GetBool() )
+		return false;
+
+	return IsMajorCharacter();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanDodgeProjectiles()
+{
+	if ( !sk_combine_dodge_projectiles.GetBool() )
+		return false;
+
+	return IsMajorCharacter();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+Activity CNPC_Combine::GetDodgeActivity()
+{
+	return ACT_DODGE_HOP;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Combine::GetDodgeWarning()
+{
+	return sk_combine_dodge_warning.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Combine::GetDodgeWarningCone()
+{
+	return sk_combine_dodge_warning_cone.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Combine::GetDodgeWarningWidth()
+{
+	return sk_combine_dodge_warning_width.GetFloat();
+}
+#endif
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -2354,6 +2701,56 @@ void CNPC_Combine::GatherConditions()
 			}
 		}
 	}
+
+	if ( IsAllowedToDodge() && GetNavType() != NAV_JUMP )
+	{
+		if ( CanDodgeProjectiles() )
+		{
+			ClearCondition( COND_COMBINE_INCOMING_PROJECTILE );
+
+			m_hDodgeTarget = NULL;
+			//if ( m_IgnoreProjectileTimer.Expired() )
+			{
+				bool bEnemyCondition = (GetEnemy() && HasCondition( COND_SEE_ENEMY ));
+				CheckDodgeConditions( bEnemyCondition );
+			}
+		}
+
+		if ( CanDodgeSounds() && !HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) )
+		{
+			// See if there's a sound we should dodge instead
+			if ( HasCondition( COND_HEAR_DANGER ) )
+			{
+				CSound *pSound = GetBestSound( SOUND_DANGER );
+				if ( pSound && pSound->m_hOwner )
+				{
+					CBaseGrenade *pGrenade = dynamic_cast<CBaseGrenade *>(pSound->m_hOwner.Get());
+					if ( pGrenade && (pGrenade->GetDetonateTime() - gpGlobals->curtime) < (0.5f + RandomFloat(-0.3f,0.15f)) )
+					{
+						// Jump away from the grenade
+						SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+						SetTarget( pSound->m_hOwner );
+					}
+					else
+					{
+						// If jumping out of the way would get us out of its radius, then try to dodge it
+						Vector vecToSound = (pSound->GetSoundReactOrigin() - GetAbsOrigin());
+						if ( Square( pSound->Volume() ) < ( vecToSound.LengthSqr() + Square( 100.0f ) ) )
+						{
+							SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+							SetTarget( pSound->m_hOwner );
+						}
+						else if ( CheckDodge( pSound->m_hOwner ) )
+						{
+							// True dodge
+							SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+							m_hDodgeTarget = pSound->m_hOwner;
+						}
+					}
+				}
+			}
+		}
+	}
 #endif
 }
 
@@ -3143,6 +3540,24 @@ void CNPC_Combine::StartTask( const Task_t *pTask )
 		break;
 #endif
 
+#ifdef EZ2
+	case TASK_COMBINE_FIND_DODGE_POSITION:
+		{
+			TaskFindDodgeActivity();
+			break;
+		}
+
+	case TASK_COMBINE_DODGE:
+		{
+			if ( g_debug_combine_dodge.GetBool() )
+			{
+				Msg( "Soldier %d dodging\n", entindex() );
+			}
+			SetActivity( GetDodgeActivity() );
+			break;
+		}
+#endif
+
 	default: 
 		BaseClass:: StartTask( pTask );
 		break;
@@ -3341,6 +3756,19 @@ void CNPC_Combine::RunTask( const Task_t *pTask )
 			GetMotor()->SetIdealYawToTargetAndUpdate( GetTarget()->GetAbsOrigin() );
 		}
 		break;
+#endif
+
+#ifdef EZ2
+	case TASK_COMBINE_DODGE:
+		{
+			AutoMovement();
+
+			if ( IsActivityFinished() )
+			{
+				TaskComplete();
+			}
+			break;
+		}
 #endif
 
 	default:
@@ -3618,6 +4046,12 @@ void CNPC_Combine::BuildScheduleTestBits( void )
 			SetCustomInterruptCondition( COND_HEAR_COMBAT );
 			SetCustomInterruptCondition( COND_HEAR_BULLET_IMPACT );
 		}
+	}
+
+	// Interrupt everything if we need to dodge.
+	if ( !IsCurSchedule( SCHED_COMBINE_DODGE, false ) )
+	{
+		SetCustomInterruptCondition( COND_COMBINE_INCOMING_PROJECTILE );
 	}
 #endif
 
@@ -4284,6 +4718,20 @@ int CNPC_Combine::SelectSchedule( void )
 		// These things are done in any state but dead and prone
 		if (m_NPCState != NPC_STATE_DEAD && m_NPCState != NPC_STATE_PRONE )
 		{
+#ifdef EZ2
+			if ( HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) )
+			{
+				if ( ( m_hDodgeTarget && FVisible( m_hDodgeTarget ) ) || GetTarget() )
+				{
+					if ( g_debug_combine_dodge.GetBool() )
+					{
+						Msg( "Soldier %d try dodge projectile\n", entindex() );
+					}
+					return SCHED_COMBINE_DODGE;
+				}
+			}
+#endif
+
 			// Cower when physics objects are thrown at me
 			if ( HasCondition( COND_HEAR_PHYSICS_DANGER ) )
 			{
@@ -6686,6 +7134,22 @@ bool CNPC_Combine::ActiveWeaponIsFullyLoaded()
 	return ( pWeapon->Clip1() >= pWeapon->GetMaxClip1() );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanBeHitByMeleeAttack( CBaseEntity *pAttacker )
+{
+#ifdef EZ2
+	if( IsCurSchedule(SCHED_COMBINE_DODGE) )
+	{
+		return false;
+	}
+#endif
+
+	return BaseClass::CanBeHitByMeleeAttack( pAttacker );
+}
+
+
 
 //-----------------------------------------------------------------------------
 // Purpose:  This is a generic function (to be implemented by sub-classes) to
@@ -6902,6 +7366,10 @@ DECLARE_TASK( TASK_COMBINE_SET_STANDING )
 DECLARE_TASK( TASK_COMBINE_HEAL )
 DECLARE_TASK( TASK_COMBINE_HEAL_TOSS )
 #endif
+#ifdef EZ2
+DECLARE_TASK( TASK_COMBINE_FIND_DODGE_POSITION )
+DECLARE_TASK( TASK_COMBINE_DODGE )
+#endif
 
 //Activities
 #if !SHARED_COMBINE_ACTIVITIES
@@ -6921,6 +7389,9 @@ DECLARE_ACTIVITY( ACT_TURRET_CARRY_RUN )
 #endif
 #ifdef EZ
 DECLARE_ACTIVITY( ACT_METROPOLICE_DEPLOY_MANHACK )
+#endif
+#ifdef EZ2
+DECLARE_ACTIVITY( ACT_DODGE_HOP )
 #endif
 
 DECLARE_ANIMEVENT( COMBINE_AE_BEGIN_ALTFIRE )
@@ -6943,6 +7414,7 @@ DECLARE_CONDITION( COND_COMBINE_ATTACK_SLOT_AVAILABLE )
 #ifdef EZ2
 DECLARE_CONDITION( COND_COMBINE_CAN_ORDER_SURRENDER )
 DECLARE_CONDITION( COND_COMBINE_OBSTRUCTED )
+DECLARE_CONDITION( COND_COMBINE_INCOMING_PROJECTILE )
 #endif
 #ifdef EZ
 DECLARE_CONDITION( COND_COMBINE_PLAYERHEALREQUEST )
@@ -7757,6 +8229,21 @@ DEFINE_SCHEDULE
  	"	Interrupts"
  	"		COND_NEW_ENEMY"
  	"		COND_ENEMY_DEAD"
+ )
+
+ //=========================================================
+ // Soldier dodges a projectile
+ //=========================================================
+ DEFINE_SCHEDULE
+ (
+ 	SCHED_COMBINE_DODGE,
+ 
+ 	"	Tasks"
+ 	"		TASK_COMBINE_FIND_DODGE_POSITION		0"
+ 	"		TASK_COMBINE_DODGE				0"
+ 	"		TASK_DEFER_DODGE				10"
+ 	""
+ 	"	Interrupts"
  )
 #endif
 

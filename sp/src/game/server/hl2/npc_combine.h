@@ -213,6 +213,17 @@ public:
 	virtual void	StartPlayerGive( CBasePlayer *pPlayer ) {}
 	virtual void	OnCantBeGivenObject( CBaseEntity *pItem ) {}
 
+	void			TaskFindDodgeActivity();
+	bool			CheckDodgeConditions( bool bSeeEnemy );
+	bool			CheckDodge( CBaseEntity *pTarget );
+	virtual bool		ShouldDodgeProjectile( CBaseEntity *pProjectile );
+	virtual bool		CanDodgeSounds();
+	virtual bool		CanDodgeProjectiles();
+	virtual Activity	GetDodgeActivity();
+	virtual float		GetDodgeWarning();
+	virtual float		GetDodgeWarningCone();
+	virtual float		GetDodgeWarningWidth();
+
 	bool 			IsMedic() 			{ return m_bIsMedic; }
 	bool 			IsAmmoResupplier() 	{ return m_bIsAmmoResupplier; }
 	
@@ -320,6 +331,8 @@ public:
 	WeaponProficiency_t CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 	bool			HasShotgun();
 	bool			ActiveWeaponIsFullyLoaded();
+
+	bool			CanBeHitByMeleeAttack( CBaseEntity *pAttacker );
 
 	bool			HandleInteraction(int interactionType, void *data, CBaseCombatCharacter *sourceEnt);
 #ifdef EZ
@@ -465,6 +478,7 @@ private:
 #ifdef EZ2
 		SCHED_COMBINE_ORDER_SURRENDER,
 		SCHED_COMBINE_ATTACK_TARGET,
+		SCHED_COMBINE_DODGE,
 #endif
 #ifdef EZ
 		SCHED_COMBINE_HEAL,
@@ -491,6 +505,10 @@ private:
 		TASK_COMBINE_HEAL,
 		TASK_COMBINE_HEAL_TOSS,
 #endif
+#ifdef EZ2
+		TASK_COMBINE_FIND_DODGE_POSITION,
+		TASK_COMBINE_DODGE,
+#endif
 		NEXT_TASK
 	};
 
@@ -509,6 +527,7 @@ private:
 #ifdef EZ2
 		COND_COMBINE_CAN_ORDER_SURRENDER,
 		COND_COMBINE_OBSTRUCTED,
+		COND_COMBINE_INCOMING_PROJECTILE,
 #endif
 #ifdef EZ
 		COND_COMBINE_PLAYERHEALREQUEST,
@@ -615,6 +634,8 @@ private:
 	int				m_iAmmoAmount;
 
 	bool			m_bTossesMedkits;
+
+	EHANDLE			m_hDodgeTarget;
 #endif
 
 	// Time Variables
