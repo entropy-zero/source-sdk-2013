@@ -53,6 +53,8 @@ public:
 	void UpdateSLAMGlowEffect( void );
 	void DestroySLAMGlowEffect( void );
 
+	float	GetPlayerMaxSpeed();
+
 	void	UpdateEnemyGlowEffect( void );
 	void	DestroyEnemyGlowEffect( void );
 	void	EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, int r, int g, int b, int a );
@@ -83,6 +85,9 @@ public:
 private:
 
 	bool	m_bUseNVG;
+
+	// Assassin
+	bool	m_bIsAssassin;
 
 	// Cloaking
 	bool	m_bIsCloaking;

@@ -253,6 +253,11 @@ public:
 	void				PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force );
 	bool				OverridePhysSwap();
 
+	// Assassin
+	bool				IsAssassin() const { return m_bIsAssassin; }
+	void				SetAssassinPlayer( bool bEnabled );
+	float				GetPlayerMaxSpeed();
+
 	// Cloaking
 	bool				IsCloakEnabled() const { return m_bCloakEnabled; }
 	void				SetCloakEnabled( bool bEnabled );
@@ -344,6 +349,9 @@ private:
 	Vector			m_vecLastCommandGoal;
 	
 	CNetworkVar( bool,	m_bUseNVG );
+
+	// Assassin
+	CNetworkVar( bool, m_bIsAssassin );
 
 	// Cloaking
 	bool				m_bCloakEnabled;

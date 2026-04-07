@@ -101,6 +101,9 @@ ConVar hl2_normspeed( "hl2_normspeed", "190" );
 #ifdef EZ2
 ConVar hl2_sprintspeed("hl2_sprintspeed", "285");		// 1upD - Changing default from 320
 ConVar hl2_duckslidespeed("hl2_duckslidespeed", "385");
+
+ConVar hl2_sprintspeed_assassin( "hl2_sprintspeed_assassin", "342" );
+ConVar hl2_sprintspeed_assassin_heavy_factor( "hl2_sprintspeed_assassin_heavy_factor", "0.7" );
 #else
 ConVar hl2_sprintspeed( "hl2_sprintspeed", "320" );
 #endif
@@ -792,6 +795,9 @@ BEGIN_ENT_SCRIPTDESC( CHL2_Player, CBasePlayer, "The HL2 player entity." )
 	DEFINE_SCRIPTFUNC_NAMED( SetLongJumpSoundAsCStr, "SetLongJumpSound", "Sets the long jump sound." )
 	DEFINE_SCRIPTFUNC( IsInLongJump, "Returns true if the player is currently in a long jump." )
 	DEFINE_SCRIPTFUNC( GetLastLongJumpTime, "Gets the player's last long jump time." )
+
+	DEFINE_SCRIPTFUNC( IsAssassin, "Returns true if this player is an assassin." )
+	DEFINE_SCRIPTFUNC( SetAssassinPlayer, "Sets whether this player is an assassin." )
 
 	DEFINE_SCRIPTFUNC( IsCloakEnabled, "Returns true if cloaking is enabled." )
 	DEFINE_SCRIPTFUNC( SetCloakEnabled, "Sets whether cloaking is enabled." )
@@ -1742,6 +1748,17 @@ void CHL2_Player::PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper)
 	//Msg("Player time: [ACTIVE: %f]\t[IDLE: %f]\n", m_flMoveTime, m_flIdleTime );
 
 #ifdef EZ2
+	if ( IsAssassin() && IsSprinting() )
+	{
+		// Run slower when holding a heavy weapon
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		if ( pWeapon && pWeapon->WeaponClassify() != WEPCLASS_HANDGUN && pWeapon->WeaponClassify() != WEPCLASS_MELEE )
+		{
+			ucmd->forwardmove *= hl2_sprintspeed_assassin_heavy_factor.GetFloat();
+			ucmd->sidemove *= hl2_sprintspeed_assassin_heavy_factor.GetFloat();
+		}
+	}
+
 	if ( IsLongJumpEnabled() )
 	{
 		// UNDONE: Crouch-based
@@ -2111,6 +2128,11 @@ void CHL2_Player::StartSprinting( void )
 	filter.UsePredictionRules();
 	EmitSound( filter, entindex(), "HL2Player.SprintStart" );
 
+#ifdef EZ2
+	if ( IsAssassin() )
+		SetMaxSpeed( hl2_sprintspeed_assassin.GetFloat() );
+	else
+#endif
 	SetMaxSpeed( HL2_SPRINT_SPEED );
 	m_fIsSprinting = true;
 }

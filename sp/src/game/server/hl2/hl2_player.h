@@ -207,6 +207,12 @@ public:
 	float		GetLastLongJumpTime() const { return m_flLastLongJumpTime; }
 
 	// Implemented by CEZ2_Player
+	// 
+	// Assassin
+	virtual bool		IsAssassin() const { return false; }
+	virtual void		SetAssassinPlayer( bool bEnabled ) {}
+
+	// Cloaking
 	virtual bool		IsCloakEnabled() const { return false; }
 	virtual void		SetCloakEnabled( bool bEnabled ) {}
 	virtual bool		IsCloaking() const { return false; }

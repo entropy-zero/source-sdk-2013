@@ -69,6 +69,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD( m_bUseNVG, FIELD_BOOLEAN ),
 
+	DEFINE_KEYFIELD( m_bIsAssassin, FIELD_BOOLEAN, "IsAssassin" ),
+
 	DEFINE_KEYFIELD( m_bCloakEnabled, FIELD_BOOLEAN, "CloakEnabled" ),
 	DEFINE_FIELD( m_bIsCloaking, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flCloakFactor, FIELD_FLOAT ),
@@ -152,6 +154,7 @@ END_SEND_TABLE();
 
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropBool( SENDINFO( m_bUseNVG ) ),
+	SendPropBool( SENDINFO( m_bIsAssassin ) ),
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
 	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
 	SendPropFloat( SENDINFO( m_flCloakFactor ) ), // Always sent because not just the local player would care about this
@@ -3059,6 +3062,32 @@ bool CEZ2_Player::OverridePhysSwap()
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::SetAssassinPlayer( bool bEnabled )
+{
+	m_bIsAssassin = bEnabled;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CEZ2_Player::GetPlayerMaxSpeed()
+{
+	// Max speed cap is doubled while an assassin. See CBasePlayer::GetPlayerMaxSpeed for why we have to do this
+	// TODO: This is duped between server/client. Consider shared CEZ2_Player file
+	if ( m_bIsAssassin )
+	{
+		extern ConVar sv_maxspeed;
+		float fMaxSpeed = sv_maxspeed.GetFloat() * 2.0f;
+		if ( MaxSpeed() > 0.0f && MaxSpeed() < fMaxSpeed )
+			fMaxSpeed = MaxSpeed();
+	}
+
+	return BaseClass::GetPlayerMaxSpeed();
 }
 
 //-----------------------------------------------------------------------------

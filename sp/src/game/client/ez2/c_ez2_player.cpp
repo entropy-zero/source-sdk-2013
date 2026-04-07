@@ -55,6 +55,7 @@ END_RECV_TABLE();
 
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropBool( RECVINFO( m_bUseNVG ) ),
+	RecvPropBool( RECVINFO( m_bIsAssassin ) ),
 	RecvPropBool( RECVINFO( m_bBonusChallengeUpdate ) ),
 	RecvPropEHandle( RECVINFO( m_hWarningTarget ) ),
 	RecvPropFloat( RECVINFO( m_flCloakFactor ) ),
@@ -372,6 +373,24 @@ void C_EZ2_Player::UpdateSLAMGlowEffect( void )
 void C_EZ2_Player::DestroySLAMGlowEffect( void )
 {
 	m_pSLAMGlowEffects.PurgeAndDeleteElements();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float C_EZ2_Player::GetPlayerMaxSpeed()
+{
+	// Max speed cap is doubled while an assassin. See CBasePlayer::GetPlayerMaxSpeed for why we have to do this
+	// TODO: This is duped between server/client. Consider shared CEZ2_Player file
+	if ( m_bIsAssassin )
+	{
+		extern ConVar sv_maxspeed;
+		float fMaxSpeed = sv_maxspeed.GetFloat() * 2.0f;
+		if ( MaxSpeed() > 0.0f && MaxSpeed() < fMaxSpeed )
+			fMaxSpeed = MaxSpeed();
+	}
+
+	return BaseClass::GetPlayerMaxSpeed();
 }
 
 #define ENEMY_MARK_OUTLINE_TRANSITION	0.5f
