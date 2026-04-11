@@ -30,6 +30,7 @@ public:
 	CTripmineGrenade();
 	void Spawn( void );
 	void Precache( void );
+	void UpdateOnRemove( void );
 
 #if 0 // FIXME: OnTakeDamage_Alive() is no longer called now that base grenade derives from CBaseAnimating
 	int OnTakeDamage_Alive( const CTakeDamageInfo &info );
