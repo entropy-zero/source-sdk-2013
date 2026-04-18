@@ -43,6 +43,10 @@ public:
 	int				UpdateTransmitState();
 	bool			CanBeSeenBy( CAI_BaseNPC *pNPC );
 	void			SetVisibleToNPCs( bool bVisible ) { m_bVisibleToNPCs = bVisible; }
+
+	void			SetProximitySatchel( bool bToggle ) { m_bProximitySatchel = bToggle; }
+	void			ProximitySatchelThink( void );
+	void			ProximitySatchelPreDetonateThink( void );
 #endif
 
 	float			m_flNextBounceSoundTime;
@@ -67,7 +71,17 @@ private:
 	EHANDLE				m_hAttacker;
 
 	bool				m_bVisibleToNPCs;
+
+	// Satchel that explodes when an enemy gets near (requires thrower)
+	bool				m_bProximitySatchel;
+	bool				m_bProximityWarnAlt;
+	int					m_nSatchelWarnTicks;
+	EHANDLE				m_hProximityLight;
 #endif
 };
+
+#ifdef EZ2
+CSatchelCharge *Satchel_CreateProximitySatchel( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner );
+#endif
 
 #endif	//SATCHEL_H

@@ -16,6 +16,7 @@
 #ifdef EZ2
 #include "hl2_player.h"
 #include "ai_senses.h"
+#include "eventqueue.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -28,6 +29,16 @@ ConVar    sk_npc_dmg_satchel		( "sk_npc_dmg_satchel", "0" );
 ConVar    sk_satchel_radius			( "sk_satchel_radius", "200" );
 #ifdef EZ2
 ConVar    sk_satchel_always_visible_to_npcs( "sk_satchel_always_visible_to_npcs", "0" );
+
+#define PROXIMITY_SATCHEL_SOUND_ARM						"SatchelGrenade.Proximity_Arm" // "Grenade.Blip"
+#define PROXIMITY_SATCHEL_WARN_SOUND_LOW				"SatchelGrenade.Proximity_BlipLow" // "buttons.snd15"
+#define PROXIMITY_SATCHEL_WARN_SOUND_MED				"SatchelGrenade.Proximity_BlipMed"
+#define PROXIMITY_SATCHEL_WARN_SOUND_HIGH				"SatchelGrenade.Proximity_BlipHigh"
+#define PROXIMITY_SATCHEL_WARN_SOUND_DETONATE			"SatchelGrenade.Proximity_BlipDetonate"
+#define PROXIMITY_SATCHEL_WARN_RADIUS_SQR				Square( 512.0f )
+#define PROXIMITY_SATCHEL_DETONATE_RADIUS_SQR			Square( 96.0f )
+#define PROXIMITY_SATCHEL_DETONATE_EXCLUDE_RADIUS_SQR	Square( 128.0f )
+#define PROXIMITY_SATCHEL_NUM_WARN_TICKS				15
 #endif
 
 BEGIN_DATADESC( CSatchelCharge )
@@ -40,10 +51,19 @@ BEGIN_DATADESC( CSatchelCharge )
 
 #ifdef EZ2
 	DEFINE_KEYFIELD( m_bVisibleToNPCs, FIELD_BOOLEAN, "VisibleToNPCs" ),
+
+	DEFINE_KEYFIELD( m_bProximitySatchel, FIELD_BOOLEAN, "ProximitySatchel" ),
+	DEFINE_FIELD( m_bProximityWarnAlt, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_nSatchelWarnTicks, FIELD_INTEGER ),
+	DEFINE_FIELD( m_hProximityLight, FIELD_EHANDLE ),
 #endif
 
 	// Function Pointers
 	DEFINE_THINKFUNC( SatchelThink ),
+#ifdef EZ2
+	DEFINE_THINKFUNC( ProximitySatchelThink ),
+	DEFINE_THINKFUNC( ProximitySatchelPreDetonateThink ),
+#endif
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "Explode", InputExplode),
@@ -136,6 +156,23 @@ void CSatchelCharge::Spawn( void )
 		// Allow NPCs to see it
 		SetBlocksLOS( false );
 		AddFlag( FL_OBJECT );
+	}
+
+	if ( m_bProximitySatchel && m_hGlowSprite )
+	{
+		// Sprite is controlled in proximity satchels
+		m_hGlowSprite->SetTransparency( kRenderTransAdd, 255, 128, 255, 255, kRenderFxNone );
+
+		// Make the dlight (aaaah!!! would be better as client code!!!)
+		m_hProximityLight = CreateNoSpawn( "light_dynamic", GetAbsOrigin(), GetAbsAngles(), this );
+		m_hProximityLight->KeyValue( "_light", "255 128 0 200" );
+		m_hProximityLight->KeyValue( "_cone", "0" );
+		m_hProximityLight->KeyValue( "_inner_cone", "0" );
+		m_hProximityLight->KeyValue( "brightness", "5" );
+		m_hProximityLight->KeyValue( "distance", "150" );
+
+		m_hProximityLight->SetParent( this );
+		DispatchSpawn( m_hProximityLight );
 	}
 #endif
 }
@@ -304,6 +341,204 @@ bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
 
 	return true;
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pEvent - 
+//-----------------------------------------------------------------------------
+CSatchelCharge *Satchel_CreateProximitySatchel( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner )
+{
+	CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(CBaseEntity::CreateNoSpawn( "npc_satchel", position, angles, pOwner ));
+	pSatchel->SetProximitySatchel( true );
+	pSatchel->SetThrower( pOwner->MyCombatCharacterPointer() );
+	DispatchSpawn( pSatchel );
+
+	if ( pSatchel->VPhysicsGetObject() )
+	{
+		pSatchel->VPhysicsGetObject()->AddVelocity( &velocity, &angVelocity );
+	}
+
+	return pSatchel;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CSatchelCharge::ProximitySatchelThink( void )
+{
+	float flThinkTime = 0.5f;
+
+	// First, make sure we have a valid owner
+	CBaseCombatCharacter *pThrower = GetThrower();
+	if ( pThrower )
+	{
+		float flClosestSqr = PROXIMITY_SATCHEL_WARN_RADIUS_SQR;
+		CBaseCombatCharacter *pClosest = NULL;
+
+		// Search for nearby players
+		for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+		{
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+			if ( pPlayer && !(pPlayer->GetFlags() & FL_NOTARGET) )
+			{
+				Disposition_t nRel = pThrower->IRelationType( pPlayer );
+				if ( nRel <= D_FR )
+				{
+					float flDistSqr = (pPlayer->GetAbsOrigin() - GetAbsOrigin()).LengthSqr();
+					if ( flDistSqr < flClosestSqr )
+					{
+						pClosest = pPlayer;
+						flClosestSqr = flDistSqr;
+					}
+				}
+				else if ( nRel == D_LI )
+				{
+					// If this ally is too close to the satchel, stop checking entirely
+					if ( (pPlayer->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() < PROXIMITY_SATCHEL_DETONATE_EXCLUDE_RADIUS_SQR )
+					{
+						flClosestSqr = -1.0f;
+						pClosest = NULL;
+						break;
+					}
+				}
+			}
+		}
+
+		if ( flClosestSqr != -1.0f )
+		{
+			// Search for nearby NPCs
+			CAI_BaseNPC **ppAIs = g_AI_Manager.AccessAIs();
+			for ( int i = 0; i < g_AI_Manager.NumAIs(); i++ )
+			{
+				if ( ppAIs[i] )
+				{
+					Disposition_t nRel = pThrower->IRelationType( ppAIs[i] );
+					if ( nRel <= D_FR )
+					{
+						float flDistSqr = (ppAIs[i]->GetAbsOrigin() - GetAbsOrigin()).LengthSqr();
+						if ( flDistSqr < flClosestSqr )
+						{
+							pClosest = ppAIs[i];
+							flClosestSqr = flDistSqr;
+						}
+					}
+					else if ( nRel == D_LI )
+					{
+						// If this ally is too close to the satchel, stop checking entirely
+						if ( (ppAIs[i]->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() < PROXIMITY_SATCHEL_DETONATE_EXCLUDE_RADIUS_SQR )
+						{
+							flClosestSqr = -1.0f;
+							pClosest = NULL;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if ( pClosest )
+		{
+			if ( flClosestSqr < PROXIMITY_SATCHEL_DETONATE_RADIUS_SQR /*&& FVisible( pClosest )*/ )
+			{
+				// Change sprite render
+				m_hGlowSprite->SetScale( 1.0f );
+
+				// Alert thrower
+				if ( pThrower->IsNPC() )
+				{
+					pThrower->MyNPCPointer()->UpdateEnemyMemory( pClosest, WorldSpaceCenter(), this ); // pClosest->GetAbsOrigin()
+				}
+
+				SetThink( &CSatchelCharge::ProximitySatchelPreDetonateThink );
+				SetNextThink( gpGlobals->curtime );
+				return;
+			}
+			else if ( flClosestSqr < PROXIMITY_SATCHEL_WARN_RADIUS_SQR )
+			{
+				// We didn't find an enemy to detonate from, but if there's someone in the warn radius, increase beeping
+				flThinkTime = RemapVal( flClosestSqr, PROXIMITY_SATCHEL_DETONATE_RADIUS_SQR, PROXIMITY_SATCHEL_WARN_RADIUS_SQR, 0.05, 0.5 );
+
+				// Alert thrower if less than half
+				if ( flThinkTime < 0.2 && pThrower->IsNPC() && m_bProximityWarnAlt )
+				{
+					pThrower->MyNPCPointer()->UpdateEnemyMemory( pClosest, WorldSpaceCenter(), this ); // pClosest->GetAbsOrigin()
+				}
+			}
+		}
+	}
+	else
+	{
+		// Remove the sprite to indicate we're no longer a threat (even though we could still explode if shot)
+		m_hGlowSprite->SetRenderMode( kRenderNone );
+
+		variant_t emptyVariant;
+		m_hProximityLight->AcceptInput( "TurnOff", this, this, emptyVariant, 0 );
+		SetThink( NULL );
+		return;
+	}
+	
+	// Emit warning sound
+	if ( m_bProximityWarnAlt )
+	{
+		const char *pszWarnSound = PROXIMITY_SATCHEL_WARN_SOUND_LOW;
+
+		if ( flThinkTime < 0.2f )
+		{
+			pszWarnSound = PROXIMITY_SATCHEL_WARN_SOUND_HIGH;
+		}
+		else if ( flThinkTime < 0.4f )
+		{
+			pszWarnSound = PROXIMITY_SATCHEL_WARN_SOUND_MED;
+		}
+
+		EmitSound( pszWarnSound );
+
+		// Turn on the light
+		m_hGlowSprite->TurnOn();
+
+		variant_t emptyVariant;
+		m_hProximityLight->AcceptInput( "TurnOn", this, this, emptyVariant, 0 );
+
+		// Turn them back off with I/O
+		g_EventQueue.AddEvent( m_hGlowSprite, "HideSprite", emptyVariant, 0.1f, this, this );
+		g_EventQueue.AddEvent( m_hProximityLight, "TurnOff", emptyVariant, 0.1f, this, this );
+	}
+
+	m_bProximityWarnAlt = !m_bProximityWarnAlt;
+
+	SetNextThink( gpGlobals->curtime + flThinkTime );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CSatchelCharge::ProximitySatchelPreDetonateThink( void )
+{
+	if ( m_nSatchelWarnTicks >= PROXIMITY_SATCHEL_NUM_WARN_TICKS )
+	{
+		// Can detonate now
+		// TODO: Set activator?
+		inputdata_t inputdata;
+		InputExplode( inputdata );
+		return;
+	}
+
+	m_nSatchelWarnTicks++;
+
+	// Quick warning ticks
+	EmitSound( PROXIMITY_SATCHEL_WARN_SOUND_DETONATE );
+
+	m_hGlowSprite->TurnOn();
+
+	variant_t emptyVariant;
+	m_hProximityLight->AcceptInput( "TurnOn", this, this, emptyVariant, 0 );
+
+	// Turn them back off with I/O
+	g_EventQueue.AddEvent( m_hGlowSprite, "HideSprite", emptyVariant, 0.025f, this, this );
+	g_EventQueue.AddEvent( m_hProximityLight, "TurnOff", emptyVariant, 0.025f, this, this );
+
+	SetNextThink( gpGlobals->curtime + 0.05f );
+}
 #endif
 
 
@@ -342,6 +577,21 @@ void CSatchelCharge::SatchelThink( void )
 		angVel.y  = 0;
 		SetLocalAngularVelocity( angVel );
 
+#ifdef EZ2
+		if ( m_bProximitySatchel )
+		{
+			m_hGlowSprite->SetRenderColorG( 0 );
+			m_hProximityLight->SetRenderColorG( 0 );
+
+			EmitSound( PROXIMITY_SATCHEL_SOUND_ARM );
+
+			// Start proximity satchel think
+			SetThink( &CSatchelCharge::ProximitySatchelThink );
+			SetNextThink( gpGlobals->curtime + 0.1f );
+			return;
+		}
+#endif
+
 		// Clear think function
 		SetThink(NULL);
 		return;
@@ -368,6 +618,17 @@ void CSatchelCharge::Precache( void )
 {
 	PrecacheModel("models/Weapons/w_slam.mdl");
 	PrecacheModel(SLAM_SPRITE);
+
+#ifdef EZ2
+	if ( m_bProximitySatchel )
+	{
+		PrecacheScriptSound( PROXIMITY_SATCHEL_SOUND_ARM );
+		PrecacheScriptSound( PROXIMITY_SATCHEL_WARN_SOUND_LOW );
+		PrecacheScriptSound( PROXIMITY_SATCHEL_WARN_SOUND_MED );
+		PrecacheScriptSound( PROXIMITY_SATCHEL_WARN_SOUND_HIGH );
+		PrecacheScriptSound( PROXIMITY_SATCHEL_WARN_SOUND_DETONATE );
+	}
+#endif
 }
 
 void CSatchelCharge::BounceSound( void )
@@ -396,4 +657,12 @@ CSatchelCharge::~CSatchelCharge(void)
 		UTIL_Remove( m_hGlowSprite );
 		m_hGlowSprite = NULL;
 	}
+
+#ifdef EZ2
+	if ( m_hProximityLight != NULL )
+	{
+		UTIL_Remove( m_hProximityLight );
+		m_hProximityLight = NULL;
+	}
+#endif
 }
