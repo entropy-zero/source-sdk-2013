@@ -146,6 +146,11 @@ CCrossbowBolt *CCrossbowBolt::BoltCreate( const Vector &vecOrigin, const QAngle 
 	return pBolt;
 }
 
+#ifdef EZ2
+// Blixibon - Makes crossbow bolts dodgable by hunters
+extern CUtlVector<CBaseEntity *> g_pDodgeableProjectiles;
+#endif
+
 #ifdef MAPBASE
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -156,6 +161,8 @@ CCrossbowBolt::CCrossbowBolt( void )
 	m_flDamage = sk_plr_dmg_crossbow.GetFloat();
 #ifdef EZ2
 	m_iszEffect = AllocPooledString( "BoltImpact" );
+
+	g_pDodgeableProjectiles.AddToTail( this );
 #endif
 }
 #endif
@@ -169,6 +176,10 @@ CCrossbowBolt::~CCrossbowBolt( void )
 	{
 		UTIL_Remove( m_pGlowSprite );
 	}
+
+#ifdef EZ2
+	g_pDodgeableProjectiles.FindAndRemove( this );
+#endif
 }
 
 //-----------------------------------------------------------------------------
