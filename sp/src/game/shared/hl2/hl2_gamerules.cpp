@@ -2493,6 +2493,12 @@ bool CHalfLife2::ShouldCollide( int collisionGroup0, int collisionGroup1 )
 	if ( collisionGroup0 == HL2COLLISION_GROUP_COMBINE_BALL && collisionGroup1 == HL2COLLISION_GROUP_COMBINE_BALL_NPC )
 		return false;
 
+#ifdef EZ2
+	// Needed to prevent prototype AR2 balls fired by NPCs from flying everywhere on launch
+	if ( collisionGroup0 == HL2COLLISION_GROUP_COMBINE_BALL_NPC && collisionGroup1 == HL2COLLISION_GROUP_COMBINE_BALL_NPC )
+		return false;
+#endif
+
 	if ( ( collisionGroup0 == COLLISION_GROUP_WEAPON ) ||
 		( collisionGroup0 == COLLISION_GROUP_PLAYER ) ||
 		( collisionGroup0 == COLLISION_GROUP_PROJECTILE ) )

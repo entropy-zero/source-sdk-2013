@@ -1065,6 +1065,31 @@ void CWeaponAR2Proto::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, b
 		VectorNormalize( vecAiming );
 	}
 
+	// For all but the first ball, simulate inaccuracy from player recoil
+	if ( m_nBurstMax != 0 )
+	{
+		#define PROTO_AR2_NPC_CONE_MAX	0.07846f // 9 degrees
+		#define PROTO_AR2_NPC_CONE_MIN	0.03490f // 4 degrees
+
+		Vector vecRandom;
+		vecRandom.Random( -PROTO_AR2_NPC_CONE_MAX, PROTO_AR2_NPC_CONE_MAX );
+
+		for ( int i = 0; i < 3; i++ )
+		{
+			// Wrap values above min
+			if ( vecRandom[i] > 0.0f && vecRandom[i] < PROTO_AR2_NPC_CONE_MIN)
+			{
+				vecRandom[i] = PROTO_AR2_NPC_CONE_MAX - vecRandom[i];
+			}
+			else if ( vecRandom[i] < 0.0f && vecRandom[i] > -PROTO_AR2_NPC_CONE_MIN )
+			{
+				vecRandom[i] = -PROTO_AR2_NPC_CONE_MAX - vecRandom[i];
+			}
+		}
+
+		vecAiming += vecRandom;
+	}
+
 	Vector impactPoint = vecSrc + ( vecAiming * MAX_TRACE_LENGTH );
 
 	float flAmmoRatio = 1.0f;
@@ -1072,7 +1097,7 @@ void CWeaponAR2Proto::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, b
 	float flRadius = RemapValClamped( flAmmoRatio, 0.0f, 1.0f, 4.0f, sk_weapon_ar2_alt_fire_proto_radius.GetFloat() );
 
 	// Fire the bullets
-	Vector vecVelocity = vecAiming * 1500.0f; // Breadman was 1000
+	Vector vecVelocity = vecAiming * 1250.0f; // Normally prototype AR2 ball speed is 1500, but it should be slower for NPCs
 
 	// Fire the combine ball
 	CBaseEntity *pBall = CreateCombineBall(	vecSrc, 
