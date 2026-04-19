@@ -217,9 +217,11 @@ public:
 	bool			CheckDodgeConditions( bool bSeeEnemy );
 	bool			CheckDodge( CBaseEntity *pTarget );
 	virtual bool		ShouldDodgeProjectile( CBaseEntity *pProjectile );
+	virtual int			GetStartDodgeActivityIdx( CBaseEntity *pProjectile );
 	virtual bool		CanDodgeSounds();
 	virtual bool		CanDodgeProjectiles();
-	virtual Activity	GetDodgeActivity();
+	virtual Activity	GetDodgeActivity( int nIdx );
+	virtual int			GetNumDodgeActivities();
 	virtual float		GetDodgeWarning();
 	virtual float		GetDodgeWarningCone();
 	virtual float		GetDodgeWarningWidth();
@@ -508,6 +510,7 @@ private:
 #ifdef EZ2
 		TASK_COMBINE_FIND_DODGE_POSITION,
 		TASK_COMBINE_DODGE,
+		TASK_COMBINE_DEFER_DODGE,
 #endif
 		NEXT_TASK
 	};
@@ -636,6 +639,7 @@ private:
 	bool			m_bTossesMedkits;
 
 	EHANDLE			m_hDodgeTarget;
+	Activity		m_eDodgeActivity;
 #endif
 
 	// Time Variables

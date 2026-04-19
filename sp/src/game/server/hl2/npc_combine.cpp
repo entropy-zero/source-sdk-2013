@@ -252,6 +252,7 @@ extern int ACT_METROPOLICE_DEPLOY_MANHACK;
 #endif
 #ifdef EZ2
 Activity ACT_DODGE_HOP;
+Activity ACT_DODGE_STEP;
 #endif
 
 // -----------------------------------------------
@@ -337,6 +338,7 @@ DEFINE_INPUT( m_bTossesMedkits, FIELD_BOOLEAN, "SetTossMedkits" ),
 #endif
 #ifdef EZ2
 DEFINE_FIELD( m_hDodgeTarget, FIELD_EHANDLE ),
+DEFINE_CUSTOM_FIELD( m_eDodgeActivity, ActivityDataOps() ),
 DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
 DEFINE_FIELD( m_flTimeSinceObstructed, FIELD_TIME ),
 #endif
@@ -1565,51 +1567,65 @@ void CNPC_Combine::TaskFindDodgeActivity()
 	}
 
 	bool bFoundDir = false;
-	int nTries = 0;
 
-	while ( !bFoundDir && ( nTries < 3 ) )
+	int i = 0;
+	int nNumDodgeActs = GetNumDodgeActivities();
+
+	// Some projectiles want to start with a smaller dodge
+	i = GetStartDodgeActivityIdx( pDodgeTarget );
+	if ( i >= nNumDodgeActs )
+		i = nNumDodgeActs-1;
+
+	for ( ; i < nNumDodgeActs; i++ )
 	{
-		SetPoseParameter( LookupPoseMoveYaw(), flDodgeDirection );
+		// Go through each of our dodge activities
+		int nTries = 0;
+		Activity nDodgeActivity = GetDodgeActivity( i );
 
-		// See where the dodge will put us.
-		Vector vecLocalDelta;
-		int nSeq = SelectWeightedSequence( GetDodgeActivity() );
-		GetSequenceLinearMotion( nSeq, &vecLocalDelta );
-
-		// Transform the sequence delta into local space.
-		matrix3x4_t fRotateMatrix;
-		AngleMatrix( GetLocalAngles(), fRotateMatrix );
-		Vector vecDelta;
-		VectorRotate( vecLocalDelta, fRotateMatrix, vecDelta );
-
-		// Trace a bit high so this works better on uneven terrain.
-		Vector testHullMins = GetHullMins();
-		testHullMins.z += ( StepHeight() * 2 );
-
-		// See if all is clear in that direction.
-		trace_t tr;
-		HunterTraceHull_SkipPhysics_Extern( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), MASK_NPCSOLID, this, GetCollisionGroup(), &tr, VPhysicsGetObject()->GetMass() * 0.5f );
-
-		// TODO: dodge anyway if we'll make it a certain percentage of the way through the dodge?
-		if ( tr.fraction == 1.0f )
+		while ( !bFoundDir && ( nTries < 3 ) )
 		{
-			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 0, 255, 0, 128, 5 );
-			bFoundDir = true;
-			TaskComplete();
+			SetPoseParameter( LookupPoseMoveYaw(), flDodgeDirection );
+
+			// See where the dodge will put us.
+			Vector vecLocalDelta;
+			int nSeq = SelectWeightedSequence( nDodgeActivity );
+			GetSequenceLinearMotion( nSeq, &vecLocalDelta );
+
+			// Transform the sequence delta into local space.
+			matrix3x4_t fRotateMatrix;
+			AngleMatrix( GetLocalAngles(), fRotateMatrix );
+			Vector vecDelta;
+			VectorRotate( vecLocalDelta, fRotateMatrix, vecDelta );
+
+			// Trace a bit high so this works better on uneven terrain.
+			Vector testHullMins = GetHullMins();
+			testHullMins.z += ( StepHeight() * 2 );
+
+			// See if all is clear in that direction.
+			trace_t tr;
+			HunterTraceHull_SkipPhysics_Extern( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), MASK_NPCSOLID, this, GetCollisionGroup(), &tr, VPhysicsGetObject()->GetMass() * 0.5f );
+
+			// TODO: dodge anyway if we'll make it a certain percentage of the way through the dodge?
+			if ( tr.fraction == 1.0f )
+			{
+				//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 0, 255, 0, 128, 5 );
+				bFoundDir = true;
+				m_eDodgeActivity = nDodgeActivity;
+				TaskComplete();
+			}
+			else
+			{
+				//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 255, 0, 0, 128, 5 );
+				nTries++;
+				flDodgeDirection += (bStartLeft ? 90.0f : -90.0f);
+			}
 		}
-		else
-		{
-			//NDebugOverlay::SweptBox( GetAbsOrigin(), GetAbsOrigin() + vecDelta, testHullMins, GetHullMaxs(), QAngle( 0, 0, 0 ), 255, 0, 0, 128, 5 );
-			nTries++;
-			flDodgeDirection += (bStartLeft ? 90.0f : -90.0f);
-		}
+
+		if ( bFoundDir )
+			break;
 	}
 
-	if ( nTries < 3 )
-	{
-		TaskComplete();
-	}
-	else
+	if ( !bFoundDir )
 	{
 		TaskFail( "Couldn't find dodge position\n" );
 
@@ -1627,6 +1643,18 @@ bool CNPC_Combine::ShouldDodgeProjectile( CBaseEntity *pProjectile )
 		return false;
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CNPC_Combine::GetStartDodgeActivityIdx( CBaseEntity *pProjectile )
+{
+	// Prefer to step away instead of hop with smaller, less deadly objects
+	if ( pProjectile->ClassMatches( "crossbow_bolt" ) )
+		return 1;
+
+	return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -1654,9 +1682,25 @@ bool CNPC_Combine::CanDodgeProjectiles()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-Activity CNPC_Combine::GetDodgeActivity()
+Activity CNPC_Combine::GetDodgeActivity( int nIdx )
 {
-	return ACT_DODGE_HOP;
+	// Should be in order from longest to shortest dodge
+	switch ( nIdx )
+	{
+		case 0:
+		default:
+			return ACT_DODGE_HOP;
+		case 1:
+			return ACT_DODGE_STEP;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CNPC_Combine::GetNumDodgeActivities()
+{
+	return 2;
 }
 
 //-----------------------------------------------------------------------------
@@ -2702,7 +2746,7 @@ void CNPC_Combine::GatherConditions()
 		}
 	}
 
-	if ( IsAllowedToDodge() && GetNavType() != NAV_JUMP )
+	if ( IsAllowedToDodge() )
 	{
 		if ( CanDodgeProjectiles() )
 		{
@@ -3553,7 +3597,25 @@ void CNPC_Combine::StartTask( const Task_t *pTask )
 			{
 				Msg( "Soldier %d dodging\n", entindex() );
 			}
-			SetActivity( GetDodgeActivity() );
+			SetActivity( m_eDodgeActivity );
+			break;
+		}
+
+	case TASK_COMBINE_DEFER_DODGE:
+		{
+			// For now, divide directly from our activity index
+			// This means first activity is as-is, second activity is half, third activity is a third, etc.
+			int i = 0;
+			for ( ; i < GetNumDodgeActivities(); i++ )
+			{
+				if ( m_eDodgeActivity == GetDodgeActivity(i) )
+					break;
+			}
+
+			// Start from 1 for this
+			i++;
+
+			ChainStartTask( TASK_DEFER_DODGE, pTask->flTaskData / (float)i );
 			break;
 		}
 #endif
@@ -7185,6 +7247,25 @@ bool CNPC_Combine::HandleInteraction(int interactionType, void *data, CBaseComba
 			CSoundEnt::InsertSound(SOUND_PLAYER | SOUND_CONTEXT_COMBINE_ONLY, pTarget->GetAbsOrigin(), 128, 0.1, pTarget);
 		}
 	}
+	else if (interactionType == g_interactionHeadcrabJump)
+	{
+		// Check if the base class results in a melee attack
+		if ( !BaseClass::HandleInteraction( interactionType, data, sourceEnt ) || !IsCurSchedule( SCHED_MELEE_ATTACK1, false ) )
+		{
+			// If not, then we should try dodging
+			if( !IsInAScript() && IsInterruptable() && (ConditionInterruptsCurSchedule(COND_LIGHT_DAMAGE) || ConditionInterruptsCurSchedule( COND_HEAVY_DAMAGE))
+				&& CanDodgeProjectiles() && IsAllowedToDodge() )
+			{
+				if( sourceEnt /*&& FInViewCone(sourceEnt)*/ )
+				{
+					UpdateEnemyMemory( sourceEnt, sourceEnt->GetAbsOrigin(), this );
+					SetTarget( sourceEnt );
+					SetSchedule( SCHED_COMBINE_DODGE );
+				}
+			}
+		}
+		return true;
+	}
 #endif
 	return BaseClass::HandleInteraction( interactionType, data, sourceEnt );
 }
@@ -7369,6 +7450,7 @@ DECLARE_TASK( TASK_COMBINE_HEAL_TOSS )
 #ifdef EZ2
 DECLARE_TASK( TASK_COMBINE_FIND_DODGE_POSITION )
 DECLARE_TASK( TASK_COMBINE_DODGE )
+DECLARE_TASK( TASK_COMBINE_DEFER_DODGE )
 #endif
 
 //Activities
@@ -7392,6 +7474,7 @@ DECLARE_ACTIVITY( ACT_METROPOLICE_DEPLOY_MANHACK )
 #endif
 #ifdef EZ2
 DECLARE_ACTIVITY( ACT_DODGE_HOP )
+DECLARE_ACTIVITY( ACT_DODGE_STEP )
 #endif
 
 DECLARE_ANIMEVENT( COMBINE_AE_BEGIN_ALTFIRE )
@@ -8240,8 +8323,8 @@ DEFINE_SCHEDULE
  
  	"	Tasks"
  	"		TASK_COMBINE_FIND_DODGE_POSITION		0"
- 	"		TASK_COMBINE_DODGE				0"
- 	"		TASK_DEFER_DODGE				10"
+ 	"		TASK_COMBINE_DODGE						0"
+ 	"		TASK_COMBINE_DEFER_DODGE				10"
  	""
  	"	Interrupts"
  )
