@@ -38,9 +38,12 @@ ConVar	sk_armor_penetration_762mm( "sk_armor_penetration_762mm", "1.4" );
 //-----------------------------------------------------------------------------
 void CArmorProp::Spawn()
 {
+	m_bDisableBoneFollowers = true;
+
 	BaseClass::Spawn();
 
 	SetBlocksLOS( false );
+	SetNavIgnore();
 
 	if ( !m_sbAmmoTypesLoaded )
 	{
@@ -51,6 +54,13 @@ void CArmorProp::Spawn()
 		m_nAmmoType556mm = pAmmoDef->Index( "556mm" );
 		m_nAmmoType762mm = pAmmoDef->Index( "762mm" );
 		m_sbAmmoTypesLoaded = true;
+	}
+
+	IPhysicsObject *pPhys = VPhysicsGetObject();
+	if ( pPhys )
+	{
+		pPhys->EnableGravity( false );
+		pPhys->GetShadowController()->SetPhysicallyControlled( true );
 	}
 }
 

@@ -40,6 +40,8 @@ int ACT_RELOAD_SHIELD;
 
 int ACT_ARM_SHIELD;
 int ACT_DISARM_SHIELD;
+int ACT_ACTIVATE_SHIELD;
+int ACT_DEACTIVATE_SHIELD;
 int ACT_GESTURE_FLINCH_SHIELD_TOP;
 int ACT_GESTURE_FLINCH_SHIELD_MID;
 int ACT_GESTURE_FLINCH_SHIELD_BOTTOM;
@@ -49,8 +51,6 @@ int AE_NPC_DRAW_SHIELD;
 int AE_NPC_HOLSTER_SHIELD;
 
 //-----------------------------------------------------------------------------
-
-#define SHIELD_MODEL_NAME	"models/weapons/w_tactical_shield.mdl"
 
 #define SHIELD_SKIN_CONSCRIPT		0
 #define SHIELD_SKIN_COMBINE			1
@@ -75,10 +75,10 @@ CPropShield::CPropShield()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-CPropShield *CPropShield::CreatePropShield( CAI_BaseActor *pNPC, bool bStartHolstered )
+CPropShield *CPropShield::CreatePropShield( CAI_BaseActor *pNPC, bool bStartHolstered, const char *pszModelName )
 {
 	CPropShield *pShield = (CPropShield*)CreateNoSpawn( "prop_shield", pNPC->GetAbsOrigin(), pNPC->GetAbsAngles(), pNPC );
-	pShield->SetModelName( MAKE_STRING( SHIELD_MODEL_NAME ) );
+	pShield->SetModelName( MAKE_STRING( pszModelName ) );
 	pShield->SetParent( pNPC, pNPC->LookupAttachment( bStartHolstered ? "shield_back" : "shield" ) );
 	pShield->SetLocalOrigin( vec3_origin );
 	pShield->SetLocalAngles( vec3_angle );
