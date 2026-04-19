@@ -47,7 +47,7 @@ public:
 
 	virtual void Detonate( void );
 
-private:
+protected:
 	CSprite			*m_pFragSprite;
 	CSpriteTrail	*m_pFragTrail;
 #else
