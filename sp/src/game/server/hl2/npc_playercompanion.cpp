@@ -194,6 +194,10 @@ BEGIN_DATADESC( CNPC_PlayerCompanion )
 	DEFINE_UTLVECTOR( m_hDangerSatchels, FIELD_EHANDLE ),
 
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "ForcePlaceTripmineOnTarget", InputForcePlaceTripmineOnTarget ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "TrackTripmineAsPlaced", InputTrackTripmineAsPlaced ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnablePlaceTripmines", InputEnablePlaceTripmines ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisablePlaceTripmines", InputDisablePlaceTripmines ),
+	DEFINE_OUTPUT( m_OutTripmine, "OutTripmine" ),
 
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadCheck", InputAnswerSquadCheck ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerSquadReport", InputAnswerSquadReport ),

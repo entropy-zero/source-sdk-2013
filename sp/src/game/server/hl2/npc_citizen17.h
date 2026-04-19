@@ -524,6 +524,8 @@ private:
 	virtual void StartWaitingForRappel() { m_RappelBehavior.StartWaitingForRappel(); }
 
 	void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget ) { m_TripminePlaceBehavior.ForcePlaceTripmineOnTarget( pTarget ); }
+	void	TrackTripmineAsPlaced( const char *pszName, CBaseEntity *pActivator, CBaseEntity *pCaller ) { m_TripminePlaceBehavior.TakePossessionOfTripmine( pszName, pActivator, pCaller ); }
+	void	SetTripmineCapable( bool bCapable ) { m_TripminePlaceBehavior.SetTripmineCapable( bCapable ); }
 #endif
 
 #ifdef EZ2

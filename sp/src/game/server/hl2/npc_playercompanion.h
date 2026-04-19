@@ -411,8 +411,16 @@ public:
 	virtual bool	ShouldDropInterruptedGrenades() { return (m_iGrenadeDropCapabilities & GRENDROPCAP_INTERRUPTED) != 0 && BaseClass::ShouldDropInterruptedGrenades(); }
 	virtual bool	ShouldDropAltFire() { return (m_iGrenadeDropCapabilities & GRENDROPCAP_ALTFIRE) != 0 && BaseClass::ShouldDropAltFire(); }
 
+	// TODO: Better solution than all of these stubs
 	virtual void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget ) {}
+	virtual void	TrackTripmineAsPlaced( const char *pszName, CBaseEntity *pActivator, CBaseEntity *pCaller ) {}
+	virtual void	SetTripmineCapable( bool bCapable ) {}
 	void			InputForcePlaceTripmineOnTarget( inputdata_t &inputdata ) { ForcePlaceTripmineOnTarget( inputdata.value.Entity() ); }
+	void			InputTrackTripmineAsPlaced( inputdata_t &inputdata ) { TrackTripmineAsPlaced( inputdata.value.String(), inputdata.pActivator, inputdata.pCaller ); }
+	void			InputEnablePlaceTripmines( inputdata_t &inputdata ) { SetTripmineCapable( true ); }
+	void			InputDisablePlaceTripmines( inputdata_t &inputdata ) { SetTripmineCapable( false ); }
+
+	COutputEHANDLE	m_OutTripmine;
 
 private:
 
