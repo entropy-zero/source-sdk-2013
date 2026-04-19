@@ -29,6 +29,11 @@ ConVar    sk_plr_dmg_tripmine					( "sk_plr_dmg_tripmine","0" );
 ConVar    sk_npc_dmg_tripmine					( "sk_npc_dmg_tripmine","0" );
 ConVar    sk_tripmine_radius					( "sk_tripmine_radius","0" );
 ConVar    sk_tripmine_use_owner_relations		( "sk_tripmine_use_owner_relations", "0" );
+#ifdef EZ2
+ConVar    sk_tripmine_sprites					( "sk_tripmine_sprites", "1" );
+
+#define TRIPMINE_SPRITE		"sprites/glow04.vmt"
+#endif
 
 LINK_ENTITY_TO_CLASS( npc_tripmine, CTripmineGrenade );
 
@@ -59,6 +64,8 @@ BEGIN_DATADESC( CTripmineGrenade )
 	DEFINE_FIELD( m_nTripmineClass, FIELD_INTEGER ),
 	DEFINE_KEYFIELD( m_nTripmineClassString, FIELD_STRING, "TripmineClass" ),
 	DEFINE_KEYFIELD( m_TripmineColor, FIELD_COLOR32, "TripmineColor" ),
+	DEFINE_FIELD( m_hStartSprite, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hEndSprite, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_bTripped, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_hPlacer, FIELD_EHANDLE ),
 #endif
@@ -202,6 +209,8 @@ void CTripmineGrenade::Precache( void )
 
 	PrecacheParticleSystem( "tripmine_flash_activate" );
 	PrecacheParticleSystem( "tripmine_flash_detonate" );
+
+	PrecacheModel( TRIPMINE_SPRITE );
 #endif
 }
 
@@ -236,6 +245,20 @@ void CTripmineGrenade::KillBeam( void )
 		UTIL_Remove( m_pBeam );
 		m_pBeam = NULL;
 	}
+
+#ifdef EZ2
+	if ( m_hStartSprite )
+	{
+		UTIL_Remove( m_hStartSprite );
+		m_hStartSprite = NULL;
+	}
+
+	if ( m_hEndSprite )
+	{
+		UTIL_Remove( m_hEndSprite );
+		m_hEndSprite = NULL;
+	}
+#endif
 }
 
 #ifdef EZ2
@@ -334,6 +357,42 @@ void CTripmineGrenade::MakeBeam( void )
 		vecColor[i] /= 255.0f;
 
 	DispatchParticleEffect( "tripmine_flash_activate", PATTACH_POINT, this, "particle_attach", vecColor, vecColor, true );
+
+	// Create sprites
+	if ( sk_tripmine_sprites.GetBool() )
+	{
+		// Sprites are brighter than the beam
+		int nSpriteAlpha = MAX( 255, m_TripmineColor.a * 2 );
+
+		if ( !m_hStartSprite )
+		{
+			m_hStartSprite = CSprite::SpriteCreate( TRIPMINE_SPRITE, GetAbsOrigin(), false );
+			m_hStartSprite->SetAttachment( this, beamAttach );
+			m_hStartSprite->SetTransparency( kRenderWorldGlow, m_TripmineColor.r, m_TripmineColor.g, m_TripmineColor.b, 0, kRenderFxDistort );
+			m_hStartSprite->SetBrightness( nSpriteAlpha, 1.0f );
+			m_hStartSprite->SetScale( 0.1f, 0.5f );
+			m_hStartSprite->SetGlowProxySize( 1.0f );
+			m_hStartSprite->TurnOn();
+		}
+
+		if ( !(m_pBeam->GetBeamFlags() & FBEAM_SHADEIN) )
+		{
+			if ( !m_hEndSprite )
+			{
+				m_hEndSprite = CSprite::SpriteCreate( TRIPMINE_SPRITE, vecTmpEnd, false );
+				m_hEndSprite->SetTransparency( kRenderWorldGlow, m_TripmineColor.r, m_TripmineColor.g, m_TripmineColor.b, 32, kRenderFxDistort );
+				m_hEndSprite->SetBrightness( (float)nSpriteAlpha * 0.5f, 0.5f );
+				m_hEndSprite->SetScale( 0.05f, 0.5f );
+				m_hEndSprite->SetGlowProxySize( 1.0f );
+				m_hEndSprite->TurnOn();
+			}
+			else
+			{
+				// Update origin
+				m_hEndSprite->SetAbsOrigin( vecTmpEnd );
+			}
+		}
+	}
 #endif
 }
 
