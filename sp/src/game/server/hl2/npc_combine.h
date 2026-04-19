@@ -192,7 +192,8 @@ public:
 	virtual bool	ShouldAlwaysThink();
 	virtual bool	ShouldBehaviorSelectSchedule( CAI_BehaviorBase *pBehavior );
 	virtual bool	ShouldLookForBetterWeapon();
-	virtual bool	ShouldLookForHealthItem();
+	virtual bool	ShouldLookForHealthItem( bool bCheckTime = true );
+	virtual bool	CanPickupWhileMoving() { return false; }
 	CBaseEntity		*FindHealthItem( const Vector &vecPosition, const Vector &range );
 	void			PickupItem( CBaseEntity *pItem );
 	virtual void	Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );
@@ -408,6 +409,8 @@ public:
 #ifdef EZ
 	// Blixibon - Created to use/deactivate certain code on CAI_PlayerAlly/CNPC_PlayerCompanion.
 	bool			IsCombine() { return true; }
+
+	void			SetShotDelay( float flDelay ) { m_flShotDelay = flDelay; }
 #endif
 
 protected:
@@ -631,8 +634,8 @@ private:
 	float			m_flTimePlayerStare;
 	bool			m_bTemporarilyNeedWeapon; // Soldiers who drop their weapons but aren't supposed to pick them up autonomously are given this so that they arm themselves again
 
-	float			m_flNextHealthSearchTime;
 protected:
+	float			m_flNextHealthSearchTime;
 	bool			m_bLookForItems;
 private:
 	EHANDLE			m_hObstructor;
@@ -687,6 +690,7 @@ protected:
 	CAI_FuncTankBehavior		m_FuncTankBehavior;
 	CAI_RappelBehavior			m_RappelBehavior;
 #ifdef EZ2
+	virtual CAI_TripminePlaceBehavior &GetTripminePlaceBehavior( void ) { return m_TripminePlaceBehavior; }
 	CAI_TripminePlaceBehavior	m_TripminePlaceBehavior;
 #endif
 #else

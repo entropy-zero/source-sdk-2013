@@ -1037,16 +1037,16 @@ bool CNPC_Combine::ShouldLookForBetterWeapon()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-bool CNPC_Combine::ShouldLookForHealthItem()
+bool CNPC_Combine::ShouldLookForHealthItem( bool bCheckTime )
 {
 	if( !m_bLookForItems )
 		return false;
 
-	if( gpGlobals->curtime < m_flNextHealthSearchTime )
+	if( gpGlobals->curtime < m_flNextHealthSearchTime && bCheckTime )
 		return false;
 
 	// Wait till you're standing still.
-	if( IsMoving() )
+	if( IsMoving() && !CanPickupWhileMoving() )
 		return false;
 
 	if (IsCommandable())
@@ -2583,7 +2583,7 @@ bool CNPC_Combine::CreateBehaviors()
 	AddBehavior( &m_FuncTankBehavior );
 #endif
 #ifdef EZ2
-	AddBehavior( &m_TripminePlaceBehavior );
+	AddBehavior( &GetTripminePlaceBehavior() );
 #endif
 #ifdef MAPBASE
 	AddBehavior( &m_PolicingBehavior );
