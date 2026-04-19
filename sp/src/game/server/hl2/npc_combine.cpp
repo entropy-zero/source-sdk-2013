@@ -43,6 +43,7 @@
 #include "npc_manhack.h"
 #include "items.h"
 #include "ammodef.h"
+#include "saverestore_utlvector.h"
 #endif
 #ifdef EZ2
 #include "ez2/ez2_player.h"
@@ -392,11 +393,16 @@ DEFINE_INPUTFUNC( FIELD_VOID,	"AddToPlayerSquad", InputAddToPlayerSquad ),
 
 DEFINE_KEYFIELD( m_iManhacks, FIELD_INTEGER, "manhacks" ),
 DEFINE_FIELD( m_hManhack, FIELD_EHANDLE ),
+DEFINE_FIELD( m_flNextManhackDeployTime, FIELD_TIME ),
+DEFINE_UTLVECTOR( m_hActiveManhacks, FIELD_EHANDLE ),
+DEFINE_KEYFIELD( m_iMaxActiveManhacks, FIELD_INTEGER, "maxactivemanhacks" ),
 DEFINE_INPUTFUNC( FIELD_VOID, "EnableManhackToss", InputEnableManhackToss ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DisableManhackToss", InputDisableManhackToss ),
 DEFINE_INPUTFUNC( FIELD_VOID, "DeployManhack", InputDeployManhack ),
 DEFINE_INPUTFUNC( FIELD_INTEGER, "AddManhacks", InputAddManhacks ),
 DEFINE_INPUTFUNC( FIELD_INTEGER, "SetManhacks", InputSetManhacks ),
+DEFINE_INPUTFUNC( FIELD_INTEGER, "SetMaxActiveManhacks", InputSetMaxActiveManhacks ),
+DEFINE_INPUTFUNC( FIELD_STRING, "TrackManhackAsTossed", InputTrackManhackAsTossed ),
 DEFINE_OUTPUT( m_OutManhack, "OutManhack" ),
 
 DEFINE_USEFUNC( Use ),
@@ -453,6 +459,11 @@ CNPC_Combine::CNPC_Combine()
 
 	m_iCanOrderSurrender = TRS_NONE;
 	m_iCanPlayerGive = TRS_NONE;
+
+	m_flNextManhackDeployTime = 0.0f;
+
+	// Won't deploy a manhack unless m_iManhacks is greater than 0 anyway
+	m_iMaxActiveManhacks = 1;
 #endif
 }
 
@@ -2330,6 +2341,32 @@ void CNPC_Combine::InputSetManhacks( inputdata_t &inputdata )
 	m_iManhacks = inputdata.value.Int();
 
 	SetBodygroup( COMBINE_BODYGROUP_MANHACK, (m_iManhacks > 0) );
+}
+
+void CNPC_Combine::InputSetMaxActiveManhacks( inputdata_t &inputdata )
+{
+	m_iMaxActiveManhacks = inputdata.value.Int();
+}
+
+void CNPC_Combine::InputTrackManhackAsTossed( inputdata_t &inputdata )
+{
+	if ( inputdata.value.StringID() == NULL_STRING )
+		return;
+
+	const char *pszName = inputdata.value.String();
+	CBaseEntity *pEntity = gEntList.FindEntityByName( NULL, pszName, this, inputdata.pActivator, inputdata.pCaller );
+
+	for ( ; pEntity; pEntity = gEntList.FindEntityByName( pEntity, pszName, this, inputdata.pActivator, inputdata.pCaller ) )
+	{
+		CAI_BaseNPC *pManhack = pEntity->MyNPCPointer();
+		if ( !pManhack || !pManhack->IsAlive() || !pManhack->ClassMatches( "npc_manhack" ) )
+			continue;
+
+		m_hActiveManhacks.AddToHead( pManhack );
+
+		if ( !m_hManhack )
+			m_hManhack = pManhack;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -6022,6 +6059,12 @@ void CNPC_Combine::SpeakSentence( int sentenceType )
 		}
 		break;
 
+#ifdef EZ
+	case 5: // Deploying manhack
+		SpeakIfAllowed( TLK_COP_DEPLOY_MANHACK );
+		break;
+#endif
+
 #ifdef EZ2
 	case 6: // Ordering enemy to surrender
 		// Make sure the 'order surrender' concept is always dispatched as it is vital to telegraph when a soldier is ordering a citizen to surrender
@@ -6270,15 +6313,49 @@ void CNPC_Combine::NotifyDeadFriend ( CBaseEntity* pFriend )
 
 		// This uses a "COP" concept from npc_metropolice.h
 		SpeakIfAllowed( TLK_COP_MANHACKKILLED, "my_manhack:1", SENTENCE_PRIORITY_NORMAL, SENTENCE_CRITERIA_NORMAL );
-
+		
 		DevMsg("My manhack died!\n");
-		m_hManhack = NULL;
+
+		// Set to the next manhack, if we have one
+		FOR_EACH_VEC_BACK( m_hActiveManhacks, i )
+		{
+			if ( m_hActiveManhacks[i] == m_hManhack )
+			{
+				m_hActiveManhacks.Remove( i );
+				break;
+			}
+			else if ( !m_hActiveManhacks[i] )
+				m_hActiveManhacks.Remove( i );
+		}
+
+		if ( m_hActiveManhacks.Count() > 0 )
+		{
+			m_hManhack = m_hActiveManhacks[0];
+		}
+		else
+		{
+			m_hManhack = NULL;
+		}
+
 		return;
 	}
+	else if ( FClassnameIs( pFriend, "npc_manhack" ) )
+	{
+		// See if it's another one of mine
+		FOR_EACH_VEC_BACK( m_hActiveManhacks, i )
+		{
+			if ( m_hActiveManhacks[i] == pFriend )
+			{
+				m_hActiveManhacks.Remove( i );
+				break;
+			}
+			else if ( !m_hActiveManhacks[i] )
+				m_hActiveManhacks.Remove( i );
+		}
 
-	// No notifications for squadmates' dead manhacks
-	if ( FClassnameIs( pFriend, "npc_manhack" ) )
+		// No notifications for squadmates' dead manhacks
 		return;
+	}
 #endif
 #ifndef COMBINE_SOLDIER_USES_RESPONSE_SYSTEM
 	if ( GetSquad()->NumMembers() < 2 )
@@ -6862,6 +6939,31 @@ bool CNPC_Combine::CanDeployManhack( void )
 
 	// Nope, already have one out.
 	if( m_hManhack != NULL )
+	{
+		if ( !CanDeployAdditionalManhacks() )
+			return false;
+	}
+
+	if ( m_flNextManhackDeployTime > gpGlobals->curtime )
+		return false;
+
+	// Already playing the animation
+	if ( GetActivity() == (Activity)ACT_METROPOLICE_DEPLOY_MANHACK || IsPlayingGesture( TranslateActivity( ACT_GESTURE_DEPLOY_MANHACK ) ) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: I want to deploy more manhacks. Can I?
+//-----------------------------------------------------------------------------
+bool CNPC_Combine::CanDeployAdditionalManhacks( void )
+{
+	if ( m_hActiveManhacks.Count() >= m_iMaxActiveManhacks )
+		return false;
+
+	// Don't bother with more unless we're in a good spot
+	if ( HasCondition( COND_SEE_ENEMY ) )
 		return false;
 
 	return true;
@@ -6953,6 +7055,10 @@ void CNPC_Combine::OnAnimEventStartDeployManhack( void )
 	pManhack->SetParent( this, handAttachment );
 
 	m_hManhack = pManhack;
+
+	m_hActiveManhacks.AddToHead( m_hManhack );
+
+	m_flNextManhackDeployTime = gpGlobals->curtime + 5.0f;
 
 	m_OutManhack.Set(m_hManhack, pManhack, this);
 }

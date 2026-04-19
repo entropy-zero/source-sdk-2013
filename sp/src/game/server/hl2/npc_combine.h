@@ -140,6 +140,8 @@ public:
 	void InputDeployManhack( inputdata_t &inputdata );
 	void InputAddManhacks( inputdata_t &inputdata );
 	void InputSetManhacks( inputdata_t &inputdata );
+	void InputSetMaxActiveManhacks( inputdata_t &inputdata );
+	void InputTrackManhackAsTossed( inputdata_t &inputdata );
 	void InputEnablePlayerUse( inputdata_t &inputdata );
 	void InputDisablePlayerUse( inputdata_t &inputdata );
 	void InputEnableOrderSurrender( inputdata_t &inputdata );
@@ -307,7 +309,8 @@ public:
 	bool			CreateBehaviors();
 
 #ifdef EZ
-	bool			CanDeployManhack( void );
+	virtual bool	CanDeployManhack( void );
+	virtual bool	CanDeployAdditionalManhacks( void );
 	void			ReleaseManhack( void );
 	void			OnAnimEventDeployManhack( animevent_t *pEvent );
 	void			OnAnimEventStartDeployManhack( void );
@@ -416,6 +419,12 @@ protected:
 #ifdef EZ
 	int				m_iManhacks;
 	AIHANDLE		m_hManhack = NULL;
+	float			m_flNextManhackDeployTime;
+
+	// All active manhacks we've deployed
+	// When m_hManhack dies, it takes the next one on the list
+	CUtlVector<AIHANDLE>	m_hActiveManhacks;
+	int						m_iMaxActiveManhacks;
 
 	// 1upD - If true, player +USE has no effect
 	bool m_bDisablePlayerUse;
