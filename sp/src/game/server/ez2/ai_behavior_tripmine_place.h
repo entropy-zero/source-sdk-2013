@@ -16,6 +16,8 @@
 #pragma once
 #endif
 
+class CTripmineGrenade;
+
 //-----------------------------------------------------------------------------
 
 // Saved while identifying spots and then used during schedule
@@ -24,6 +26,7 @@ struct	TripmineCandidate_t
 	Vector				vecOrigin;
 	Vector				vecDir;
 	float				flWeight;
+	EHANDLE				hAttachParent;
 
 	static int __cdecl Sort( const TripmineCandidate_t *a, const TripmineCandidate_t *b )
 	{
@@ -43,10 +46,13 @@ struct	TripmineContextData_t
 
 enum TripmineContext_t
 {
+	TRIPMINE_CONTEXT_INVALID = -1,
+
 	TRIPMINE_CONTEXT_NONE,
 	TRIPMINE_CONTEXT_LAST_KNOWN,	// Placing around last known location
 	TRIPMINE_CONTEXT_COMBAT,		// Placing in combat
 	TRIPMINE_CONTEXT_FORTIFY,		// Fortifying a location
+	TRIPMINE_CONTEXT_MOVING,		// Placing tripmines as I'm moving
 
 	TRIPMINE_CONTEXT_COUNT,
 };
@@ -82,17 +88,38 @@ public:
 	//-----------------------------------------------
 
 	bool	IsTripmineCapable() { return m_bTripmineCapable; }
+	void	SetTripmineCapable( bool bCapable ) { m_bTripmineCapable = bCapable; }
 	bool	IsPlacingTripmine();
 	bool	ShouldPlaceTripmine();
+	virtual bool	ShouldPlaceTripminesWhileMoving();
+
 	void	ForcePlaceTripmineOnTarget( CBaseEntity *pTarget );
+	void	TakePossessionOfTripmine( CTripmineGrenade *pMine );
+	void	TakePossessionOfTripmine( const char *pszName, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
 
 	bool	ProbeSurface( const Vector &vecOrigin, const Vector &vecNormal, float &flWeight, bool bCheckCandidates = true );
-	bool	ProbeDirection( const Vector &vecOrigin, const Vector &vecDir, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight );
-	bool	ProbeAllAngles( const Vector &vecOrigin, const Vector &vecForward, const Vector &vecRight, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight );
+	bool	ProbeDirection( const Vector &vecOrigin, const Vector &vecDir, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight, CBaseEntity **ppAttachParent = NULL );
+	bool	ProbeAllAngles( const Vector &vecOrigin, const Vector &vecForward, const Vector &vecRight, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight, CBaseEntity **ppAttachParent = NULL );
 
 	bool		FValidateHintType( CAI_Hint *pHint );
 	int			FindTripmineHints( const Vector &vecOrigin, float flRadius, TripmineContext_t nContext, CUtlVector<TripmineCandidate_t> &tripmineCandidates, bool bCheckVis = false );
 	bool		TryFindTripmineLocations( const Vector &vecOrigin, float flRadius, TripmineContext_t nContext, bool bCheckVis = false );
+	bool		TryFindTripmineSurfaces( const Vector &vecOrigin, float flRadius, TripmineContext_t nContext );
+
+	//-----------------------------------------------
+
+	const TripmineContext_t					GetTripmineContext() const { return m_nTripmineContext; }
+	const TripmineContextData_t				&GetTripmineContextData() const { return m_TripmineContexts[m_nTripmineContext]; }
+	const CUtlVector<TripmineCandidate_t>	&GetTripmineCandidates() const { return m_TripmineCandidates; }
+
+	inline int		GetMaxTripmines() { return GetMaxTripminesForContext( m_nTripmineContext ); }
+	virtual int		GetMaxTripminesForContext( TripmineContext_t nContext );
+
+	void	ClearTripmineCandidates();
+	void	MoveCandidateToFront( int nIndex );
+	
+	void	SetTripmineContext( CTripmineGrenade *pMine, TripmineContext_t nContext );
+	TripmineContext_t	GetTripmineContext( CTripmineGrenade *pMine );
 
 	//-----------------------------------------------
 

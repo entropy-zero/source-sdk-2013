@@ -25,6 +25,8 @@ ConVar	ai_tripmine_place_stable_only( "ai_tripmine_place_stable_only", "1" );
 
 ConVar	ai_debug_tripmine_place( "ai_debug_tripmine_place", "0" );
 
+extern ConVar sk_npc_dmg_tripmine;
+
 #define DEFAULT_TRIPMINE_HEIGHT				48.0f
 #define DEFAULT_TRIPMINE_CROUCH_HEIGHT		16.0f
 #define DEFAULT_TRIPMINE_DISTANCE			32.0f	 // GetOuter()->GetHullWidth()
@@ -45,6 +47,7 @@ static int g_iMaxContextTripmines[TRIPMINE_CONTEXT_COUNT] = {
 	3,		// TRIPMINE_CONTEXT_LAST_KNOWN
 	2,		// TRIPMINE_CONTEXT_COMBAT
 	4,		// TRIPMINE_CONTEXT_FORTIFY
+	3,		// TRIPMINE_CONTEXT_MOVING
 };
 
 static int g_flTripmineExcludeRadius[TRIPMINE_CONTEXT_COUNT] = {
@@ -52,6 +55,7 @@ static int g_flTripmineExcludeRadius[TRIPMINE_CONTEXT_COUNT] = {
 	96.0f,		// TRIPMINE_CONTEXT_LAST_KNOWN
 	256.0f,		// TRIPMINE_CONTEXT_COMBAT
 	96.0f,		// TRIPMINE_CONTEXT_FORTIFY
+	128.0f,		// TRIPMINE_CONTEXT_MOVING
 };
 
 //---------------------------------------------------------
@@ -76,6 +80,7 @@ BEGIN_SIMPLE_DATADESC( TripmineCandidate_t )
 	DEFINE_FIELD( vecOrigin, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( vecDir, FIELD_VECTOR ),
 	DEFINE_FIELD( flWeight, FIELD_FLOAT ),
+	DEFINE_FIELD( hAttachParent, FIELD_EHANDLE ),
 
 END_DATADESC()
 
@@ -122,11 +127,14 @@ bool CAI_TripminePlaceBehavior::ShouldPlaceTripmine()
 
 	if ( GetNpcState() == NPC_STATE_COMBAT )
 	{
-		// If we've lost sight of our enemy or aren't giving chase, then try setting a tripmine next to us
-		if ( ( !HasCondition( COND_SEE_ENEMY ) || !GetOuter()->HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) ) && !GetOuter()->FVisible( GetEnemyLKP() ) )
+		if ( !ShouldPlaceTripminesWhileMoving() )
 		{
-			if ( TryFindTripmineLocations( GetAbsOrigin() + Vector(0,0,DEFAULT_TRIPMINE_HEIGHT), 128.0f, TRIPMINE_CONTEXT_COMBAT, true ) )
-				return true;
+			// If we've lost sight of our enemy or aren't giving chase, then try setting a tripmine next to us
+			if ( ( !HasCondition( COND_SEE_ENEMY ) || !GetOuter()->HasStrategySlotRange( SQUAD_SLOT_ATTACK1, SQUAD_SLOT_ATTACK2 ) ) && !GetOuter()->FVisible( GetEnemyLKP() ) )
+			{
+				if ( TryFindTripmineLocations( GetAbsOrigin() + Vector(0,0,DEFAULT_TRIPMINE_HEIGHT), 128.0f, TRIPMINE_CONTEXT_COMBAT, true ) )
+					return true;
+			}
 		}
 	}
 
@@ -143,6 +151,15 @@ bool CAI_TripminePlaceBehavior::ShouldPlaceTripmine()
 
 	// TODO: If fortifying
 
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_TripminePlaceBehavior::ShouldPlaceTripminesWhileMoving()
+{
+	// Currently only overridden by derived classes
 	return false;
 }
 
@@ -186,9 +203,47 @@ void CAI_TripminePlaceBehavior::ForcePlaceTripmineOnTarget( CBaseEntity *pTarget
 	m_TripmineCandidates[i].vecDir = vecDir;
 	m_TripmineCandidates[i].flWeight = MAX( flWeight, 1.0f );
 
+	// Don't bother parenting if it's an invisible entity with no parent of itself
+	if ( pTarget->IsViewable() || pTarget->GetParent() )
+		m_TripmineCandidates[i].hAttachParent = pTarget;
+	else
+		m_TripmineCandidates[i].hAttachParent = NULL;
+
 	m_bForcePlaceTripmine = true;
 
 	SetCondition( COND_PROVOKED );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_TripminePlaceBehavior::TakePossessionOfTripmine( CTripmineGrenade *pMine )
+{
+	TripmineContext_t nContext = GetTripmineContext( pMine );
+	if ( nContext == TRIPMINE_CONTEXT_INVALID )
+		nContext = TRIPMINE_CONTEXT_NONE;
+
+	m_TripmineContexts[nContext].hTripmines.AddToTail( pMine );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_TripminePlaceBehavior::TakePossessionOfTripmine( const char *pszName, CBaseEntity *pActivator, CBaseEntity *pCaller )
+{
+	if ( !pszName || !*pszName )
+		return;
+
+	CBaseEntity *pEntity = gEntList.FindEntityByName( NULL, pszName, GetOuter(), pActivator, pCaller );
+
+	for ( ; pEntity; pEntity = gEntList.FindEntityByName( pEntity, pszName, GetOuter(), pActivator, pCaller ) )
+	{
+		CTripmineGrenade *pMine = dynamic_cast<CTripmineGrenade*>(pEntity);
+		if ( !pMine )
+			continue;
+
+		TakePossessionOfTripmine( pMine );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -299,7 +354,7 @@ bool CAI_TripminePlaceBehavior::ProbeSurface( const Vector &vecOrigin, const Vec
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_TripminePlaceBehavior::ProbeDirection( const Vector &vecOrigin, const Vector &vecDir, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight )
+bool CAI_TripminePlaceBehavior::ProbeDirection( const Vector &vecOrigin, const Vector &vecDir, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight, CBaseEntity **ppAttachParent )
 {
 	// First, trace a line in this direction
 	trace_t tr;
@@ -313,11 +368,25 @@ bool CAI_TripminePlaceBehavior::ProbeDirection( const Vector &vecOrigin, const V
 	}
 
 	// For now, only place tripmines on the world
+	// (unless we're in combat, in which case this isn't meant to be a long-term trap)
 	if ( !tr.DidHitWorld() )
 	{
-		if ( ai_debug_tripmine_place.GetBool() )
-			NDebugOverlay::HorzArrow( tr.startpos, tr.endpos, 4.0f, 255, 0, 0, 128, true, 3.0f );
-		return false;
+		if ( GetNpcState() != NPC_STATE_COMBAT || !tr.m_pEnt || tr.m_pEnt->IsAlive() )
+		{
+			if ( ai_debug_tripmine_place.GetBool() )
+				NDebugOverlay::HorzArrow( tr.startpos, tr.endpos, 4.0f, 255, 0, 0, 128, true, 3.0f );
+			return false;
+		}
+		else
+		{
+			// Not on moving entities
+			if ( tr.m_pEnt->IsMoving() )
+			{
+				if ( ai_debug_tripmine_place.GetBool() )
+					NDebugOverlay::HorzArrow( tr.startpos, tr.endpos, 4.0f, 255, 0, 0, 128, true, 3.0f );
+				return false;
+			}
+		}
 	}
 
 	// Too slanted
@@ -338,6 +407,8 @@ bool CAI_TripminePlaceBehavior::ProbeDirection( const Vector &vecOrigin, const V
 
 		vecOutOrigin = tr.endpos;
 		vecOutNormal = tr.plane.normal;
+		if ( ppAttachParent && !tr.DidHitWorld() )
+			*ppAttachParent = tr.m_pEnt;
 		return true;
 	}
 
@@ -347,12 +418,12 @@ bool CAI_TripminePlaceBehavior::ProbeDirection( const Vector &vecOrigin, const V
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_TripminePlaceBehavior::ProbeAllAngles( const Vector &vecOrigin, const Vector &vecForward, const Vector &vecRight, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight )
+bool CAI_TripminePlaceBehavior::ProbeAllAngles( const Vector &vecOrigin, const Vector &vecForward, const Vector &vecRight, float flMaxDist, Vector &vecOutOrigin, Vector &vecOutNormal, float &flWeight, CBaseEntity **ppAttachParent )
 {
 	Vector vecTestOrigin = vecOrigin;
 	Vector vecDir = vecForward;
 
-	if ( RandomInt(0,2) == 0 )
+	if ( RandomInt(0,2) == 0 && m_nTripmineContext != TRIPMINE_CONTEXT_MOVING )
 	{
 		// Crouch instead
 		vecTestOrigin.z += DEFAULT_TRIPMINE_CROUCH_HEIGHT + RandomFloat( -2.0f, 2.0f );
@@ -362,19 +433,19 @@ bool CAI_TripminePlaceBehavior::ProbeAllAngles( const Vector &vecOrigin, const V
 		vecTestOrigin.z += DEFAULT_TRIPMINE_HEIGHT + RandomFloat( -4.0f, 2.0f );
 	}
 
-	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight ) )
+	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight, ppAttachParent ) )
 		return true;
 
 	vecDir *= -1.0f;
-	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight ) )
+	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight, ppAttachParent ) )
 		return true;
 
 	vecDir = vecRight;
-	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight ) )
+	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight, ppAttachParent ) )
 		return true;
 
 	vecDir *= -1.0f;
-	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight ) )
+	if ( ProbeDirection( vecTestOrigin, vecDir, flMaxDist, vecOutOrigin, vecOutNormal, flWeight, ppAttachParent ) )
 		return true;
 
 	return false;
@@ -475,6 +546,7 @@ int CAI_TripminePlaceBehavior::FindTripmineHints( const Vector &vecOrigin, float
 		tripmineCandidates[j].vecOrigin = vecTargetOrigin;
 		tripmineCandidates[j].vecDir = vecTargetNormal;
 		tripmineCandidates[j].flWeight = flWeight;
+		tripmineCandidates[j].hAttachParent = NULL;
 
 		nNumCandidates++;
 	}
@@ -483,31 +555,36 @@ int CAI_TripminePlaceBehavior::FindTripmineHints( const Vector &vecOrigin, float
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Finds tripmine candidates in an area
 //-----------------------------------------------------------------------------
 bool CAI_TripminePlaceBehavior::TryFindTripmineLocations( const Vector &vecOrigin, float flRadius, TripmineContext_t nContext, bool bCheckVis )
 {
-	if ( m_nTripmineContext == nContext )
+	if ( m_TripmineContexts[nContext].hTripmines.Count() > 0 )
 	{
-		if ( m_TripmineContexts[m_nTripmineContext].hTripmines.Count() > 0 )
+		// Remove invalid handles before checking count
+		FOR_EACH_VEC_BACK( m_TripmineContexts[nContext].hTripmines, i )
 		{
-			// Remove invalid handles before checking count
-			FOR_EACH_VEC_BACK( m_TripmineContexts[m_nTripmineContext].hTripmines, i )
-			{
-				if (m_TripmineContexts[m_nTripmineContext].hTripmines[i] == NULL)
-					m_TripmineContexts[m_nTripmineContext].hTripmines.Remove( i );
-			}
-
-			if ( m_TripmineContexts[m_nTripmineContext].hTripmines.Count() >= g_iMaxContextTripmines[m_nTripmineContext] )
-				return false;
+			if (m_TripmineContexts[nContext].hTripmines[i] == NULL)
+				m_TripmineContexts[nContext].hTripmines.Remove( i );
 		}
 
-		// UNDONE: If we already have tripmines for this context, and the origin hasn't changed, then early out
-		//if ( m_TripmineCandidates.Count() > 0 && m_TripmineContexts[nContext].vecOrigin == vecOrigin )
-		//	return false;
+		if ( m_TripmineContexts[nContext].hTripmines.Count() >= GetMaxTripminesForContext( nContext ) )
+			return false;
+	}
 
-		if ( m_TripmineCandidates.Count() > 0 )
-			return true;
+	// UNDONE: If we already have tripmines for this context, and the origin hasn't changed, then early out
+	//if ( m_TripmineCandidates.Count() > 0 && m_TripmineContexts[nContext].vecOrigin == vecOrigin )
+	//	return false;
+
+	if ( m_TripmineCandidates.Count() > 0 )
+		return true;
+
+	TripmineContext_t nRestoreContext = TRIPMINE_CONTEXT_INVALID;
+	if ( m_nTripmineContext != nContext )
+	{
+		// Change the context for the functions below, and switch it back if we fail to find a location
+		nRestoreContext = m_nTripmineContext;
+		m_nTripmineContext = nContext;
 	}
 
 	CUtlVector<TripmineCandidate_t>	tripmineCandidates;
@@ -520,7 +597,6 @@ bool CAI_TripminePlaceBehavior::TryFindTripmineLocations( const Vector &vecOrigi
 		if ( nContext != m_nTripmineContext )
 		{
 			m_TripmineCandidates.RemoveAll();
-			m_nTripmineContext = nContext;
 			m_TripmineContexts[nContext].vecOrigin = vecOrigin;
 		}
 
@@ -597,8 +673,9 @@ bool CAI_TripminePlaceBehavior::TryFindTripmineLocations( const Vector &vecOrigi
 		Vector vecForward = Vector( 1, 0, 0 );
 		Vector vecRight = Vector( 0, -1, 0 );
 		Vector vecLocation, vecDir;
+		CBaseEntity *pAttachParent = NULL;
 		float flWeight = 1.0f - (flDistSqr / flMaxDistSqr);
-		if ( ProbeAllAngles( pNode->GetOrigin(), vecForward, vecRight, 256.0f, vecLocation, vecDir, flWeight ) )
+		if ( ProbeAllAngles( pNode->GetOrigin(), vecForward, vecRight, 256.0f, vecLocation, vecDir, flWeight, &pAttachParent ) )
 		{
 			if ( flWeight == 0.0f )
 				continue;
@@ -610,6 +687,115 @@ bool CAI_TripminePlaceBehavior::TryFindTripmineLocations( const Vector &vecOrigi
 			tripmineCandidates[j].vecOrigin = vecLocation;
 			tripmineCandidates[j].vecDir = vecDir;
 			tripmineCandidates[j].flWeight = flWeight;
+			tripmineCandidates[j].hAttachParent = pAttachParent;
+		}
+	}
+	
+	if ( tripmineCandidates.Count() > 0 )
+	{
+		if ( nContext != m_nTripmineContext )
+		{
+			m_TripmineCandidates.RemoveAll();
+			m_TripmineContexts[nContext].vecOrigin = vecOrigin;
+		}
+
+		m_TripmineCandidates.AddVectorToTail( tripmineCandidates );
+
+		// Sort them by weight
+		m_TripmineCandidates.Sort( TripmineCandidate_t::Sort );
+		return true;
+	}
+
+	// Failed to find a candidate, revert context
+	if ( nRestoreContext != TRIPMINE_CONTEXT_INVALID )
+	{
+		m_nTripmineContext = nRestoreContext;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Finds tripmine surfaces around a particular origin only, rather than searching nodes
+//-----------------------------------------------------------------------------
+bool CAI_TripminePlaceBehavior::TryFindTripmineSurfaces( const Vector &vecOrigin, float flRadius, TripmineContext_t nContext )
+{
+	if ( m_TripmineContexts[nContext].hTripmines.Count() > 0 )
+	{
+		// Remove invalid handles before checking count
+		FOR_EACH_VEC_BACK( m_TripmineContexts[nContext].hTripmines, i )
+		{
+			if (m_TripmineContexts[nContext].hTripmines[i] == NULL)
+				m_TripmineContexts[nContext].hTripmines.Remove( i );
+		}
+
+		if ( m_TripmineContexts[nContext].hTripmines.Count() >= GetMaxTripminesForContext( nContext ) )
+			return false;
+	}
+
+	// If we already have tripmines for this context, and the origin hasn't changed, then early out
+	if ( m_TripmineCandidates.Count() > 0 && m_TripmineContexts[nContext].vecOrigin == vecOrigin )
+		return false;
+
+	TripmineContext_t nRestoreContext = TRIPMINE_CONTEXT_INVALID;
+	if ( m_nTripmineContext != nContext )
+	{
+		// Change the context for the functions below, and switch it back if we fail to find a location
+		nRestoreContext = m_nTripmineContext;
+		m_nTripmineContext = nContext;
+	}
+
+	CUtlVector<TripmineCandidate_t>	tripmineCandidates;
+
+	if ( ai_debug_tripmine_place.GetBool() )
+		NDebugOverlay::Circle( vecOrigin, QAngle( -90, 0, 0 ), flRadius, 0, 0, 255, 32, true, 3.0f );
+
+	if ( FindTripmineHints( vecOrigin, flRadius, nContext, tripmineCandidates ) )
+	{
+		if ( nContext != m_nTripmineContext )
+		{
+			m_TripmineCandidates.RemoveAll();
+			m_nTripmineContext = nContext;
+			m_TripmineContexts[nContext].vecOrigin = vecOrigin;
+		}
+
+		m_TripmineCandidates.AddVectorToTail( tripmineCandidates );
+
+		// Sort them by weight
+		m_TripmineCandidates.Sort( TripmineCandidate_t::Sort );
+		return true;
+	}
+
+	// Check in worldspace first
+	Vector vecForward = Vector( 1, 0, 0 );
+	Vector vecRight = Vector( 0, -1, 0 );
+	Vector vecLocation, vecDir;
+	CBaseEntity *pAttachParent = NULL;
+	float flWeight = 1.0f;
+	if ( ProbeAllAngles( vecOrigin, vecForward, vecRight, 128.0f, vecLocation, vecDir, flWeight, &pAttachParent ) )
+	{
+		if ( flWeight != 0.0f )
+		{
+			int j = tripmineCandidates.AddToTail();
+			tripmineCandidates[j].vecOrigin = vecLocation;
+			tripmineCandidates[j].vecDir = vecDir;
+			tripmineCandidates[j].flWeight = flWeight;
+			tripmineCandidates[j].hAttachParent = pAttachParent;
+		}
+	}
+
+	// Now check with our own vectors
+	GetOuter()->GetVectors( &vecForward, &vecRight, NULL );
+	flWeight = 1.0f;
+	if ( ProbeAllAngles( vecOrigin, vecForward, vecRight, 128.0f, vecLocation, vecDir, flWeight, &pAttachParent ) )
+	{
+		if ( flWeight != 0.0f )
+		{
+			int j = tripmineCandidates.AddToTail();
+			tripmineCandidates[j].vecOrigin = vecLocation;
+			tripmineCandidates[j].vecDir = vecDir;
+			tripmineCandidates[j].flWeight = flWeight;
+			tripmineCandidates[j].hAttachParent = pAttachParent;
 		}
 	}
 	
@@ -629,7 +815,68 @@ bool CAI_TripminePlaceBehavior::TryFindTripmineLocations( const Vector &vecOrigi
 		return true;
 	}
 
+	// Failed to find a candidate, revert context
+	if ( nRestoreContext != TRIPMINE_CONTEXT_INVALID )
+	{
+		m_nTripmineContext = nRestoreContext;
+	}
+
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CAI_TripminePlaceBehavior::GetMaxTripminesForContext( TripmineContext_t nContext )
+{
+	return g_iMaxContextTripmines[nContext];
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_TripminePlaceBehavior::ClearTripmineCandidates()
+{
+	m_TripmineCandidates.RemoveAll();
+	m_nTripmineContext = TRIPMINE_CONTEXT_NONE;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_TripminePlaceBehavior::MoveCandidateToFront( int nIndex )
+{
+	// Just copy it to a new element
+	TripmineCandidate_t candidate = m_TripmineCandidates[nIndex];
+	m_TripmineCandidates.Remove( nIndex );
+	m_TripmineCandidates.AddToHead( candidate );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_TripminePlaceBehavior::SetTripmineContext( CTripmineGrenade *pMine, TripmineContext_t nContext )
+{
+	// Consider a dedicated field in CTripmineGrenade if this becomes more important
+	pMine->AddContext( "placement_context", CNumStr( nContext ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+TripmineContext_t CAI_TripminePlaceBehavior::GetTripmineContext( CTripmineGrenade *pMine )
+{
+	const char *pszContext = pMine->GetContextValue( "placement_context" );
+	if ( pszContext && *pszContext )
+	{
+		TripmineContext_t nContext = (TripmineContext_t)atoi( pszContext );
+		if ( nContext < TRIPMINE_CONTEXT_INVALID || nContext >= TRIPMINE_CONTEXT_COUNT )
+			return TRIPMINE_CONTEXT_INVALID;
+
+		return nContext;
+	}
+
+	return TRIPMINE_CONTEXT_INVALID;
 }
 
 //-----------------------------------------------------------------------------
@@ -649,7 +896,7 @@ bool CAI_TripminePlaceBehavior::KeyValue( const char *szKeyName, const char *szV
 {
 	if ( FStrEq( szKeyName, "CanUseTripmines" ) )
 	{
-		m_bTripmineCapable = (atoi( szValue ) != 0);
+		SetTripmineCapable( (atoi( szValue ) != 0) );
 		return true;
 	}
 
@@ -796,11 +1043,13 @@ void CAI_TripminePlaceBehavior::HandleAnimEvent( animevent_t *pEvent )
 	{
 		Vector vecTripmineOrigin, vecTripmineDir;
 		QAngle angTripmineAngles;
+		CBaseEntity *pAttachParent = NULL;
 
 		if ( m_TripmineCandidates.Count() > 0 )
 		{
 			vecTripmineOrigin = m_TripmineCandidates[0].vecOrigin;
 			vecTripmineDir = m_TripmineCandidates[0].vecDir;
+			pAttachParent = m_TripmineCandidates[0].hAttachParent;
 
 			m_TripmineCandidates.Remove( 0 );
 		}
@@ -819,19 +1068,28 @@ void CAI_TripminePlaceBehavior::HandleAnimEvent( animevent_t *pEvent )
 
 		switch ( GetOuter()->Classify() )
 		{
+			case CLASS_PLAYER_ALLY:
+				pMine->KeyValue( "TripmineColor", "255 192 0 64" );
+				break;
+			case CLASS_CONSCRIPT:
+				// HL1 color
+				pMine->KeyValue( "TripmineColor", "0 255 236 64" );
+				break;
 			case CLASS_COMBINE_NEMESIS:
 				pMine->KeyValue( "TripmineColor", "0 255 255 64" );
 				break;
 		}
 
-		// TODO: If the SLAM is attached to a non-world entity, parent it!
-		/*if ( !pEntity->IsWorld() )
+		// If the SLAM is attached to a non-world entity, parent it!
+		if ( pAttachParent )
 		{
-			pMine->SetParent( pEntity );
-		}*/
+			pMine->SetParent( pAttachParent );
+		}
 
 		pMine->SetOwnerEntity( GetOuter() );
+		pMine->SetDamage( sk_npc_dmg_tripmine.GetFloat() );
 		pMine->SetVisibleToNPCs( true );
+		SetTripmineContext( pMine, m_nTripmineContext );
 		DispatchSpawn( pMine );
 		pMine->Activate();
 
@@ -843,6 +1101,8 @@ void CAI_TripminePlaceBehavior::HandleAnimEvent( animevent_t *pEvent )
 		pMine->EmitSound( "TripmineGrenade.ChargeUp" );
 
 		m_TripmineContexts[m_nTripmineContext].hTripmines.AddToTail( pMine );
+
+		GetOuter()->m_OutTripmine.Set( pMine, pMine, GetOuter() );
 
 		if ( m_bForcePlaceTripmine )
 			m_bForcePlaceTripmine = false;
