@@ -14,6 +14,7 @@
 #include "basegrenade_shared.h"
 
 class CBeam;
+class CSprite;
 
 #ifdef MAPBASE
 #define SF_TRIPMINE_START_INACTIVE (1 << 0)
@@ -97,6 +98,10 @@ private:
 	Class_T     m_nTripmineClass;
 	string_t	m_nTripmineClassString;
 	color32     m_TripmineColor;
+
+	// Would be better if these were clientside
+	CHandle<CSprite>	m_hStartSprite;
+	CHandle<CSprite>	m_hEndSprite;
 
 	bool		m_bTripped;
 
