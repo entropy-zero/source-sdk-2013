@@ -2018,17 +2018,20 @@ void CGameMovement::WalkMove( void )
 				wishdir = wishvel;
 				VectorNormalize( wishdir );
 
+				Vector vecSteeredDir = ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) );
+				VectorNormalize( vecSteeredDir );
+
 				// If we've met our base time, start decelerating
 				float flSlideDecay = player->GetDuckSlideDecay();
 				if ( flSlideDecay != 1.0f )
 				{
 					wishvel *= 1.0f - flSlideDecay;
-					wishvel += ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) ).Normalized() * mv->m_flMaxSpeed * flSlideDecay;
+					wishvel += vecSteeredDir * mv->m_flMaxSpeed * flSlideDecay;
 				}
 				else
 				{
 					// Keep accelerating
-					wishvel = ( movedir + ( wishdir * DUCK_SLIDE_STEER_INFLUENCE ) ).Normalized() * mv->m_flMaxSpeed;
+					wishvel = vecSteeredDir * mv->m_flMaxSpeed;
 					accel *= 2.0f;
 				}
 			}
