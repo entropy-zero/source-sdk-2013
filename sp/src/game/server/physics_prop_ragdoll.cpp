@@ -167,6 +167,7 @@ BEGIN_DATADESC(CRagdollProp)
 	DEFINE_THINKFUNC( FadeOutThink ),
 #ifdef EZ2
 	DEFINE_THINKFUNC( EmitScent ),
+	DEFINE_THINKFUNC( TimeWarpThink ),
 #endif
 
 	DEFINE_FIELD( m_ragdoll.listCount, FIELD_INTEGER ),
