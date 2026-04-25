@@ -150,7 +150,7 @@ void CNPC_BasePredator::OnRestore()
 
 void CNPC_BasePredator::SetupGlobalModelData()
 {
-	CollisionProp()->SetSurroundingBoundsType( USE_HITBOXES );
+	//CollisionProp()->SetSurroundingBoundsType( USE_HITBOXES );
 
 	m_nAttachForward = LookupAttachment( "forward" );
 }
