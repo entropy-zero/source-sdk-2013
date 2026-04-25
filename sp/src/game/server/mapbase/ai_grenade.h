@@ -29,6 +29,7 @@
 #endif
 
 #define COMBINE_AE_GREN_TOSS		( 7 )
+#define COMBINE_AE_GREN_DROP		( 9 )
 
 #define COMBINE_GRENADE_THROW_SPEED 650
 #define COMBINE_GRENADE_TIMER		3.5
@@ -294,6 +295,34 @@ void CAI_GrenadeUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 		m_flNextGrenadeCheck = gpGlobals->curtime + 6;
 
 		m_iLastAnimEventHandled = pEvent->event;
+
+		return;
+	}
+	
+	if ( pEvent->event == COMBINE_AE_GREN_DROP )
+	{
+		Vector vecStart;
+		QAngle angStart;
+		m_vecTossVelocity.x = 15;
+		m_vecTossVelocity.y = 0;
+		m_vecTossVelocity.z = 0;
+
+		this->GetAttachment( "lefthand", vecStart, angStart );
+
+		CBaseEntity *pGrenade = NULL;
+		if (this->GetState() == NPC_STATE_SCRIPT)
+		{
+			// While scripting, have the grenade face upwards like it was originally and also don't decrement grenade count.
+			pGrenade = Fraggrenade_Create( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+		}
+		else
+		{
+			pGrenade = Fraggrenade_Create( vecStart, angStart, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+			AddGrenades(-1);
+		}
+
+		// Well, technically we're not throwing, but...still.
+		m_OnThrowGrenade.Set(pGrenade, pGrenade, this);
 
 		return;
 	}
