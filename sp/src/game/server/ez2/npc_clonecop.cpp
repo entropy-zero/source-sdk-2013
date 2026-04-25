@@ -14,14 +14,12 @@
 #include "npc_clonecop.h"
 #include "gameweaponmanager.h"
 #include "ammodef.h"
-#include "grenade_hopwire.h"
 #include "npc_manhack.h"
 #include "particle_parse.h"
 #include "prop_combine_ball.h"
 #include "ez2_player.h"
 #include "ai_interactions.h"
 #include "items.h"
-#include "hl2mp/grenade_satchel.h"
 #include "ai_network.h"
 #include "saverestore_utlvector.h"
 
@@ -87,8 +85,6 @@ BEGIN_DATADESC( CNPC_CloneCop )
 
 	DEFINE_INPUT( m_ArmorValue, FIELD_INTEGER, "SetArmor" ),
 	DEFINE_FIELD( m_bIsBleeding, FIELD_BOOLEAN ),
-
-	DEFINE_INPUT( m_bThrowXenGrenades, FIELD_BOOLEAN, "SetThrowXenGrenades" ),
 
 	DEFINE_FIELD( m_flNextWeaponSwitchTime, FIELD_TIME ),
 
@@ -1506,113 +1502,6 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 	{
 		switch( pEvent->event )
 		{
-		case COMBINE_AE_GREN_TOSS:
-			{
-				Vector vecSpin;
-				vecSpin.x = random->RandomFloat( -1000.0, 1000.0 );
-				vecSpin.y = random->RandomFloat( -1000.0, 1000.0 );
-				vecSpin.z = random->RandomFloat( -1000.0, 1000.0 );
-
-				Vector vecStart;
-				GetAttachment( "lefthand", vecStart );
-
-				if( m_NPCState == NPC_STATE_SCRIPT )
-				{
-					// Use a fixed velocity for grenades thrown in scripted state.
-					// Grenades thrown from a script do not count against grenades remaining for the AI to use.
-					Vector forward, up, vecThrow;
-
-					GetVectors( &forward, NULL, &up );
-					vecThrow = forward * 750 + up * 175;
-
-					CBaseEntity *pGrenade = NULL;
-					if ( ShouldThrowXenGrenades() )
-					{
-						pGrenade = HopWire_Create( vecStart, vec3_angle, vecThrow, vecSpin, this, COMBINE_GRENADE_TIMER );
-					}
-					else if ( ShouldThrowProximitySatchel() )
-					{
-						pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, vecThrow, vecSpin, this );
-						OnThrowProximitySatchel( pGrenade );
-					}
-					else
-					{
-						pGrenade = Fraggrenade_Create( vecStart, vec3_angle, vecThrow, vecSpin, this, COMBINE_GRENADE_TIMER, true );
-					}
-
-					m_OnThrowGrenade.Set(pGrenade, pGrenade, this);
-				}
-				else
-				{
-					// Use the Velocity that AI gave us.
-					CBaseEntity *pGrenade = NULL;
-					if ( ShouldThrowXenGrenades() )
-					{
-						pGrenade = HopWire_Create( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this, COMBINE_GRENADE_TIMER );
-					}
-					else if ( ShouldThrowProximitySatchel() )
-					{
-						pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this );
-						OnThrowProximitySatchel( pGrenade );
-					}
-					else
-					{
-						pGrenade = Fraggrenade_Create( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this, COMBINE_GRENADE_TIMER, true );
-					}
-
-					m_OnThrowGrenade.Set(pGrenade, pGrenade, this);
-					AddGrenades(-1, pGrenade);
-				}
-
-				// wait six seconds before even looking again to see if a grenade can be thrown.
-				m_flNextGrenadeCheck = gpGlobals->curtime + 6;
-			}
-			handledEvent = true;
-			break;
-
-		case COMBINE_AE_GREN_DROP:
-			{
-				Vector vecStart;
-				QAngle angStart;
-				m_vecTossVelocity.x = 15;
-				m_vecTossVelocity.y = 0;
-				m_vecTossVelocity.z = 0;
-
-				GetAttachment( "lefthand", vecStart, angStart );
-
-				CBaseEntity *pGrenade = NULL;
-				if (m_NPCState == NPC_STATE_SCRIPT)
-				{
-					// While scripting, have the grenade face upwards like it was originally and also don't decrement grenade count.
-					if ( ShouldThrowProximitySatchel( true ) )
-					{
-						pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this );
-						OnThrowProximitySatchel( pGrenade );
-					}
-					else
-					{
-						pGrenade = Fraggrenade_Create( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
-					}
-				}
-				else
-				{
-					if ( ShouldThrowProximitySatchel( true ) )
-					{
-						pGrenade = Satchel_CreateProximitySatchel( vecStart, angStart, m_vecTossVelocity, vec3_origin, this );
-						OnThrowProximitySatchel( pGrenade );
-					}
-					else
-					{
-						pGrenade = Fraggrenade_Create( vecStart, angStart, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
-					}
-					AddGrenades(-1);
-				}
-
-				// Well, technically we're not throwing, but...still.
-				m_OnThrowGrenade.Set(pGrenade, pGrenade, this);
-			}
-			handledEvent = true;
-			break;
 		case COMBINE_AE_KICK:
 			if ( m_hOpeningDoor && !IsCurSchedule( SCHED_MELEE_ATTACK1 ) )
 			{
@@ -1764,35 +1653,6 @@ void CNPC_CloneCop::StopBleeding()
 	StopParticleEffects( this );
 
 	SetContextThink( &CNPC_CloneCop::BleedThink, TICK_NEVER_THINK, CC_BLEED_THINK );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *pEvent - 
-//-----------------------------------------------------------------------------
-bool CNPC_CloneCop::ShouldThrowXenGrenades()
-{
-	if (!m_bThrowXenGrenades)
-		return false;
-
-	if (GetEnemy() && !m_hForcedGrenadeTarget)
-	{
-		// Don't throw Xen grenades at Xen enemies (prevents Clone Cop from getting stuck in a loop)
-		if (GetEnemy()->GetEZVariant() == EZ_VARIANT_XEN)
-			return false;
-
-		// If we have just one enemy (and they're not a player), only throw a Xen grenade if we've been engaged for a bit
-		if (GetEnemies()->NumEnemies() == 1 && !GetEnemy()->IsPlayer())
-		{
-			float flTimeAtFirstHand = GetEnemies()->TimeAtFirstHand(GetEnemy());
-			if ( flTimeAtFirstHand != AI_INVALID_TIME && gpGlobals->curtime - flTimeAtFirstHand < 15.0f )
-			{
-				return false;
-			}
-		}
-	}
-
-	return true;
 }
 
 //-----------------------------------------------------------------------------

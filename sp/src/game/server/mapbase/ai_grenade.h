@@ -26,6 +26,9 @@
 #include "ai_hint.h"
 #ifdef EZ2
 #include "grenade_hopwire.h"
+#include "hl2mp/grenade_satchel.h"
+
+CSatchelCharge *Satchel_CreateProximitySatchel( const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner );
 #endif
 
 #define COMBINE_AE_GREN_TOSS		( 7 )
@@ -160,6 +163,14 @@ public:
 	bool			CanThrowGrenade( const Vector &vecTarget );
 	bool			CheckCanThrowGrenade( const Vector &vecTarget );
 
+#ifdef EZ2
+	void			SetThrowXenGrenades( bool bEnabled ) { m_bThrowXenGrenades = false; }
+	virtual bool	ShouldThrowXenGrenades();
+
+	virtual bool	ShouldThrowProximitySatchel( bool bDrop = false ) { return false; }
+	virtual void	OnThrowProximitySatchel( CBaseEntity *pGrenade ) {}
+#endif
+
 	// For OnThrowGrenade + point_entity_replace, see grenade_frag.cpp
 	bool			UsingOnThrowGrenade() { return m_OnThrowGrenade.NumberOfElements() > 0; }
 
@@ -258,9 +269,14 @@ void CAI_GrenadeUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 			// This code is used by player allies now, so it's only "combine spawned" if the thrower isn't allied with the player.
 #ifdef EZ2
 			CBaseEntity *pGrenade = NULL;
-			if ( m_bThrowXenGrenades )
+			if ( ShouldThrowXenGrenades() )
 			{
 				pGrenade = HopWire_Create( vecStart, vec3_angle, vecThrow, vecSpin, this, COMBINE_GRENADE_TIMER );
+			}
+			else if ( ShouldThrowProximitySatchel() )
+			{
+				pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, vecThrow, vecSpin, this );
+				OnThrowProximitySatchel( pGrenade );
 			}
 			else
 			{
@@ -276,9 +292,14 @@ void CAI_GrenadeUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 			// Use the Velocity that AI gave us.
 #ifdef EZ2
 			CBaseEntity *pGrenade = NULL;
-			if ( m_bThrowXenGrenades )
+			if ( ShouldThrowXenGrenades() )
 			{
 				pGrenade = HopWire_Create( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this, COMBINE_GRENADE_TIMER );
+			}
+			else if ( ShouldThrowProximitySatchel() )
+			{
+				pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, m_vecTossVelocity, vecSpin, this );
+				OnThrowProximitySatchel( pGrenade );
 			}
 			else
 			{
@@ -313,11 +334,31 @@ void CAI_GrenadeUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 		if (this->GetState() == NPC_STATE_SCRIPT)
 		{
 			// While scripting, have the grenade face upwards like it was originally and also don't decrement grenade count.
-			pGrenade = Fraggrenade_Create( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+#ifdef EZ2
+			if ( ShouldThrowProximitySatchel( true ) )
+			{
+				pGrenade = Satchel_CreateProximitySatchel( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this );
+				OnThrowProximitySatchel( pGrenade );
+			}
+			else
+#endif
+			{
+				pGrenade = Fraggrenade_Create( vecStart, vec3_angle, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+			}
 		}
 		else
 		{
-			pGrenade = Fraggrenade_Create( vecStart, angStart, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+#ifdef EZ2
+			if ( ShouldThrowProximitySatchel( true ) )
+			{
+				pGrenade = Satchel_CreateProximitySatchel( vecStart, angStart, m_vecTossVelocity, vec3_origin, this );
+				OnThrowProximitySatchel( pGrenade );
+			}
+			else
+#endif
+			{
+				pGrenade = Fraggrenade_Create( vecStart, angStart, m_vecTossVelocity, vec3_origin, this, COMBINE_GRENADE_TIMER, true );
+			}
 			AddGrenades(-1);
 		}
 
@@ -705,6 +746,37 @@ bool CAI_GrenadeUser<BASE_NPC>::CheckCanThrowGrenade( const Vector &vecTarget )
 		return false;
 	}
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+template <class BASE_NPC>
+bool CAI_GrenadeUser<BASE_NPC>::ShouldThrowXenGrenades()
+{
+	if ( !m_bThrowXenGrenades )
+		return false;
+
+	if ( this->GetEnemy() && !m_hForcedGrenadeTarget )
+	{
+		// Don't throw Xen grenades at Xen enemies (prevents Clone Cop from getting stuck in a loop)
+		if ( this->GetEnemy()->GetEZVariant() == EZ_VARIANT_XEN )
+			return false;
+
+		// If we have just one enemy (and they're not a player), only throw a Xen grenade if we've been engaged for a bit
+		if ( this->GetEnemies()->NumEnemies() == 1 && !this->GetEnemy()->IsPlayer() )
+		{
+			float flTimeAtFirstHand = this->GetEnemies()->TimeAtFirstHand( this->GetEnemy( ));
+			if ( flTimeAtFirstHand != AI_INVALID_TIME && gpGlobals->curtime - flTimeAtFirstHand < 15.0f )
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: This was copied from soldier code for general AI grenades.

@@ -75,12 +75,6 @@ public:
 	void		StopBleeding();
 	inline bool	IsBleeding() { return m_bIsBleeding; }
 
-	void		SetThrowXenGrenades( bool bEnabled ) { m_bThrowXenGrenades = false; }
-	bool		ShouldThrowXenGrenades();
-
-	virtual bool	ShouldThrowProximitySatchel( bool bDrop = false ) { return false; }
-	virtual void	OnThrowProximitySatchel( CBaseEntity *pGrenade ) {}
-
 	bool		ShouldUseAvoidantFlanking();
 
 	bool		CanDeployManhack( void );
@@ -206,8 +200,6 @@ private:
 
 	int		m_ArmorValue;
 	bool	m_bIsBleeding;
-
-	bool	m_bThrowXenGrenades;
 
 	float	m_flNextWeaponSwitchTime;
 
