@@ -156,6 +156,9 @@ public:
 	void InputEnterVehicleImmediate( inputdata_t &inputdata );
 	void InputEnterVehicle( inputdata_t &inputdata );
 	void InputExitVehicle( inputdata_t &inputdata );
+#ifdef MAPBASE
+	void InputExitVehicleImmediate( inputdata_t &inputdata );
+#endif
 	void InputLock( inputdata_t &inputdata );
 	void InputUnlock( inputdata_t &inputdata );
 	void InputOpen( inputdata_t &inputdata );
@@ -241,6 +244,9 @@ BEGIN_DATADESC( CPropVehicleChoreoGeneric )
 	DEFINE_INPUTFUNC( FIELD_VOID, "EnterVehicle", InputEnterVehicle ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "EnterVehicleImmediate", InputEnterVehicleImmediate ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "ExitVehicle", InputExitVehicle ),
+#ifdef MAPBASE
+	DEFINE_INPUTFUNC( FIELD_VOID, "ExitVehicleImmediate", InputExitVehicleImmediate ),
+#endif
 	DEFINE_INPUTFUNC( FIELD_VOID, "Open", InputOpen ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Close", InputClose ),
 	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "Viewlock", InputViewlock ),
@@ -786,6 +792,27 @@ void CPropVehicleChoreoGeneric::InputExitVehicle( inputdata_t &inputdata )
 {
 	m_bForcedExit = true;
 }
+
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: Force the player to exit the vehicle immediately.
+//-----------------------------------------------------------------------------
+void CPropVehicleChoreoGeneric::InputExitVehicleImmediate( inputdata_t &inputdata )
+{
+	if ( m_hPlayer )
+	{
+		ResetUseKey( m_hPlayer );
+
+		m_playerOff.FireOutput( m_hPlayer, this, 0 );
+		m_bEnterAnimOn = false;
+
+		m_ServerVehicle.SoundShutdown( 1.0 );
+
+		m_hPlayer->LeaveVehicle();
+		m_hPlayer = NULL;
+	}
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Parses the vehicle's script for the vehicle view parameters
