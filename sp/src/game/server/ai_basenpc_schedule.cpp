@@ -1406,6 +1406,11 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 	case TASK_STORE_ENEMY_POSITION_IN_SAVEPOSITION:
 		if ( GetEnemy() != NULL )
 		{
+#ifdef EZ2
+			if ( IsUsingStealthSenses() )
+				m_vSavePosition = GetEnemyLKP();
+			else
+#endif
 			m_vSavePosition = GetEnemy()->GetAbsOrigin();
 			TaskComplete();
 		}

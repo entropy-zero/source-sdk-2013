@@ -1057,20 +1057,6 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 			break;
 		}
 	}
-	
-	if (idx == m_AlertLevels.Count())
-	{
-		// Create new alert level for this target
-		idx = m_AlertLevels.AddToTail();
-		m_AlertLevels[idx].hTarget = pTarget;
-		m_AlertLevels[idx].flLevel = 0.0f;
-		m_AlertLevels[idx].flPrevLevel = 0.0f;
-		m_AlertLevels[idx].flTotalLevel = 0.0f;
-		m_AlertLevels[idx].flStartTime = m_AlertLevels[idx].flLastUpdate = gpGlobals->curtime;
-
-		// Maintain it immediately
-		m_flNextAlertLevelThink = gpGlobals->curtime;
-	}
 
 	// If we were just attacked, become alerted quickly
 	if ( gpGlobals->curtime - GetOuter()->GetLastDamageTime() < 2.0f && pTarget->IsCombatCharacter() )
@@ -1180,9 +1166,27 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 	// Account for high frequency look times
 	if (GetOuter()->IsUsingHighFrequencyLook())
 		flAlertLevelIncrease *= (TICK_INTERVAL / .5f);
-	
-	if (flAlertLevelIncrease > 0.0)
+
+	// Apply custom behavior
+	GetOuter()->ModifyStealthAlertLevel( pTarget, vecDelta, flDot, flAlertLevelIncrease );
+
+	// Only add a new alert level if it's high enough to be noticeable
+	if (idx == m_AlertLevels.Count() ? flAlertLevelIncrease > 0.01f : flAlertLevelIncrease > 0.0f)
 	{
+		if (idx == m_AlertLevels.Count())
+		{
+			// Create new alert level for this target
+			idx = m_AlertLevels.AddToTail();
+			m_AlertLevels[idx].hTarget = pTarget;
+			m_AlertLevels[idx].flLevel = 0.0f;
+			m_AlertLevels[idx].flPrevLevel = 0.0f;
+			m_AlertLevels[idx].flTotalLevel = 0.0f;
+			m_AlertLevels[idx].flStartTime = m_AlertLevels[idx].flLastUpdate = gpGlobals->curtime;
+
+			// Maintain it immediately
+			m_flNextAlertLevelThink = gpGlobals->curtime;
+		}
+
 		m_AlertLevels[idx].flTotalLevel += flAlertLevelIncrease;
 		m_AlertLevels[idx].flLevel += flAlertLevelIncrease;
 		if (m_AlertLevels[idx].flLevel > 1.0)

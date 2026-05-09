@@ -572,6 +572,12 @@ void CHudStealthAlert::MsgFunc_AlertTargetUpdate( bf_read &msg )
 	float flNewLevel = msg.ReadFloat();
 	int iType = msg.ReadByte();
 
+	if ( !pEntity )
+	{
+		Warning( "Alert target with null entity (NPC is nodraw?)\n" );
+		return;
+	}
+
 	int index = -1;
 	for (int i = 0; i < m_AlertIcons.Count(); i++)
 	{
@@ -639,6 +645,12 @@ void CHudStealthAlert::MsgFunc_AlertTargetEntersCombat( bf_read &msg )
 	C_BaseEntity *pEntity = C_BaseEntity::Instance( msg.ReadShort() );
 	bool bTargetingMe = msg.ReadOneBit();
 
+	if ( !pEntity )
+	{
+		Warning( "Alert target with null entity (NPC is nodraw?)\n" );
+		return;
+	}
+
 	// Mark the alert target as being in combat
 	int index = -1;
 	for (int i = 0; i < m_AlertIcons.Count(); i++)
@@ -692,6 +704,12 @@ void CHudStealthAlert::MsgFunc_EnemyMarkUpdate( bf_read &msg )
 	int g = msg.ReadByte();
 	int b = msg.ReadByte();
 	int a = msg.ReadByte();
+
+	if ( !pEntity )
+	{
+		Warning( "Enemy mark with null entity (NPC is nodraw?)\n" );
+		return;
+	}
 
 	C_EZ2_Player *pEZ2Player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
 	pEZ2Player->EnemyMarkUpdate( pEntity, flLastTimeSeen, r, g, b, a );

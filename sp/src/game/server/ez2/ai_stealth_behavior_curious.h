@@ -56,7 +56,7 @@ public:
 	//-----------------------------------------------
 
 	virtual bool	IsInvestigatingSound();
-	bool			ShouldStayAtSound( CSound *pSound );
+	virtual bool	ShouldStayAtSound( CSound *pSound );
 	virtual bool	ShouldGoToSoundSource( CSound *pSound );
 	virtual void	OnStartInvestigatingSound() {}
 	virtual void	OnHearNewSound( CSound *pSound );

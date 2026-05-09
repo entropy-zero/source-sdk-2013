@@ -493,6 +493,10 @@ void CAI_StealthCuriousBehavior::OnSeeLaserDot( CBaseEntity *pEntity )
 	if ( pEntity->GetEffects() & EF_NODRAW )
 		return;
 
+	CBaseEntity *pOwner = pEntity->GetOwnerEntity();
+	if ( pOwner && GetOuter()->IRelationType( pOwner ) == D_LI )
+		return;
+
 	CuriousDbgMsg( "OnSeeLaserDot\n" );
 
 	if ( g_hStealthManager )
@@ -507,7 +511,6 @@ void CAI_StealthCuriousBehavior::OnSeeLaserDot( CBaseEntity *pEntity )
 
 			CuriousDbgMsg( "- Calling out laser sight danger\n" );
 
-			CBaseEntity *pOwner = pEntity->GetOwnerEntity();
 			if ( pOwner )
 			{
 				// Create a temporary target for two reasons:
@@ -528,7 +531,6 @@ void CAI_StealthCuriousBehavior::OnSeeLaserDot( CBaseEntity *pEntity )
 		else
 		{
 			// Notice the source
-			CBaseEntity *pOwner = pEntity->GetOwnerEntity();
 			if ( pOwner )
 			{
 				GetOuter()->UpdateEnemyMemory( pOwner, pOwner->GetAbsOrigin() );
@@ -599,6 +601,15 @@ int CAI_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 				CSound *pSound = GetOuter()->GetBestSound();
 				if (pSound /*&& CAI_StealthSenses::IsStealthSound(pSound)*/)
 				{
+					if ( CAI_StealthSenses::IsCalmStealthSound( pSound ) && !GetOuter()->OccupyStrategySlot( SQUAD_SLOT_INVESTIGATE_SOUND ) )
+					{
+						if ( g_debug_stealth_investigate.GetInt() == 2 )
+							GetStealthSenses()->EntityPrint( GetStealthSenses()->GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_INVESTIGATE ) + 1, Color( 255, 255, 128 ), 3.0f,
+								"Don't have investigate slot" );
+
+						return SCHED_ALERT_FACE_BESTSOUND;
+					}
+
 					if ( ShouldStayAtSound( pSound ) )
 						return SCHED_STEALTH_INVESTIGATE_SOUND_STAY;
 
@@ -645,7 +656,7 @@ void CAI_StealthCuriousBehavior::BuildScheduleTestBits( void )
 	if ( IsInvestigatingSound() )
 	{
 		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_STEALTH_NEW_SOUND ) );
-		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_HEAR_DANGER ) );
+		GetOuter()->SetCustomInterruptCondition( COND_HEAR_DANGER );
 	}
 	else if ( IsCurSchedule( SCHED_GET_HEALTHKIT, false ) )
 	{
@@ -837,6 +848,11 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 
 							SetTarget( pSound->m_hOwner );
 						}
+						else if ( !GetOuter()->OccupyStrategySlot( SQUAD_SLOT_INVESTIGATE_SOUND ) )
+						{
+							// Don't go directly to the source if we're not the main investigator
+							bGoToSource = false;
+						}
 						else if ( g_debug_stealth_investigate.GetInt() == 2 )
 							GetStealthSenses()->EntityPrint( GetStealthSenses()->GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_INVESTIGATE ) + 1, Color( 255, 255, 128 ), 5.0f,
 								"Moving to sound react origin (stop dist %.2f)", goal.tolerance );
@@ -874,15 +890,66 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 							else
 							{
 								// Already have LOS, don't move
-								goal.type = GOALTYPE_INVALID;
-							
 								if ( g_debug_stealth_investigate.GetInt() == 2 )
 									GetStealthSenses()->EntityPrint( GetStealthSenses()->GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_INVESTIGATE ) + 1, Color( 255, 255, 128 ), 10.0f,
 										"Not going to sound source - Deciding not to move" );
+
+								TaskFail( FAIL_NO_ROUTE_GOAL );
+								break;
 							}
 						}
 
-						if ( GetNavigator()->SetGoal( goal ) )
+						if ( !GetNavigator()->SetGoal( goal ) && bGoToSource )
+						{
+							// If the direct sound origin is different, try going to that instead
+							// e.g. going to the bullet impact instead of going to who caused it)
+							if ( pSound->GetSoundOrigin() != goal.dest )
+							{
+								Vector vecTemp = goal.dest;
+								goal.dest = pSound->GetSoundOrigin();
+								if ( GetNavigator()->SetGoal( goal ) )
+								{
+									// HACKHACK: SetGoal() fails the task if it fails, so we have to override that for our fallback goal
+									// This is based on a hack in CAI_AssaultBehavior for the same problem
+									ClearCondition( COND_TASK_FAILED );
+									TaskComplete();
+								}
+								else
+								{
+									goal.dest = vecTemp;
+								}
+							}
+
+							// If that didn't work, then try finding LOS to the sound instead
+							if ( !TaskIsComplete() && !GetOuter()->FVisible( goal.dest ) )
+							{
+								Vector vecPosLOS = vec3_origin;
+								if ( /*GetOuter()->GetTacticalServices()->FindLateralLos( goal.dest, &vecPosLOS ) ||*/
+									GetTacticalServices()->FindLos( goal.dest, goal.dest + Vector(0,0,48), 0.0f, pSound->Volume(), 1.0f, &vecPosLOS ))
+								{
+									Vector vecDir = (goal.dest - vecPosLOS);
+									VectorNormalize( vecDir );
+									GetNavigator()->SetArrivalDirection( vecDir );
+
+									goal.dest = vecPosLOS;
+									goal.tolerance = 16.0f;
+								
+									if ( g_debug_stealth_investigate.GetInt() == 2 )
+										GetStealthSenses()->EntityPrint( GetStealthSenses()->GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_INVESTIGATE ) + 1, Color( 255, 255, 128 ), 10.0f,
+											"Couldn't get to sound source - Finding LOS to sound" );
+
+									if ( GetNavigator()->SetGoal( goal ) )
+									{
+										// HACKHACK: SetGoal() fails the task if it fails, so we have to override that for our fallback goal
+										// This is based on a hack in CAI_AssaultBehavior for the same problem
+										ClearCondition( COND_TASK_FAILED );
+										TaskComplete();
+									}
+								}
+							}
+						}
+
+						if ( TaskIsComplete() )
 						{
 							// Wait for TASK_STEALTH_BESTSOUND_PAUSE to get a proper value
 							GetOuter()->DelayMoveStart( 0.3f );

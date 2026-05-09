@@ -1700,14 +1700,14 @@ bool CAI_StealthSearchBehavior::CanSelectSchedule( void )
 	if ( !GetOuter()->IsUsingStealthSenses() )
 		return false;
 
+	if ( !g_hStealthManager )
+		return false;
+
 	if ( !ShouldSearch() )
 		return false;
 
 	if ( HasCondition( COND_HEAR_COMBAT ) || HasCondition( COND_HEAR_PLAYER ) || HasCondition( COND_HEAR_WORLD )
 		|| HasCondition( COND_HEAR_DANGER ) || HasCondition( COND_HEAR_BULLET_IMPACT ) )
-		return false;
-
-	if ( !g_hStealthManager )
 		return false;
 
 	CAI_StealthAlarmBehavior *pBehavior;
@@ -2765,6 +2765,21 @@ CInfoStealthRegroup::CInfoStealthRegroup()
 //-----------------------------------------------------------------------------
 void CInfoStealthRegroup::OrderSpeechQueueThink()
 {
+	if ( !m_hSquadMembers[0] || !m_hSquadMembers[0]->IsAlive() )
+	{
+		// Leader probably died
+		variant_t var;
+		CAI_StealthSearchBehavior *pBehavior = NULL;
+		for ( int i = 1; i < m_hSquadMembers.Count(); i++ )
+		{
+			if ( m_hSquadMembers[i] && m_hSquadMembers[i]->GetBehavior( &pBehavior ) )
+			{
+				pBehavior->ReceiveSquadOrder( m_hSquadMembers[0], STEALTH_SQUAD_ORDER_DISMISS, var );
+			}
+		}
+		return;
+	}
+
 	CAI_Expresser *pExpresser = NULL;
 
 	switch (m_iSquadOrder)

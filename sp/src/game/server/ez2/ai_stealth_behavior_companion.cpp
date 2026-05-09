@@ -60,6 +60,7 @@ int CAI_Companion_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 {
 	int nBase = BaseClass::TranslateSchedule( scheduleType );
 
+#if 0 // UNDONE: Way too unstable for now
 	switch ( nBase )
 	{
 		case SCHED_ALERT_FACE_BESTSOUND:
@@ -111,6 +112,7 @@ int CAI_Companion_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 			}
 			break;
 	}
+#endif
 
 	return nBase;
 }

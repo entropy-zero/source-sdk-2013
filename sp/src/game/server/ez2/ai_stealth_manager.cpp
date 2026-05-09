@@ -1165,6 +1165,14 @@ bool CAI_StealthManager::ShouldSeeObject( CBaseEntity *pEntity )
 void CAI_StealthManager::MakePropPerceivable( CBaseEntity *pEntity )
 {
 	pEntity->AddContext( CONTEXT_PERCEIVABLE, "1" );
+
+	if ( pEntity->GetFlags() & FL_OBJECT )
+	{
+		// Already perceivable
+		Assert( 0 );
+		return;
+	}
+
 	g_AI_SensedObjectsManager.AddEntity( pEntity );
 }
 
