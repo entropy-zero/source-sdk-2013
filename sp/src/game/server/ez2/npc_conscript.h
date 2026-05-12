@@ -82,6 +82,10 @@ public:
 
 	WeaponProficiency_t		CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 
+	bool		IsProximitySatchelCapable();
+	bool		ShouldThrowProximitySatchel( bool bDrop = false );
+	void		OnThrowProximitySatchel( CBaseEntity *pGrenade );
+
 	virtual bool	IsDesignatedSquadLeader() const { return m_Subtype == CST_COMMANDER; }
 
 	// Different subtypes that fall into default citizen types
@@ -105,6 +109,8 @@ private:
 	ThreeState_t		m_nHelmetPreference;
 
 	CHandle<CPropConscriptHeadwear>		m_hHeadwear;
+
+	CUtlVector<EHANDLE>	m_hSatchels;
 
 	bool				m_bFirstEncounter;
 	bool				m_bShouldPoint;

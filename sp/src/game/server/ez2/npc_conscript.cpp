@@ -12,6 +12,7 @@
 #include "ai_interactions.h"
 #include "IEffects.h"
 #include "tier0/icommandline.h"
+#include "saverestore_utlvector.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -259,6 +260,8 @@ BEGIN_DATADESC( CNPC_Conscript )
 	DEFINE_KEYFIELD( m_nHelmetPreference, FIELD_INTEGER, "helmetpreference" ),
 
 	DEFINE_FIELD( m_hHeadwear, FIELD_EHANDLE ),
+
+	DEFINE_UTLVECTOR( m_hSatchels, FIELD_EHANDLE ),
 
 	DEFINE_FIELD( m_bFirstEncounter, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bShouldPoint, FIELD_BOOLEAN ),
@@ -1106,7 +1109,7 @@ int CNPC_Conscript::TranslateSchedule( int scheduleType )
 //-----------------------------------------------------------------------------
 Activity CNPC_Conscript::NPC_TranslateActivity( Activity eNewActivity )
 {
-	if ( eNewActivity == ACT_COMBINE_THROW_GRENADE )
+	if ( eNewActivity == ACT_COMBINE_THROW_GRENADE && !ShouldThrowProximitySatchel() )
 	{
 		return ACT_SPECIAL_ATTACK1;
 	}
@@ -1131,6 +1134,74 @@ WeaponProficiency_t CNPC_Conscript::CalcWeaponProficiency( CBaseCombatWeapon *pW
 	}
 
 	return Clamp( (WeaponProficiency_t)nProficiency, WEAPON_PROFICIENCY_POOR, WEAPON_PROFICIENCY_PERFECT );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Conscript::IsProximitySatchelCapable()
+{
+	if ( m_Subtype != CST_ENGINEER )
+		return false;
+
+	// Take opportunity to clean up invalid satchels
+	int nNumSatchels = 0;
+	FOR_EACH_VEC_BACK( m_hSatchels, i )
+	{
+		if ( !m_hSatchels[i] )
+			m_hSatchels.Remove( i );
+
+		nNumSatchels++;
+	}
+
+	//if ( m_hSatchels.Count() > 8 )
+	if ( nNumSatchels > 8 )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Conscript::ShouldThrowProximitySatchel( bool bDrop )
+{
+	if ( !IsProximitySatchelCapable() )
+		return false;
+
+	// Assume that, if we're satchel capable and in a script, then proximity satchels are always desired
+	if ( GetState() == NPC_STATE_SCRIPT || IsInAScript() )
+		return true;
+
+	// Non-dropping conditions
+	if ( bDrop )
+	{
+		// Make sure there aren't already any satchels around me
+		FOR_EACH_VEC( m_hSatchels, i )
+		{
+			if ( m_hSatchels[i] )
+			{
+				if ( (m_hSatchels[i]->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() < Square( 175.0f ) )
+					return false;
+			}
+		}
+	}
+	else
+	{
+		// No need if we can see our enemy
+		if ( HasCondition( COND_SEE_ENEMY ) )
+			return false;
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CNPC_Conscript::OnThrowProximitySatchel( CBaseEntity *pGrenade )
+{
+	m_hSatchels.AddToTail( pGrenade );
 }
 
 //-----------------------------------------------------------------------------
