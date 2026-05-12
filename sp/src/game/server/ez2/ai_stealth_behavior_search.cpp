@@ -13,6 +13,7 @@
 #include "ai_stealth_manager.h"
 #include "ai_stealth_area.h"
 #include "ai_stealth_senses.h"
+#include "ai_network.h"
 #include "ai_hint.h"
 #include "ai_squad.h"
 #include "ai_playerally.h"
@@ -211,6 +212,10 @@ bool CAI_StealthSearchBehavior::ShouldSearch()
 					{
 						if ( g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET ) )
 							return false;
+
+						// Patrol dumbly until we've been in the alert state for long enough
+						if ( GetOuter()->m_flLastStateChangeTime != 0.0f && gpGlobals->curtime - GetOuter()->m_flLastStateChangeTime < 5.0f )
+							return false;
 					}
 				}
 				break;
@@ -218,10 +223,6 @@ bool CAI_StealthSearchBehavior::ShouldSearch()
 				return false;
 		}
 	}
-
-	// Patrol dumbly for a few seconds
-	if ( GetOuter()->GetLastEnemyTime() != 0.0f && gpGlobals->curtime - GetOuter()->GetLastEnemyTime() < 5.0f )
-		return false;
 
 	return true;
 }
@@ -1334,6 +1335,12 @@ int CAI_StealthSearchBehavior::SelectSchedule()
 
 	MaintainInterestPoints();
 
+	if ( !ShouldSearch() )
+	{
+		// If we can't do a thorough search right now, then we probably just want to patrol
+		return SCHED_STEALTH_PATROL_WALK;
+	}
+
 	if ( m_hRegroupPoint )
 	{
 		bool bShouldBeAtRegroup = false;
@@ -1650,28 +1657,31 @@ int CAI_StealthSearchBehavior::TranslateSchedule( int scheduleType )
 					return SCHED_STEALTH_GO_TO_REGROUP;
 				}
 
-				CTriggerStealthArea *pArea = NULL;
-				CAI_Hint *pHint = FindSearchPointHint( GetAreaSearchDist(), &pArea );
-				if (pHint)
+				if ( ShouldSearch() )
 				{
-					// Have a specific area we can search, rather than patrolling
-					SetHintNode( pHint );
-					OnFindSearchPoint( pHint );
-
-					// Adopt the search area
-					if ( pArea )
+					CTriggerStealthArea *pArea = NULL;
+					CAI_Hint *pHint = FindSearchPointHint( GetAreaSearchDist(), &pArea );
+					if (pHint)
 					{
-						// Why weren't we able to find it before?
-						Assert( pArea != m_hCurrentSearchArea );
+						// Have a specific area we can search, rather than patrolling
+						SetHintNode( pHint );
+						OnFindSearchPoint( pHint );
 
-						if ( m_hCurrentSearchArea )
-							m_hCurrentSearchArea->FinishSearch( GetOuter() );
+						// Adopt the search area
+						if ( pArea )
+						{
+							// Why weren't we able to find it before?
+							Assert( pArea != m_hCurrentSearchArea );
 
-						m_hCurrentSearchArea = pArea;
-						OnFindSearchArea( pArea );
+							if ( m_hCurrentSearchArea )
+								m_hCurrentSearchArea->FinishSearch( GetOuter() );
+
+							m_hCurrentSearchArea = pArea;
+							OnFindSearchArea( pArea );
+						}
+
+						return SCHED_STEALTH_SEARCH_ENTER_AREA;
 					}
-
-					return SCHED_STEALTH_SEARCH_ENTER_AREA;
 				}
 
 				return SCHED_STEALTH_PATROL_WALK;
@@ -1704,7 +1714,11 @@ bool CAI_StealthSearchBehavior::CanSelectSchedule( void )
 		return false;
 
 	if ( !ShouldSearch() )
-		return false;
+	{
+		// Can't search, but still patrol if we're alert
+		if ( GetNpcState() != NPC_STATE_ALERT )
+			return false;
+	}
 
 	if ( HasCondition( COND_HEAR_COMBAT ) || HasCondition( COND_HEAR_PLAYER ) || HasCondition( COND_HEAR_WORLD )
 		|| HasCondition( COND_HEAR_DANGER ) || HasCondition( COND_HEAR_BULLET_IMPACT ) )
@@ -1808,6 +1822,87 @@ void CAI_StealthSearchBehavior::EndScheduleSelection( void )
 
 	BaseClass::EndScheduleSelection();
 }
+
+//---------------------------------------------------------
+// Node filter to check for best generic patrol node
+//---------------------------------------------------------
+class CStealthPatrolNodeFilter : public INearestNodeFilter
+{
+public:
+	CStealthPatrolNodeFilter( CAI_BaseNPC *pOuter, CUtlVector<StealthInterestPoint_t> *vecInterestPoints, float flMinDist, float flMaxDist )
+	{
+		m_pOuter = pOuter;
+		m_pInterestPoints = vecInterestPoints;
+		m_flMinDistSqr = Square( flMinDist );
+		m_flMaxDistSqr = Square( flMaxDist );
+
+		m_flCurrentNodeWeight = 0.0f;
+	}
+
+	bool IsValid( CAI_Node *pNode )
+	{
+		float flDistSqr = (pNode->GetOrigin() - m_pOuter->GetAbsOrigin()).Length2DSqr();
+		if ( flDistSqr > m_flMaxDistSqr || flDistSqr < m_flMinDistSqr )
+			return false;
+
+		// Default weight is the number of links it has * a remap of its distance
+		// (We prefer nodes with the most visibility)
+		float flWeight = pNode->NumLinks() * RemapValClamped( flDistSqr, m_flMinDistSqr, m_flMaxDistSqr, 1.0f, 0.5f );
+
+		// Prefer nodes near interest points
+		if ( m_pInterestPoints && g_hStealthManager )
+		{
+			FOR_EACH_VEC( *m_pInterestPoints, i )
+			{
+				Vector vecPointDir = (pNode->GetOrigin() - (*m_pInterestPoints)[i].vecOrigin);
+
+				// Consider higher areas to be farther away
+				if (vecPointDir.z > 0.0f)
+					vecPointDir.z *= 4.0f;
+
+				float flPointDist = vecPointDir.Length();
+				if ( flPointDist > g_hStealthManager->GetInterestTypeRadius( (*m_pInterestPoints)[i].nType ) )
+					continue;
+
+				flWeight *= g_hStealthManager->GetInterestPointWeightForDistance( (*m_pInterestPoints)[i].nType, flPointDist );
+			}
+		}
+
+		// Avoid getting in the way of squadmates
+		if ( m_pOuter->GetSquad() )
+		{
+			AISquadIter_t iter;
+			for ( CAI_BaseNPC *pSquadmate = m_pOuter->GetSquad()->GetFirstMember(&iter); pSquadmate; pSquadmate = m_pOuter->GetSquad()->GetNextMember(&iter) )
+			{
+				// Calculate how close the node is to a straight line between the squadmate's origin and their goal position,
+				// and then try to avoid nodes that are close to that line
+				// Technically not accurate for complex paths, but it's useful for if everyone's patrolling short distances at once
+				float flDistToSquadmatePath = CalcDistanceToLineSegment( pNode->GetOrigin(), pSquadmate->GetAbsOrigin(), pSquadmate->GetNavigator()->GetGoalPos() );
+				flWeight *= Clamp( flDistToSquadmatePath / 200.0f, 0.0f, 1.0f );
+			}
+		}
+
+		// Not high enough
+		if ( flWeight < m_flCurrentNodeWeight || flWeight == 0.0f )
+			return false;
+
+		m_flCurrentNodeWeight = flWeight;
+		return true;
+	}
+
+	bool ShouldContinue()
+	{
+		return true;
+	}
+
+private:
+	CAI_BaseNPC *m_pOuter;
+	CUtlVector<StealthInterestPoint_t>	*m_pInterestPoints;
+	float m_flMinDistSqr;
+	float m_flMaxDistSqr;
+
+	float m_flCurrentNodeWeight;
+};
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -2049,30 +2144,21 @@ void CAI_StealthSearchBehavior::StartTask( const Task_t *pTask )
 
 		case TASK_STEALTH_GET_PATH_TO_RANDOM_NODE:
 			{
-				if ( GetNavigator()->SetRandomGoal( pTask->flTaskData ) )
-					TaskComplete();
-				else
+				CAI_Network *pNetwork = GetNavigator()->GetNetwork();
+				if ( pNetwork->NumNodes() > 0 )
 				{
-					if ( !GetOuter()->IsLimitingHintGroups() )
+					CStealthPatrolNodeFilter filter( GetOuter(), &m_InterestPoints, pTask->flTaskData, 1000.0f );
+					int nNodeID = pNetwork->NearestNodeToPoint( GetOuter(), GetAbsOrigin(), true, &filter );
+
+					if ( nNodeID != NO_NODE )
 					{
-						// Many stealth NPCs have hintgroups for specific patrol points, but stealth behavior
-						// also relies extensively on the patrol schedule, which only allows navigation to hintgroup nodes
-						// So if we didn't find a route with our hintgroup, then temporarily remove the hint group and look again
-						string_t iszHintGroup = GetOuter()->GetHintGroup();
-						GetOuter()->ClearHintGroup();
-						
-						if ( GetNavigator()->SetRandomGoal( pTask->flTaskData ) )
-						{
-							GetOuter()->SetHintGroup( iszHintGroup );
-							TaskComplete();
-							break;
-						}
-
-						GetOuter()->SetHintGroup( iszHintGroup );
+						AI_NavGoal_t goal( pNetwork->GetNodePosition( GetHullType(), nNodeID ) );
+						GetNavigator()->SetGoal( goal );
 					}
-
-					TaskFail( FAIL_NO_REACHABLE_NODE );
 				}
+
+				if ( !TaskIsComplete() )
+					TaskFail( FAIL_NO_REACHABLE_NODE );
 			}
 			break;
 
@@ -2545,6 +2631,7 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 		SCHED_STEALTH_PATROL_WALK,
 
 		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_STEALTH_PATROL_WALK_FALLBACK"
 	//	"		TASK_SET_TOLERANCE_DISTANCE		48"
 		"		TASK_SET_ROUTE_SEARCH_TIME		5"	// Spend 5 seconds trying to build a path if stuck
 		"		TASK_STEALTH_GET_PATH_TO_RANDOM_NODE	200"
@@ -2554,9 +2641,9 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 		"		TASK_STEALTH_SUGGEST_STATE		STATE:IDLE"
 		""
 		"	Interrupts"
-		"		COND_CAN_RANGE_ATTACK1 "
-		"		COND_CAN_RANGE_ATTACK2 "
-		"		COND_CAN_MELEE_ATTACK1 "
+		"		COND_CAN_RANGE_ATTACK1"
+		"		COND_CAN_RANGE_ATTACK2"
+		"		COND_CAN_MELEE_ATTACK1"
 		"		COND_CAN_MELEE_ATTACK2"
 		"		COND_GIVE_WAY"
 		"		COND_HEAR_COMBAT"
@@ -2569,7 +2656,38 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthSearchBehavior )
 		"		COND_HEAVY_DAMAGE"
 		"		COND_SMELL"
 		"		COND_PROVOKED"
-	);
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_PATROL_WALK_FALLBACK,
+
+		"	Tasks"
+	//	"		TASK_SET_TOLERANCE_DISTANCE		48"
+		"		TASK_SET_ROUTE_SEARCH_TIME		5"	// Spend 5 seconds trying to build a path if stuck
+		"		TASK_GET_PATH_TO_RANDOM_NODE	100"
+		"		TASK_WALK_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"		TASK_WAIT						1"
+		"		TASK_STEALTH_SUGGEST_STATE		STATE:IDLE"
+		""
+		"	Interrupts"
+		"		COND_CAN_RANGE_ATTACK1"
+		"		COND_CAN_RANGE_ATTACK2"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+		"		COND_GIVE_WAY"
+		"		COND_HEAR_COMBAT"
+		"		COND_HEAR_DANGER"
+		"		COND_HEAR_PLAYER"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_SMELL"
+		"		COND_PROVOKED"
+	)
 
 AI_END_CUSTOM_SCHEDULE_PROVIDER()
 

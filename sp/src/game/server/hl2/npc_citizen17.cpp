@@ -2288,6 +2288,16 @@ int CNPC_Citizen::SelectScheduleNonCombat()
 			{
 				return SCHED_INVESTIGATE_SOUND;
 			}
+
+			if ( m_StealthSearchBehavior.CanSelectSchedule() )
+			{
+				// Defer to search patrol
+				DeferSchedulingToBehavior( &m_StealthSearchBehavior );
+				return BaseClass::SelectSchedule();
+			}
+
+			// We want this instead of SCHED_CITIZEN_PATROL because it has better interrupts and state fluidity
+			return SCHED_PATROL_WALK;
 		}
 #endif
 
