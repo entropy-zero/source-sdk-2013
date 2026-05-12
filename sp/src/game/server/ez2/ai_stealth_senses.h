@@ -63,6 +63,9 @@ enum
 	SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY,
 	SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED,
 
+	SOUNDENT_CHANNEL_STEALTH_CALLOUT,				// I should call out this sound
+	SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ALERT,		// The calling out part (accompanies TLK_SQUAD_ALERT)
+
 	// Keep this at the bottom
 	SOUNDENT_CHANNEL_STEALTH_LAST,
 };
@@ -131,6 +134,8 @@ public:
 	static bool			IsExclusiveStealthSound( CSound *pSound );			// Only the sound's target hears this
 	static bool			IsPotentialEnemyStealthSound( int nSoundChannel );	// This sound could've been made by an enemy
 	static bool			ShouldStayAtSound( CSound *pSound );				// Stay at the sound's location when investigating
+	static bool			ShouldStayAtSound( int nSoundChannel );				// Stay at the sound's location when investigating
+	static bool			ShouldCalloutSound( CSound *pSound );				// I should call this out instead of investigating
 	static float		GetSoundStopDistance( CSound *pSound );
 	static const char	*GetStealthSoundChannelName( int nSoundChannel );
 
@@ -238,6 +243,7 @@ inline bool CAI_StealthSenses::IsExclusiveStealthSound( int nSoundChannel )
 		case SOUNDENT_CHANNEL_STEALTH_HIT_BY_OBJECT:
 		case SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS:
 		case SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING:
+		case SOUNDENT_CHANNEL_STEALTH_CALLOUT:
 			return true;
 	}
 
@@ -253,6 +259,19 @@ inline bool CAI_StealthSenses::IsPotentialEnemyStealthSound( int nSoundChannel )
 		case SOUNDENT_CHANNEL_STEALTH_PROP_MOVING:
 		case SOUNDENT_CHANNEL_STEALTH_HIT_BY_OBJECT:
 		case SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS:
+			return true;
+	}
+
+	return false;
+}
+
+inline bool CAI_StealthSenses::ShouldStayAtSound( int nSoundChannel )
+{
+	switch (nSoundChannel)
+	{
+		case SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY:
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED:
+		case SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY:
 			return true;
 	}
 

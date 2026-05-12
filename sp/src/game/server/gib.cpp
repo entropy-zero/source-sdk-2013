@@ -15,6 +15,10 @@
 #include "vstdlib/random.h"
 #include "ai_utils.h"
 #include "EntityFlame.h"
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#include "ai_senses.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -448,6 +452,11 @@ void CGib::WaitTillLand ( void )
 					UTIL_TraceLine ( vecSpot, vecSpot + Vector ( 0, 0, -24 ), MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
 
 					UTIL_BloodDecalTrace( &tr, m_bloodColor );
+
+#ifdef EZ2
+					if ( g_hStealthManager )
+						g_hStealthManager->OnTraceBleed( this, &tr );
+#endif
 				}
 			}
 #endif
@@ -684,6 +693,11 @@ void CGib::Spawn( const char *szGibModel )
 		SetThink ( &CGib::WaitTillLand );
 		SetNextThink( gpGlobals->curtime + 1.0f );
 	}
+#endif
+
+#ifdef EZ2
+	if ( g_hStealthManager )
+		g_AI_SensedObjectsManager.AddEntity( this );
 #endif
 
 	SetNextThink( gpGlobals->curtime + 4 );

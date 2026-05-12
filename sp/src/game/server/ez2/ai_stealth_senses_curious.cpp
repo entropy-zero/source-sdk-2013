@@ -325,11 +325,14 @@ bool CAI_CuriousStealthSenses::IsCuriousObject( CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 bool CAI_CuriousStealthSenses::IsCuriousObjectMoving( CBaseEntity *pEntity )
 {
-	Vector vecVelocity;
-	pEntity->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
+	if ( pEntity->VPhysicsGetObject() )
+	{
+		Vector vecVelocity;
+		pEntity->VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
 
-	if ( vecVelocity.LengthSqr() > Square( 4.0f ) )
-		return true;
+		if ( vecVelocity.LengthSqr() > Square( 4.0f ) )
+			return true;
+	}
 
 	return false;
 }

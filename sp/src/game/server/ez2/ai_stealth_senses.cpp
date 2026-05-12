@@ -81,6 +81,9 @@ static const char *g_pszStealthSoundChannels[NUM_STEALTH_SOUND_CHANNELS] = {
 
 	"Turret Deploy",			//	SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY,
 	"Turret Tipped",			//	SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED,
+
+	"Generic Callout",			//	SOUNDENT_CHANNEL_STEALTH_CALLOUT,
+	"Announce Alert",			//	SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ALERT,
 };
 
 //-----------------------------------------------------------------------------
@@ -302,6 +305,11 @@ bool CAI_StealthSenses::QueryHearSound( CSound *pSound )
 				return false;
 			}
 		}
+	}
+	else if ( pSound->SoundChannel() == SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ALERT )
+	{
+		// Do not hear our own callouts
+		return false;
 	}
 	
 	return true;
@@ -645,12 +653,21 @@ bool CAI_StealthSenses::ShouldStayAtSound( CSound *pSound )
 	if ( !pSound )
 		return false;
 
+	return ShouldStayAtSound( pSound->SoundChannel() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CAI_StealthSenses::ShouldCalloutSound( CSound *pSound )
+{
+	if ( !pSound )
+		return false;
+
 	int soundChannel = pSound->SoundChannel();
 	switch (soundChannel)
 	{
-		case SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY:
-		case SOUNDENT_CHANNEL_STEALTH_TURRET_TIPPED:
-		case SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY:
+		case SOUNDENT_CHANNEL_STEALTH_CALLOUT:
 			return true;
 	}
 

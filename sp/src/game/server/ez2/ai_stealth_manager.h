@@ -20,6 +20,7 @@ class CAI_Hint;
 class CBasePropDoor;
 class CSound;
 class CTriggerStealthArea;
+class CAI_StealthPointObject;
 
 //-----------------------------------------------------------------------------
 
@@ -46,6 +47,8 @@ enum StealthObjectType_t
 	STEALTH_OBJ_ITEM,
 	STEALTH_OBJ_WEAPON,
 	STEALTH_OBJ_LASER_DOT,		// Laser dot from an enemy's weapon
+	STEALTH_OBJ_GIB,
+	STEALTH_OBJ_FOUND_MARKER,	// A point where a prop or ragdoll was found; becomes visible if said prop/ragdoll is no longer there
 
 	NUM_STEALTH_OBJS,
 };
@@ -65,10 +68,14 @@ enum StealthInterestType_t
 // 
 //			This information is primarily used to check if an object has moved
 //			from where it was initially spotted.
+// 
+//			Not to be confused with CAI_StealthPointObject (ai_stealth_obj),
+//			which is used to represent perceivable non-entities.
 //-----------------------------------------------------------------------------
 struct	StealthObjectState_t
 {
 	EHANDLE		hEntity;
+	EHANDLE		hMarker;	// ai_stealth_obj in the object's last recorded position; allows NPCs to notice when it's missing
 	Vector		vecLastPosition;
 
 	float		flLastTimeChecked;
@@ -163,6 +170,8 @@ public:
 	void	InputDisable( inputdata_t &inputdata ) { Disable(); }
 
 	//-----------------------------------------------
+	// Stealth Level & NPC Callbacks
+	//-----------------------------------------------
 
 	StealthLevel_t	GetStealthLevel() const { return m_nStealthLevel; }
 	StealthLevel_t	GetMinStealthLevel() const { return m_nMinStealthLevel; }
@@ -189,6 +198,9 @@ public:
 
 	void	PlayerMovedObject( CBasePlayer *pPlayer, CBaseEntity *pEntity );
 
+	bool	ShouldTraceBleed( CBaseEntity *pEntity, const Vector &vecDir, trace_t *pTrace, const CTakeDamageInfo &info );
+	void	OnTraceBleed( CBaseEntity *pEntity, trace_t *pTrace, CBaseEntity **ppStealthObj = NULL );
+
 	// Internal inputs
 	void	InputNPCStartedSpeaking( inputdata_t &inputdata );
 	void	InputNPCHeardSuspiciousSound( inputdata_t &inputdata );
@@ -197,6 +209,8 @@ public:
 	void	InputSetMinStealthLevelGuard( inputdata_t &inputdata ) { SetMinStealthLevel( STEALTH_LEVEL_GUARD ); }
 	void	InputSetMinStealthLevelTense( inputdata_t &inputdata ) { SetMinStealthLevel( STEALTH_LEVEL_TENSE ); }
 
+	//-----------------------------------------------
+	// Alarms
 	//-----------------------------------------------
 
 	bool	GetAlarmsEnabled() const { return m_bAlarmsEnabled; }
@@ -214,15 +228,26 @@ public:
 	void	InputForceThisNPCToRaiseAlarm( inputdata_t &inputdata );
 
 	//-----------------------------------------------
+	// Stealth Objects
+	//-----------------------------------------------
 
-	void	AddSeenObject( CBaseEntity *pEntity );
+	StealthObjectState_t	*AddSeenObject( CBaseEntity *pEntity );
+	void					RemoveSeenObject( CBaseEntity *pEntity );
 	bool	ShouldSeeObject( CBaseEntity *pEntity );
 	void	MakePropPerceivable( CBaseEntity *pEntity );
 	void	RemovePropPerceivable( CBaseEntity *pEntity );
 	bool	ShouldPropBePerceivable( CBaseEntity *pEntity ) const;
 	StealthObjectState_t *GetStealthObjectState( CBaseEntity *pEntity );
-	StealthObjectType_t	GetStealthObjectType( CBaseEntity *pEntity ) const;
+	static StealthObjectType_t	GetStealthObjectType( CBaseEntity *pEntity );
 
+	// Note that objects created through this method will be removed when the stealth manager cleans up
+	CAI_StealthPointObject	*CreateStealthPointObject( CBaseEntity *pOwner, const Vector &vecOrigin, StealthObjectType_t nType );
+
+	CAI_StealthPointObject	*GetStealthPointObject( int i ) { Assert( m_hStealthPointObjs.IsValidIndex( i ) ); return m_hStealthPointObjs[i]; }
+	int						GetStealthPointObjectCount() { return m_hStealthPointObjs.Count(); }
+
+	//-----------------------------------------------
+	// Squad Info
 	//-----------------------------------------------
 
 	StealthSquadInfo_t		*FindSquadInfo( CAI_Squad *pSquad, bool bCreate = true );
@@ -244,6 +269,8 @@ public:
 	int			SquadHasUnknownDeadMember( StealthSquadInfo_t *pSquadInfo );
 
 	//-----------------------------------------------
+	// Stealth Areas & Interest Points
+	//-----------------------------------------------
 
 	void	AddStealthArea( CTriggerStealthArea *pArea );
 	void	RemoveStealthArea( CTriggerStealthArea *pArea );
@@ -262,10 +289,13 @@ public:
 	static const char	*GetInterestTypeName( StealthInterestType_t nInterestType );
 	static float		GetInterestTypeRadius( StealthInterestType_t nInterestType );
 	static float		GetInterestTypeDuration( StealthInterestType_t nInterestType );
+	static float		GetInterestPointWeightForDistance( StealthInterestType_t nInterestType, float flPointDist );
 	int		GetBestInterestPoint( const CUtlVector<StealthInterestPoint_t> &vecInterestPoints );	// Note that this does not factor distance
 
 	void	OnObjectEnteredArea( CTriggerStealthArea *pArea, CBaseEntity *pEntity );
 
+	//-----------------------------------------------
+	// Music
 	//-----------------------------------------------
 
 	void	SendMusicInput( CBaseEntity *pEntity, const char *pszInputName, const char *pszParam = "", float flDelay = 0.0f, CBaseEntity *pActivator = NULL );
@@ -308,6 +338,7 @@ private:
 
 	// Objects
 	CUtlVector<StealthObjectState_t>	m_SeenObjects;
+	CUtlVector< CHandle<CAI_StealthPointObject> >	m_hStealthPointObjs;	// Found markers, bloodstains, etc. (removed on cleanup)
 
 	// Squads
 	CUtlVector<StealthSquadInfo_t>		m_SquadInfo;

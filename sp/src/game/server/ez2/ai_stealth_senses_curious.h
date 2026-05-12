@@ -74,6 +74,7 @@ public:
 	const Vector	&GetLastSoundLocation() const { return m_vecLastSoundLocation; }
 	const float		GetLastSoundTime() const { return m_flLastSoundTime; }
 	const int		GetLastSoundChannel() const { return m_nLastSoundChannel; }
+	CBaseEntity		*GetLastSoundOwner() { return m_hLastSoundOwner; }
 	void	UpdateLastSound( CSound *pSound );
 
 	//-----------------------------------------------

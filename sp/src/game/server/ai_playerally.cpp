@@ -172,6 +172,10 @@ ConceptInfo_t g_ConceptInfos[] =
 	{ TLK_FOUND_BODY,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_FOUND_PROP,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_FOUND_DOOR,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_FOUND_BLOOD,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_FOUND_STRUGGLE,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_NOTE_MISSING_OBJ,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_NOTE_MISSING_ACCESSORY,	SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_INSPECT_OBJECT,		SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_ATTACKED,				SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT | AICF_SPEAK_ONCE, },
 
@@ -184,6 +188,7 @@ ConceptInfo_t g_ConceptInfos[] =
 	{ TLK_SQUAD_REPORT,			SPEECH_IMPORTANT,	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT | AICF_QUESTION | AICF_ANSWER, },
 	{ TLK_SQUAD_CALL,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_SQUAD_ORDER,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
+	{ TLK_SQUAD_ALERT,			SPEECH_PRIORITY, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_SEARCH_AREA_START,	SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_SEARCH_AREA_FINISH,	SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
 	{ TLK_SWEEP_START,			SPEECH_IMPORTANT, 	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT, },
@@ -2187,9 +2192,34 @@ bool CAI_PlayerAlly::SpeakStealthConcept( const AIConcept_t &concept, AI_Criteri
 {
 	if (bForce)
 	{
-		// Technically not completely forcing it, but still overrides most of the checks
-		if (!IsOkToSpeak( SPEECH_PRIORITY, true ))
+		// Conditions taken from CAI_PlayerAlly::IsOkToSpeak()
+		if ( !IsAlive() )
 			return false;
+
+		if ( m_spawnflags & SF_NPC_GAG )
+			return false;
+
+		// Don't speak if playing a script.
+		if ( ( m_NPCState == NPC_STATE_SCRIPT ) && !m_bCanSpeakWhileScripting )
+			return false;
+
+		// Don't speak if being eaten by a barnacle
+		if ( IsEFlagSet( EFL_IS_BEING_LIFTED_BY_BARNACLE ) )
+			return false;
+
+		if ( IsInAScript() && !m_bCanSpeakWhileScripting )
+			return false;
+
+		// Don't respond if the scene has speech in it
+		if ( IsRunningScriptedSceneWithSpeechAndNotPaused( this ) )
+		{
+			if( rr_debugresponses.GetInt() > 0 )
+			{
+				DevMsg("%s not allowed to speak because they are in a scripted scene\n", GetDebugName() );
+			}
+
+			return false;
+		}
 	}
 	else
 	{

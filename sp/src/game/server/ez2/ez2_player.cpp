@@ -869,11 +869,20 @@ void CEZ2_Player::OnUseEntity( CBaseEntity *pEntity )
 		switch (g_hStealthManager->GetStealthObjectType( pEntity ))
 		{
 			case STEALTH_OBJ_PROP:
+			case STEALTH_OBJ_PROP_PICKUP:
 				{
 					StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pEntity );
 					if ( !pObjState || pObjState->nTimesFound == 0 )
 						g_hStealthManager->AddSeenObject( pEntity );
 					g_hStealthManager->MakePropPerceivable( pEntity );	// Extra step for props
+				}
+				break;
+			case STEALTH_OBJ_ITEM:
+			case STEALTH_OBJ_WEAPON:
+				{
+					StealthObjectState_t *pObjState = g_hStealthManager->GetStealthObjectState( pEntity );
+					if ( !pObjState || pObjState->nTimesFound == 0 )
+						g_hStealthManager->AddSeenObject( pEntity );
 				}
 				break;
 			case STEALTH_OBJ_RAGDOLL:

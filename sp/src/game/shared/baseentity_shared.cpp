@@ -34,6 +34,10 @@
 	#include "te_hl2mp_shotgun_shot.h"
 #endif
 
+#ifdef EZ2
+	#include "ez2/ai_stealth_manager.h"
+#endif
+
 	#include "gamestats.h"
 
 #endif
@@ -2395,6 +2399,11 @@ void CBaseEntity::TraceBleed( float flDamage, const Vector &vecDir, trace_t *ptr
 		cCount = 4;
 	}
 
+#if defined(EZ2) && !defined(CLIENT_DLL)
+	// Bloodstain marker created by stealth manager
+	CBaseEntity *pStealthObj = NULL;
+#endif
+
 	float flTraceDist = (bitsDamageType & DMG_AIRBOAT) ? 384 : 172;
 	for ( i = 0 ; i < cCount ; i++ )
 	{
@@ -2410,6 +2419,25 @@ void CBaseEntity::TraceBleed( float flDamage, const Vector &vecDir, trace_t *ptr
 		if ( Bloodtr.fraction != 1.0 )
 		{
 			UTIL_BloodDecalTrace( &Bloodtr, BloodColor() );
+
+#if defined(EZ2) && !defined(CLIENT_DLL)
+			// No need to perceive blood that was shed in combat
+			if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) )
+			{
+				if ( pStealthObj )
+				{
+					// Another bloodstain was made prior
+					// Average out the position to be in the middle of the cluster
+					Vector vecObjOrigin = pStealthObj->GetAbsOrigin();
+					pStealthObj->SetAbsOrigin( vecObjOrigin + ((Bloodtr.endpos - vecObjOrigin) * 0.5f) );
+				}
+				else
+				{
+					// Create a new stealth object
+					g_hStealthManager->OnTraceBleed( this, &Bloodtr, &pStealthObj );
+				}
+			}
+#endif
 		}
 	}
 }

@@ -10,9 +10,11 @@
 
 #include "ai_stealth_behavior_curious.h"
 #include "ai_stealth_behavior_alarm.h"
+#include "ai_stealth_behavior_search.h"
 #include "ai_stealth_manager.h"
 #include "ai_stealth_senses.h"
 #include "ai_stealth_area.h"
+#include "ai_stealth_obj.h"
 #include "ai_hint.h"
 #include "ai_squad.h"
 #include "ai_senses.h"
@@ -51,6 +53,7 @@ BEGIN_DATADESC( CAI_StealthCuriousBehavior )
 	DEFINE_FIELD( m_flSoundExpireTime, FIELD_TIME ),
 
 	DEFINE_FIELD( m_flLastTimeHeardSound, FIELD_TIME ),
+	DEFINE_FIELD( m_flTimeSinceLastSound, FIELD_TIME ),
 	DEFINE_FIELD( m_nNumTimesInvestigatedSound, FIELD_INTEGER ),
 
 	DEFINE_FIELD( m_hSuspiciousTarget, FIELD_EHANDLE ),
@@ -66,11 +69,12 @@ CAI_StealthCuriousBehavior::CAI_StealthCuriousBehavior()
 	m_nSoundChannel = 0;
 	m_flSoundExpireTime = FLT_MAX;
 	m_flLastTimeHeardSound = -1.0f;
+	m_flTimeSinceLastSound = -1.0f;
 	m_nNumTimesInvestigatedSound = 0;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Gets curious stealth senses, rather than base
 //-----------------------------------------------------------------------------
 CAI_CuriousStealthSenses *CAI_StealthCuriousBehavior::GetStealthSenses()
 {
@@ -84,7 +88,10 @@ bool CAI_StealthCuriousBehavior::IsInvestigatingSound()
 {
 	if ( IsCurSchedule( SCHED_INVESTIGATE_SOUND ) ||
 		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_SOUND, false ) ||
-		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_SOUND_STAY, false ) )
+		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_STAY, false ) ||
+		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_PICKUP, false ) ||
+		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_PICKUP_WEAPON, false ) ||
+		IsCurSchedule( SCHED_STEALTH_INVESTIGATE_ALERT_SQUAD, false ) )
 		return true;
 
 	return false;
@@ -93,16 +100,16 @@ bool CAI_StealthCuriousBehavior::IsInvestigatingSound()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_StealthCuriousBehavior::ShouldStayAtSound( CSound *pSound )
+bool CAI_StealthCuriousBehavior::ShouldStayAtSound( int nSoundChannel )
 {
-	if ( CAI_StealthSenses::ShouldStayAtSound( pSound ) )
+	if ( CAI_StealthSenses::ShouldStayAtSound( nSoundChannel ) )
 		return true;
 
-	if ( m_flLastTimeHeardSound == -1.0f )
+	if ( m_flTimeSinceLastSound == -1.0f )
 		return false;
 
 	// If we just heard another sound, stick around
-	return (gpGlobals->curtime - m_flLastTimeHeardSound) < ai_stealth_investigate_repeat_stay_time.GetFloat();
+	return m_flTimeSinceLastSound < ai_stealth_investigate_repeat_stay_time.GetFloat();
 }
 
 //-----------------------------------------------------------------------------
@@ -120,6 +127,9 @@ bool CAI_StealthCuriousBehavior::ShouldGoToSoundSource( CSound *pSound )
 			return false;
 	}
 
+	if ( pSound->SoundChannel() == SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ALERT )
+		return false;
+
 	return true;
 }
 
@@ -133,6 +143,15 @@ void CAI_StealthCuriousBehavior::OnHearNewSound( CSound *pSound )
 	{
 		SetCondition( COND_STEALTH_NEW_SOUND );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthCuriousBehavior::StopSawSuspicious( CBaseEntity *pOwner )
+{
+	// Overwrites existing sound (since one sound is reserved per channel on each entity)
+	InsertStealthSound( SOUND_COMBAT, vec3_origin, 0, 0.0f, pOwner, SOUNDENT_CHANNEL_STEALTH_SAW_SUSPICIOUS, GetOuter() );
 }
 
 
@@ -189,6 +208,8 @@ void CAI_StealthCuriousBehavior::OnSeeEntity( CBaseEntity *pEntity )
 					OnSeeDoor( pEntity );
 					break;
 
+				case STEALTH_OBJ_ITEM:
+				case STEALTH_OBJ_WEAPON:
 				case STEALTH_OBJ_PROP:
 					OnSeeProp( pEntity );
 					break;
@@ -199,6 +220,18 @@ void CAI_StealthCuriousBehavior::OnSeeEntity( CBaseEntity *pEntity )
 
 				case STEALTH_OBJ_LASER_DOT:
 					OnSeeLaserDot( pEntity );
+					break;
+
+				case STEALTH_OBJ_BLOODSTAIN:
+					OnSeeBloodstain( pEntity );
+					break;
+
+				case STEALTH_OBJ_GIB:
+					OnSeeGib( pEntity );
+					break;
+
+				case STEALTH_OBJ_FOUND_MARKER:
+					OnSeeWentMissing( pEntity );
 					break;
 			}
 		}
@@ -245,13 +278,28 @@ void CAI_StealthCuriousBehavior::OnSeeRagdoll( CBaseEntity *pEntity )
 			GetOuter()->SetIdealState( NPC_STATE_ALERT );
 			InsertStealthSound( SOUND_COMBAT | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 1024, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY, GetOuter() );
 		
-			CAI_StealthCuriousBehavior *pBehavior;
-			if ( GetOuter()->GetBehavior( &pBehavior ) )
-				pBehavior->m_bCalmSound = false;	// Start running to the sound if we're already walking
+			m_bCalmSound = false;	// Start running to the sound if we're already walking
 		}
 				
 		GetStealthSenses()->IncrementBodiesFound();
-	
+
+		// Remove any nearby bloodstain markers
+		if ( g_hStealthManager )
+		{
+			for ( int i = 0; i < g_hStealthManager->GetStealthPointObjectCount(); i++ )
+			{
+				CAI_StealthPointObject *pStealthObj = g_hStealthManager->GetStealthPointObject( i );
+				if ( pStealthObj && pStealthObj->GetStealthObjectType() == STEALTH_OBJ_BLOODSTAIN )
+				{
+					Vector vecToEnt = (pEntity->WorldSpaceCenter() - pStealthObj->GetAbsOrigin());
+					if ( vecToEnt.LengthSqr() < Square( 300.0f ) /*&& pEntity->FVisible( pStealthObj )*/ )
+					{
+						UTIL_Remove( pStealthObj );
+					}
+				}
+			}
+		}
+
 		// Apply to all pSquadmates within alert radius of the body
 		if (GetOuter()->GetSquad())
 		{
@@ -434,49 +482,60 @@ void CAI_StealthCuriousBehavior::OnSeeProp( CBaseEntity *pEntity, bool bPickup )
 	if (GetOuter()->GetState() != NPC_STATE_COMBAT)
 	{
 		bool bIsMoving = GetStealthSenses()->IsCuriousObjectMoving( pEntity );
+		AI_CriteriaSet modifiers;
+
+		m_hSuspiciousTarget = pEntity;
+		SetSpeechTarget( pEntity );
 
 		if (bIsMoving)
 		{
-			AI_CriteriaSet modifiers;
 			modifiers.AppendCriteria( "obj_moving", "1" );
-
-			m_hSuspiciousTarget = pEntity;
 
 			CuriousDbgMsg( "- Commenting on moving prop\n" );
 
-			SetSpeechTarget( pEntity );
 			SpeakStealthConcept( TLK_FOUND_PROP, &modifiers );
 			
 			// Very suspicious
 			InsertStealthSound( SOUND_COMBAT | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 1024, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_MOVING, GetOuter() );
+		}
+		else if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_TENSE, STEALTH_LEVEL_LOUD ) && pEntity->FindContextByName( "headwear" ) != -1 )
+		{
+			// It's headwear, and we're alert, so there's a chance someone died
+			// Call it out
+			modifiers.AppendCriteria( "struggle_sign", "headwear" );
 
-			MarkAsSeen( pEntity );
+			CuriousDbgMsg( "- Commenting on headwear suggesting struggle\n" );
+
+			SpeakStealthConcept( TLK_FOUND_STRUGGLE, &modifiers );
+
+			InsertStealthSound( SOUND_COMBAT | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_CALLOUT, GetOuter() );
+		}
+		else if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_TENSE, STEALTH_LEVEL_LOUD ) && pEntity->IsBaseCombatWeapon() )
+		{
+			// It's a weapon, and we're alert, so there's a chance someone died
+			// Call it out
+			modifiers.AppendCriteria( "struggle_sign", "weapon" );
+
+			CuriousDbgMsg( "- Commenting on weapon suggesting struggle\n" );
+
+			SpeakStealthConcept( TLK_FOUND_STRUGGLE, &modifiers );
+
+			InsertStealthSound( SOUND_COMBAT | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_CALLOUT, GetOuter() );
 		}
 		else
 		{
-			m_hSuspiciousTarget = pEntity;
-
 			CuriousDbgMsg( "- Commenting on prop\n" );
 
-			SetSpeechTarget( pEntity );
-			SpeakStealthConcept( TLK_FOUND_PROP );
+			SpeakStealthConcept( TLK_FOUND_PROP, &modifiers );
 
-			if (bPickup)
+			if (bPickup || (g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_GUARD )))
 			{
-				if (GetOuter()->GetState() == NPC_STATE_IDLE)
-				{
-					// HandleAnimEvent() will take care of this for us
-					SetTarget( pEntity );
-					GetOuter()->SetSchedule( SCHED_GET_HEALTHKIT );
-				}
-			}
-			else if (g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_GUARD ))
-			{
+				StopSawSuspicious( pEntity ); // Important so that we pick the right schedule
 				InsertStealthSound( SOUND_WORLD | SOUND_CONTEXT_REACT_TO_SOURCE, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING, GetOuter() );
 			}
-
-			MarkAsSeen( pEntity );
 		}
+
+		MarkAsSeen( pEntity );
 	}
 	else
 	{
@@ -536,6 +595,107 @@ void CAI_StealthCuriousBehavior::OnSeeLaserDot( CBaseEntity *pEntity )
 				GetOuter()->UpdateEnemyMemory( pOwner, pOwner->GetAbsOrigin() );
 			}
 		}
+	}
+
+	MarkAsSeen( pEntity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthCuriousBehavior::OnSeeBloodstain( CBaseEntity *pEntity )
+{
+	CuriousDbgMsg( "OnSeeBloodstain\n" );
+
+	if (GetOuter()->GetState() != NPC_STATE_COMBAT)
+	{
+		m_hSuspiciousTarget = pEntity;
+		SetSpeechTarget( pEntity );
+
+		if ( GetStealthSenses()->GetAlertLevelCount() > 0 )
+		{
+			// If we're also seeing a body at the same time, prefer the body
+			for ( int i = 0; i < GetStealthSenses()->GetAlertLevelCount(); i++ )
+			{
+				const AlertLevel_t &alertLevel = GetStealthSenses()->GetAlertLevel( i );
+				if ( alertLevel.hTarget && CAI_StealthManager::GetStealthObjectType( alertLevel.hTarget ) == STEALTH_OBJ_RAGDOLL )
+				{
+					CuriousDbgMsg( "- Body nearby, defering to that\n" );
+					InsertStealthSound( SOUND_COMBAT, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING, GetOuter() );
+					return;
+				}
+			}
+		}
+
+		if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_TENSE, STEALTH_LEVEL_LOUD ) )
+		{
+			// We're already alert, so there's a chance someone died
+			// Call it out
+			AI_CriteriaSet modifiers;
+			modifiers.AppendCriteria( "struggle_sign", "blood" );
+
+			CuriousDbgMsg( "- Commenting on bloodstain suggesting struggle\n" );
+
+			SpeakStealthConcept( TLK_FOUND_STRUGGLE, &modifiers );
+
+			InsertStealthSound( SOUND_COMBAT, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_CALLOUT, GetOuter() );
+		}
+		else
+		{
+			CuriousDbgMsg( "- Commenting on bloodstain\n" );
+
+			SpeakStealthConcept( TLK_FOUND_BLOOD );
+
+			InsertStealthSound( SOUND_COMBAT, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING, GetOuter() );
+		}
+	}
+
+	MarkAsSeen( pEntity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthCuriousBehavior::OnSeeGib( CBaseEntity *pEntity )
+{
+	CuriousDbgMsg( "OnSeeGib\n" );
+
+	if (GetOuter()->GetState() != NPC_STATE_COMBAT)
+	{
+		m_hSuspiciousTarget = pEntity;
+
+		CuriousDbgMsg( "- Commenting on gib\n" );
+
+		SetSpeechTarget( pEntity );
+		SpeakStealthConcept( TLK_FOUND_BLOOD );
+
+		InsertStealthSound( SOUND_COMBAT, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING, GetOuter() );
+	}
+
+	MarkAsSeen( pEntity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthCuriousBehavior::OnSeeWentMissing( CBaseEntity *pEntity )
+{
+	CuriousDbgMsg( "OnSeeWentMissing\n" );
+
+	if (GetOuter()->GetState() != NPC_STATE_COMBAT)
+	{
+		m_hSuspiciousTarget = pEntity;
+
+		CuriousDbgMsg( "- Commenting on found marker\n" );
+
+		SetSpeechTarget( pEntity->GetOwnerEntity() );
+		SpeakStealthConcept( TLK_NOTE_MISSING_OBJ );
+
+		bool bIsRagdoll = false;
+		if ( CAI_StealthManager::GetStealthObjectType( pEntity->GetOwnerEntity() ) == STEALTH_OBJ_RAGDOLL )
+			bIsRagdoll = true;
+
+		InsertStealthSound( SOUND_COMBAT, pEntity->GetAbsOrigin(), 512, 2.0f, pEntity, bIsRagdoll ? SOUNDENT_CHANNEL_STEALTH_DISCOVERED_BODY : SOUNDENT_CHANNEL_STEALTH_PROP_INTERESTING, GetOuter() );
 	}
 
 	MarkAsSeen( pEntity );
@@ -610,8 +770,8 @@ int CAI_StealthCuriousBehavior::TranslateSchedule( int scheduleType )
 						return SCHED_ALERT_FACE_BESTSOUND;
 					}
 
-					if ( ShouldStayAtSound( pSound ) )
-						return SCHED_STEALTH_INVESTIGATE_SOUND_STAY;
+					if ( pSound->SoundChannel() == SOUNDENT_CHANNEL_STEALTH_CALLOUT )
+						return SCHED_STEALTH_INVESTIGATE_ALERT_SQUAD;
 
 					return SCHED_STEALTH_INVESTIGATE_SOUND;
 				}
@@ -733,6 +893,14 @@ bool CAI_StealthCuriousBehavior::CanSelectSchedule( void )
 			if ( pBehavior->NeedsToResume() )
 				return false;
 		}
+		
+		CAI_StealthSearchBehavior *pSearchBehavior;
+		if ( GetOuter()->GetBehavior( &pSearchBehavior ) )
+		{
+			// Need to regroup
+			if ( pSearchBehavior->HasRegroupPoint() && !pSearchBehavior->HasActiveOrder() )
+				return false;
+		}
 
 		CAI_TripminePlaceBehavior *pTripmineBehavior;
 		if ( GetOuter()->GetBehavior( &pTripmineBehavior ) )
@@ -764,8 +932,7 @@ void CAI_StealthCuriousBehavior::OnStartSchedule( int scheduleType )
 	BaseClass::OnStartSchedule( scheduleType );
 
 	if ( scheduleType == SCHED_INVESTIGATE_SOUND ||
-		scheduleType == SCHED_STEALTH_INVESTIGATE_SOUND ||
-		scheduleType == SCHED_STEALTH_INVESTIGATE_SOUND_STAY )
+		scheduleType == SCHED_STEALTH_INVESTIGATE_SOUND )
 	{
 		GetStealthSenses()->StartInvestigatingSound( GetOuter()->GetBestSound() );
 		OnStartInvestigatingSound();
@@ -790,6 +957,7 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 	switch ( pTask->iTask )
 	{
 		case TASK_STEALTH_GET_PATH_TO_BESTSOUND:
+		case TASK_STEALTH_GET_FLANK_PATH_TO_BESTSOUND:
 			{
 				CSound *pSound = GetOuter()->GetBestSound();
 				if ( !pSound )
@@ -866,7 +1034,29 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 
 					if ( goal.type != GOALTYPE_INVALID )
 					{
-						if ( !bGoToSource && goal.dest != AIN_NO_DEST )
+						if ( pTask->iTask == TASK_STEALTH_GET_FLANK_PATH_TO_BESTSOUND )
+						{
+							// Find a flanking path to the sound
+							FlankType_t eFlankType = FLANKTYPE_ARC;
+							Vector vecFlankRefPos = vec3_origin;
+							float flFlankParam = 90.0f;
+
+							Vector vecPosLOS = vec3_origin;
+							if ( GetTacticalServices()->FindLos( goal.dest, goal.dest + Vector(0,0,32), 0.0f, pSound->Volume(), 1.0, eFlankType, vecFlankRefPos, flFlankParam, &vecPosLOS ) )
+							{
+								Vector vecDir = (goal.dest - vecPosLOS);
+								VectorNormalize( vecDir );
+								GetNavigator()->SetArrivalDirection( vecDir );
+
+								goal.dest = vecPosLOS;
+								goal.tolerance = 16.0f;
+								
+								if ( g_debug_stealth_investigate.GetInt() == 2 )
+									GetStealthSenses()->EntityPrint( GetStealthSenses()->GetOffsetForDebugType( STEALTH_SENSE_DEBUG_LINE_INVESTIGATE ) + 1, Color( 255, 255, 128 ), 10.0f,
+										"Not going to sound source - Finding flanking LOS to sound" );
+							}
+						}
+						else if ( !bGoToSource && goal.dest != AIN_NO_DEST )
 						{
 							// Find LOS instead of going directly to the sound
 							if ( !GetOuter()->FVisible( goal.dest ) )
@@ -975,6 +1165,8 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 						float flTimePassed = (gpGlobals->curtime - m_flLastTimeHeardSound);
 						if (flTimePassed > 0.5f)
 							flWaitTime *= flTimePassed / ai_stealth_investigate_wait_cooldown.GetFloat();
+
+						m_flTimeSinceLastSound = flTimePassed;
 					}
 
 					m_flLastTimeHeardSound = gpGlobals->curtime;
@@ -1039,6 +1231,67 @@ void CAI_StealthCuriousBehavior::StartTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_STEALTH_SET_INVESTIGATE_SCHEDULE:
+			{
+				int nSchedule = SCHED_STEALTH_INVESTIGATE_RETURN;
+
+				CBaseEntity *pSoundOwner = GetStealthSenses()->GetLastSoundOwner();
+				if ( pSoundOwner )
+				{
+					// Consider picking up these types
+					switch ( CAI_StealthManager::GetStealthObjectType( pSoundOwner ) )
+					{
+						case STEALTH_OBJ_ITEM:
+						case STEALTH_OBJ_PROP_PICKUP:
+							{
+								// If we have enough room, pick it up
+								if ( GetOuter()->CanGrabAccessory( pSoundOwner ) )
+								{
+									SetTarget( pSoundOwner );
+									nSchedule = SCHED_STEALTH_INVESTIGATE_PICKUP;
+								}
+								else
+									nSchedule = SCHED_STEALTH_INVESTIGATE_STAY;
+							}
+							break;
+
+						case STEALTH_OBJ_WEAPON:
+							{
+								// TODO: How do we pick up weapons?
+								// - Do we replace our current weapon like in regular AI? What if the mapper doesn't want that?
+								// - Do we put it in our weapon inventory? What do we do with it after?
+								// - Do we put it on our belt? What if it's a bigger weapon, like the OICW?
+								// Until this is decided, just investigate.
+								//SetTarget( pSound->m_hOwner );
+								//nSchedule = SCHED_STEALTH_INVESTIGATE_PICKUP_WEAPON;
+								nSchedule = SCHED_STEALTH_INVESTIGATE_STAY;
+							}
+							break;
+					}
+				}
+
+				if ( nSchedule == SCHED_STEALTH_INVESTIGATE_RETURN && ShouldStayAtSound( GetStealthSenses()->GetLastSoundChannel() ) )
+					nSchedule = SCHED_STEALTH_INVESTIGATE_STAY;
+				
+				if ( !GetOuter()->SetSchedule( nSchedule ) )
+					TaskFail( FAIL_SCHEDULE_NOT_FOUND );
+			}
+			break;
+
+		case TASK_STEALTH_SPEAK_ALERT_SQUAD:
+			break;
+
+		case TASK_WEAPON_RUN_PATH:
+		case TASK_ITEM_RUN_PATH:
+			{
+				// If running stealth pickup schedule, walk instead of run
+				if ( IsCurSchedule( SCHED_STEALTH_INVESTIGATE_PICKUP, false ) || IsCurSchedule( SCHED_STEALTH_INVESTIGATE_PICKUP_WEAPON, false ) )
+					GetNavigator()->SetMovementActivity( ACT_WALK );
+				else
+					BaseClass::StartTask( pTask );
+			}
+			break;
+
 		default:
 			BaseClass::StartTask( pTask );
 	}
@@ -1088,7 +1341,7 @@ void CAI_StealthCuriousBehavior::RunTask( const Task_t *pTask )
 
 		case TASK_WAIT_FOR_MOVEMENT:
 			{
-				if ( IsCurSchedule( SCHED_STEALTH_INVESTIGATE_SOUND, false ) || IsCurSchedule( SCHED_STEALTH_INVESTIGATE_SOUND_STAY, false ) )
+				if ( IsInvestigatingSound() )
 				{
 					if ( GetNavigator()->BuildAndGetPathDistToGoal() <= GetNavigator()->GetGoalTolerance() && GetOuter()->FVisible( GetNavigator()->GetGoalPos() ) )
 					{
@@ -1118,6 +1371,26 @@ void CAI_StealthCuriousBehavior::RunTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_STEALTH_SPEAK_ALERT_SQUAD:
+			{
+				CAI_Expresser *pExpresser = GetOuter()->GetExpresser();
+				if ( !pExpresser )
+				{
+					TaskComplete();
+					break;
+				}
+
+				if ( !pExpresser->IsSpeaking() && pExpresser->CanSpeak() )
+				{
+					SpeakStealthConcept( TLK_SQUAD_ALERT );
+					TaskComplete();
+
+					InsertStealthSound( SOUND_COMBAT | SOUND_CONTEXT_REACT_TO_SOURCE, m_hSuspiciousTarget ? m_hSuspiciousTarget->GetAbsOrigin() : GetOuter()->GetAbsOrigin(), 1024, 2.0f, m_hSuspiciousTarget, SOUNDENT_CHANNEL_STEALTH_ANNOUNCE_ALERT, GetOuter() );
+					break;
+				}
+			}
+			break;
+
 		default:
 			BaseClass::RunTask( pTask );
 	}
@@ -1131,9 +1404,12 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 	DECLARE_CONDITION( COND_STEALTH_NEW_SOUND )
 
 	DECLARE_TASK( TASK_STEALTH_GET_PATH_TO_BESTSOUND )
+	DECLARE_TASK( TASK_STEALTH_GET_FLANK_PATH_TO_BESTSOUND )
 	DECLARE_TASK( TASK_STEALTH_BESTSOUND_PAUSE )
 	DECLARE_TASK( TASK_STEALTH_MOVE_TO_BESTSOUND )
+	DECLARE_TASK( TASK_STEALTH_SET_INVESTIGATE_SCHEDULE )
 	DECLARE_TASK( TASK_STEALTH_SUGGEST_STATE_FOR_SOUND )
+	DECLARE_TASK( TASK_STEALTH_SPEAK_ALERT_SQUAD )
 
 	//---------------------------------
 	DEFINE_SCHEDULE
@@ -1150,6 +1426,22 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 		"		TASK_WAIT_FOR_MOVEMENT				0"
 		"		TASK_STOP_MOVING					0"
 		"		TASK_FACE_REASONABLE				0"
+		"		TASK_STEALTH_SET_INVESTIGATE_SCHEDULE	0"
+		""
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_SEE_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_HEAR_DANGER"
+	);
+	
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_INVESTIGATE_RETURN,
+
+		"	Tasks"
 		"		TASK_WAIT							5"
 		"		TASK_STEALTH_SUGGEST_STATE_FOR_SOUND	0"
 		"		TASK_GET_PATH_TO_LASTPOSITION		0"
@@ -1170,13 +1462,77 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_StealthCuriousBehavior )
 	
 	DEFINE_SCHEDULE
 	(
-		SCHED_STEALTH_INVESTIGATE_SOUND_STAY,
+		SCHED_STEALTH_INVESTIGATE_STAY,
+
+		"	Tasks"
+		"		TASK_WAIT							5"
+		"		TASK_CLEAR_LASTPOSITION				0"
+		""
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_SEE_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_HEAR_DANGER"
+	);
+	
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_INVESTIGATE_PICKUP,
+
+		"	Tasks"
+		"		TASK_WAIT							2"
+		"		TASK_SET_TOLERANCE_DISTANCE			5"
+		"		TASK_GET_PATH_TO_TARGET_WEAPON		0"
+//		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_NEW_WEAPON_CHEAT"
+		"		TASK_ITEM_RUN_PATH					0"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_FACE_TARGET					0"
+		"		TASK_ITEM_PICKUP					0"
+		""
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_SEE_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_HEAR_DANGER"
+	);
+	
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_INVESTIGATE_PICKUP_WEAPON,
+
+		"	Tasks"
+		"		TASK_WAIT							2"
+		"		TASK_SET_TOLERANCE_DISTANCE			5"
+		"		TASK_GET_PATH_TO_TARGET_WEAPON		0"
+//		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_NEW_WEAPON_CHEAT"
+		"		TASK_WEAPON_RUN_PATH				0"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_FACE_TARGET					0"
+		"		TASK_WEAPON_PICKUP					0"
+		""
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_FEAR"
+		"		COND_SEE_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_HEAR_DANGER"
+	);
+	
+	DEFINE_SCHEDULE
+	(
+		SCHED_STEALTH_INVESTIGATE_ALERT_SQUAD,
 
 		"	Tasks"
 		"		TASK_STOP_MOVING					0"
-		"		TASK_STEALTH_GET_PATH_TO_BESTSOUND	0"
 		"		TASK_FACE_IDEAL						0"
 		"		TASK_STEALTH_BESTSOUND_PAUSE		0"
+		"		TASK_STEALTH_SPEAK_ALERT_SQUAD		0"
+		"		TASK_STEALTH_GET_FLANK_PATH_TO_BESTSOUND	0"
 		"		TASK_STEALTH_MOVE_TO_BESTSOUND		0"
 		"		TASK_WAIT_FOR_MOVEMENT				0"
 		"		TASK_STOP_MOVING					0"

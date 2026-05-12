@@ -11,6 +11,7 @@
 #include "ai_stealth_manager.h"
 #include "ai_stealth_senses.h"
 #include "ai_stealth_area.h"
+#include "ai_stealth_obj.h"
 #include "ai_stealth_behavior_alarm.h"
 #include "ai_stealth_behavior_curious.h"
 #include "ai_stealth_behavior_search.h"
@@ -20,6 +21,7 @@
 #include "ai_senses.h"
 #include "BasePropDoor.h"
 #include "basegrenade_shared.h"
+#include "basehlcombatweapon.h"
 #include "saverestore_utlvector.h"
 #include "eventqueue.h"
 #include "con_nprint.h"
@@ -68,6 +70,7 @@ ConVar	g_debug_stealth_search_weight( "g_debug_stealth_search_weight", "0" );
 BEGIN_SIMPLE_DATADESC( StealthObjectState_t )
 
 	DEFINE_FIELD( hEntity, FIELD_EHANDLE ),
+	DEFINE_FIELD( hMarker, FIELD_EHANDLE ),
 	DEFINE_FIELD( vecLastPosition, FIELD_POSITION_VECTOR ),
 
 	//DEFINE_FIELD( flLastTimeChecked, FIELD_TIME ),
@@ -124,6 +127,7 @@ BEGIN_DATADESC( CAI_StealthManager )
 	DEFINE_FIELD( m_flSoundGrace, FIELD_FLOAT ),
 
 	DEFINE_UTLVECTOR( m_SeenObjects, FIELD_EMBEDDED ),
+	DEFINE_UTLVECTOR( m_hStealthPointObjs, FIELD_EHANDLE ),
 	DEFINE_UTLVECTOR( m_SquadInfo, FIELD_EMBEDDED ),
 	DEFINE_UTLVECTOR( m_StealthAreas, FIELD_EHANDLE ),
 
@@ -531,6 +535,12 @@ void CAI_StealthManager::Cleanup()
 {
 	m_SeenObjects.Purge();
 	m_SquadInfo.Purge();
+
+	FOR_EACH_VEC_BACK( m_hStealthPointObjs, i )
+	{
+		UTIL_Remove( m_hStealthPointObjs[i] );
+		m_hStealthPointObjs.Remove( i );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1025,6 +1035,51 @@ void CAI_StealthManager::PlayerMovedObject( CBasePlayer *pPlayer, CBaseEntity *p
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CAI_StealthManager::ShouldTraceBleed( CBaseEntity *pEntity, const Vector &vecDir, trace_t *pTrace, const CTakeDamageInfo &info )
+{
+	if ( info.GetDamageType() & DMG_BULLET && info.GetAttacker() && info.GetAttacker()->IsPlayer() )
+	{
+		// Not the best way of determining if we were killed by a silenced gun, but info.GetWeapon() doesn't seem to be assigned
+		CHLMachineGun *pHLWeapon = dynamic_cast<CHLMachineGun *>(info.GetAttacker()->MyCombatCharacterPointer()->GetActiveWeapon());
+		if ( pHLWeapon && pHLWeapon->IsSilenced() )
+		{
+			// Do not trace blood when killed by a silenced weapon
+			return false;
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthManager::OnTraceBleed( CBaseEntity *pEntity, trace_t *pTrace, CBaseEntity **ppStealthObj )
+{
+	// Make sure there isn't already any blood on this spot
+	FOR_EACH_VEC( m_hStealthPointObjs, i )
+	{
+		if ( m_hStealthPointObjs[i] && m_hStealthPointObjs[i]->GetStealthObjectType() == STEALTH_OBJ_BLOODSTAIN )
+		{
+			Vector vecToEnt = (pEntity->GetAbsOrigin() - m_hStealthPointObjs[i]->GetAbsOrigin());
+			if ( vecToEnt.LengthSqr() < Square( 48.0f ) )
+				return;
+		}
+	}
+
+	Vector vecBloodPos = pTrace->endpos;
+
+	// Raise it very slightly
+	vecBloodPos += ( pTrace->plane.normal * 2.0f );
+
+	CAI_StealthPointObject *pObj = CreateStealthPointObject( pEntity, vecBloodPos, STEALTH_OBJ_BLOODSTAIN );
+	if ( ppStealthObj )
+		*ppStealthObj = pObj;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 bool CAI_StealthManager::IsAlarmDisabled( CBaseEntity *pAlarm )
 {
 	return pAlarm->HasContext( CONTEXT_ALARM_DISABLED, "1" );
@@ -1096,16 +1151,24 @@ void CAI_StealthManager::InputForceThisNPCToRaiseAlarm( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CAI_StealthManager::AddSeenObject( CBaseEntity *pEntity )
+StealthObjectState_t *CAI_StealthManager::AddSeenObject( CBaseEntity *pEntity )
 {
 	// FL_OBJECT will be readded when this is influenced again (e.g. via player +USE)
 	g_AI_SensedObjectsManager.RemoveEntity( pEntity );
 
 	int iType = GetStealthObjectType( pEntity );
-	if (iType != STEALTH_OBJ_RAGDOLL &&
-		/*iType != STEALTH_OBJ_DOOR &&*/
-		iType != STEALTH_OBJ_PROP )
-		return;
+	switch ( iType )
+	{
+		// Only the following objects are tracked
+		case STEALTH_OBJ_PROP:
+		case STEALTH_OBJ_RAGDOLL:
+		case STEALTH_OBJ_GIB:
+		case STEALTH_OBJ_ITEM:
+		case STEALTH_OBJ_WEAPON:
+			break;
+		default:
+			return NULL;
+	}
 
 	int i = 0;
 	for ( ; i < m_SeenObjects.Count(); i++ )
@@ -1121,15 +1184,49 @@ void CAI_StealthManager::AddSeenObject( CBaseEntity *pEntity )
 		m_SeenObjects[i].flNoticeRadius = ai_stealth_obj_min_dist_change.GetFloat();
 		m_SeenObjects[i].nTimesFound = 0;
 		m_SeenObjects[i].flTimeEnteredArea = 0;	// This prop would've already been in the area for an unknown time
+
+		CAI_StealthPointObject *pObj = CreateStealthPointObject( pEntity, pEntity->WorldSpaceCenter(), STEALTH_OBJ_FOUND_MARKER );
+		if ( pObj )
+		{
+			m_SeenObjects[i].hMarker = pObj;
+		}
 	}
 	else
 	{
 		m_SeenObjects[i].nTimesFound++;
+		
+		if ( m_SeenObjects[i].hMarker )
+		{
+			m_SeenObjects[i].hMarker->SetAbsOrigin( pEntity->WorldSpaceCenter() );
+		}
 	}
 
 	m_SeenObjects[i].vecLastPosition = pEntity->GetAbsOrigin();
 	m_SeenObjects[i].flLastTimeChecked = gpGlobals->curtime + SEEN_OBJECT_CHECK_COOLDOWN;
 	m_SeenObjects[i].bResult = false;
+
+	return &m_SeenObjects[i];
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAI_StealthManager::RemoveSeenObject( CBaseEntity *pEntity )
+{
+	for ( int i = 0; i < m_SeenObjects.Count(); i++ )
+	{
+		if ( m_SeenObjects[i].hEntity == pEntity )
+		{
+			if ( m_SeenObjects[i].hMarker )
+			{
+				m_hStealthPointObjs.FindAndRemove( m_SeenObjects[i].hMarker );
+				UTIL_Remove( m_SeenObjects[i].hMarker );
+			}
+
+			m_SeenObjects.Remove( i );
+			return;
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1215,7 +1312,7 @@ StealthObjectState_t *CAI_StealthManager::GetStealthObjectState( CBaseEntity *pE
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEntity ) const
+StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEntity )
 {
 	if ( !pEntity )
 		return STEALTH_OBJ_NONE;
@@ -1227,6 +1324,14 @@ StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEnti
 		if ( pEntity->GetBaseAnimating()->IsRagdoll() ) // V_strncmp( pszClassname, "prop_r", 6 )
 		{
 			return STEALTH_OBJ_RAGDOLL;
+		}
+		else if ( pEntity->IsCombatItem() )
+		{
+			return STEALTH_OBJ_ITEM;
+		}
+		else if ( pEntity->IsBaseCombatWeapon() )
+		{
+			return STEALTH_OBJ_WEAPON;
 		}
 		else if ( V_strncmp( pszClassname, "prop_", 5 ) == 0 )
 		{
@@ -1252,18 +1357,38 @@ StealthObjectType_t CAI_StealthManager::GetStealthObjectType( CBaseEntity *pEnti
 					return STEALTH_OBJ_SLAM;
 			}
 		}
+		else if ( V_strncmp( pszClassname, "gib", 3 ) == 0 )
+		{
+			return STEALTH_OBJ_GIB;
+		}
 	}
 	else if ( V_strncmp( pszClassname, "env_l", 5 ) == 0 ) // env_laserdot
 	{
 		return STEALTH_OBJ_LASER_DOT;
 	}
-	// TODO: Generic stealth interest object, can be used to mark bloodstains or missing objects
-	//else if ( FStrEq( pszClassname, "ai_stealth_obj" ) )
-	//{
-	//
-	//}
+	else if ( FStrEq( pszClassname, "ai_stealth_obj" ) )
+	{
+		return static_cast<CAI_StealthPointObject *>(pEntity)->GetStealthObjectType();
+	}
 
 	return STEALTH_OBJ_NONE;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CAI_StealthPointObject *CAI_StealthManager::CreateStealthPointObject( CBaseEntity *pOwner, const Vector &vecOrigin, StealthObjectType_t nType )
+{
+	CAI_StealthPointObject *pObj = ((CAI_StealthPointObject *)(CBaseEntity::CreateNoSpawn( "ai_stealth_obj", vecOrigin, vec3_angle, pOwner )));
+	if ( pObj )
+	{
+		pObj->SetStealthObjectType( nType );
+		DispatchSpawn( pObj );
+
+		m_hStealthPointObjs.AddToTail( pObj );
+	}
+
+	return pObj;
 }
 
 //-----------------------------------------------------------------------------
@@ -1801,27 +1926,7 @@ float CAI_StealthManager::GetStealthAreaWeight( CAI_BaseNPC *pNPC, CTriggerSteal
 			if ( flPointDist > GetInterestTypeRadius( (*vecInterestPoints)[i].nType ) || flPointDist > pArea->GetMaxInterestDistance() )
 				continue;
 
-			float flMult = 1.0f;
-			switch ((*vecInterestPoints)[i].nType)
-			{
-				case STEALTH_INTEREST_ENEMY:
-					flMult = ( 2.0f - RemapVal( flPointDist,
-						ai_stealth_area_enemydist_min.GetFloat(), ai_stealth_area_enemydist_max.GetFloat(),
-						0.0f, 1.5f ) );
-					break;
-				case STEALTH_INTEREST_SOUND:
-					flMult = ( 1.5f - RemapVal( flPointDist,
-						ai_stealth_area_sound_min.GetFloat(), ai_stealth_area_sound_max.GetFloat(),
-						0.0f, 0.8f ) );
-					break;
-				case STEALTH_INTEREST_MISSING_ALLY:
-					flMult = ( 1.5f - RemapVal( flPointDist,
-						ai_stealth_area_sound_min.GetFloat(), ai_stealth_area_sound_max.GetFloat(),
-						0.0f, 0.8f ) );
-					break;
-			}
-
-			flWeight *= flMult;
+			flWeight *= GetInterestPointWeightForDistance( (*vecInterestPoints)[i].nType, flPointDist );
 			bNearInterestPoint = true;
 		}
 
@@ -1925,6 +2030,34 @@ float CAI_StealthManager::GetInterestTypeDuration( StealthInterestType_t nIntere
 	}
 
 	return 0.0f;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CAI_StealthManager::GetInterestPointWeightForDistance( StealthInterestType_t nInterestType, float flPointDist )
+{
+	float flMult = 1.0f;
+	switch (nInterestType)
+	{
+		case STEALTH_INTEREST_ENEMY:
+			flMult = ( 2.0f - RemapVal( flPointDist,
+				ai_stealth_area_enemydist_min.GetFloat(), ai_stealth_area_enemydist_max.GetFloat(),
+				0.0f, 1.5f ) );
+			break;
+		case STEALTH_INTEREST_SOUND:
+			flMult = ( 1.5f - RemapVal( flPointDist,
+				ai_stealth_area_sound_min.GetFloat(), ai_stealth_area_sound_max.GetFloat(),
+				0.0f, 0.8f ) );
+			break;
+		case STEALTH_INTEREST_MISSING_ALLY:
+			flMult = ( 1.5f - RemapVal( flPointDist,
+				ai_stealth_area_sound_min.GetFloat(), ai_stealth_area_sound_max.GetFloat(),
+				0.0f, 0.8f ) );
+			break;
+	}
+
+	return flMult;
 }
 
 //-----------------------------------------------------------------------------

@@ -6486,6 +6486,11 @@ void CNPC_Citizen::DeathSound( const CTakeDamageInfo &info )
 		trace_t tr;
 		AI_TraceLine(GetAbsOrigin() + Vector(0, 0, 1), GetAbsOrigin() - Vector(0, 0, 64), MASK_SOLID_BRUSHONLY | CONTENTS_PLAYERCLIP | CONTENTS_MONSTERCLIP, this, COLLISION_GROUP_NONE, &tr);
 		UTIL_DecalTrace(&tr, "Blood"); // my bits - trying to dump a big splat on the floor when we die.
+
+#ifdef EZ2
+		if ( g_hStealthManager )
+			g_hStealthManager->OnTraceBleed( this, &tr );
+#endif
 	}
 #endif
 }

@@ -30,15 +30,22 @@ public:
 	{
 		// Schedules
 		SCHED_STEALTH_INVESTIGATE_SOUND = BaseClass::NEXT_SCHEDULE,
-		SCHED_STEALTH_INVESTIGATE_SOUND_STAY,
+		SCHED_STEALTH_INVESTIGATE_RETURN,
+		SCHED_STEALTH_INVESTIGATE_STAY,
+		SCHED_STEALTH_INVESTIGATE_PICKUP,
+		SCHED_STEALTH_INVESTIGATE_PICKUP_WEAPON,
+		SCHED_STEALTH_INVESTIGATE_ALERT_SQUAD,
 		SCHED_STEALTH_WANDER,	// Fallback for if SCHED_PATROL_WALK doesn't work
 		NEXT_SCHEDULE,
 		
 		// Tasks
 		TASK_STEALTH_GET_PATH_TO_BESTSOUND = BaseClass::NEXT_TASK,
+		TASK_STEALTH_GET_FLANK_PATH_TO_BESTSOUND,
 		TASK_STEALTH_BESTSOUND_PAUSE,
 		TASK_STEALTH_MOVE_TO_BESTSOUND,
+		TASK_STEALTH_SET_INVESTIGATE_SCHEDULE,
 		TASK_STEALTH_SUGGEST_STATE_FOR_SOUND,
+		TASK_STEALTH_SPEAK_ALERT_SQUAD,
 		NEXT_TASK,
 		
 		// Conditions
@@ -56,10 +63,12 @@ public:
 	//-----------------------------------------------
 
 	virtual bool	IsInvestigatingSound();
-	virtual bool	ShouldStayAtSound( CSound *pSound );
+	virtual bool	ShouldStayAtSound( int nSoundChannel );
+	inline bool		ShouldStayAtSound( CSound *pSound ) { return ShouldStayAtSound( pSound->SoundChannel() ); }
 	virtual bool	ShouldGoToSoundSource( CSound *pSound );
 	virtual void	OnStartInvestigatingSound() {}
 	virtual void	OnHearNewSound( CSound *pSound );
+	void			StopSawSuspicious( CBaseEntity *pOwner );
 
 	virtual void	MarkAsSeen( CBaseEntity *pEntity );
 	virtual void	OnSeeEntity( CBaseEntity *pEntity );
@@ -67,6 +76,9 @@ public:
 	virtual void	OnSeeDoor( CBaseEntity *pEntity );
 	virtual void	OnSeeProp( CBaseEntity *pEntity, bool bPickup = false );
 	virtual void	OnSeeLaserDot( CBaseEntity *pEntity );
+	virtual void	OnSeeBloodstain( CBaseEntity *pEntity );
+	virtual void	OnSeeGib( CBaseEntity *pEntity );
+	virtual void	OnSeeWentMissing( CBaseEntity *pEntity );
 	virtual void	HandleAnimEvent( animevent_t *pEvent );
 
 	virtual void	ModifyOrAppendCriteria( AI_CriteriaSet &criteriaSet );
@@ -90,8 +102,10 @@ private:
 	float	m_flSoundExpireTime;
 
 	float	m_flLastTimeHeardSound;
+	float	m_flTimeSinceLastSound;	// Used during investigate schedule to determine which routine to use
 	int		m_nNumTimesInvestigatedSound;
 
+	// Whatever object we're investigating (e.g. player, a prop, etc.)
 	EHANDLE		m_hSuspiciousTarget;
 
 public:

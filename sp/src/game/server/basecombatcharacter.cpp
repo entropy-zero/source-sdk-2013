@@ -42,6 +42,11 @@
 #include "particle_parse.h"
 #endif
 
+#ifdef EZ2
+#include "ez2/ai_stealth_manager.h"
+#include "ai_senses.h"
+#endif
+
 #ifdef NEXT_BOT
 #include "NextBot/NextBotManager.h"
 #endif
@@ -1911,6 +1916,14 @@ void CBaseCombatCharacter::Event_Killed( const CTakeDamageInfo &info )
 			if (IsNPC())
 				MyNPCPointer()->m_OnItemDrop.Set( pItem, pItem, this );
 #endif
+
+#ifdef EZ2
+			if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_LOUD ) )
+			{
+				// Allow NPCs to visually notice this item
+				g_AI_SensedObjectsManager.AddEntity( pItem );
+			}
+#endif
 		}
 
 		DispatchSpawn( pItem );
@@ -2389,6 +2402,16 @@ void CBaseCombatCharacter::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector
 		// Don't drop weapons when the super physgun is happening.
 		UTIL_Remove( pWeapon );
 	}
+#ifdef EZ2
+	else if ( IsNPC() && !IsAlive() )
+	{
+		if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_LOUD ) )
+		{
+			// Allow NPCs to visually notice this weapon
+			g_AI_SensedObjectsManager.AddEntity( pWeapon );
+		}
+	}
+#endif
 
 }
 
@@ -4191,6 +4214,12 @@ void RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc, float flRa
 		// Even the tiniest explosion gets attention. Don't let the radius
 		// be less than 128 units.
 		float soundRadius = MAX( 128.0f, flRadius * 1.5 );
+
+#ifdef EZ2
+		// Much louder in stealth
+		if ( g_hStealthManager )
+			soundRadius *= 10.0f;
+#endif
 
 		CSoundEnt::InsertSound( SOUND_COMBAT | SOUND_CONTEXT_EXPLOSION, vecSrc, soundRadius, 0.25, info.GetInflictor() );
 	}

@@ -1727,6 +1727,9 @@ void CAI_BaseNPC::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir
 			SpawnBlood( ptr->endpos, vecDir, BloodColor(), subInfo.GetDamage() );// a little surface blood.
 		}
 
+#ifdef EZ2
+		if ( !g_hStealthManager || g_hStealthManager->ShouldTraceBleed( this, vecDir, ptr, subInfo ) )
+#endif
 		TraceBleed( subInfo.GetDamage(), vecDir, ptr, subInfo.GetDamageType() );
 
 		if ( ptr->hitgroup == HITGROUP_HEAD && m_iHealth - subInfo.GetDamage() > 0 )
@@ -12728,6 +12731,14 @@ CBaseEntity *CAI_BaseNPC::DropItem ( const char *pszItemName, Vector vecPos, QAn
 
 #ifdef MAPBASE
 		m_OnItemDrop.Set( pItem, pItem, this );
+#endif
+
+#ifdef EZ2
+		if ( g_hStealthManager && !g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_LOUD ) )
+		{
+			// Allow NPCs to visually notice this item
+			g_AI_SensedObjectsManager.AddEntity( pItem );
+		}
 #endif
 
 		return pItem;

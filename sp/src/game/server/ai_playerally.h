@@ -179,6 +179,10 @@
 #define TLK_FOUND_BODY				"TLK_FOUND_BODY"
 #define TLK_FOUND_PROP				"TLK_FOUND_PROP"
 #define TLK_FOUND_DOOR				"TLK_FOUND_DOOR"
+#define TLK_FOUND_BLOOD				"TLK_FOUND_BLOOD"
+#define TLK_FOUND_STRUGGLE			"TLK_FOUND_STRUGGLE"	// No body, but direct sign that someone died
+#define TLK_NOTE_MISSING_OBJ		"TLK_NOTE_MISSING_OBJ"
+#define TLK_NOTE_MISSING_ACCESSORY	"TLK_NOTE_MISSING_ACCESSORY"	// Something on my belt has gone missing
 #define TLK_INSPECT_OBJECT			"TLK_INSPECT_OBJECT"	// Have walked up to a suspicious object
 #define TLK_ATTACKED				"TLK_ATTACKED"			// Someone attacked me but I don't know who
 
@@ -189,6 +193,7 @@
 #define TLK_SQUAD_REPORT			"TLK_SQUAD_REPORT"
 #define TLK_SQUAD_CALL				"TLK_SQUAD_CALL"
 #define TLK_SQUAD_ORDER				"TLK_SQUAD_ORDER"
+#define TLK_SQUAD_ALERT				"TLK_SQUAD_ALERT"
 #define TLK_SEARCH_AREA_START		"TLK_SEARCH_AREA_START"
 #define TLK_SEARCH_AREA_FINISH		"TLK_SEARCH_AREA_FINISH"
 #define TLK_SWEEP_START				"TLK_SWEEP_START"

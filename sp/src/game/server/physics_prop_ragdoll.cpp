@@ -403,6 +403,9 @@ void CRagdollProp::EmitScent()
 				UTIL_TraceLine ( vecSpot, vecSpot + Vector ( 0, 0, -24 ), MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
 
 				UTIL_BloodDecalTrace( &tr, bloodColor );
+				
+				if ( g_hStealthManager )
+					g_hStealthManager->OnTraceBleed( this, &tr );
 			}
 		}
 

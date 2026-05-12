@@ -38,6 +38,8 @@
 
 #ifdef EZ2
 #include "ez2/ez2_player.h"
+#include "ez2/ai_stealth_manager.h"
+#include "ai_senses.h"
 #endif
 
 #endif
@@ -1312,6 +1314,15 @@ void CBaseCombatWeapon::Equip( CBaseCombatCharacter *pOwner )
 		physenv->DestroyConstraint( m_pConstraint );
 		m_pConstraint = NULL;
 	}
+
+#ifdef EZ2
+	if ( g_hStealthManager )
+	{
+		// Should no longer be visible to NPCs or tracked as a seen item
+		g_hStealthManager->RemoveSeenObject( this );
+		g_AI_SensedObjectsManager.RemoveEntity( this );
+	}
+#endif
 #endif
 
 #ifdef MAPBASE
