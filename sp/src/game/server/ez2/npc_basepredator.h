@@ -48,6 +48,9 @@ enum
 	TASK_PREDATOR_SPAWN,
 	TASK_PREDATOR_SPAWN_SOUND,
 	TASK_PREDATOR_GROW,
+	TASK_PREDATOR_GET_PATH_TO_FOOD_TARGET,
+	TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET,
+	TASK_PREDATOR_CHECK_EAT_TARGET_ATTACK,
 	LAST_SHARED_PREDATOR_TASK
 };
 
@@ -60,6 +63,10 @@ enum
 	SCHED_PREDATOR_SEE_PREY,
 	SCHED_PREDATOR_EAT,
 	SCHED_PREDATOR_RUN_EAT,
+	SCHED_PREDATOR_SEE_EAT_TARGET,
+	SCHED_PREDATOR_EAT_TARGET,
+	SCHED_PREDATOR_RUN_EAT_TARGET,
+	SCHED_PREDATOR_ATTACK_EAT_TARGET,
 	SCHED_PRED_SNIFF_AND_EAT,
 	SCHED_PREDATOR_WALLOW,
 	SCHED_PREDATOR_WANDER, // Similar to SCHED_PATROL_WALK, but with more interrupts for the [REDACTED]
@@ -75,6 +82,8 @@ enum
 enum
 {
 	COND_PREDATOR_SMELL_FOOD	= LAST_SHARED_CONDITION + 1,
+	COND_PREDATOR_SEE_FOOD,
+	COND_PREDATOR_SEE_IMPORTANT_FOOD,	// e.g. ragdolls being carried by the player
 	COND_NEW_BOSS_STATE,
 	COND_PREDATOR_CAN_GROW,
 	COND_PREDATOR_GROWTH_INVALID,
@@ -103,6 +112,8 @@ enum SquadSlot_T
 #define		PREDATOR_AE_THROW		( 6 )
 #define		PREDATOR_AE_WHIP_SND	( 7 )
 #define		PREDATOR_AE_TAILWHIP	( 8 )
+
+class CRagdollProp;
 
 class CNPC_BasePredator : public CAI_BehaviorHost<CAI_BaseNPC>
 {
@@ -144,6 +155,7 @@ public:
 	float MaxYawSpeed ( void );
 
 	Vector	Weapon_ShootPosition( void );
+	void	AimGun();
 
 	virtual void BuildScheduleTestBits();
 	virtual bool OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
@@ -172,7 +184,9 @@ public:
 	bool FValidateHintType ( CAI_Hint *pHint );
 	virtual void RemoveIgnoredConditions( void );
 	Disposition_t IRelationType( CBaseEntity *pTarget );
+	virtual	bool IsValidEnemy( CBaseEntity *pEnemy );
 
+	virtual void ModifyStealthAlertLevel( CBaseEntity *pTarget, const Vector &vecDelta, float flDot, float &flAlertLevelIncrease );
 	bool JustStartedFearing( CBaseEntity *pTarget ); // Blixibon - Needed so the player's speech AI doesn't pick this up as D_FR before it's apparent (e.g. fast, rapid kills)
 	int OnTakeDamage_Alive( const CTakeDamageInfo &inputInfo );
 	virtual void OnFed();
@@ -186,6 +200,8 @@ public:
 	virtual bool ShouldInfight( CBaseEntity * pTarget ) { return false;  } // Is this NPC a rival or a potential mate that I should fight against?
 	virtual bool ShouldFindMate();
 	virtual bool CanMateWithTarget( CNPC_BasePredator * pTarget, bool receiving );
+	virtual bool CanBeInterruptedByFood( bool bImportant = false );
+	virtual bool IsFoodEntSuspended( CBaseEntity *pTarget );
 	virtual bool ShouldEatInCombat();
 	virtual bool ShouldAttackObstruction( CBaseEntity *pEntity );
 	virtual bool ShouldImmediatelyAttackObstructions(); // If true, NPCs will immediately attack obstructions instead of waiting for the pathfinder to find a way around
@@ -207,6 +223,8 @@ public:
 	virtual void OnListened ( void );
 	virtual bool QueryHearSound( CSound *pSound );
 
+	virtual void OnLooked( int iDistance );
+
 	virtual int SelectSchedule( void );
 	virtual int SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
 	virtual int SelectBossSchedule( void );
@@ -222,6 +240,8 @@ public:
 	virtual void StartTask ( const Task_t *pTask );
 	virtual void RunTask ( const Task_t *pTask );
 
+	virtual bool IsCurTaskContinuousMove();
+
 	NPC_STATE SelectIdealState ( void );
 
 	bool 			OverrideMove( float flInterval );			// Override to take total control of movement (return true if done so)
@@ -231,6 +251,8 @@ public:
 #ifdef EZ2
 	virtual bool	HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt );
 #endif
+
+	virtual void	OnChangeActivity( Activity eNewActivity );
 
 	virtual void	HandleAnimEvent( animevent_t *pEvent );
 
@@ -243,9 +265,13 @@ protected:
 	float m_flHungryTime;// set this is a future time to stop the monster from eating for a while. 
 	float m_flNextSpawnTime; // Next time the bullsquid can birth offspring
 
+	EHANDLE m_hPotentialEatTarget; // A visible entity that we can potentially eat (used with COND_PREDATOR_SEE_FOOD)
+
 	EHANDLE	m_hObstructor; // Object obstructing path
 
 	float m_flStartedFearingEnemy; // Blixibon - Needed for Bad Cop's speech AI
+
+	Vector	m_vecStealthLookTarget; // Used by alert levels in lieu of look target queue
 
 	// Spawning offspring
 	bool  m_bSpawningEnabled;

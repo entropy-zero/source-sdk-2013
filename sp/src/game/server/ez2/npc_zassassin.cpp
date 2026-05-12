@@ -996,6 +996,15 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 				// If the player is holding this, make sure it's dropped
 				Pickup_ForcePlayerToDropThisObject( pHurt );
 			}
+			else if ( GetTarget() && IsCurSchedule( SCHED_PREDATOR_ATTACK_EAT_TARGET, false ) )
+			{
+				// If we're attacking food, always detect it
+				// The hull trace may fail if this is a debris ragdoll
+				pHurt = GetTarget();
+
+				// If the player is holding this, make sure it's dropped
+				Pickup_ForcePlayerToDropThisObject( pHurt );
+			}
 			else // Play a random attack miss sound
 			{
 				EmitSound( filter, entindex(), "Zombie.AttackMiss" );

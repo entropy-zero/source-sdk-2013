@@ -19,6 +19,9 @@
 #ifdef EZ2
 #include "npc_wilson.h"
 #include "hl2_gamerules.h"
+#include "physics_prop_ragdoll.h"
+#include "ez2_player.h"
+#include "ai_stealth_senses.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -58,7 +61,9 @@ BEGIN_DATADESC( CNPC_BasePredator )
 	DEFINE_FIELD( m_flLastHurtTime, FIELD_TIME ),
 	DEFINE_FIELD( m_flNextSpitTime, FIELD_TIME ),
 	DEFINE_FIELD( m_tBossState, FIELD_INTEGER ),
+	DEFINE_FIELD( m_hPotentialEatTarget, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hObstructor, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_vecStealthLookTarget, FIELD_POSITION_VECTOR ),
 
 	DEFINE_FIELD( m_flHungryTime, FIELD_TIME ),
 	DEFINE_KEYFIELD( m_bSpawningEnabled, FIELD_BOOLEAN, "SpawningEnabled" ),
@@ -409,6 +414,40 @@ Vector CNPC_BasePredator::Weapon_ShootPosition( void )
 }
 
 //=========================================================
+// AimGun
+//=========================================================
+void CNPC_BasePredator::AimGun( void )
+{
+	if ( IsUsingStealthSenses() && !GetEnemy() && GetStealthSenses()->GetAlertLevelCount() > 0 )
+	{
+		// Look at our most suspicious target
+		// (Intended to fill in for the lack of look queue used in head turning)
+		for ( int i = 0; i < GetStealthSenses()->GetAlertLevelCount(); i++ )
+		{
+			const AlertLevel_t &alertLevel = GetStealthSenses()->GetAlertLevel( i );
+			if ( alertLevel.flLevel > GetStealthSenses()->GetAlertFaceThreshold( alertLevel.hTarget, i ) && alertLevel.hTarget )
+			{
+				if ( gpGlobals->curtime - alertLevel.flLastUpdate < 0.3f )
+				{
+					// Update if we're looking at this target
+					m_vecStealthLookTarget = alertLevel.hTarget->EyePosition();
+				}
+
+				// If we're close enough, do not aim
+				Vector vecDir = (m_vecStealthLookTarget - EyePosition());
+				if ( VectorNormalize( vecDir ) > 32.0f && DotProduct( vecDir, HeadDirection3D() ) > 0.0f )
+				{
+					SetAim( vecDir );
+					return;
+				}
+			}
+		}
+	}
+
+	BaseClass::AimGun();
+}
+
+//=========================================================
 // Used by classes that extend BasePredator
 //=========================================================
 bool CNPC_BasePredator::IsJumpLegal( const Vector & startPos, const Vector & apex, const Vector & endPos, float maxUp, float maxDown, float maxDist ) const
@@ -438,6 +477,18 @@ void CNPC_BasePredator::BuildScheduleTestBits()
 	if ( ShouldImmediatelyAttackObstructions() && IsCurSchedule( SCHED_CHASE_ENEMY ) )
 	{
 		SetCustomInterruptCondition( COND_PREDATOR_OBSTRUCTED );
+	}
+
+	if ( IsCurSchedule( SCHED_IDLE_STAND ) || IsCurSchedule( SCHED_ALERT_STAND ) )
+	{
+		// Can be interrupted by new food
+		SetCustomInterruptCondition( COND_PREDATOR_SMELL_FOOD );
+		SetCustomInterruptCondition( COND_PREDATOR_SEE_FOOD );
+	}
+	else if ( IsCurSchedule( SCHED_INVESTIGATE_SOUND, false ) )
+	{
+		// Can be interrupted by important food
+		SetCustomInterruptCondition( COND_PREDATOR_SEE_IMPORTANT_FOOD );
 	}
 
 	// Like zombies, ignore damage if we're attacking.
@@ -776,7 +827,43 @@ Disposition_t CNPC_BasePredator::IRelationType( CBaseEntity *pTarget )
 	return disposition;
 }
 
+bool CNPC_BasePredator::IsValidEnemy( CBaseEntity *pEnemy )
+{
+	bool bBase = BaseClass::IsValidEnemy( pEnemy );
+	if ( !bBase )
+		return false;
+
 #ifdef EZ2
+	if ( pEnemy && pEnemy->IsPlayer() )
+	{
+		if ( IsCurSchedule( SCHED_PREDATOR_SEE_EAT_TARGET )
+			|| IsCurSchedule( SCHED_PREDATOR_RUN_EAT_TARGET )
+			|| IsCurSchedule( SCHED_PREDATOR_RUN_EAT )
+			|| IsCurSchedule( SCHED_PREDATOR_ATTACK_EAT_TARGET ) )
+		{
+			// If we're running to food, ignore players who are trying to hide
+			CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pEnemy);
+			if ( pEZ2Player->IsCloaking() )
+				return false;
+		}
+	}
+#endif
+
+	return true;
+}
+
+#ifdef EZ2
+void CNPC_BasePredator::ModifyStealthAlertLevel( CBaseEntity *pTarget, const Vector &vecDelta, float flDot, float &flAlertLevelIncrease )
+{
+	BaseClass::ModifyStealthAlertLevel( pTarget, vecDelta, flDot, flAlertLevelIncrease );
+
+	if ( HasCondition( COND_PREDATOR_SMELL_FOOD ) || HasCondition( COND_PREDATOR_SEE_FOOD ) )
+	{
+		// Distracted by food
+		flAlertLevelIncrease *= 0.6f;
+	}
+}
+
 // 
 // Blixibon - Needed so the player's speech AI doesn't pick this up as D_FR before it's apparent (e.g. fast, rapid kills)
 // 
@@ -900,6 +987,38 @@ bool CNPC_BasePredator::CanMateWithTarget( CNPC_BasePredator * pTarget, bool rec
 }
 
 //=========================================================
+// Can this predator's schedule be interrupted by available food?
+//=========================================================
+bool CNPC_BasePredator::CanBeInterruptedByFood( bool bImportant )
+{
+	if ( bImportant )
+	{
+		if ( IsCustomInterruptConditionSet( COND_PREDATOR_SEE_IMPORTANT_FOOD ) )
+			return true;
+	}
+
+	// Effectively synonymous but narrower
+	//if ( ConditionInterruptsCurSchedule( COND_PREDATOR_SMELL_FOOD ) || IsCustomInterruptConditionSet( COND_PREDATOR_SMELL_FOOD ) )
+	//	return true;
+
+	if ( ConditionInterruptsCurSchedule( COND_PREDATOR_SEE_FOOD ) || IsCustomInterruptConditionSet( COND_PREDATOR_SEE_FOOD ) )
+		return true;
+
+	return false;
+}
+
+//=========================================================
+// Is this food hanging in the air?
+//=========================================================
+bool CNPC_BasePredator::IsFoodEntSuspended( CBaseEntity *pTarget )
+{
+	if ( pTarget->VPhysicsGetObject() && pTarget->VPhysicsGetObject()->GetGameFlags() & FVPHYSICS_PLAYER_HELD )
+		return true;
+
+	return false;
+}
+
+//=========================================================
 // Should this predator eat while enemies are present?
 //=========================================================
 bool CNPC_BasePredator::ShouldEatInCombat()
@@ -908,8 +1027,8 @@ bool CNPC_BasePredator::ShouldEatInCombat()
 	if ( m_iHealth >= ( m_iMaxHealth * GetEatInCombatPercentHealth() ) )
 		return false;
 	
-	// Do we smell food?
-	if ( !HasCondition( COND_PREDATOR_SMELL_FOOD ) )
+	// Do we sense food?
+	if ( !HasCondition( COND_PREDATOR_SMELL_FOOD ) && !HasCondition( COND_PREDATOR_SEE_FOOD ) )
 		return false;
 
 	// Are we fighting with a rival over food?
@@ -1011,6 +1130,65 @@ bool CNPC_BasePredator::QueryHearSound( CSound * pSound )
 		return false;
 
 	return BaseClass::QueryHearSound( pSound );
+}
+
+void CNPC_BasePredator::OnLooked( int iDistance )
+{
+	BaseClass::OnLooked( iDistance );
+
+#ifdef EZ2
+	static int conditionsToClear[] =
+	{
+		COND_PREDATOR_SEE_FOOD,
+		COND_PREDATOR_SEE_IMPORTANT_FOOD,
+	};
+
+	ClearConditions( conditionsToClear, ARRAYSIZE( conditionsToClear ) );
+
+	AISightIter_t iter;
+	CBaseEntity *pSightEnt;
+
+	pSightEnt = GetSenses()->GetFirstSeenEntity( &iter );
+
+	while( pSightEnt )
+	{
+		if ( pSightEnt->GetFlags() & FL_OBJECT && GetState() != NPC_STATE_COMBAT /*&& m_flHungryTime < gpGlobals->curtime*/ && pSightEnt->ClassMatches( "prop_ragdoll" ) )
+		{
+			// If we see a ragdoll that can be eaten, and we're in a position to eat it, then eat it
+			CRagdollProp *pRagdoll = static_cast<CRagdollProp *>( pSightEnt );
+			if ( pRagdoll->CanEmitsScents() && GetDefaultRelationshipDisposition( pRagdoll->GetSourceClassification() ) != D_NU )
+			{
+				bool bImportant = false;
+
+				// If this ragdoll is moving or was recently moved, react more urgently
+				if ( pRagdoll->VPhysicsGetObject() )
+				{
+					Vector vecVelocity;
+					VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
+
+					if ( vecVelocity.LengthSqr() > Square( 4.0f ) || pRagdoll->HasPhysicsAttacker( 10.0f ) )
+						bImportant = true;
+				}
+
+				//if ( CanBeInterruptedByFood( bImportant ) )
+				{
+					m_hPotentialEatTarget = pRagdoll;
+					SetCondition( COND_PREDATOR_SEE_FOOD );
+
+					if ( bImportant )
+					{
+						SetCondition( COND_PREDATOR_SEE_IMPORTANT_FOOD );
+
+						// Don't need to check any other food if this one's important
+						break;
+					}
+				}
+			}
+		}
+
+		pSightEnt = GetSenses()->GetNextSeenEntity( &iter );
+	}
+#endif
 }
 
 //========================================================
@@ -1151,6 +1329,50 @@ void CNPC_BasePredator::StartTask( const Task_t *pTask )
 		m_bReadyToSpawn = false;
 		TaskComplete();
 		break;
+	case TASK_PREDATOR_GET_PATH_TO_FOOD_TARGET:
+	{
+		if ( GetTarget() == NULL )
+		{
+			TaskFail(FAIL_NO_TARGET);
+		}
+		else 
+		{
+			AI_NavGoal_t goal( static_cast<const Vector &>(GetTarget()->WorldSpaceCenter()) );
+			//goal.pTarget = GetTarget();
+			GetNavigator()->SetGoal( goal );
+		}
+		break;
+	}
+	case TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET:
+	{
+		ChainStartTask( TASK_WAIT_FOR_MOVEMENT, pTask->flTaskData );
+		break;
+	}
+	case TASK_PREDATOR_CHECK_EAT_TARGET_ATTACK:
+	{
+		if ( GetTarget() )
+		{
+			if ( IsFoodEntSuspended( GetTarget() ) )
+			{
+				// If our eat target is suspended, attack it
+				// (This is a very hacky way of doing this)
+				SetSchedule( SCHED_PREDATOR_ATTACK_EAT_TARGET );
+				break;
+			}
+			else if ( GetAbsOrigin().DistToSqr( GetTarget()->WorldSpaceCenter() ) > Square( 48.0f ) )
+			{
+				// This shouldn't really happen if we completed the movement task, but since we can't update the goal
+				// position while jumping, gonomes that jump directly to the target pos sometimes mark it complete
+				// before they can reevaluate it
+				// So if the target is too far away, restart the schedule
+				SetSchedule( SCHED_PREDATOR_RUN_EAT_TARGET );
+				break;
+			}
+		}
+
+		TaskComplete();
+		break;
+	}
 	default:
 	{
 		BaseClass::StartTask( pTask );
@@ -1182,9 +1404,20 @@ void CNPC_BasePredator::RunTask ( const Task_t *pTask )
 		break;
 	}
 	case TASK_PREDATOR_PLAY_EXCITE_ACT:
-	case TASK_PREDATOR_PLAY_EAT_ACT:
 	case TASK_PREDATOR_PLAY_SNIFF_ACT:
 	case TASK_PREDATOR_PLAY_INSPECT_ACT:
+	{
+		// If there's a specific entity we're excited about, face it
+		CBaseEntity *pTarget = GetTarget();
+		if ( !pTarget )
+			pTarget = GetEnemy();
+
+		if ( pTarget )
+		{
+			GetMotor()->SetIdealYawAndUpdate( pTarget->GetAbsOrigin() - GetAbsOrigin(), AI_KEEP_YAW_SPEED );
+		}
+	}
+	case TASK_PREDATOR_PLAY_EAT_ACT:
 	{
 		AutoMovement();
 		if ( IsActivityFinished() )
@@ -1203,12 +1436,42 @@ void CNPC_BasePredator::RunTask ( const Task_t *pTask )
 		}
 		break;
 	}
+	case TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET:
+	{
+		ChainRunTask( TASK_WAIT_FOR_MOVEMENT, pTask->flTaskData );
+
+		if ( !TaskIsComplete() && GetTarget() )
+		{
+			Vector vecTargetPos = GetTarget()->WorldSpaceCenter();
+			if ( GetNavigator()->GetGoalPos().DistToSqr( vecTargetPos ) > Square( 8.0f ) )
+			{
+				// Update position
+				if ( GetNavType() != NAV_JUMP && !GetNavigator()->UpdateGoalPos( vecTargetPos ) )
+					TaskFail( FAIL_NO_ROUTE );
+			}
+			else if ( IsFoodEntSuspended( GetTarget() ) && GetAbsOrigin().DistToSqr( vecTargetPos ) < Square( 50.0f ) )
+			{
+				// End early so that we could attack it
+				TaskComplete();
+			}
+		}
+		break;
+	}
 	default:
 	{
 		BaseClass::RunTask( pTask );
 		break;
 	}
 	}
+}
+
+bool CNPC_BasePredator::IsCurTaskContinuousMove()
+{
+	const Task_t* pTask = GetTask();
+	if ( pTask && (pTask->iTask == TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET) )
+		return true;
+
+	return BaseClass::IsCurTaskContinuousMove();
 }
 
 int CNPC_BasePredator::SelectBossSchedule( void )
@@ -1275,7 +1538,18 @@ int CNPC_BasePredator::SelectSchedule( void )
 		if ( HasCondition( COND_PROVOKED ) )
 			break;
 
-		if ( HasCondition( COND_PREDATOR_SMELL_FOOD ) )
+		if ( HasCondition( COND_PREDATOR_SEE_FOOD ) && m_hPotentialEatTarget )
+		{
+			// We have a specific target in mind
+			SetTarget( m_hPotentialEatTarget );
+			
+			// If it's important, then get excited about it
+			if ( HasCondition( COND_PREDATOR_SEE_IMPORTANT_FOOD ) )
+				return SCHED_PREDATOR_SEE_EAT_TARGET;
+
+			return SCHED_PREDATOR_EAT_TARGET;
+		}
+		else if ( HasCondition( COND_PREDATOR_SMELL_FOOD ) )
 		{
 			CSound		*pSound;
 
@@ -1347,6 +1621,13 @@ int CNPC_BasePredator::SelectSchedule( void )
 		// it may eat in combat
 		if ( ShouldEatInCombat() )
 		{
+			if ( HasCondition( COND_PREDATOR_SEE_FOOD ) && m_hPotentialEatTarget )
+			{
+				// We have a specific target in mind
+				SetTarget( m_hPotentialEatTarget );
+				return SCHED_PREDATOR_RUN_EAT_TARGET;
+			}
+
 			// Don't bother sniffing food while in combat
 			return SCHED_PREDATOR_RUN_EAT;
 		}
@@ -1356,6 +1637,15 @@ int CNPC_BasePredator::SelectSchedule( void )
 		{
 			return SCHED_CHASE_ENEMY_FAILED;
 		}
+
+#ifdef EZ2
+		if ( IsUsingStealthSenses() )
+		{
+			// If we're at the enemy's last known position and they aren't here, then run around
+			if ( ( GetEnemyLKP() - GetAbsOrigin() ).Length2DSqr() < Square( 48 ) && !HasCondition( COND_SEE_ENEMY ) )
+				return SCHED_RUN_RANDOM;
+		}
+#endif
 
 		return SCHED_CHASE_ENEMY;
 
@@ -1569,6 +1859,29 @@ bool CNPC_BasePredator::HandleInteraction( int interactionType, void *data, CBas
 #endif
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_BasePredator::OnChangeActivity( Activity eNewActivity )
+{
+	BaseClass::OnChangeActivity( eNewActivity );
+
+#ifdef EZ2
+	if (eNewActivity == ACT_MELEE_ATTACK1 || eNewActivity == ACT_MELEE_ATTACK2)
+	{
+		// Copied from zombie code
+		if( GetEnemy() && GetEnemy()->IsNPC() )
+		{
+			//if( HasCondition(COND_CAN_MELEE_ATTACK1) || HasCondition(COND_CAN_MELEE_ATTACK2) )
+			{
+				extern int g_interactionGenericMeleeWarning;
+				GetEnemy()->MyNPCPointer()->DispatchInteraction( g_interactionGenericMeleeWarning, NULL, this );
+			}
+		}
+	}
+#endif
+}
+
+//-----------------------------------------------------------------------------
 // Purpose :
 // Input   :
 // Output  :
@@ -1734,8 +2047,13 @@ AI_BEGIN_CUSTOM_NPC( npc_predator, CNPC_BasePredator )
 	DECLARE_TASK( TASK_PREDATOR_SPAWN )
 	DECLARE_TASK( TASK_PREDATOR_SPAWN_SOUND )
 	DECLARE_TASK( TASK_PREDATOR_GROW )
+	DECLARE_TASK( TASK_PREDATOR_GET_PATH_TO_FOOD_TARGET )
+	DECLARE_TASK( TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET )
+	DECLARE_TASK( TASK_PREDATOR_CHECK_EAT_TARGET_ATTACK )
 
 	DECLARE_CONDITION( COND_PREDATOR_SMELL_FOOD )
+	DECLARE_CONDITION( COND_PREDATOR_SEE_FOOD )
+	DECLARE_CONDITION( COND_PREDATOR_SEE_IMPORTANT_FOOD )
 	DECLARE_CONDITION( COND_NEW_BOSS_STATE )
 	DECLARE_CONDITION( COND_PREDATOR_CAN_GROW )
 	DECLARE_CONDITION( COND_PREDATOR_GROWTH_INVALID )
@@ -1845,6 +2163,105 @@ AI_BEGIN_CUSTOM_NPC( npc_predator, CNPC_BasePredator )
 		)
 
 	//=========================================================
+	// > SCHED_PREDATOR_SEE_EAT_TARGET
+	// Currently transitions directly to SCHED_PREDATOR_RUN_EAT_TARGET,
+	// which differs from SCHED_PREDATOR_SEE_PREY behavior
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_PREDATOR_SEE_EAT_TARGET,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING				0"
+		"		TASK_SOUND_WAKE					0"
+		"		TASK_PREDATOR_PLAY_EXCITE_ACT	0"
+		"		TASK_SET_SCHEDULE				SCHEDULE:SCHED_PREDATOR_RUN_EAT_TARGET"
+		"	"
+		"	Interrupts"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_NEW_ENEMY"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+	)
+
+	//=========================================================
+	// > SCHED_PREDATOR_EAT_TARGET
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_PREDATOR_EAT_TARGET,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING				0"
+		"		TASK_PREDATOR_EAT					10"
+		"		TASK_STORE_LASTPOSITION				0"
+		"		TASK_PREDATOR_GET_PATH_TO_FOOD_TARGET	0"
+		"		TASK_WALK_PATH						0"
+		"		TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET	0"
+		"		TASK_PREDATOR_CHECK_EAT_TARGET_ATTACK	0"
+		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+		"		TASK_PREDATOR_EAT					30"
+		"		TASK_PREDATOR_REGEN					0"
+		"		TASK_GET_PATH_TO_LASTPOSITION		0"
+		"		TASK_WALK_PATH						0"
+		"		TASK_WAIT_FOR_MOVEMENT				0"
+		"		TASK_CLEAR_LASTPOSITION				0"
+		"	"
+		"	Interrupts"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_NEW_ENEMY"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+	)
+
+	//=========================================================
+	// > SCHED_PREDATOR_RUN_EAT
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_PREDATOR_RUN_EAT_TARGET,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_PREDATOR_EAT					10"
+		"		TASK_PREDATOR_GET_PATH_TO_FOOD_TARGET	0"
+		"		TASK_RUN_PATH						0"
+		"		TASK_PREDATOR_WAIT_FOR_MOVEMENT_TARGET	0"
+		"		TASK_PREDATOR_CHECK_EAT_TARGET_ATTACK	0"
+		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+//		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+//		"		TASK_PREDATOR_PLAY_EAT_ACT			0"
+		"		TASK_PREDATOR_EAT					30"
+		"		TASK_PREDATOR_REGEN					0"
+		"	"
+		"	Interrupts"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+	)
+			
+	//=========================================================
+	// > SCHED_PREDATOR_ATTACK_EAT_TARGET
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_PREDATOR_ATTACK_EAT_TARGET,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING			0"
+		"		TASK_FACE_TARGET			0"
+		"		TASK_PLAY_SEQUENCE			ACTIVITY:ACT_MELEE_ATTACK2"
+		"		TASK_SET_SCHEDULE			SCHEDULE:SCHED_PREDATOR_RUN_EAT_TARGET"
+		"	"
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_ENEMY_DEAD"
+	)
+
+	//=========================================================
 	// > SCHED_PRED_SNIFF_AND_EAT
 	//=========================================================
 	DEFINE_SCHEDULE
@@ -1937,6 +2354,7 @@ AI_BEGIN_CUSTOM_NPC( npc_predator, CNPC_BasePredator )
 		"		COND_SEE_FEAR"
 		"		COND_LIGHT_DAMAGE"
 		"		COND_HEAVY_DAMAGE"
+		"		COND_PREDATOR_SEE_FOOD"
 		"		COND_PREDATOR_SMELL_FOOD"
 		"		COND_SMELL"
 		"		COND_PROVOKED"

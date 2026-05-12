@@ -602,6 +602,12 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 CBaseEntity * CNPC_Bullsquid::BiteAttack( float flDist, const Vector & mins, const Vector & maxs )
 {
 	CBaseEntity *pHurt = CheckTraceHullAttack( flDist, mins, maxs, GetBiteDamage(), DMG_SLASH | DMG_ALWAYSGIB, 1.0f, ShouldMeleeDamageAnyNPC() );
+
+	// If we're attacking food, always detect it
+	// The hull trace may fail if this is a debris ragdoll
+	if ( !pHurt && GetTarget() && IsCurSchedule( SCHED_PREDATOR_ATTACK_EAT_TARGET, false ) )
+		pHurt = GetTarget();
+
 	if ( pHurt )
 	{
 		BiteSound(); // Only play the bite sound if we have a target

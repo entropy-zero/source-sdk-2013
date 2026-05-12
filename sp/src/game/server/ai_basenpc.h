@@ -2234,6 +2234,9 @@ public:
 	void			SetUsingHighFrequencyLook( bool bEnabled );
 	void			HighFrequencyLookThink();
 
+	// Allows individual NPCs to modify alert levels without custom stealth sense component
+	virtual void	ModifyStealthAlertLevel( CBaseEntity *pTarget, const Vector &vecDelta, float flDot, float &flAlertLevelIncrease ) {}
+
 	// Used by stealth squad info to determine what ID to use
 	virtual const char		*GetSquadIDPrefix();
 
