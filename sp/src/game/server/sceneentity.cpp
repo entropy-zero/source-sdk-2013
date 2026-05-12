@@ -612,6 +612,7 @@ private:
 	CChoreoScene			*GenerateSceneForSound( CBaseFlex *pFlexActor, const char *soundname );
 #ifdef MAPBASE
 	CChoreoScene			*GenerateSceneForSentenceName( CBaseFlex *pFlexActor, const char *pszSentenceName );
+	CChoreoScene			*GenerateSceneForSentence( CBaseFlex *pFlexActor, const ChoreoSentence_t *pSentence );
 #endif
 
 	bool					CheckActors();
@@ -988,6 +989,19 @@ CChoreoScene *CSceneEntity::GenerateSceneForSound( CBaseFlex *pFlexActor, const 
 //-----------------------------------------------------------------------------
 CChoreoScene *CSceneEntity::GenerateSceneForSentenceName( CBaseFlex *pFlexActor, const char *pszSentenceName )
 {
+	if ( pszSentenceName[0] == '#' )
+	{
+		// Custom sentence
+		ChoreoSentence_t sentence;
+		if ( !ParseChoreoSentence( pFlexActor, pszSentenceName+1, sentence ) )
+		{
+			Warning( "CSceneEntity::GenerateSceneForSentenceName:  Couldn't parse sentence from '%s'\n", pszSentenceName+1 );
+			return NULL;
+		}
+
+		return GenerateSceneForSentence( pFlexActor, &sentence );
+	}
+	
 	const ChoreoSentence_t *pSentence = LookupChoreoSentence( pFlexActor, pszSentenceName );
 	if ( !pSentence )
 	{
@@ -995,18 +1009,21 @@ CChoreoScene *CSceneEntity::GenerateSceneForSentenceName( CBaseFlex *pFlexActor,
 		return NULL;
 	}
 
-	// TODO: Raw sentence support?
-	// ChoreoSentence_t sentence;
-	// if ( !ParseChoreoSentence( pFlexActor, pszSentence, sentence ) )
-	// {
-	// 	Warning( "CSceneEntity::GenerateSceneForSentence:  Couldn't parse sentence from '%s'\n", pszSentence );
-	// 	return NULL;
-	// }
+	return GenerateSceneForSentence( pFlexActor, pSentence );
+}
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *actor - 
+//			*pszSentenceName - 
+// Output : CChoreoScene
+//-----------------------------------------------------------------------------
+CChoreoScene *CSceneEntity::GenerateSceneForSentence( CBaseFlex *pFlexActor, const ChoreoSentence_t *pSentence )
+{
 	CChoreoScene *scene = new CChoreoScene( this );
 	if ( !scene )
 	{
-		Warning( "CSceneEntity::GenerateSceneForSentenceName:  Failed to allocated new scene!!!\n" );
+		Warning( "CSceneEntity::GenerateSceneForSentence:  Failed to allocated new scene!!!\n" );
 	}
 	else
 	{
@@ -1020,7 +1037,7 @@ CChoreoScene *CSceneEntity::GenerateSceneForSentenceName( CBaseFlex *pFlexActor,
 
 		if ( !actor || !channel )
 		{
-			Warning( "CSceneEntity::GenerateSceneForSentenceName:  Alloc of actor or channel failed!!!\n" );
+			Warning( "CSceneEntity::GenerateSceneForSentence:  Alloc of actor or channel failed!!!\n" );
 			delete scene;
 			return NULL;
 		}
@@ -1046,7 +1063,7 @@ CChoreoScene *CSceneEntity::GenerateSceneForSentenceName( CBaseFlex *pFlexActor,
 			float duration = CBaseEntity::GetSoundDuration( pszWord, actormodel );
 			if (duration <= 0.0f)
 			{
-				Warning( "CSceneEntity::GenerateSceneForSentenceName:  Couldn't determine duration of %s\n", pszWord );
+				Warning( "CSceneEntity::GenerateSceneForSentence:  Couldn't determine duration of %s\n", pszWord );
 			}
 
 			CChoreoEvent *event = scene->AllocEvent();
@@ -1054,7 +1071,7 @@ CChoreoScene *CSceneEntity::GenerateSceneForSentenceName( CBaseFlex *pFlexActor,
 
 			if ( !event )
 			{
-				Warning( "CSceneEntity::GenerateSceneForSentenceName:  Alloc of event failed!!!\n" );
+				Warning( "CSceneEntity::GenerateSceneForSentence:  Alloc of event failed!!!\n" );
 				delete scene;
 				return NULL;
 			}

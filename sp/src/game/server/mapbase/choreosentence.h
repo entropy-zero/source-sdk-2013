@@ -33,7 +33,7 @@ struct ChoreoSentenceWord_t
 
 struct ChoreoSentence_t 
 {
-	ChoreoSentence_t() {}
+	ChoreoSentence_t() { pszPrefix = ""; }
 	ChoreoSentence_t( const ChoreoSentence_t &src )
 	{
 		pszName = src.pszName;
