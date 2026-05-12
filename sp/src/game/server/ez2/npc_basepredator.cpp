@@ -1156,7 +1156,7 @@ void CNPC_BasePredator::OnLooked( int iDistance )
 		{
 			// If we see a ragdoll that can be eaten, and we're in a position to eat it, then eat it
 			CRagdollProp *pRagdoll = static_cast<CRagdollProp *>( pSightEnt );
-			if ( pRagdoll->CanEmitsScents() && GetDefaultRelationshipDisposition( pRagdoll->GetSourceClassification() ) != D_NU )
+			if ( pRagdoll->CanEmitScents() && GetDefaultRelationshipDisposition( pRagdoll->GetSourceClassification() ) != D_NU )
 			{
 				bool bImportant = false;
 

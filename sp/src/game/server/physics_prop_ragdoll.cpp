@@ -349,10 +349,24 @@ void CRagdollProp::EmitScent()
 	{
 		if ( gpGlobals->curtime >= m_flNextScentTime )
 		{
-			int flags = SOUND_MEAT;
+			int flags = SOUND_CARCASS; // SOUND_MEAT
 
 			if ( g_hStealthManager || ragdoll_ai_scent_optimize.GetBool() )
 			{
+				// If we're currently moving, wait until we're not before emitting a scent
+				if ( VPhysicsGetObject() )
+				{
+					Vector vecVelocity;
+					VPhysicsGetObject()->GetVelocity( &vecVelocity, NULL );
+
+					if ( vecVelocity.LengthSqr() > Square( 8.0f ) )
+					{
+						m_flNextScentTime = gpGlobals->curtime + 2.0f;
+						SetNextThink( m_flNextScentTime, "RagdollScentContext" );
+						return;
+					}
+				}
+
 				// If a carcass rots and nobody's around to smell it, does it have a scent?
 				// (This is important to cut down on occupied slots in the sound list when there's lots of bodies around)
 				bool bNPCCanSmell = false;
@@ -393,7 +407,7 @@ void CRagdollProp::EmitScent()
 				flags |= SOUND_CONTEXT_EXCLUDE_ZOMBIE;
 			}
 
-			CSoundEnt::InsertSound( flags, GetAbsOrigin(), ragdoll_ai_scent_radius.GetFloat(), ragdoll_ai_scent_time.GetFloat(), this );
+			CSoundEnt::InsertSound( flags, GetAbsOrigin(), ragdoll_ai_scent_radius.GetFloat(), ragdoll_ai_scent_time.GetFloat(), this, SOUNDENT_CHANNEL_REPEATING );
 
 			// Visually represent this smell with a blood decal
 			if ( g_Language.GetInt() != LANGUAGE_GERMAN )

@@ -108,6 +108,7 @@ public:
 	virtual void TimeWarpThink();
 	virtual void SetNextScentTime( float flNextScentTime ) { m_flNextScentTime = flNextScentTime; };
 	virtual void SetEmitScent( bool bEmitScent ) { m_bEmitScent = bEmitScent; };
+	inline bool CanEmitScents() const { return m_bEmitScent; }
 
 	// Ragdoll flesh / blood type
 	virtual int GetBloodColor();
