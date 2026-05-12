@@ -268,6 +268,7 @@ BEGIN_DATADESC( CNPC_Conscript )
 
 	DEFINE_CONSCRIPT_DATADESC()
 	DEFINE_PROPSHIELD_DATADESC()
+	DEFINE_BODYACCESSORY_DATADESC()
 END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( npc_conscript, CNPC_Conscript );
@@ -281,6 +282,8 @@ CNPC_Conscript::CNPC_Conscript()
 	m_nHelmetPreference = TRS_NONE;
 
 	m_hHeadwear = NULL;
+
+	m_bAutoBodyAccessories = true;
 
 	m_bFirstEncounter = false;
 	m_bShouldPoint = false;
@@ -393,6 +396,11 @@ void CNPC_Conscript::Spawn()
 	{
 		// Engineers can always place tripmines
 		GetTripminePlaceBehavior().KeyValue( "CanUseTripmines", "1" );
+	}
+
+	if ( m_bAutoBodyAccessories )
+	{
+		AddAutoAccessories();
 	}
 }
 
@@ -1224,6 +1232,44 @@ bool CNPC_Conscript::ShouldThrowProximitySatchel( bool bDrop )
 void CNPC_Conscript::OnThrowProximitySatchel( CBaseEntity *pGrenade )
 {
 	m_hSatchels.AddToTail( pGrenade );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CNPC_Conscript::AddAutoAccessories()
+{
+	// More likely to have items on easier difficulties
+	
+	// For now, just use skill level directly
+	// Easy has 100% chance, Normal has 50% chance, Hard has 33% chance
+	int nMaxRandom = g_pGameRules ? g_pGameRules->GetSkillLevel() : 3;
+
+	if ( IsMedic() )
+	{
+		if ( RandomInt( 1, nMaxRandom ) == 1 )
+			AddItemToBody( "item_healthvial" );
+	}
+	else if ( m_iNumGrenades > 0 )
+	{
+		switch ( m_Subtype )
+		{
+			case CST_COMMANDER:
+				// Half as likely (so 50%, 25%, and 17% instead)
+				if ( RandomInt( 1, nMaxRandom * 2 ) == 1 )
+					AddItemToBody( "item_ammo_smg1_grenade" );
+				break;
+			case CST_ENGINEER:
+				// Always have a SLAM
+				//if ( RandomInt( 1, nMaxRandom ) == 1 )
+					AddItemToBody( "weapon_slam" );
+				break;
+			default:
+				if ( RandomInt( 1, nMaxRandom ) == 1 )
+					AddItemToBody( "weapon_frag" );
+				break;
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------

@@ -16,6 +16,7 @@
 #include "npc_citizen17.h"
 #include "prop_armor.h"
 #include "ai_prop_shield.h"
+#include "ai_body_accessory.h"
 
 //-----------------------------------------------------------------------------
 
@@ -32,12 +33,15 @@
 
 class CPropConscriptHeadwear;
 
+// Quite a mouthful...
+typedef CAI_BodyAccessoryUser< CAI_PropShieldUser< CAI_ConscriptBase<CNPC_Citizen> > > CNPC_ConscriptBaseClass;
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-class CNPC_Conscript : public CAI_PropShieldUser< CAI_ConscriptBase<CNPC_Citizen> >
+class CNPC_Conscript : public CNPC_ConscriptBaseClass
 {
-	DECLARE_CLASS( CNPC_Conscript, CAI_PropShieldUser< CAI_ConscriptBase<CNPC_Citizen> > );
+	DECLARE_CLASS( CNPC_Conscript, CNPC_ConscriptBaseClass );
 	DECLARE_DATADESC();
 
 public:
@@ -86,6 +90,8 @@ public:
 	bool		IsProximitySatchelCapable();
 	bool		ShouldThrowProximitySatchel( bool bDrop = false );
 	void		OnThrowProximitySatchel( CBaseEntity *pGrenade );
+
+	void			AddAutoAccessories();
 
 	virtual bool	IsDesignatedSquadLeader() const { return m_Subtype == CST_COMMANDER; }
 

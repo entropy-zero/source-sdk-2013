@@ -2100,6 +2100,14 @@ public:
 	virtual void		StartWaitingForRappel() {}
 
 	virtual bool		IsPropShieldEquipped() const { return false; }
+
+	virtual bool			UsesGrabbableAccessories() { return false; }
+	virtual int				GetNumGrabbableAccessories() { return 0; }
+	virtual int				GetMaxGrabbableAccessories() { return 0; }
+	virtual bool			CanGrabAccessory( CBaseEntity *pAccessory ) { return false; }
+	virtual CBaseEntity		*GetGrabbableAccessory( int nIdx ) { return NULL; }
+	virtual CBaseEntity		*GetGrabbableAccessoryFromGrab( CBasePlayer *pGrabActivator ) { return NULL; }
+	virtual void			RemoveGrabbableAccessory( CBaseEntity *pAccessory ) {}
 #endif
 
 	// override to change the chase location of an enemy

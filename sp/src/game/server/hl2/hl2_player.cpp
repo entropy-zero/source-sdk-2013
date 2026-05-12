@@ -4289,6 +4289,28 @@ void CHL2_Player::PlayerUse ( void )
 	// Found an object
 	if ( pUseEntity )
 	{
+#ifdef EZ2
+		// Check if it's a NPC with an accessory we can grab
+		if ( pUseEntity->IsNPC() )
+		{
+			if ( pUseEntity->MyNPCPointer()->UsesGrabbableAccessories() )
+			{
+				CBaseEntity *pAccessory = pUseEntity->MyNPCPointer()->GetGrabbableAccessoryFromGrab( this );
+				if ( pAccessory )
+					pUseEntity = pAccessory;
+			}
+		}
+		else if ( pUseEntity->GetMoveParent() )
+		{
+			CAI_BaseNPC *pNPCParent = pUseEntity->GetMoveParent()->MyNPCPointer();
+			if ( pNPCParent && pNPCParent->UsesGrabbableAccessories() )
+			{
+				// Make sure it's properly removed before grabbing it
+				pNPCParent->RemoveGrabbableAccessory( pUseEntity );
+			}
+		}
+#endif
+
 		//!!!UNDONE: traceline here to prevent +USEing buttons through walls			
 		int caps = pUseEntity->ObjectCaps();
 		variant_t emptyVariant;
