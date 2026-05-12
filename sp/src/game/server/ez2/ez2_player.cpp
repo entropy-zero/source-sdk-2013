@@ -128,6 +128,8 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 
 	DEFINE_SCRIPTFUNC( IsMarkingEnemies, "Returns true if marking enemies." )
 	DEFINE_SCRIPTFUNC( SetMarkEnemies, "Sets whether to mark enemies." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptAddScriptedGlowMark, "AddScriptedGlowMark", "Adds a scripted glow mark." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptRemoveScriptedGlowMark, "RemoveScriptedGlowMark", "Removes a scripted glow mark." )
 
 	DEFINE_SCRIPTFUNC( IsInAScript, "Returns true if the player is in a script." )
 
@@ -177,6 +179,7 @@ BEGIN_SIMPLE_DATADESC( EnemyMarkData_t )
 	DEFINE_FIELD( hEnemy, FIELD_EHANDLE ),
 	DEFINE_FIELD( flLastTimeSeen, FIELD_TIME ),
 	DEFINE_FIELD( clrOutline, FIELD_COLOR32 ),
+	DEFINE_FIELD( bScripted, FIELD_BOOLEAN ),
 
 END_DATADESC()
 
@@ -350,7 +353,13 @@ void CEZ2_Player::PostThink(void)
 			// Clean up any invalid marks
 			FOR_EACH_VEC_BACK( m_MarkedEnemies, i )
 			{
-				if ( !m_MarkedEnemies[i].hEnemy || !pEnemies->Find( m_MarkedEnemies[i].hEnemy ) )
+				if ( m_MarkedEnemies[i].bScripted && m_MarkedEnemies[i].hEnemy )
+				{
+					// Update scripted marks
+					Color clrOutline( 0, 0, 0, 255 );
+					EnemyMarkUpdate( m_MarkedEnemies[i].hEnemy, clrOutline, -1, -1, false, true );
+				}
+				else if ( !m_MarkedEnemies[i].hEnemy || !pEnemies->Find( m_MarkedEnemies[i].hEnemy ) )
 				{
 					m_MarkedEnemies.Remove( i );
 				}
@@ -3408,7 +3417,7 @@ void CEZ2_Player::SetMarkEnemies( bool bEnabled )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-const Color &CEZ2_Player::DetermineColorForEnemy( CBaseCombatCharacter *pEnemy, bool &bAlarm )
+const Color &CEZ2_Player::DetermineColorForEnemy( CBaseEntity *pEnemy, bool &bAlarm )
 {
 	static const Color clrIdle		( 0, 255, 0, 255 );
 	static const Color clrAlert		( 255, 255, 0, 255 );
@@ -3526,7 +3535,7 @@ const Color &CEZ2_Player::DetermineColorForEnemy( CBaseCombatCharacter *pEnemy, 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CEZ2_Player::EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate )
+void CEZ2_Player::EnemyMarkUpdate( CBaseEntity *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate, bool bScripted )
 {
 	// Find our existing data
 	int nIdx = m_MarkedEnemies.InvalidIndex();
@@ -3545,11 +3554,17 @@ void CEZ2_Player::EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &cl
 		nIdx = m_MarkedEnemies.AddToTail();
 		m_MarkedEnemies[nIdx].hEnemy = pEnemy;
 		m_MarkedEnemies[nIdx].flLastTimeSeen = gpGlobals->curtime;
+		m_MarkedEnemies[nIdx].bScripted = bScripted;
 
 		// MP note: This transmits to all players, even if they don't have the enemy marked
 		// This is fine if we expect most players to mark the same enemies at once, but if this becomes a problem,
 		// consider adding a case for marking in CAI_BaseNPC::ShouldTransmit() instead
 		pEnemy->SetTransmitState( FL_EDICT_ALWAYS );
+	}
+	else if ( bScripted )
+	{
+		// Scripted is always visible
+		flLastTimeSeen = gpGlobals->curtime;
 	}
 	else if ( !bAlwaysUpdate )
 	{
@@ -3563,8 +3578,14 @@ void CEZ2_Player::EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &cl
 	Color clrNewOutline = clrOutline;
 
 	// No color = Use previous
-	if ( clrNewOutline.GetRawColor() == 0 )
+	// (we shift the alpha away so that we can still utilize it)
+	if ( (clrNewOutline.GetRawColor() << 8) == 0 )
+	{
 		clrNewOutline = m_MarkedEnemies[nIdx].clrOutline;
+
+		if ( clrOutline.a() != 0 )
+			clrNewOutline[3] = clrOutline[3];
+	}
 
 	switch ( player_enemy_mark_mode.GetInt() )
 	{
@@ -3620,6 +3641,24 @@ void CEZ2_Player::EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &cl
 
 		m_MarkedEnemies[nIdx].clrOutline = clrNewOutline;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::ScriptAddScriptedGlowMark( HSCRIPT hEnt, int r, int g, int b, int a )
+{
+	Color clrOutline( r, g, b, a );
+	EnemyMarkUpdate( ToEnt( hEnt ), clrOutline, -1, -1, true, true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::ScriptRemoveScriptedGlowMark( HSCRIPT hEnt )
+{
+	Color clrOutline( 0, 0, 0, 0 );
+	EnemyMarkUpdate( ToEnt( hEnt ), clrOutline, 0, 0, true, false );
 }
 
 //-----------------------------------------------------------------------------

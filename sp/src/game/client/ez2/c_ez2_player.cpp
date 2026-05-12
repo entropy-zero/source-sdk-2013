@@ -435,8 +435,11 @@ void C_EZ2_Player::UpdateEnemyGlowEffect( void )
 			}
 		}
 
-		// Fade out as time goes on
-		vecColor.w *= 1.0f - (flTimeSinceSeen / ENEMY_MARK_TIME);
+		if ( m_MarkedEnemies[i].flLastTimeSeen != -1 )
+		{
+			// Fade out as time goes on
+			vecColor.w *= 1.0f - (flTimeSinceSeen / ENEMY_MARK_TIME);
+		}
 
 		if ( vecColor.w == 0.0f )
 			continue;
@@ -478,11 +481,9 @@ void C_EZ2_Player::EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, 
 	{
 		// Add a new one
 		nIdx = m_MarkedEnemies.AddToTail();
-		m_MarkedEnemies[nIdx].hEnemy = pEnemy->MyCombatCharacterPointer();
+		m_MarkedEnemies[nIdx].hEnemy = pEnemy;
 		m_MarkedEnemies[nIdx].flLastTimeSeen = gpGlobals->curtime;
 		m_MarkedEnemies[nIdx].clrOutline.Init();
-
-		Assert( pEnemy->IsBaseCombatCharacter() );
 	}
 	else
 		m_MarkedEnemies[nIdx].flLastTimeSeen = flLastTimeSeen;

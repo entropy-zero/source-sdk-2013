@@ -276,8 +276,10 @@ public:
 	// Enemy marking
 	bool				IsMarkingEnemies() const { return m_bMarkEnemies; }
 	void				SetMarkEnemies( bool bEnabled );
-	const Color			&DetermineColorForEnemy( CBaseCombatCharacter *pEnemy, bool &bAlarm );
-	void				EnemyMarkUpdate( CBaseCombatCharacter *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate = false );
+	const Color			&DetermineColorForEnemy( CBaseEntity *pEnemy, bool &bAlarm );
+	void				EnemyMarkUpdate( CBaseEntity *pEnemy, const Color &clrOutline, float flLastTimeSeen, float flFirstTimeSeen, bool bAlwaysUpdate = false, bool bScripted = false );
+	void				ScriptAddScriptedGlowMark( HSCRIPT hEnt, int r, int g, int b, int a );
+	void				ScriptRemoveScriptedGlowMark( HSCRIPT hEnt );
 
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();

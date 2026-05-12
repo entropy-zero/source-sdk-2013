@@ -44,7 +44,7 @@ struct EnemyMarkData_t
 	DECLARE_SIMPLE_DATADESC();
 #endif
 
-	CHandle<CBaseCombatCharacter>	hEnemy;
+	EHANDLE							hEnemy;
 	float							flLastTimeSeen;
 #ifdef CLIENT_DLL
 	Vector4D						clrOutline;
@@ -52,6 +52,7 @@ struct EnemyMarkData_t
 	float							flOutlineChangeTime;
 #else
 	Color							clrOutline;
+	bool							bScripted;
 #endif
 };
 
