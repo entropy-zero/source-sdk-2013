@@ -13,6 +13,7 @@
 #include "ez2_player.h"
 #include "saverestore_utlvector.h"
 #include "ai_stealth_senses.h"
+#include "particle_parse.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -96,6 +97,9 @@ void CPropTurretMine::Precache()
 	BaseClass::Precache();
 
 	PrecacheScriptSound( TRIP_SOUND );
+
+	PrecacheParticleSystem( "turretmine_flash_activate" );
+	PrecacheParticleSystem( "turretmine_flash_detonate" );
 }
 
 //-----------------------------------------------------------------------------
@@ -123,6 +127,9 @@ void CPropTurretMine::MakeBeam()
 void CPropTurretMine::TurnOnLaser()
 {
 	m_hLaser->RemoveEffects( EF_NODRAW );
+
+	Vector vecColor( 1, 0, 0 ); // Adjust if beam color ever becomes customizable
+	DispatchParticleEffect( "turretmine_flash_activate", PATTACH_POINT, this, "beam_attach", vecColor, vecColor, true );
 }
 
 //-----------------------------------------------------------------------------
@@ -166,6 +173,9 @@ void CPropTurretMine::Trip( CBaseEntity *pActivator )
 	m_OnTripped.FireOutput( pActivator, this );
 
 	TurnOffLaser();
+
+	Vector vecColor( 1, 0, 0 ); // Adjust if beam color ever becomes customizable
+	DispatchParticleEffect( "turretmine_flash_detonate", PATTACH_POINT, this, "beam_attach", vecColor, vecColor, true );
 
 	EmitSound( TRIP_SOUND );
 	CSoundEnt::InsertSound( SOUND_COMBAT, pActivator->GetAbsOrigin(), 512, 2.0f, this, SOUNDENT_CHANNEL_STEALTH_TURRET_DEPLOY, pActivator );
