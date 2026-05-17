@@ -6089,7 +6089,7 @@ float C_BaseAnimating::SetPoseParameter( CStudioHdr *pStudioHdr, int iParameter,
 		return flValue;
 	}
 
-	if (iParameter >= 0 || iParameter < MAXSTUDIOPOSEPARAM)
+	if (iParameter >= 0 && iParameter < MAXSTUDIOPOSEPARAM)
 	{
 		float flNewValue;
 		flValue = Studio_SetPoseParameter( pStudioHdr, iParameter, flValue, flNewValue );
