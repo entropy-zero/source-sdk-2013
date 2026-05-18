@@ -66,6 +66,7 @@
 #include "CRagdollMagnet.h"
 #include "ez2/ai_stealth_manager.h"
 #include "decals.h"
+#include "BasePropDoor.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1482,22 +1483,59 @@ void CHL2_Player::PostThink( void )
 #endif
 
 #ifdef EZ2
-	if ( m_fIsDuckSliding && m_Local.m_flDuckSlideTime == 0.0f )
+	if ( m_fIsDuckSliding )
 	{
-		if ( m_pDuckSlideSound )
+		if ( m_Local.m_flDuckSlideTime == 0.0f )
 		{
-			CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
-			if ( GetGroundEntity() != NULL )
+			if ( m_pDuckSlideSound )
 			{
-				if ( !m_fIsDuckSlidingOnGround )
-					m_fIsDuckSlidingOnGround = true;
+				CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+				if ( GetGroundEntity() != NULL )
+				{
+					if ( !m_fIsDuckSlidingOnGround )
+						m_fIsDuckSlidingOnGround = true;
 
-				controller.SoundChangeVolume( m_pDuckSlideSound, GetDuckSlideDecay(), 0.2f );
+					controller.SoundChangeVolume( m_pDuckSlideSound, GetDuckSlideDecay(), 0.2f );
+				}
+				else if ( m_fIsDuckSlidingOnGround )
+				{
+					controller.SoundChangeVolume( m_pDuckSlideSound, 0.0f, 0.2f );
+					m_fIsDuckSlidingOnGround = false;
+				}
 			}
-			else if ( m_fIsDuckSlidingOnGround )
+		}
+		
+		if ( m_Local.m_flDuckSlideTime < 250.0f && m_flNextKickAttack < gpGlobals->curtime )
+		{
+			// See if there's any doors ahead of us that we should "kick" open
+			trace_t tr;
+			Vector vecEndPos = GetAbsVelocity();
+			VectorNormalize( vecEndPos );
+			vecEndPos *= 48.0f;
+
+			UTIL_TraceLine( EyePosition(), EyePosition() + vecEndPos, MASK_PLAYERSOLID, this, COLLISION_GROUP_PLAYER_MOVEMENT, &tr );
+			if ( tr.m_pEnt && tr.m_pEnt->ClassMatches( "prop_door_rotating" ) )
 			{
-				controller.SoundChangeVolume( m_pDuckSlideSound, 0.0f, 0.2f );
-				m_fIsDuckSlidingOnGround = false;
+				CBasePropDoor *pDoor = static_cast<CBasePropDoor*>( tr.m_pEnt );
+				if ( pDoor->IsDoorClosed() && !pDoor->IsDoorLocked() && pDoor->CanOpenOnKick( this ) )
+				{
+					// Kick the door open instead of stopping
+					CTakeDamageInfo dmgInfo( this, this, 0.0f, DMG_CLUB );
+					extern int g_interactionBadCopKick;
+					KickInfo_t kickInfo( &tr, &dmgInfo );
+					tr.m_pEnt->DispatchInteraction( g_interactionBadCopKick, &kickInfo, this );
+
+					// Viewpunch
+					QAngle punchAng;
+					punchAng.x = random->RandomFloat( -4.0f, -3.0f );
+					punchAng.y = random->RandomFloat( -8.0f, -7.0f );
+					punchAng.z = random->RandomFloat( 4.0f, 5.0f );
+					ViewPunch( punchAng );
+
+					EmitSound( "EZ2Player.KickHit" );
+
+					m_flNextKickAttack = gpGlobals->curtime + 1.0f;
+				}
 			}
 		}
 
