@@ -217,7 +217,7 @@ REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerCloakDataT
 #define CLOAK_TICK_TIME			0.05
 #define CLOAK_SPEED				0.05
 #define CLOAK_DECLOAK_DAMAGE	10
-#define CLOAK_DECLOAK_FLIP		7.5
+#define CLOAK_DECLOAK_FLIP		5.0
 #define CLOAK_DECLOAK_MELEE		6.0
 #define CLOAK_DECLOAK_SHOOT		7.5
 #define CLOAK_DECLOAK_USE		4.0
@@ -3356,6 +3356,11 @@ bool CEZ2_Player::CanBeSeenBy( CAI_BaseNPC *pNPC )
 			
 		// Based directly on assassin code
 		float flDist = (GetAbsOrigin() - pNPC->GetAbsOrigin()).Length();
+
+		// Less visible when we just started cloaking; more fair than getting caught in the transition time
+		if ( gpGlobals->curtime - m_flCloakTransitionStartTime < 1.25 && m_bIsCloaking )
+			flDist *= 4.0f;
+
 		if (flDist > (CLOAK_INVISIBLE_TO_NPCS_DIST * (1.0 - m_flCloakFactor)) && flDist > CLOAK_INVISIBLE_TO_NPCS_CANCEL_DIST)
 		{
 			ICloakCompromisable *pCloakCompromisable = dynamic_cast<ICloakCompromisable *>(pNPC);
