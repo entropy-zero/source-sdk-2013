@@ -19,6 +19,9 @@
 
 class CSoundPatch;
 class CSprite;
+class CSpriteTrail;
+
+#define SHIELD_NUM_CORNERS 4
 
 class CNPC_Progenitor : public CAI_PropShieldUser< CAI_ConscriptBase<CNPC_CloneCop> >
 {
@@ -35,9 +38,11 @@ public:
 	void		UpdateOnRemove();
 	void		StopLoopingSounds();
 
+	int			OnTakeDamage_Alive( const CTakeDamageInfo &info );
+
 	void		GatherConditions();
 	bool		ShouldActivateShield();
-	bool		ShouldDeactivateShield();
+	bool		ShouldDeactivateShield( bool &bThrow );
 	void		BuildScheduleTestBits( void );
 	void		PrescheduleThink();
 	int			SelectSchedule( void );
@@ -70,6 +75,7 @@ public:
 
 	virtual void	OnShieldSpawn( CPropShield *pShield );
 	virtual void	OnShieldRemove( CPropShield *pShield );
+	CBaseEntity		*CreateShieldProjectile( CPropShield *pShield );
 
 	virtual void		OnUpdateShotRegulator();
 	WeaponProficiency_t CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
@@ -101,9 +107,37 @@ private:
 	CUtlVector<EHANDLE>	m_hSatchels;
 
 	float	m_flNextShieldStateCheck;
+	float	m_flShieldDeactivateTime;
 	CSoundPatch *m_pShieldSound;
 	EHANDLE	m_hShieldLight;
 	CHandle<CSprite> m_hShieldSprite;
+	CHandle<CSpriteTrail> m_hShieldSpriteTrails[SHIELD_NUM_CORNERS];
+};
+
+// ------------------------------------------------------------------------------------------ //
+// Progenitor's thrown shield projectile
+// ------------------------------------------------------------------------------------------ //
+class CPropProgenitorThrownShield : public CPhysicsProp
+{
+	DECLARE_CLASS( CPropProgenitorThrownShield, CPhysicsProp );
+	DECLARE_DATADESC();
+public:
+	CPropProgenitorThrownShield();
+	
+	void Precache();
+	void Spawn();
+
+	void AnimateThink();
+	void EnableGravityThink();
+
+	bool HandleInteraction( int interactionType, void *data, CBaseCombatCharacter *sourceEnt );
+	int OnTakeDamage( const CTakeDamageInfo &info );
+	void Event_Killed( const CTakeDamageInfo &info );
+	void Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info );
+
+	bool OverridePropdata( void ) { return true; }
+
+	float	m_flNextDangerSoundTime;
 };
 
 #endif

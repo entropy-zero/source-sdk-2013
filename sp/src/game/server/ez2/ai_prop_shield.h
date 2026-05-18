@@ -47,6 +47,7 @@ extern int ACT_ARM_SHIELD;
 extern int ACT_DISARM_SHIELD;
 extern int ACT_ACTIVATE_SHIELD;
 extern int ACT_DEACTIVATE_SHIELD;
+extern int ACT_THROW_SHIELD;
 extern int ACT_GESTURE_FLINCH_SHIELD_TOP;
 extern int ACT_GESTURE_FLINCH_SHIELD_MID;
 extern int ACT_GESTURE_FLINCH_SHIELD_BOTTOM;
@@ -54,6 +55,8 @@ extern int ACT_FLINCH_SHIELD_BIG;
 
 extern int AE_NPC_DRAW_SHIELD;
 extern int AE_NPC_HOLSTER_SHIELD;
+extern int AE_NPC_THROW_SHIELD;
+extern int AE_NPC_SET_SHIELD_ANIM;
 
 //-----------------------------------------------------------------------------
 
@@ -113,8 +116,9 @@ public:
 	virtual bool	RemoveShieldOnHolster() { return false; }
 	virtual bool	CanAimWithShield() { return true; }
 
-	virtual void	OnShieldSpawn( CPropShield *pShield ) {}
-	virtual void	OnShieldRemove( CPropShield *pShield ) {}
+	virtual void		OnShieldSpawn( CPropShield *pShield ) {}
+	virtual void		OnShieldRemove( CPropShield *pShield ) {}
+	virtual CBaseEntity *CreateShieldProjectile( CPropShield *pShield ) { return NULL; }
 
 protected:
 
@@ -223,6 +227,7 @@ void CAI_PropShieldUser<BASE_NPC>::InitActivities()
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_DISARM_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_ACTIVATE_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_DEACTIVATE_SHIELD );
+	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_THROW_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_TOP );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_MID );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_BOTTOM );
@@ -230,6 +235,8 @@ void CAI_PropShieldUser<BASE_NPC>::InitActivities()
 
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_DRAW_SHIELD );
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_HOLSTER_SHIELD );
+	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_THROW_SHIELD );
+	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_SET_SHIELD_ANIM );
 }
 
 //-----------------------------------------------------------------------------
@@ -442,10 +449,11 @@ void CAI_PropShieldUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 		{
 			if ( this->RemoveShieldOnHolster() )
 			{
-				this->OnShieldRemove( this->m_hShield );
-
-				UTIL_Remove( this->m_hShield );
+				CPropShield *pShield = this->m_hShield;
 				this->m_hShield = NULL;
+
+				this->OnShieldRemove( pShield );
+				UTIL_Remove( pShield );
 			}
 			else
 				this->m_hShield->Holster();
@@ -464,10 +472,33 @@ void CAI_PropShieldUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 			this->m_hShield = CPropShield::CreatePropShield( this, false, this->GetShieldModelName() );
 
 			this->OnShieldSpawn( this->m_hShield );
+
+			if ( pEvent->options && *pEvent->options )
+				this->m_hShield->PropSetSequence( this->m_hShield->LookupSequence( pEvent->options ) );
 		}
 
 		this->m_bShieldEquipped = true;
 		this->ResetActivity();
+	}
+	else if ( pEvent->event == AE_NPC_THROW_SHIELD )
+	{
+		if ( this->m_hShield )
+		{
+			CPropShield *pShield = this->m_hShield;
+			this->m_hShield = NULL;
+
+			this->CreateShieldProjectile( pShield );
+		}
+
+		this->m_bShieldEquipped = false;
+		this->ResetActivity();
+	}
+	else if ( pEvent->event == AE_NPC_SET_SHIELD_ANIM )
+	{
+		if ( this->m_hShield )
+		{
+			this->m_hShield->PropSetSequence( this->m_hShield->LookupSequence( pEvent->options ) );
+		}
 	}
 	else
 		BaseClass::HandleAnimEvent( pEvent );

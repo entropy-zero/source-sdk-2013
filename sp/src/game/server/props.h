@@ -236,6 +236,10 @@ public:
 	virtual AngularImpulse	PhysGunLaunchAngularImpulse();
 	virtual	CBasePlayer *HasPhysicsAttacker( float dt );
 
+#ifdef EZ2
+	inline CBaseEntity *GetLastAttacker() const { return m_hLastAttacker; }
+#endif
+
 #ifdef HL2_EPISODIC
 #ifdef MAPBASE
 	virtual float GetFlareLifetime() { return 30.0f; }
@@ -435,6 +439,10 @@ public:
 	void OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_t reason );
 	void OnPhysGunPull( CBasePlayer *pPhysGunUser );
 	void OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t reason );
+
+#ifdef EZ2
+	void OnThrownByNPC( CAI_BaseNPC *pNPC );
+#endif
 
 	bool GetPropDataAngles( const char *pKeyName, QAngle &vecAngles );
 	float GetCarryDistanceOffset( void );

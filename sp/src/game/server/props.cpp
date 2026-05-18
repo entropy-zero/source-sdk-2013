@@ -3593,6 +3593,16 @@ void CPhysicsProp::OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t Reaso
 	}
 }
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CPhysicsProp::OnThrownByNPC( CAI_BaseNPC *pNPC )
+{
+	//m_hLastAttacker = pNPC;
+	m_bFirstCollisionAfterLaunch = true;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Get the specified key's angles for this prop from the QC's physgun_interactions
 //-----------------------------------------------------------------------------

@@ -15,6 +15,10 @@
 #include "soundenvelope.h"
 #include "saverestore_utlvector.h"
 #include "ai_tacticalservices.h"
+#include "SpriteTrail.h"
+#include "explode.h"
+#include "IEffects.h"
+#include "ez2_player.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -22,8 +26,13 @@
 ConVar	sk_progenitor_health( "sk_progenitor_health","1000" );
 ConVar	sk_progenitor_kick( "sk_progenitor_kick", "20" );
 ConVar	sk_progenitor_shield_fire_rate( "sk_progenitor_shield_fire_rate", "2.0" );
+ConVar	sk_progenitor_shield_max_time( "sk_progenitor_shield_max_time", "10" );
+ConVar	sk_progenitor_shield_throw_speed( "sk_progenitor_shield_throw_speed", "650" );
+ConVar	sk_progenitor_shield_throw_dmg( "sk_progenitor_shield_throw_dmg", "50" );
+ConVar	sk_progenitor_shield_throw_radius( "sk_progenitor_shield_throw_radius", "96" );
 
-#define SHIELD_SPRITE	"sprites/glow02.vmt"
+#define SHIELD_SPRITE			"sprites/glow02.vmt"
+#define SHIELD_THROWN_MODEL		"models/weapons/w_progenitor_energy_shield_thrown.mdl"
 
 //---------------------------------------------------------
 // Save/Restore
@@ -34,9 +43,11 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_UTLVECTOR( m_hSatchels, FIELD_EHANDLE ),
 
 	DEFINE_FIELD( m_flNextShieldStateCheck, FIELD_TIME ),
+	DEFINE_FIELD( m_flShieldDeactivateTime, FIELD_TIME ),
 	DEFINE_FIELD( m_hShieldLight, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hShieldSprite, FIELD_EHANDLE ),
 	DEFINE_SOUNDPATCH( m_pShieldSound ),
+	DEFINE_ARRAY( m_hShieldSpriteTrails, FIELD_EHANDLE, SHIELD_NUM_CORNERS ),
 
 	DEFINE_CONSCRIPT_DATADESC()
 	DEFINE_PROPSHIELD_DATADESC()
@@ -87,10 +98,13 @@ void CNPC_Progenitor::Precache()
 	PrecacheScriptSound( "Weapon_EnergyShield.Holster" );
 	PrecacheScriptSound( "Weapon_EnergyShield.Unholster" );
 	PrecacheScriptSound( "Weapon_EnergyShield.Idle" );
+	PrecacheScriptSound( "Weapon_EnergyShield.Thrown_Loop" );
 
 	PrecacheParticleSystem( "temporal_striderbuster_attach_flash" );
 	PrecacheParticleSystem( "temporalboss_electrical_arc_01" );
-	
+
+	PrecacheModel( SHIELD_THROWN_MODEL );
+
 	BaseClass::Precache();
 }
 
@@ -122,6 +136,15 @@ void CNPC_Progenitor::UpdateOnRemove()
 		UTIL_Remove( m_hShieldSprite );
 		m_hShieldSprite = NULL;
 	}
+	
+	for ( int i = 0; i < SHIELD_NUM_CORNERS; i++ )
+	{
+		if ( m_hShieldSpriteTrails[i] )
+		{
+			UTIL_Remove( m_hShieldSpriteTrails[i] );
+			m_hShieldSpriteTrails[i] = NULL;
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -141,13 +164,40 @@ void CNPC_Progenitor::StopLoopingSounds()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+int CNPC_Progenitor::OnTakeDamage_Alive( const CTakeDamageInfo &info )
+{
+	int ret = BaseClass::OnTakeDamage_Alive( info );
+	if ( ret != 1 )
+		return ret;
+
+	if ( IsPropShieldEquipped() )
+	{
+		if ( info.GetAttacker() && info.GetAttacker() != GetEnemy() )
+		{
+			// If we're being attacked by one of our other enemies while we have our shield equipped, switch to that enemy
+			if ( GetEnemies()->Find( info.GetAttacker() ) )
+			{
+				SetEnemy( info.GetAttacker(), false );
+			}
+		}
+	}
+	else
+	{
+		m_flNextShieldStateCheck = gpGlobals->curtime;
+	}
+
+	return ret;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 void CNPC_Progenitor::GatherConditions()
 {
 	BaseClass::GatherConditions();
 
 	if ( CanUseShieldDuringAI() && GetEnemy() )
 	{
-		if ( HasCondition( COND_NEW_ENEMY ) && !IsPropShieldEquipped() )
+		if ( ( HasCondition( COND_NEW_ENEMY ) || HasCondition( COND_HEAVY_DAMAGE ) ) && !IsPropShieldEquipped() )
 		{
 			m_flNextShieldStateCheck = gpGlobals->curtime;
 		}
@@ -169,10 +219,42 @@ void CNPC_Progenitor::GatherConditions()
 						SetLayerPlaybackRate( nLayer, 1.5f );
 				}
 			}
-			else if ( ShouldDeactivateShield() )
+			else
 			{
-				AddActionGesture( (Activity)ACT_DEACTIVATE_SHIELD );
-				m_flNextShieldStateCheck = gpGlobals->curtime + 5.0f;
+				bool bCanThrow = false;
+				if ( HasCondition( COND_SEE_ENEMY ) || FVisible( GetEnemyLKP() ) )
+				{
+					// See if we can do a trace forward
+					Vector vecShieldOrigin = IsCrouching() ? EyePosition() : m_hShield->GetAbsOrigin();
+					trace_t tr;
+					Vector bounds( 24, 24, 24 );
+					Vector vecTarget = vecShieldOrigin + ( BodyDirection3D() * 64.0f );
+					UTIL_TraceHull( vecShieldOrigin, vecTarget, -bounds, bounds, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
+					if ( !tr.DidHit() || tr.m_pEnt == GetEnemy() )
+						bCanThrow = true;
+				}
+
+				if ( ShouldDeactivateShield( bCanThrow ) )
+				{
+					int nLayer = -1;
+					if ( HasCondition( COND_SEE_ENEMY ) )
+					{
+						// See if we can do a trace forward
+						trace_t tr;
+						Vector maxs( 24, 24, 24 );
+						Vector vecTarget = m_hShield->GetAbsOrigin() + ( BodyDirection3D() * 64.0f );
+						UTIL_TraceHull( m_hShield->GetAbsOrigin(), vecTarget, -maxs, maxs, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
+						if ( !tr.DidHit() || tr.m_pEnt == GetEnemy() )
+							nLayer = AddActionGesture( (Activity)ACT_THROW_SHIELD );
+					}
+				
+					if ( nLayer == -1 )
+					{
+						AddActionGesture( (Activity)ACT_DEACTIVATE_SHIELD );
+					}
+
+					m_flNextShieldStateCheck = gpGlobals->curtime + 5.0f;
+				}
 			}
 		}
 	}
@@ -182,13 +264,20 @@ void CNPC_Progenitor::GatherConditions()
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::ShouldActivateShield()
 {
-	if ( GetActivity() != ACT_IDLE
-		&& GetActivity() != ACT_WALK
-		&& GetActivity() != ACT_RUN
-		&& GetActivity() != ACT_RANGE_ATTACK1 )
+	switch ( GetActivity() )
 	{
-		// Can't equip shield if we're playing a unique activity
-		return false;
+		case ACT_IDLE:
+		case ACT_IDLE_ANGRY:
+		case ACT_WALK:
+		case ACT_WALK_AIM:
+		case ACT_RUN:
+		case ACT_RUN_AIM:
+		case ACT_RANGE_ATTACK1:
+		case ACT_TRANSITION:
+			break;
+		default:
+			// Can't equip shield if we're playing a unique activity
+			return false;
 	}
 
 	if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_ENEMY, false )
@@ -222,6 +311,11 @@ bool CNPC_Progenitor::ShouldActivateShield()
 			return true;
 		}
 	}
+	
+	if ( HasCondition( COND_ENEMY_FACING_ME ) && GetHealth() < ( GetMaxHealth() * 0.5f ) && FVisible( GetEnemyLKP() ) )
+	{
+		return true;
+	}
 
 	// If the enemy has a shotgun, and that enemy is close, then activate our shield
 	CBaseCombatCharacter *pBCC = GetEnemy()->MyCombatCharacterPointer();
@@ -238,7 +332,7 @@ bool CNPC_Progenitor::ShouldActivateShield()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-bool CNPC_Progenitor::ShouldDeactivateShield()
+bool CNPC_Progenitor::ShouldDeactivateShield( bool &bThrow )
 {
 	// We're trying to press on now
 	if ( IsCurSchedule( SCHED_COMBINE_ASSAULT )
@@ -246,9 +340,26 @@ bool CNPC_Progenitor::ShouldDeactivateShield()
 		|| IsCurSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE ) )
 		return true;
 
+	if ( m_flShieldDeactivateTime < gpGlobals->curtime )
+		return true;
+
+	if ( bThrow )
+	{
+		if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_ENEMY, false ) && GetEnemy() /*&& (gpGlobals->curtime - m_flLastDamageTime) > 1.0f*/ )
+		{
+			// If we are about to get into cover and the enemy isn't right on us, then throw to cover our escape
+			Vector vecToEnemy = (GetEnemyLKP() - GetAbsOrigin());
+			if ( vecToEnemy.LengthSqr() > Square( 200.0f ) )
+				return true;
+		}
+	}
+
 	// We're in cover
 	if ( !FVisible( GetEnemyLKP() ) )
+	{
+		bThrow = false;
 		return true;
+	}
 
 	return false;
 }
@@ -411,7 +522,7 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 				{
 					if ( GetNavigator()->IsGoalSet()
 						&& ( GetNavigator()->GetGoalPos() - GetAbsOrigin() ).LengthSqr() > Square( 128.0f )
-						&& !IsPropShieldEquipped() && ShouldThrowProximitySatchel( true ) )
+						&& abs( GetAbsOrigin().z - GetEnemyLKP().z ) < 64.0f && !IsPropShieldEquipped() && ShouldThrowProximitySatchel( true ) )
 					{
 						AddActionGesture( ACT_GESTURE_SPECIAL_ATTACK2 );
 					}
@@ -674,6 +785,8 @@ void CNPC_Progenitor::OnShieldSpawn( CPropShield *pShield )
 	int nShieldAttach = LookupAttachment( "shield_projector" );
 	DispatchParticleEffect( "temporal_striderbuster_attach_flash", PATTACH_POINT_FOLLOW, this, nShieldAttach );
 
+	g_pEffects->Sparks( pShield->GetAbsOrigin(), 1, 1 );
+
 	if ( !m_pShieldSound )
 	{
 		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
@@ -710,9 +823,25 @@ void CNPC_Progenitor::OnShieldSpawn( CPropShield *pShield )
 		m_hShieldSprite->TurnOn();
 	}
 
+	for ( int i = 0; i < SHIELD_NUM_CORNERS; i++ )
+	{
+		if ( !m_hShieldSpriteTrails[i] )
+		{
+			m_hShieldSpriteTrails[i] = CSpriteTrail::SpriteTrailCreate( "sprites/bluelaser1.vmt", GetLocalOrigin(), false );
+
+			m_hShieldSpriteTrails[i]->SetAttachment( pShield, pShield->LookupAttachment( UTIL_VarArgs( "shield_corner%i", i ) ) );
+			m_hShieldSpriteTrails[i]->SetTransparency( kRenderTransAdd, 0, 255, 255, 200, kRenderFxNone );
+
+			m_hShieldSpriteTrails[i]->SetStartWidth( 8.0f );
+			m_hShieldSpriteTrails[i]->SetLifeTime( 1.0f );
+		}
+	}
+
 	// Update shot regulator for shield
 	if ( GetActiveWeapon() )
 		OnUpdateShotRegulator();
+
+	m_flShieldDeactivateTime = gpGlobals->curtime + sk_progenitor_shield_max_time.GetFloat();
 }
 
 //-----------------------------------------------------------------------------
@@ -726,6 +855,8 @@ void CNPC_Progenitor::OnShieldRemove( CPropShield *pShield )
 
 	int nShieldAttach = LookupAttachment( "shield_projector" );
 	DispatchParticleEffect( "temporalboss_electrical_arc_01", PATTACH_POINT_FOLLOW, this, nShieldAttach );
+
+	g_pEffects->Sparks( pShield->GetAbsOrigin(), 1, 1 );
 
 	if ( m_pShieldSound )
 	{
@@ -746,10 +877,434 @@ void CNPC_Progenitor::OnShieldRemove( CPropShield *pShield )
 		UTIL_Remove( m_hShieldSprite );
 		m_hShieldSprite = NULL;
 	}
+	
+	for ( int i = 0; i < SHIELD_NUM_CORNERS; i++ )
+	{
+		if ( m_hShieldSpriteTrails[i] )
+		{
+			m_hShieldSpriteTrails[i]->SetParent( NULL );
+			//m_hShieldSpriteTrails[i]->FadeAndDie( 1.0f );
+			m_hShieldSpriteTrails[i]->SetThink( &CBaseEntity::SUB_Remove );
+			m_hShieldSpriteTrails[i]->SetNextThink( gpGlobals->curtime + 2.0f );
+			m_hShieldSpriteTrails[i] = NULL;
+		}
+	}
 
 	// Update shot regulator for no shield
 	if ( GetActiveWeapon() )
 		OnUpdateShotRegulator();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+CBaseEntity *CNPC_Progenitor::CreateShieldProjectile( CPropShield *pShield )
+{
+	if ( m_pShieldSound )
+	{
+		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+		controller.SoundChangePitch( m_pShieldSound, 90.0f, 0.2f );
+		controller.SoundFadeOut( m_pShieldSound, 0.25f, true );
+		m_pShieldSound = NULL;
+	}
+
+	if ( m_hShieldSprite )
+	{
+		UTIL_Remove( m_hShieldSprite );
+		m_hShieldSprite = NULL;
+	}
+
+	// Update shot regulator for no shield
+	if ( GetActiveWeapon() )
+		OnUpdateShotRegulator();
+
+	CPhysicsProp *pProjectile = (CPhysicsProp*)CreateNoSpawn( "prop_progenitor_thrown_shield", pShield->GetAbsOrigin(), pShield->GetAbsAngles(), this );
+	if ( !pProjectile )
+	{
+		if ( m_hShieldLight )
+		{
+			UTIL_Remove( m_hShieldLight );
+			m_hShieldLight = NULL;
+		}
+	
+		for ( int i = 0; i < SHIELD_NUM_CORNERS; i++ )
+		{
+			if ( m_hShieldSpriteTrails[i] )
+			{
+				UTIL_Remove( m_hShieldSpriteTrails[i] );
+				m_hShieldSpriteTrails[i] = NULL;
+			}
+		}
+
+		UTIL_Remove( pShield );
+		return NULL;
+	}
+
+	g_pEffects->Sparks( pShield->GetAbsOrigin(), 2, 2 );
+
+	pProjectile->SetModelName( MAKE_STRING( SHIELD_THROWN_MODEL ) );
+	DispatchSpawn( pProjectile );
+
+	Vector vecVelocity;
+	if ( GetEnemy() && sk_progenitor_shield_throw_speed.GetFloat() != 0.0f )
+	{
+		extern float GetCurrentGravity( void );
+
+		// Get where we think the enemy's head is at
+		Vector vecEnemyLKP = GetEnemyLKP();
+		Vector vecEnemyOffset = GetEnemy()->HeadTarget( pProjectile->GetAbsOrigin() ) - GetEnemy()->GetAbsOrigin();
+		Vector vecEnemyPos = vecEnemyOffset + vecEnemyLKP;
+
+		// Now get a lead offset
+		Vector vecLead = GetEnemy()->GetSmoothedVelocity();
+		vecVelocity = ( vecEnemyPos - pProjectile->GetAbsOrigin() );
+		float flLeadTime = ( ( vecVelocity.Length() - vecLead.Length() ) / sk_progenitor_shield_throw_speed.GetFloat() );
+		vecLead *= flLeadTime;
+
+		// Account for gravity if in air
+		// TODO: Check how close enemy is to ground?
+		if ( !GetEnemy()->GetGroundEntity() )
+			vecLead.z -= ((GetCurrentGravity() * 0.5) * flLeadTime);
+
+		// Clamp the lead velocity
+		vecLead.x = clamp( vecLead.x, -750.0f, 750.0f );
+		vecLead.y = clamp( vecLead.y, -750.0f, 750.0f );
+		vecLead.z = clamp( vecLead.z, -750.0f, 750.0f );
+
+		// If the enemy is above me, and the lead puts them below me, then just make it level with me
+		// Quick fix for throwing the shield into the ground
+		if ( vecEnemyPos.z > GetAbsOrigin().z && ( vecEnemyPos.z + vecLead.z ) < GetAbsOrigin().z )
+		{
+			vecLead.z = ( pProjectile->GetAbsOrigin().z - vecEnemyPos.z );
+		}
+
+		vecEnemyPos += vecLead;
+
+		vecVelocity = ( vecEnemyPos - pProjectile->GetAbsOrigin() );
+		VectorNormalize( vecVelocity );
+
+		QAngle angAngles;
+		VectorAngles( vecVelocity, angAngles );
+
+		// Since our angles are relative to the NPC, this doesn't resolve consistently,
+		// but it's fine for this
+		angAngles.x -= 90.0f;
+
+		pProjectile->SetAbsAngles( angAngles );
+
+		vecVelocity *= sk_progenitor_shield_throw_speed.GetFloat();
+	}
+
+	IPhysicsObject *pPhys = pProjectile->VPhysicsGetObject();
+	if ( pPhys )
+	{
+		AngularImpulse angVel( 1250.0, 0, 0 );
+		pPhys->SetVelocity( &vecVelocity, &angVel );
+
+		// Disable drag and gravity
+		pPhys->EnableDrag( false );
+		pPhys->EnableGravity( false );
+	}
+
+	pProjectile->OnThrownByNPC( this );
+	pProjectile->EmitSound( "Weapon_EnergyShield.Thrown_Loop" );
+
+	if ( m_hShieldLight )
+	{
+		m_hShieldLight->SetParent( pProjectile );
+		m_hShieldLight->SetLocalOrigin( vec3_origin );
+		m_hShieldLight->SetLocalAngles( vec3_angle );
+		m_hShieldLight = NULL;
+	}
+
+	for ( int i = 0; i < SHIELD_NUM_CORNERS; i++ )
+	{
+		if ( m_hShieldSpriteTrails[i] )
+		{
+			m_hShieldSpriteTrails[i]->SetAttachment( pProjectile, pProjectile->LookupAttachment( UTIL_VarArgs( "shield_corner%i", i ) ) );
+			m_hShieldSpriteTrails[i] = NULL;
+		}
+	}
+
+	UTIL_Remove( pShield );
+
+	return pProjectile;
+}
+
+//---------------------------------------------------------
+// Save/Restore
+//---------------------------------------------------------
+BEGIN_DATADESC( CPropProgenitorThrownShield )
+
+	DEFINE_THINKFUNC( AnimateThink ),
+	DEFINE_THINKFUNC( EnableGravityThink ),
+
+	DEFINE_FIELD( m_flNextDangerSoundTime, FIELD_TIME ),
+
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( prop_progenitor_thrown_shield, CPropProgenitorThrownShield );
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+CPropProgenitorThrownShield::CPropProgenitorThrownShield()
+{
+	m_explodeDamage = sk_progenitor_shield_throw_dmg.GetFloat();
+	m_explodeRadius = sk_progenitor_shield_throw_radius.GetFloat();
+
+	m_flNextDangerSoundTime = 0.0f;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::Precache()
+{
+	BaseClass::Precache();
+
+	PrecacheScriptSound( "Weapon_EnergyShield.Thrown_Explode" );
+	PrecacheParticleSystem( "temporal_striderbuster_attach_flash" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::Spawn()
+{
+	BaseClass::Spawn();
+
+	RemoveFlag( FL_STATICPROP );
+	SetPlaybackRate( 1.0f );
+
+	SetContextThink( &CPropProgenitorThrownShield::AnimateThink, gpGlobals->curtime + 0.1f, "AnimateThink" );
+
+	SetThink( &CPropProgenitorThrownShield::EnableGravityThink );
+	SetNextThink( gpGlobals->curtime + 2.0f );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::AnimateThink()
+{
+	if ( GetCycle() == 1.0f )
+		SetCycle( 0 );
+
+	StudioFrameAdvance();
+
+	if ( m_flNextDangerSoundTime < gpGlobals->curtime )
+	{
+		Vector vecSoundOrigin = GetAbsOrigin();
+		if ( VPhysicsGetObject() )
+		{
+			Vector velocity;
+			VPhysicsGetObject()->GetVelocity( &velocity, NULL );
+			vecSoundOrigin += (velocity * 0.5f); // Where we'll be in one half-second
+		}
+
+		CSoundEnt::InsertSound( SOUND_DANGER, vecSoundOrigin, sk_progenitor_shield_throw_radius.GetFloat() * 2.0f, 1.0f, GetOwnerEntity(), SOUNDENT_CHANNEL_REPEATING );
+
+		m_flNextDangerSoundTime = gpGlobals->curtime + 0.25f;
+	}
+
+	SetNextThink( gpGlobals->curtime + 0.1f, "AnimateThink" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::EnableGravityThink()
+{
+	if ( VPhysicsGetObject() )
+	{
+		VPhysicsGetObject()->EnableGravity( true );
+		VPhysicsGetObject()->EnableDrag( true );
+
+		// Only enable angular drag
+		float drag = 0.0f;
+		VPhysicsGetObject()->SetDragCoefficient( &drag, NULL );
+	}
+
+	// Eventually just break entirely
+	SetThink( &CBreakableProp::BreakThink );
+	SetNextThink( gpGlobals->curtime + 3.0f );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+int CPropProgenitorThrownShield::OnTakeDamage( const CTakeDamageInfo &info )
+{
+	if ( IsDissolving() )
+		return 0;
+
+	int nBase = BaseClass::OnTakeDamage( info );
+
+	if ( nBase != 1 )
+		return nBase;
+
+	/*if ( VPhysicsGetObject() && !VPhysicsGetObject()->IsGravityEnabled() && !IsDissolving() )
+	{
+		// Enable gravity early
+		EnableGravityThink();
+	}*/
+
+	return nBase;
+}
+
+extern int g_interactionBadCopKick;
+
+//-----------------------------------------------------------------------------
+// Purpose:  Uses the new CBaseEntity interaction implementation
+// Input  :  The type of interaction, extra info pointer, and who started it
+// Output :	 true  - if sub-class has a response for the interaction
+//			 false - if sub-class has no response
+//-----------------------------------------------------------------------------
+bool CPropProgenitorThrownShield::HandleInteraction( int interactionType, void *data, CBaseCombatCharacter* sourceEnt )
+{
+	if ( interactionType == g_interactionBadCopKick && sourceEnt )
+	{
+		// Go in the opposite direction
+		IPhysicsObject *pPhys = VPhysicsGetObject();
+		if ( pPhys && !IsDissolving() )
+		{
+			//ApplyAbsVelocityImpulse( sourceEnt->EyeDirection3D() * 256.0f );
+
+			Vector velocity;
+			AngularImpulse angVelocity;
+			pPhys->GetVelocity( &velocity, &angVelocity );
+
+			velocity *= -1.0f;
+			velocity += ( sourceEnt->EyeDirection3D() * 750.0f );
+			
+			// Add angular impulse
+			KickInfo_t * info = static_cast< KickInfo_t *>( data );
+			Vector vecForce;
+			AngularImpulse vecTorque;
+			pPhys->CalculateForceOffset( velocity, info->tr->endpos, &vecForce, &vecTorque );
+			angVelocity += vecTorque;
+
+			pPhys->SetVelocity( &velocity, &angVelocity );
+
+			SetOwnerEntity( sourceEnt );
+
+			if ( !pPhys->IsGravityEnabled() )
+			{
+				// Reset gravity timer
+				SetThink( &CPropProgenitorThrownShield::EnableGravityThink );
+				SetNextThink( gpGlobals->curtime + 2.0f );
+			}
+		}
+		return true;
+	}
+
+	return BaseClass::HandleInteraction(interactionType, data, sourceEnt);
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::Event_Killed( const CTakeDamageInfo &info )
+{
+	// Based on CBreakableProp::Event_Killed()
+	// We have to override it because the base class calls UTIL_Remove, which we don't want
+
+	if (ScriptDeathHook( const_cast<CTakeDamageInfo *>(&info) ) == false)
+		return;
+
+	IPhysicsObject *pPhysics = VPhysicsGetObject();
+	if ( pPhysics && !pPhysics->IsMoveable() )
+	{
+		pPhysics->EnableMotion( true );
+		VPhysicsTakeDamage( info );
+	}
+	Break( info.GetInflictor(), info );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CPropProgenitorThrownShield::Break( CBaseEntity *pBreaker, const CTakeDamageInfo &info )
+{
+	m_takedamage = DAMAGE_NO;
+	m_OnBreak.FireOutput( pBreaker, this );
+
+	Vector velocity;
+	AngularImpulse angVelocity;
+	IPhysicsObject *pPhysics = GetRootPhysicsObjectForBreak();
+
+	Vector origin;
+	QAngle angles;
+	//AddSolidFlags( FSOLID_NOT_SOLID );
+	if ( pPhysics )
+	{
+		pPhysics->GetVelocity( &velocity, &angVelocity );
+		pPhysics->GetPosition( &origin, &angles );
+		pPhysics->RecheckCollisionFilter();
+
+		pPhysics->EnableGravity( false );
+	}
+	else
+	{
+		velocity = GetAbsVelocity();
+		QAngleToAngularImpulse( GetLocalAngularVelocity(), angVelocity );
+		origin = GetAbsOrigin();
+		angles = GetAbsAngles();
+	}
+
+	CBaseEntity *pAttacker = GetLastAttacker();
+	if ( !pAttacker )
+		pAttacker = GetOwnerEntity();
+
+	//ExplosionCreate( origin, angles, GetOwnerEntity(), m_explodeDamage, m_explodeRadius,
+	//	SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOFIREBALL | SF_ENVEXPLOSION_NOPARTICLES | SF_ENVEXPLOSION_NOSOUND,
+	//	0.0f, this, DMG_SHOCK /*| DMG_BLAST*/ );
+
+	CTakeDamageInfo expInfo( pAttacker, pAttacker, m_explodeDamage, DMG_SHOCK );
+	RadiusDamage( expInfo, origin, m_explodeRadius, CLASS_NONE, pAttacker );
+
+	DispatchParticleEffect( "temporal_striderbuster_attach_flash", origin, angles );
+	EmitSound( "Weapon_EnergyShield.Thrown_Explode" );
+
+	Vector vecSparkDir = velocity;
+	VectorNormalize( vecSparkDir );
+	g_pEffects->Sparks( origin, 3, 2 );
+	g_pEffects->Sparks( origin, 2, 4, &vecSparkDir );
+
+	// Detach all sprite trails
+	string_t iszSpriteTrail = FindPooledString( "env_spritetrail" );
+	CBaseEntity *pChild = FirstMoveChild();
+	while ( pChild )
+	{
+		if ( pChild->m_iClassname == iszSpriteTrail )
+		{
+			// Need to get the move peer here because we unparent the child
+			CBaseEntity *pNextChild = pChild->NextMovePeer();
+			pChild->StopFollowingEntity();
+
+			// Make sure they stop following it too
+			((CSpriteTrail *)pChild)->m_hAttachedToEntity = NULL;
+			((CSpriteTrail *)pChild)->m_nAttachment = 0;
+
+			//pChild->FadeAndDie( 1.0f );
+			pChild->SetThink( &CBaseEntity::SUB_Remove );
+			pChild->SetNextThink( gpGlobals->curtime + 2.0f );
+
+			pChild = pNextChild;
+		}
+		else
+			pChild = pChild->NextMovePeer();
+	}
+
+	//UTIL_Remove( this );
+	Dissolve( "", gpGlobals->curtime, false, ENTITY_DISSOLVE_NORMAL ); // ENTITY_DISSOLVE_ELECTRICAL
+
+	// Don't enable gravity anymore
+	SetThink( NULL );
+	SetNextThink( TICK_NEVER_THINK );
+
+	m_flNextDangerSoundTime = FLT_MAX;
 }
 
 //-----------------------------------------------------------------------------
