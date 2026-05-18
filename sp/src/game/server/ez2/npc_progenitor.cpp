@@ -963,7 +963,7 @@ CBaseEntity *CNPC_Progenitor::CreateShieldProjectile( CPropShield *pShield )
 
 		// Account for gravity if in air
 		// TODO: Check how close enemy is to ground?
-		if ( !GetEnemy()->GetGroundEntity() )
+		if ( !GetEnemy()->GetGroundEntity() && (GetEnemy()->GetMoveType() == MOVETYPE_WALK || GetEnemy()->GetMoveType() == MOVETYPE_STEP) )
 			vecLead.z -= ((GetCurrentGravity() * 0.5) * flLeadTime);
 
 		// Clamp the lead velocity
