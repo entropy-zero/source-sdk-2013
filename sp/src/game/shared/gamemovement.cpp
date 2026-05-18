@@ -63,6 +63,7 @@ ConVar player_crouch_multiplier( "player_crouch_multiplier", "0.33333333", FCVAR
 #define GAMEMOVEMENT_DUCK_SLIDE_TIME				500.0f		// ms
 
 ConVar player_duck_slide( "player_duck_slide", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
+ConVar player_duck_slide_sprint_only( "player_duck_slide_sprint_only", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 ConVar player_duck_slide_sticky( "player_duck_slide_sticky", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 ConVar player_duck_slide_time_base( "player_duck_slide_time_base", "500", FCVAR_REPLICATED );
 ConVar player_duck_slide_time( "player_duck_slide_time", "1250", FCVAR_REPLICATED );
@@ -4544,7 +4545,7 @@ void CGameMovement::Duck( void )
 				if ( player_duck_slide.GetBool() )
 				{
 					CHLMoveData *pMoveData = (CHLMoveData *)mv;
-					if ( pMoveData->m_bIsSprinting )
+					if ( !player_duck_slide_sprint_only.GetBool() || pMoveData->m_bIsSprinting )
 					{
 						// Duck slide if we're moving
 						if ( mv->m_flForwardMove != 0.0f || mv->m_flSideMove != 0.0f )
