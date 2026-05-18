@@ -5731,6 +5731,15 @@ void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 
 		case COMBINE_AE_GREN_TOSS:
 			{
+#ifdef EZ2
+				if ( ShouldThrowProximitySatchel() )
+				{
+					// Use CAI_GrenadeUser<> implementation to avoid redundancy
+					BaseClass::HandleAnimEvent( pEvent );
+					return;
+				}
+#endif
+
 				Vector vecSpin;
 				vecSpin.x = random->RandomFloat( -1000.0, 1000.0 );
 				vecSpin.y = random->RandomFloat( -1000.0, 1000.0 );
@@ -5815,6 +5824,15 @@ void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 
 		case COMBINE_AE_GREN_DROP:
 			{
+#ifdef EZ2
+				if ( ShouldThrowProximitySatchel( true ) )
+				{
+					// Use CAI_GrenadeUser<> implementation to avoid redundancy
+					BaseClass::HandleAnimEvent( pEvent );
+					return;
+				}
+#endif
+
 				Vector vecStart;
 #ifdef MAPBASE
 				QAngle angStart;
