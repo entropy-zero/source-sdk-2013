@@ -3670,6 +3670,30 @@ int CPhysicsProp::ObjectCaps()
 		}
 	}
 
+#ifdef EZ2
+	if ( g_hStealthManager && g_hStealthManager->IsStealthLevel( STEALTH_LEVEL_QUIET, STEALTH_LEVEL_TENSE ) && caps & FCAP_IMPULSE_USE )
+	{
+		// More complex +USE rules in stealth
+
+		// Small props that are moving should be caught more easily
+		IPhysicsObject *pObj = VPhysicsGetObject();
+		if ( pObj && !pObj->IsAsleep() && BoundingRadius() < 16.0f )
+		{
+			caps |= FCAP_USE_IN_RADIUS;
+		}
+
+		// We want props that can't be picked up to yield to smaller props on top of it when needed (e.g. to catch bottles falling off a non-static table)
+		// However, every prop has SF_PHYSPROP_ENABLE_PICKUP_OUTPUT enabled by default in Hammer, which enables +USE no matter what.
+		// Our options for implementing this are to edit the +USE code itself, enumerate all entities to find smaller props near/on top of us, disable
+		// the spawnflag on big props in all of our maps, or ignoring the spawnflag entirely on props that can't be picked up. I've opted for the last one,
+		// but only if the mapper hasn't defined any instances of OnPlayerUse.
+		if ( HasSpawnFlags( SF_PHYSPROP_ENABLE_PICKUP_OUTPUT ) && !CBasePlayer::CanPickupObject( this, 35, 128 ) && m_OnPlayerUse.NumberOfElements() == 0 )
+		{
+			caps &= ~FCAP_IMPULSE_USE;
+		}
+	}
+#endif
+
 	if( HasSpawnFlags( SF_PHYSPROP_RADIUS_PICKUP ) )
 	{
 		caps |= FCAP_USE_IN_RADIUS;
