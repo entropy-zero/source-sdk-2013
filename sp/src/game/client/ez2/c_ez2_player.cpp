@@ -38,6 +38,9 @@ static void OnNVGCCFileChange( IConVar *var, const char *pOldValue, float flOldV
 
 ConVar sv_flashlight_cc_filename( "sv_flashlight_cc_filename", "ez2_nvg.raw", FCVAR_REPLICATED, "", OnNVGCCFileChange );
 
+ConVar	hud_malfunction_garble_number( "hud_malfunction_garble_number", "0.15" );
+ConVar	hud_malfunction_garble_wpnicon( "hud_malfunction_garble_wpnicon", "0.2" );
+
 #define CLOAK_COLORCORRECTION_FILE	"colorcorrection/progenitor_cloak.raw"
 
 #define NUM_WARNING_SOUNDS 13
@@ -53,13 +56,18 @@ BEGIN_RECV_TABLE_NOBASE( C_EZ2_Player, DT_EZ2LocalPlayerCloakData )
 	RecvPropFloat( RECVINFO( m_flCloakTransitionStartTime ) ),
 END_RECV_TABLE();
 
+BEGIN_RECV_TABLE_NOBASE( C_EZ2_Player, DT_EZ2LocalPlayerMalfuncData )
+	RecvPropFloat( RECVINFO( m_flMalfuncAmt ) ),
+END_RECV_TABLE();
+
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropBool( RECVINFO( m_bUseNVG ) ),
 	RecvPropBool( RECVINFO( m_bIsAssassin ) ),
 	RecvPropBool( RECVINFO( m_bBonusChallengeUpdate ) ),
 	RecvPropEHandle( RECVINFO( m_hWarningTarget ) ),
 	RecvPropFloat( RECVINFO( m_flCloakFactor ) ),
-	RecvPropDataTable( "ez2p_localcloak", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerCloakData ) ),
+	RecvPropDataTable( "ez2_localcloak", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerCloakData ) ),
+	RecvPropDataTable( "ez2_localmalfunc", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerMalfuncData ) ),
 END_RECV_TABLE()
 
 BEGIN_PREDICTION_DATA( C_EZ2_Player )
@@ -502,6 +510,34 @@ void C_EZ2_Player::EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, 
 		if ( m_MarkedEnemies[nIdx].clrOutline[3] != m_MarkedEnemies[nIdx].clrLastOutline[3] )
 			m_MarkedEnemies[nIdx].flOutlineChangeTime = gpGlobals->curtime + ENEMY_MARK_OUTLINE_TRANSITION;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::MalfunctionGarbleWString( wchar_t *wszText, size_t nTextLen, float flIntensity )
+{
+	for ( unsigned int i = 0; i < nTextLen; i++ )
+	{
+		// Chance of replacing each character with a random ASCII character
+		// TODO: Consider Unicode characters?
+		if ( RandomFloat( 0.0f, 1.0f ) < flIntensity )
+		{
+			wszText[i] = (wchar_t)(RandomInt( '!', '~' ));
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_EZ2_Player::MalfunctionFlickerColor( Color &clr, float flClrIntensity )
+{
+	// Flicker slightly
+	clr[0] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+	clr[1] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+	clr[2] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
+	clr[3] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
 }
 
 //-----------------------------------------------------------------------------

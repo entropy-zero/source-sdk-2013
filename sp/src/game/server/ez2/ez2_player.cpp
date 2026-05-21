@@ -36,6 +36,7 @@
 #include "ai_stealth_area.h"
 #include "ai_stealth_utils.h"
 #include "ai_stealth_behavior_alarm.h"
+#include "IEffects.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -115,6 +116,8 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "EnableDualWield", InputEnableDualWield ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableDualWield", InputDisableDualWield ),
+
+	DEFINE_INPUTFUNC( FIELD_VECTOR, "SetMalfunctionAmt", InputSetMalfunctionAmt ),
 END_DATADESC()
 
 BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
@@ -131,6 +134,9 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptAddScriptedGlowMark, "AddScriptedGlowMark", "Adds a scripted glow mark." )
 	DEFINE_SCRIPTFUNC_NAMED( ScriptRemoveScriptedGlowMark, "RemoveScriptedGlowMark", "Removes a scripted glow mark." )
 
+	DEFINE_SCRIPTFUNC( GetMalfunctionAmt, "Gets the malfunction amount." )
+	DEFINE_SCRIPTFUNC( SetMalfunctionAmt, "Sets the malfunction amount with the specified transition time." )
+
 	DEFINE_SCRIPTFUNC( IsInAScript, "Returns true if the player is in a script." )
 
 	DEFINE_SCRIPTFUNC( HasCheated, "Returns true if the player has had cheats on during this map." )
@@ -141,6 +147,7 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 END_SCRIPTDESC();
 
 void *SendProxy_SendEZ2LocalPlayerCloakDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
+void *SendProxy_SendEZ2LocalPlayerMalfuncDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
 
 BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerCloakData )
 	// Only sent when the player supports cloaking
@@ -154,13 +161,19 @@ BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerCloakData )
 	SendPropFloat( SENDINFO( m_flCloakTransitionStartTime ) ),
 END_SEND_TABLE();
 
+BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerMalfuncData )
+	// Only sent when the local player is malfunctioning
+	SendPropFloat( SENDINFO( m_flMalfuncAmt ) ),
+END_SEND_TABLE();
+
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropBool( SENDINFO( m_bUseNVG ) ),
 	SendPropBool( SENDINFO( m_bIsAssassin ) ),
 	SendPropBool( SENDINFO( m_bBonusChallengeUpdate ) ),
 	SendPropEHandle( SENDINFO( m_hWarningTarget ) ),
 	SendPropFloat( SENDINFO( m_flCloakFactor ) ), // Always sent because not just the local player would care about this
-	SendPropDataTable( "ez2p_localcloak", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerCloakData), SendProxy_SendEZ2LocalPlayerCloakDataTable ),
+	SendPropDataTable( "ez2_localcloak", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerCloakData), SendProxy_SendEZ2LocalPlayerCloakDataTable ),
+	SendPropDataTable( "ez2_localmalfunc", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerMalfuncData), SendProxy_SendEZ2LocalPlayerMalfuncDataTable ),
 END_SEND_TABLE()
 
 /*
@@ -208,6 +221,23 @@ void *SendProxy_SendEZ2LocalPlayerCloakDataTable( const SendProp *pProp, const v
 	return NULL;
 }
 REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerCloakDataTable );
+
+void *SendProxy_SendEZ2LocalPlayerMalfuncDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID )
+{	
+	CEZ2_Player *pEZ2Player = ( CEZ2_Player * )pStruct;
+	if ( pEZ2Player != NULL)
+	{
+		if ( pEZ2Player->IsMalfunctioning() )
+		{
+			pRecipients->SetOnly( pEZ2Player->entindex() - 1 );
+			return (void *)pVarData;
+		}
+	}
+	return NULL;
+}
+REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerMalfuncDataTable );
+
+//-----------------------------------------------------------------------------
 
 // Cloaking
 #define DEVICE_CLOAK			1
@@ -403,6 +433,12 @@ void CEZ2_Player::PostThink(void)
 	{
 		// Decrease cloak factor
 		DecloakThink();
+	}
+
+	// Malfunction
+	if ( m_flMalfuncAmt != m_flMalfuncEndAmt )
+	{
+		m_flMalfuncAmt = RemapValClamped( gpGlobals->curtime, m_flMalfuncStartTime, m_flMalfuncEndTime, m_flMalfuncStartAmt, m_flMalfuncEndAmt );
 	}
 
 	if (GetBonusChallenge() != EZ_CHALLENGE_NONE && !m_bMaskInterrupt && gpGlobals->curtime > 2.5f)
@@ -3171,7 +3207,18 @@ void CEZ2_Player::ToggleCloak()
 	{
 		if (SuitPower_GetCurrentPercentage() < 5.0)
 		{
-			EmitSound( "HL2Player.SprintNoPower" );
+			if ( m_flMalfuncAmt > 0.0f )
+			{
+				// Malfunctioning
+				EmitSound( "EZ2Player.Malfunc_Cloak" );
+	
+				Vector vecDir = BodyDirection2D();
+				g_pEffects->Sparks( WorldSpaceCenter(), 1, 1, &vecDir );
+			}
+			else
+			{
+				EmitSound( "HL2Player.SprintNoPower" );
+			}
 			return;
 		}
 		
@@ -3408,12 +3455,7 @@ bool CEZ2_Player::ShouldShootMissTarget( CBaseCombatCharacter *pAttacker )
 		if ( abs( flDot ) < flDotThreshold )
 		{
 			// Too fast
-			DevMsg( "Player going too fast - dot: %.2f, speed: %.2f (threshold: %.2f)\n", flDot, flMySpeed, flDotThreshold );
 			return true;
-		}
-		else
-		{
-			DevMsg( "Player not going fast enough - dot: %.2f, speed: %.2f (threshold: %.2f)\n", flDot, flMySpeed, flDotThreshold );
 		}
 	}
 
@@ -3673,6 +3715,32 @@ void CEZ2_Player::ScriptRemoveScriptedGlowMark( HSCRIPT hEnt )
 {
 	Color clrOutline( 0, 0, 0, 0 );
 	EnemyMarkUpdate( ToEnt( hEnt ), clrOutline, 0, 0, true, false );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::SetMalfunctionAmt( float flAmt, float flDuration )
+{
+	m_flMalfuncStartAmt = m_flMalfuncAmt;
+	m_flMalfuncStartTime = gpGlobals->curtime;
+	m_flMalfuncEndAmt = flAmt;
+	m_flMalfuncEndTime = gpGlobals->curtime + flDuration;
+
+	if ( m_flMalfuncEndAmt > 0.0f )
+	{
+		PrecacheScriptSound( "EZ2Player.Malfunc_Cloak" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::InputSetMalfunctionAmt( inputdata_t &inputdata )
+{
+	Vector vecMalfunc;
+	inputdata.value.Vector3D( vecMalfunc );
+	SetMalfunctionAmt( vecMalfunc.x, vecMalfunc.y );
 }
 
 //-----------------------------------------------------------------------------

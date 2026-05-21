@@ -281,6 +281,13 @@ public:
 	void				ScriptAddScriptedGlowMark( HSCRIPT hEnt, int r, int g, int b, int a );
 	void				ScriptRemoveScriptedGlowMark( HSCRIPT hEnt );
 
+	// Malfunction
+	bool				IsMalfunctioning() const { return m_flMalfuncAmt > 0.0f; }
+	float				GetMalfunctionAmt() const { return m_flMalfuncAmt; }
+	void				SetMalfunctionAmt( float flAmt, float flDuration );
+
+	void				InputSetMalfunctionAmt( inputdata_t &inputdata );
+
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();
 	void				RemoveNPCComponent();
@@ -371,6 +378,13 @@ private:
 	bool			m_bMarkEnemies;
 	float			m_flNextEnemyMarkTime;
 	CUtlVector<EnemyMarkData_t>	m_MarkedEnemies;
+
+	// Malfunction
+	CNetworkVar( float, m_flMalfuncAmt );
+	float			m_flMalfuncStartAmt;
+	float			m_flMalfuncEndAmt;
+	float			m_flMalfuncStartTime;
+	float			m_flMalfuncEndTime;
 
 	// Stealth system
 	float			m_flTimeEnteredStealthArea;

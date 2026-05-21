@@ -19,6 +19,10 @@
 #include "c_basehlplayer.h"
 #endif // HL2_CLIENT_DLL
 
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
+
 #if defined( _X360 )
 extern ConVar r_flashlightdepthres;
 #else
@@ -399,6 +403,29 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 			
 			bFlicker = true;
 		}
+
+#ifdef EZ2
+		else
+		{
+			C_EZ2_Player *pEZ2Player = ToEZ2Player( pPlayer );
+			if ( pEZ2Player && pEZ2Player->IsMalfunctioning() )
+			{
+				// When malfunctioning, also flicker when turning on initially
+				if ( flBatteryPower > 97.5f )
+				{
+					float flNoise = cosf( gpGlobals->curtime * 7.0f ) * sinf( gpGlobals->curtime * 25.0f );
+
+					flNoise *= SimpleSplineRemapValClamped( flBatteryPower, 97.5f, 100.0f, 0.0f, pEZ2Player->GetMalfunctionAmt() );
+
+					state.m_fLinearAtten = r_flashlightlinear.GetFloat() * flNoise;
+					state.m_fHorizontalFOVDegrees = fov;
+					state.m_fVerticalFOVDegrees = fov;
+
+					bFlicker = true;
+				}
+			}
+		}
+#endif
 	}
 #endif // HL2_EPISODIC
 

@@ -59,6 +59,9 @@ public:
 	void	DestroyEnemyGlowEffect( void );
 	void	EnemyMarkUpdate( C_BaseEntity *pEnemy, float flLastTimeSeen, int r, int g, int b, int a );
 
+	void	MalfunctionGarbleWString( wchar_t *wszText, size_t nTextLen, float flIntensity );
+	void	MalfunctionFlickerColor( Color &clr, float flClrIntensity );
+
 	bool m_bBonusChallengeUpdate;
 	
 	EHANDLE m_hWarningTarget;
@@ -80,6 +83,9 @@ public:
 	inline float	GetCloakTransitionStartTime() const { return m_flCloakTransitionStartTime; }
 	inline float	GetCloakPower() const { return m_HL2Local.m_flSuitPower * 0.01f; } // Ratio of suit power (which maxes out at 100)
 
+	inline bool		IsMalfunctioning() const { return m_flMalfuncAmt > 0.0f; }
+	inline float	GetMalfunctionAmt() const { return m_flMalfuncAmt; }
+
 	ClientCCHandle_t m_NVGCCHandle;
 
 private:
@@ -97,6 +103,9 @@ private:
 	float	m_flCloakVisibleTime;
 	int		m_nLastCloakCompromiseType;
 	float	m_flCloakTransitionStartTime;
+
+	// Malfunction
+	float	m_flMalfuncAmt;
 
 	ClientCCHandle_t m_CloakCCHandle;
 	int		m_nWarningSoundsUsed;

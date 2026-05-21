@@ -26,6 +26,9 @@
 #include "fmtstr.h"
 #include "img_png_loader.h"
 #endif
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
 
 #include "hud_macros.h"
 #include "iclientmode.h"
@@ -2077,6 +2080,25 @@ void CLocatorPanel::DrawTargetCaption( CLocatorTarget *pTarget, int x, int y, bo
 	bool bDrawGlow = locator_text_glow.GetBool();
 	bool bDrawShadow = !IsConsole() && locator_text_drop_shadow.GetBool(); // Only draw drop shadow on PC because it looks crappy on a TV
 
+	Color clr = pTarget->m_captionColor;
+#ifdef EZ2
+	wchar_t pString[256];
+	Q_wcsncpy( pString, pTarget->GetCaptionText(), sizeof( pString ) );
+
+	C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+	if ( player && player->IsMalfunctioning() )
+	{
+		float flIntensitySqr = Square( player->GetMalfunctionAmt() ) * 0.5f;
+
+		int len = V_wcslen( pString );
+		player->MalfunctionGarbleWString( pString, len, flIntensitySqr );
+
+		player->MalfunctionFlickerColor( clr, flIntensitySqr * 0.25f );
+	}
+#else
+	const wchar_t *pString = pTarget->GetCaptionText();
+#endif
+
 	if ( !bDrawMultiline )
 	{
 		if ( bDrawGlow )
@@ -2085,7 +2107,7 @@ void CLocatorPanel::DrawTargetCaption( CLocatorTarget *pTarget, int x, int y, bo
 			Color glowColor = locator_text_glow_color.GetColor();
 			vgui::surface()->DrawSetTextColor( glowColor.r(), glowColor.g(), glowColor.b(), ( glowColor.a() / 255.0f ) * pTarget->m_alpha );
 			vgui::surface()->DrawSetTextPos( x - 1, y - (fontTall >>1) - 1 );
-			vgui::surface()->DrawUnicodeString( pTarget->GetCaptionText() );
+			vgui::surface()->DrawUnicodeString( pString );
 			vgui::surface()->DrawSetTextFont( m_hCaptionFont );
 		}
 
@@ -2094,13 +2116,13 @@ void CLocatorPanel::DrawTargetCaption( CLocatorTarget *pTarget, int x, int y, bo
 			// Draw black text (drop shadow)
 			vgui::surface()->DrawSetTextColor( 0,0,0, pTarget->m_alpha );
 			vgui::surface()->DrawSetTextPos( x, y - (fontTall >>1) );
-			vgui::surface()->DrawUnicodeString( pTarget->GetCaptionText() );
+			vgui::surface()->DrawUnicodeString( pString );
 		}
 
 		// Draw text
-		vgui::surface()->DrawSetTextColor( pTarget->m_captionColor.r(),pTarget->m_captionColor.g(),pTarget->m_captionColor.b(), pTarget->m_alpha );
+		vgui::surface()->DrawSetTextColor( clr.r(), clr.g(), clr.b(), pTarget->m_alpha );
 		vgui::surface()->DrawSetTextPos( x - 1, y - (fontTall >>1) - 1 );
-		vgui::surface()->DrawUnicodeString( pTarget->GetCaptionText() );
+		vgui::surface()->DrawUnicodeString( pString );
 	}
 	else
 	{
@@ -2109,7 +2131,6 @@ void CLocatorPanel::DrawTargetCaption( CLocatorTarget *pTarget, int x, int y, bo
 
 		int iWidth = 0;
 
-		const wchar_t *pString = pTarget->GetCaptionText();
 		int len = Q_wcslen( pString );
 
 		Color glowColor = locator_text_glow_color.GetColor();
@@ -2143,7 +2164,7 @@ void CLocatorPanel::DrawTargetCaption( CLocatorTarget *pTarget, int x, int y, bo
 			}
 
 			// Draw text
-			vgui::surface()->DrawSetTextColor( pTarget->m_captionColor.r(),pTarget->m_captionColor.g(),pTarget->m_captionColor.b(), pTarget->m_alpha );
+			vgui::surface()->DrawSetTextColor( clr.r(), clr.g(), clr.b(), pTarget->m_alpha );
 			vgui::surface()->DrawSetTextPos( charX, charY );
 			vgui::surface()->DrawUnicodeChar( pString[iChar] );
 			charX += charW;

@@ -21,6 +21,10 @@
 
 #include "vgui/ILocalize.h"
 
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -789,6 +793,30 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 				{
 					y_offs = (boxTall - iconHeight) / 2;
 				}
+	
+#ifdef EZ2
+				C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+				if ( player && player->IsMalfunctioning() )
+				{
+					extern ConVar hud_malfunction_garble_wpnicon;
+					float flIntensitySqr = Square( player->GetMalfunctionAmt() );
+					float flIntensityOffsetSqr = flIntensitySqr * Square( hud_malfunction_garble_wpnicon.GetFloat() );
+
+					if ( RandomFloat( 0.0f, 1.0f ) < flIntensityOffsetSqr )
+					{
+						int max = (30.0f * player->GetMalfunctionAmt());
+						x_offs += RandomInt( -max, max );
+					}
+
+					if ( RandomFloat( 0.0f, 1.0f ) < flIntensityOffsetSqr )
+					{
+						int max = (30.0f * player->GetMalfunctionAmt());
+						y_offs += RandomInt( -max, max );
+					}
+
+					player->MalfunctionFlickerColor( col, flIntensitySqr * 0.25f );
+				}
+#endif
 
 				if (!pWeapon->CanBeSelected())
 				{
@@ -948,6 +976,19 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 			g_pVGuiLocalize->ConvertANSIToUnicode(weaponInfo.szPrintName, text, sizeof(text));
 #endif
 		}
+	
+#ifdef EZ2
+		C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+		if ( player && player->IsMalfunctioning() )
+		{
+			float flIntensitySqr = Square( player->GetMalfunctionAmt() ) * 0.1f;
+
+			int len = V_wcslen( text );
+			player->MalfunctionGarbleWString( text, len, flIntensitySqr );
+
+			player->MalfunctionFlickerColor( col, flIntensitySqr );
+		}
+#endif
 
 		surface()->DrawSetTextColor( col );
 		surface()->DrawSetTextFont( m_hTextFont );

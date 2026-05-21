@@ -16,18 +16,14 @@
 #ifdef MAPBASE
 #include <vgui/ILocalize.h>
 #endif
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 using namespace vgui;
-
-#ifdef EZ2
-// TEMP!!!
-ConVar	hud_malfunction_enable( "hud_malfunction_enable", "0" );
-ConVar	hud_malfunction_intensity( "hud_malfunction_intensity", "0.5" );
-ConVar	hud_malfunction_number_chance( "hud_malfunction_number_chance", "0.1" );
-#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
@@ -123,14 +119,21 @@ void CHudNumericDisplay::SetIsTime(bool state)
 void CHudNumericDisplay::PaintNumbers(HFont font, int xpos, int ypos, int value)
 {
 #ifdef EZ2
-	if ( hud_malfunction_enable.GetBool() )
+	C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+	if ( player && player->IsMalfunctioning() )
 	{
 		// Small chance of the number suffering imprecision
-		if ( RandomFloat( 0.0f, 1.0f ) < Square( hud_malfunction_number_chance.GetFloat() * hud_malfunction_intensity.GetFloat() ) )
+		extern ConVar hud_malfunction_garble_number;
+		if ( RandomFloat( 0.0f, 1.0f ) < Square( hud_malfunction_garble_number.GetFloat() * player->GetMalfunctionAmt() ) )
 		{
-			int max = (10.0f * hud_malfunction_intensity.GetFloat());
+			int max = (10.0f * player->GetMalfunctionAmt());
 			value += RandomInt( -max, max );
 		}
+
+		// Flicker slightly
+		Color clr = GetFgColor();
+		player->MalfunctionFlickerColor( clr, Square( player->GetMalfunctionAmt() ) * 0.5f );
+		surface()->DrawSetTextColor( clr );
 	}
 #endif
 
@@ -214,31 +217,20 @@ void CHudNumericDisplay::PaintLabel( void )
 	surface()->DrawSetTextPos(text_xpos, text_ypos);
 	
 #ifdef EZ2
-	if ( hud_malfunction_enable.GetBool() )
+	C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
+	if ( player && player->IsMalfunctioning() )
 	{
-		float flIntensitySqr = Square( hud_malfunction_intensity.GetFloat() );
+		float flIntensitySqr = Square( player->GetMalfunctionAmt() );
 
 		wchar_t	wszLabelText[32];
 		V_wcsncpy( wszLabelText, m_LabelText, sizeof( wszLabelText ) );
 
 		int len = V_wcslen( wszLabelText );
-		for ( int i = 0; i < len; i++ )
-		{
-			// Chance of replacing each character with a random ASCII character
-			// TODO: Consider Unicode characters?
-			if ( RandomFloat( 0.0f, 1.0f ) < flIntensitySqr )
-			{
-				wszLabelText[i] = (wchar_t)(RandomInt( '!', '~' ));
-			}
-		}
+		player->MalfunctionGarbleWString( wszLabelText, len, flIntensitySqr );
 
 		// Flicker slightly
 		Color clr = GetFgColor();
-		float flClrIntensity = flIntensitySqr * 0.25f;
-		clr[0] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
-		clr[1] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
-		clr[2] *= Clamp( RandomGaussianFloat( 1.0f, flClrIntensity ), 0.0f, 1.0f );
-		clr[3] *= Clamp( RandomGaussianFloat( 1.0f, hud_malfunction_intensity.GetFloat() ), 0.0f, 1.0f );
+		player->MalfunctionFlickerColor( clr, flIntensitySqr * 0.25f );
 		surface()->DrawSetTextColor( clr );
 
 		surface()->DrawUnicodeString( wszLabelText );
