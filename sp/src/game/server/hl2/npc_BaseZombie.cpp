@@ -742,8 +742,16 @@ bool CNPC_BaseZombie::HandleInteraction( int interactionType, void *data, CBaseC
 		// If we are a torso, this is fatal
 		if ( m_fIsTorso )
 		{
-			// TODO - Add special handling for stealth mode
-			m_iHealth = pInfo->dmgInfo->GetDamage();
+			if ( sourceEnt && sourceEnt->IsNPC() )
+			{
+				// The damage we take from a NPC doesn't always appear to be the same as the health we lose
+				m_iHealth = 1;
+			}
+			else
+			{
+				// TODO - Add special handling for stealth mode
+				m_iHealth = pInfo->dmgInfo->GetDamage();
+			}
 		}
 
 		// Do normal kick handling
