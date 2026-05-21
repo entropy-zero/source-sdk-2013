@@ -676,7 +676,8 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 			//
 			// Tripmines
 			//
-			if ( m_TripminePlaceBehavior.IsTripmineCapable() && !HasCondition( COND_HEAR_DANGER ) && !HasCondition( COND_CAN_RANGE_ATTACK1 ) && npc_clonecop_moving_tripmines.GetBool() )
+			if ( m_TripminePlaceBehavior.IsTripmineCapable() && !HasCondition( COND_HEAR_DANGER ) && !HasCondition( COND_CAN_RANGE_ATTACK1 )
+				&& IsInterruptable() && npc_clonecop_moving_tripmines.GetBool())
 			{
 				// Don't do this if our goal is close by
 				if ( (GetNavigator()->GetGoalPos() - GetAbsOrigin()).LengthSqr() > Square( 150.0f ) )

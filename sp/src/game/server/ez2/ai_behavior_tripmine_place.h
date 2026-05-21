@@ -87,7 +87,7 @@ public:
 
 	//-----------------------------------------------
 
-	bool	IsTripmineCapable() { return m_bTripmineCapable; }
+	bool	IsTripmineCapable();
 	void	SetTripmineCapable( bool bCapable ) { m_bTripmineCapable = bCapable; }
 	bool	IsPlacingTripmine();
 	bool	ShouldPlaceTripmine();

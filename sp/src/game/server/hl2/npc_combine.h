@@ -194,6 +194,7 @@ public:
 	virtual bool	ShouldLookForBetterWeapon();
 	virtual bool	ShouldLookForHealthItem( bool bCheckTime = true );
 	virtual bool	CanPickupWhileMoving() { return false; }
+	virtual Vector	GetHealthItemRange( bool bFollowing = false ) { return bFollowing ? Vector( 120, 120, 120 ) : Vector( 240, 240, 240 ); }
 	CBaseEntity		*FindHealthItem( const Vector &vecPosition, const Vector &range );
 	void			PickupItem( CBaseEntity *pItem );
 	virtual void	Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget = NULL, const Vector *pVelocity = NULL );

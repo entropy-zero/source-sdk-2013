@@ -76,6 +76,7 @@ public:
 	inline bool	IsBleeding() { return m_bIsBleeding; }
 
 	bool		ShouldUseAvoidantFlanking();
+	void		SetUseAvoidantFlanking( bool bToggle ) { m_bUseAvoidantFlanking = bToggle; }
 
 	bool		CanDeployManhack( void );
 	void		HandleManhackSpawn( CAI_BaseNPC *pNPC );

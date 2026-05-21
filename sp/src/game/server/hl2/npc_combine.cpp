@@ -1244,7 +1244,7 @@ int CNPC_Combine::SelectScheduleRetrieveItem()
 		{
 			CBaseEntity *pBase = FindHealthItem(
 				m_FollowBehavior.GetFollowTarget() ? m_FollowBehavior.GetFollowTarget()->GetAbsOrigin() : GetAbsOrigin(),
-				m_FollowBehavior.GetFollowTarget() ? Vector( 120, 120, 120 ) : Vector( 240, 240, 240 ) );
+				GetHealthItemRange( m_FollowBehavior.GetFollowTarget() != NULL ) );
 			CItem *pItem = dynamic_cast<CItem *>(pBase);
 
 			if( pItem )
@@ -2662,7 +2662,7 @@ void CNPC_Combine::GatherConditions()
 #ifdef EZ
 	if( ShouldLookForHealthItem() )
 	{
-		if( FindHealthItem( GetAbsOrigin(), Vector( 240, 240, 240 ) ) )
+		if( FindHealthItem( GetAbsOrigin(), GetHealthItemRange() ) )
 			SetCondition( COND_HEALTH_ITEM_AVAILABLE );
 		else
 			ClearCondition( COND_HEALTH_ITEM_AVAILABLE );
@@ -4036,6 +4036,13 @@ void CNPC_Combine::Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInf
 		{
 			CAI_BaseNPC *pTarget = CreateCustomTarget( pVictim->GetAbsOrigin(), 2.0f );
 			SetAimTarget(pTarget);
+
+			if ( pVictim->IsCombatCharacter() && pVictim->MyCombatCharacterPointer()->m_hDeathRagdoll )
+			{
+				// Follow the death ragdoll
+				pTarget->SetAbsOrigin( pVictim->MyCombatCharacterPointer()->m_hDeathRagdoll->WorldSpaceCenter() );
+				pTarget->SetParent( pVictim->MyCombatCharacterPointer()->m_hDeathRagdoll );
+			}
 		}
 	}
 }

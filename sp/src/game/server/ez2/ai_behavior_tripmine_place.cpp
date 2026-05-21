@@ -111,6 +111,17 @@ bool CAI_TripminePlaceBehavior::IsPlacingTripmine( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CAI_TripminePlaceBehavior::IsTripmineCapable()
+{
+	if ( !m_bTripmineCapable || !GetOuter()->HasGrenades() )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 bool CAI_TripminePlaceBehavior::ShouldPlaceTripmine()
 {
 	if ( m_bForcePlaceTripmine )
@@ -119,7 +130,7 @@ bool CAI_TripminePlaceBehavior::ShouldPlaceTripmine()
 		return true;
 	}
 
-	if ( !m_bTripmineCapable || !GetOuter()->HasGrenades() )
+	if ( !IsTripmineCapable() )
 		return false;
 
 	if ( !GetOuter()->HasStrategySlot( GetOuter()->GetEngineerSlot() ) && GetOuter()->IsEngineerSlotOccupied() )
