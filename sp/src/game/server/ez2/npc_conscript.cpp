@@ -676,7 +676,7 @@ int CNPC_Conscript::CalculateWillpower()
 		l_iWillpower++;
 
 	// Shield gives even more confidence
-	if ( HasPropShield() )
+	if ( IsPropShieldEquipped() )
 		l_iWillpower += 2;
 
 	// Engineers don't rush as much
@@ -1154,7 +1154,7 @@ WeaponProficiency_t CNPC_Conscript::CalcWeaponProficiency( CBaseCombatWeapon *pW
 {
 	int nProficiency = sk_conscript_default_proficiency.GetInt();
 
-	if ( HasPropShield() )
+	if ( IsPropShieldEquipped() )
 	{
 		nProficiency = sk_conscript_shield_proficiency.GetInt();
 	}

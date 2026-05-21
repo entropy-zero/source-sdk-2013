@@ -48,6 +48,7 @@ extern int ACT_DISARM_SHIELD;
 extern int ACT_ACTIVATE_SHIELD;
 extern int ACT_DEACTIVATE_SHIELD;
 extern int ACT_THROW_SHIELD;
+extern int ACT_SLAM_SHIELD;
 extern int ACT_GESTURE_FLINCH_SHIELD_TOP;
 extern int ACT_GESTURE_FLINCH_SHIELD_MID;
 extern int ACT_GESTURE_FLINCH_SHIELD_BOTTOM;
@@ -56,6 +57,7 @@ extern int ACT_FLINCH_SHIELD_BIG;
 extern int AE_NPC_DRAW_SHIELD;
 extern int AE_NPC_HOLSTER_SHIELD;
 extern int AE_NPC_THROW_SHIELD;
+extern int AE_NPC_SLAM_SHIELD;
 extern int AE_NPC_SET_SHIELD_ANIM;
 
 //-----------------------------------------------------------------------------
@@ -93,6 +95,8 @@ public:
 
 	void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
 	void	Event_Killed( const CTakeDamageInfo &info );
+	bool	CanBeHitByMeleeAttack( CBaseEntity *pAttacker );
+	bool	IsAllowedToDodge( void );
 
 	void		GatherConditions();
 	bool		ShouldMoveAndShoot();
@@ -102,6 +106,7 @@ public:
 	void		HandleAnimEvent( animevent_t *pEvent );
 	void		Weapon_SetActivity( Activity newActivity, float duration );
 	Vector		Weapon_ShootPosition();
+	Vector		GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget = NULL );
 
 	void		InputGivePropShield( inputdata_t &inputdata );
 	void		InputDropPropShield( inputdata_t &inputdata );
@@ -109,7 +114,6 @@ public:
 	void		InputUnholsterPropShield( inputdata_t &inputdata );
 
 	bool		SpawnsWithShield() const { return m_iSpawnsWithShield != TRS_FALSE; }
-	bool		HasPropShield() const { return m_hShield != NULL; }
 	bool		IsPropShieldEquipped() const { return m_hShield != NULL; }
 
 	virtual const char	*GetShieldModelName() { return SHIELD_MODEL_NAME; }
@@ -118,7 +122,8 @@ public:
 
 	virtual void		OnShieldSpawn( CPropShield *pShield ) {}
 	virtual void		OnShieldRemove( CPropShield *pShield ) {}
-	virtual CBaseEntity *CreateShieldProjectile( CPropShield *pShield ) { return NULL; }
+	virtual void		OnShieldSlam( CPropShield *pShield ) { UTIL_Remove( pShield ); }
+	virtual CBaseEntity *CreateShieldProjectile( CPropShield *pShield ) { UTIL_Remove( pShield ); return NULL; }
 
 protected:
 
@@ -228,6 +233,7 @@ void CAI_PropShieldUser<BASE_NPC>::InitActivities()
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_ACTIVATE_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_DEACTIVATE_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_THROW_SHIELD );
+	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_SLAM_SHIELD );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_TOP );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_MID );
 	ADD_CUSTOM_ACTIVITY( ThisClass, ACT_GESTURE_FLINCH_SHIELD_BOTTOM );
@@ -236,6 +242,7 @@ void CAI_PropShieldUser<BASE_NPC>::InitActivities()
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_DRAW_SHIELD );
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_HOLSTER_SHIELD );
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_THROW_SHIELD );
+	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_SLAM_SHIELD );
 	ADD_CUSTOM_ANIMEVENT( ThisClass, AE_NPC_SET_SHIELD_ANIM );
 }
 
@@ -284,6 +291,38 @@ void CAI_PropShieldUser<BASE_NPC>::Event_Killed( const CTakeDamageInfo &info )
 	}
 
 	BaseClass::Event_Killed( info );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+template <class BASE_NPC>
+bool CAI_PropShieldUser<BASE_NPC>::CanBeHitByMeleeAttack( CBaseEntity *pAttacker )
+{
+	if ( this->m_hShield && !pAttacker->IsPlayer() )
+	{
+		// It'd be nice to have more access to the trace, but for now, just test whether the attacker is in front of the shield
+		Vector vecShieldToAttacker = (pAttacker->WorldSpaceCenter() - this->m_hShield->WorldSpaceCenter());
+		VectorNormalize( vecShieldToAttacker );
+
+		Vector vecShieldForward;
+		this->m_hShield->GetVectors( &vecShieldForward, NULL, NULL );
+
+		if ( DotProduct( vecShieldForward, vecShieldToAttacker ) > 0.0f )
+			return false;
+	}
+
+	return BaseClass::CanBeHitByMeleeAttack( pAttacker );
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+template <class BASE_NPC>
+bool CAI_PropShieldUser<BASE_NPC>::IsAllowedToDodge()
+{
+	if ( this->IsPropShieldEquipped() )
+		return false;
+
+	return BaseClass::IsAllowedToDodge();
 }
 
 //-----------------------------------------------------------------------------
@@ -438,6 +477,28 @@ Vector CAI_PropShieldUser<BASE_NPC>::Weapon_ShootPosition()
 	return BaseClass::Weapon_ShootPosition();
 }
 
+//-----------------------------------------------------------------------------
+// Consider the weapon's built-in accuracy, this character's proficiency with
+// the weapon, and the status of the target. Use this information to determine
+// how accurately to shoot at the target.
+//-----------------------------------------------------------------------------
+template <class BASE_NPC>
+Vector CAI_PropShieldUser<BASE_NPC>::GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget )
+{
+	Vector vecBase = BaseClass::GetAttackSpread( pWeapon, pTarget );
+
+	if ( this->IsPropShieldEquipped() )
+	{
+		// Less accurate while carrying shield, especially with non-pistols
+		if ( pWeapon && pWeapon->WeaponClassify() != WEPCLASS_HANDGUN )
+			vecBase *= 1.5f;
+		else
+			vecBase *= 1.25f;
+	}
+
+	return vecBase;
+}
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 template <class BASE_NPC>
@@ -488,6 +549,19 @@ void CAI_PropShieldUser<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
 			this->m_hShield = NULL;
 
 			this->CreateShieldProjectile( pShield );
+		}
+
+		this->m_bShieldEquipped = false;
+		this->ResetActivity();
+	}
+	else if ( pEvent->event == AE_NPC_SLAM_SHIELD )
+	{
+		if ( this->m_hShield )
+		{
+			CPropShield *pShield = this->m_hShield;
+			this->m_hShield = NULL;
+
+			this->OnShieldSlam( pShield );
 		}
 
 		this->m_bShieldEquipped = false;
