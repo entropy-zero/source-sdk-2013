@@ -63,8 +63,7 @@ class CGravityVortexController : public CBaseEntity, public CDisplacerSink
 
 public:
 
-	CGravityVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ), m_flMass( 0.0f ),
-		m_flNodeRadius( 256.0f ), m_flConsumeRadius( 48.0f ) {}
+	CGravityVortexController( void );
 	float	GetConsumedMass( void ) const;
 
 #ifdef EZ2

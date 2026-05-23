@@ -669,6 +669,31 @@ bool CGravityVortexController::CanConsumeEntity( CBaseEntity *pEnt )
 }
 #endif
 
+bool VectorLessFunc( const Vector &lhs, const Vector &rhs )
+{
+	return lhs.LengthSqr() < rhs.LengthSqr();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CGravityVortexController::CGravityVortexController( void ) : m_flEndTime( 0.0f ), m_flRadius( 256 ), m_flStrength( 256 ), m_flMass( 0.0f ),
+		m_flNodeRadius( 256.0f ), m_flConsumeRadius( 48.0f )
+{
+#ifdef EZ2
+	SetDefLessFunc( m_ModelMass );
+	SetDefLessFunc( m_ClassMass );
+	m_ModelMass.EnsureCapacity( 128 );
+	m_ClassMass.EnsureCapacity( 128 );
+
+	m_HullMap.SetLessFunc( VectorLessFunc );
+	m_HullMap.EnsureCapacity( 32 );
+
+	SetDefLessFunc( m_SpawnList );
+	m_SpawnList.EnsureCapacity( 16 );
+#endif
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Returns the amount of mass consumed by the vortex
 //-----------------------------------------------------------------------------
@@ -1060,29 +1085,12 @@ void CGravityVortexController::CreateDenseBall( void )
 	}
 }
 #ifdef EZ2
-bool VectorLessFunc( const Vector &lhs, const Vector &rhs )
-{
-	return lhs.LengthSqr() < rhs.LengthSqr();
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : &restore - 
 //-----------------------------------------------------------------------------
 int	CGravityVortexController::Restore( IRestore &restore )
 {
-	// This needs to be done before the game is restored
-	SetDefLessFunc( m_ModelMass );
-	SetDefLessFunc( m_ClassMass );
-	m_ModelMass.EnsureCapacity( 128 );
-	m_ClassMass.EnsureCapacity( 128 );
-
-	m_HullMap.SetLessFunc( VectorLessFunc );
-	m_HullMap.EnsureCapacity( 32 );
-
-	SetDefLessFunc( m_SpawnList );
-	m_SpawnList.EnsureCapacity( 16 );
-
 	return BaseClass::Restore( restore );
 }
 
@@ -2108,17 +2116,6 @@ void CGravityVortexController::StartPull( const Vector &origin, float radius, fl
 #ifdef EZ2
 	// Play a danger sound throughout the duration of the vortex so that NPCs run away
 	CSoundEnt::InsertSound ( SOUND_DANGER, GetAbsOrigin(), radius, duration, this );
-
-	SetDefLessFunc( m_ModelMass );
-	SetDefLessFunc( m_ClassMass );
-	m_ModelMass.EnsureCapacity( 64 );
-	m_ClassMass.EnsureCapacity( 64 );
-
-	m_HullMap.SetLessFunc( VectorLessFunc );
-	m_HullMap.EnsureCapacity( 32 );
-
-	SetDefLessFunc( m_SpawnList );
-	m_SpawnList.EnsureCapacity( 16 );
 
 	m_flStartTime = gpGlobals->curtime;
 #endif
