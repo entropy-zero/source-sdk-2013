@@ -1879,7 +1879,10 @@ void CHL2_Player::PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper)
 					SetAbsVelocity( vecCurVelocity );
 
 					EmitSound( STRING( m_iszLongJumpSound ) );
-				
+
+					// For now, just reapply the jumping sequence
+					m_pPlayerAnimState->RestartMainSequence();
+
 					m_flNextLongJumpTime = gpGlobals->curtime + player_longjump_cooldown_time.GetFloat();
 					m_flLastLongJumpTime = gpGlobals->curtime;
 				
