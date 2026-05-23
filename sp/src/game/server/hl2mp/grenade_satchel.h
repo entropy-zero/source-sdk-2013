@@ -59,7 +59,7 @@ public:
 	void			Deactivate( void );
 
 	CSatchelCharge();
-	~CSatchelCharge();
+	void			UpdateOnRemove();
 
 	DECLARE_DATADESC();
 

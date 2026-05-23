@@ -650,8 +650,10 @@ CSatchelCharge::CSatchelCharge(void)
 	m_pMyWeaponSLAM = NULL;
 }
 
-CSatchelCharge::~CSatchelCharge(void)
+void CSatchelCharge::UpdateOnRemove(void)
 {
+	BaseClass::UpdateOnRemove();
+
 	if ( m_hGlowSprite != NULL )
 	{
 		UTIL_Remove( m_hGlowSprite );
