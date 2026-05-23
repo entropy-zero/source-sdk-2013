@@ -105,19 +105,35 @@ void CArmorProp::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir,
 {
 	BaseClass::TraceAttack( info, vecDir, ptr, pAccumulator );
 
-	if ( HasNPCParent() && !ShouldBlockTraceAttack( info, vecDir, ptr, pAccumulator ) )
+	if ( HasNPCParent() )
 	{
-		// Greater than our protection grade
-		CTakeDamageInfo newInfo = info;
-		ModifyTraceAttackDamage( newInfo, GetPenetrationScale( info ) );
+		if ( !ShouldBlockTraceAttack( info, vecDir, ptr, pAccumulator ) )
+		{
+			// Greater than our protection grade
+			CTakeDamageInfo newInfo = info;
+			ModifyTraceAttackDamage( newInfo, GetPenetrationScale( info ) );
 
-		if (newInfo.GetDamage() < 0.0f)
-			newInfo.SetDamage( 0.0f );
+			if (newInfo.GetDamage() < 0.0f)
+				newInfo.SetDamage( 0.0f );
 
-		ptr->hitgroup = GetHitgroup();
-		ptr->m_pEnt = this;
+			ptr->hitgroup = GetHitgroup();
+			ptr->m_pEnt = this;
 
-		GetNPCParent()->TraceAttack( newInfo, vecDir, ptr, pAccumulator );
+			if ( newInfo.GetDamage() > 0.0f )
+			{
+				GetNPCParent()->TraceAttack( newInfo, vecDir, ptr, pAccumulator );
+			}
+			else
+			{
+				// NPC should still know when it's being attacked
+				GetNPCParent()->SetLastDamageTime( gpGlobals->curtime );
+			}
+		}
+		else
+		{
+			// NPC should still know when it's being attacked
+			GetNPCParent()->SetLastDamageTime( gpGlobals->curtime );
+		}
 	}
 }
 

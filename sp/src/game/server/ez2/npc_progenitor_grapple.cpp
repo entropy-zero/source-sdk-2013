@@ -11,6 +11,7 @@
 #include "npc_progenitor.h"
 #include "particle_parse.h"
 #include "rope.h"
+#include "rope_shared.h"
 #include "ai_moveprobe.h"
 #include "ai_navigator.h"
 #include "ai_route.h"
@@ -88,7 +89,7 @@ bool CNPC_Progenitor::GrappleHookMove()
 
 	VectorNormalize( vecHookToDest );
 	Vector vecMoveDir = m_hGrapplingHookProjectile->GetAbsVelocity();
-	VectorNormalize( vecMoveDir );
+	float flSpeed = VectorNormalize( vecMoveDir );
 
 	bool bHook = false;
 	if ( flDistToHookSqr < Square( 32.0f ) )
@@ -106,16 +107,91 @@ bool CNPC_Progenitor::GrappleHookMove()
 
 			default:
 			case GRAPPLE_TYPE_PULL:
-
-				// Could we be plausibly close enough anyway?
-				if ( flDistToHookSqr < Square( 200.0f ) )
-					bHook = true;
-				else
+			case GRAPPLE_TYPE_PULL_TO:
 				{
-					// Then we missed our target
-					SetCondition( COND_COMBINE_GRAPPLE_FAILED );
+					// Could we be plausibly close enough anyway?
+					Vector vecTraceStartPos = m_hGrapplingHookProjectile->GetAbsOrigin() - ( vecMoveDir * (flSpeed * 0.1f) );
+					if ( flDistToHookSqr < Square( flSpeed * 0.3f ) && (!m_hGrappleDest || !m_hGrappleDest->IsPlayer()) )
+					{
+						bHook = true;
+					}
+					// Would we be close enough if it were on a line?
+					else if ( CalcDistanceSqrToLine( m_vecGrappleDest, vecTraceStartPos, m_hGrapplingHookProjectile->GetAbsOrigin() ) < Square( 32.0f ) )
+					{
+						bHook = true;
+					}
+					else if ( m_iGrappleType == GRAPPLE_TYPE_PULL_TO )
+					{
+						// If we're pulling to a target, then see if we can hook onto something else (e.g. a wall behind them)
+						Vector vecTraceEndPos = vecTraceStartPos + ( vecMoveDir * (flSpeed * 0.2f) );
+						trace_t tr;
+						UTIL_TraceLine( vecTraceStartPos, vecTraceEndPos, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+						if ( tr.fraction != 1.0f )
+						{
+							if ( tr.DidHitNonWorldEntity() )
+							{
+								m_hGrappleDest = tr.m_pEnt;
+
+								// Let the trace below handle everything else
+								m_hGrapplingHookProjectile->SetAbsOrigin( tr.endpos );
+							}
+							else
+							{
+								m_hGrappleDest = NULL;
+
+								VectorAngles( -tr.plane.normal, m_vecGrappleAngle );
+								m_vecGrappleDest = tr.endpos;
+
+								// If it hit the world, it may have hit a surface we'll need to hang from
+								m_iGrappleType = GRAPPLE_TYPE_FORCED;
+							}
+
+							bHook = true;
+						}
+
+						if ( !bHook && flDistToHookSqr > Square( 500.0f ) )
+						{
+							// Didn't find anything
+							SetCondition( COND_COMBINE_GRAPPLE_FAILED );
+						}
+					}
+					else
+					{
+						// Then we missed our target
+						SetCondition( COND_COMBINE_GRAPPLE_FAILED );
+					}
 				}
 				break;
+		}
+	}
+	else if ( m_iGrappleType == GRAPPLE_TYPE_PULL_TO && (m_hGrapplingHookProjectile->GetAbsOrigin() - GetAbsOrigin()).LengthSqr() > Square(flSpeed * 0.15f) )
+	{
+		// Make sure we didn't hit anything else
+		// We do this because we're MOVETYPE_NOCLIP... maybe consider using MOVETYPE_FLY again for this type of grapple and using collisions instead
+		Vector vecTraceStartPos = m_hGrapplingHookProjectile->GetAbsOrigin() - (vecMoveDir * (flSpeed * 0.15f));
+		trace_t tr;
+		UTIL_TraceLine( vecTraceStartPos, m_hGrapplingHookProjectile->GetAbsOrigin(), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction != 1.0f )
+		{
+			if ( tr.DidHitNonWorldEntity() )
+			{
+				m_hGrappleDest = tr.m_pEnt;
+
+				// Let the trace below handle everything else
+				m_hGrapplingHookProjectile->SetAbsOrigin( tr.endpos );
+			}
+			else
+			{
+				m_hGrappleDest = NULL;
+
+				VectorAngles( -tr.plane.normal, m_vecGrappleAngle );
+				m_vecGrappleDest = tr.endpos;
+
+				// If it hit the world, it may have hit a surface we'll need to hang from
+				m_iGrappleType = GRAPPLE_TYPE_FORCED;
+			}
+
+			bHook = true;
 		}
 	}
 
@@ -135,7 +211,7 @@ bool CNPC_Progenitor::GrappleHookMove()
 				CTraceFilterGrappleTarget traceFilter( m_hGrappleDest, COLLISION_GROUP_NONE );
 				UTIL_TraceLine( vecTraceOrigin, m_hGrappleDest->WorldSpaceCenter(), MASK_SOLID, &traceFilter, &tr );
 
-				VectorAngles( tr.plane.normal, m_vecGrappleAngle );
+				VectorAngles( -tr.plane.normal, m_vecGrappleAngle );
 				m_vecGrappleDest = tr.endpos;
 
 				// Take damage (assuming non-viewable entities wouldn't need to)
@@ -147,6 +223,7 @@ bool CNPC_Progenitor::GrappleHookMove()
 				ApplyMultiDamage();
 			}
 
+			// Have to set these before parenting
 			m_hGrapplingHookProjectile->SetAbsAngles( m_vecGrappleAngle );
 			m_hGrapplingHookProjectile->SetAbsOrigin( m_vecGrappleDest );
 			m_hGrapplingHookProjectile->SetAbsVelocity( vec3_origin );
@@ -172,33 +249,18 @@ bool CNPC_Progenitor::GrappleHookMove()
 			m_hGrapplingHookProjectile->SetAbsVelocity( vec3_origin );
 		}
 	}
-	// We use MOVETYPE_NOCLIP now, so we don't have a need for this
-	/*
-	else
-	{
-		// See if there's something near it to latch on to
-		Vector vecStartPos = m_hGrapplingHookProjectile->GetAbsOrigin();
-		Vector vecEndPos = vecStartPos + ( m_hGrapplingHookProjectile->GetAbsVelocity() * 0.2f );
-		trace_t tr;
-		UTIL_TraceLine( vecStartPos, vecEndPos, MASK_SOLID, this, COLLISION_GROUP_NONE, &tr );
-		if ( tr.fraction != 1.0f )
-		{
-			m_hGrapplingHookProjectile->SetMoveType( MOVETYPE_NONE );
-			m_hGrapplingHookProjectile->SetAbsVelocity( vec3_origin );
-
-			QAngle angles;
-			VectorAngles( tr.plane.normal, angles );
-			m_hGrapplingHookProjectile->SetAbsAngles( angles );
-
-			m_hGrapplingHookProjectile->SetAbsOrigin( tr.endpos );
-		}
-	}
-	*/
 
 	if ( bHook )
 	{
 		m_hGrapplingHookProjectile->EmitSound( "Weapon_GrapplingHook.Hook" );
 		StopParticleEffects( m_hGrapplingHookProjectile );
+
+		if ( m_hGrapplingHookCable )
+		{
+			// Allow motion on the rope now that it's hooked
+			m_hGrapplingHookCable->m_RopeFlags |= (ROPE_USE_WIND | ROPE_RESIZE);
+			m_hGrapplingHookCable->m_Slack = 10;
+		}
 
 		m_iGrapplePhase = GRAPPLE_PHASE_HOOKED;
 		return true;
@@ -233,34 +295,51 @@ bool CNPC_Progenitor::GrappleMove()
 	// (consider caching this before grappling)
 	trace_t tr;
 	Vector vecDest = m_vecGrappleDest;
-	vecDest.z -= (GetHullHeight() + 8);
 
-	UTIL_TraceEntity( this, vecDest, vecDest - Vector( 0, 0, 2048 ), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
-	//float flHangDist = (2048 * 0.5f * tr.fraction) + GetHullHeight();
-	float flHangDist = ( vecDest.z - tr.endpos.z );
-	float flMinDistToHangSqr = Square( flHangDist * 2.0f );
 	bool bHanging = false;
+	float flHangDist = 0.0f;
+	float flMinDistToHangSqr = 0.0f;
 
-	if ( (m_flGrappleStartDistSqr <= flMinDistToHangSqr) ? flDistSqr < flMinDistToHangSqr : fl2DDistSqr < flMinDistToHangSqr )
+	if ( !IsToObjGrapple() )
 	{
-		// Make sure we could actually go to the hang position
-		vec_t vHangFactor = ( flHangDist * ( 1.0f - (fl2DDistSqr / flMinDistToHangSqr) ) );
+		vecDest.z -= (GetHullHeight() + 8);
 
-		UTIL_TraceEntity( this, GetAbsOrigin(), vecDest - Vector(0,0,vHangFactor), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
-		if ( tr.fraction == 1.0f )
+		UTIL_TraceEntity( this, vecDest, vecDest - Vector( 0, 0, 2048 ), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+		//float flHangDist = (2048 * 0.5f * tr.fraction) + GetHullHeight();
+		flHangDist = ( vecDest.z - tr.endpos.z );
+		flMinDistToHangSqr = Square( flHangDist * 2.0f );
+
+		if ( (m_flGrappleStartDistSqr <= flMinDistToHangSqr)
+			? flDistSqr < flMinDistToHangSqr
+			: fl2DDistSqr < flMinDistToHangSqr )
 		{
-			vecDest.z -= vHangFactor;
+			// Make sure we could actually go to the hang position
+			vec_t vHangFactor = ( flHangDist * ( 1.0f - (fl2DDistSqr / flMinDistToHangSqr) ) );
 
-			// Recalculate 3D position
-			vecVelocity = (vecDest - GetAbsOrigin());
-			flDistSqr = vecVelocity.LengthSqr();
-			bHanging = true;
+			UTIL_TraceEntity( this, GetAbsOrigin(), vecDest - Vector(0,0,vHangFactor), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+			if ( tr.fraction == 1.0f )
+			{
+				vecDest.z -= vHangFactor;
+
+				// Recalculate 3D position
+				vecVelocity = (vecDest - GetAbsOrigin());
+				flDistSqr = vecVelocity.LengthSqr();
+				bHanging = true;
+			}
 		}
 	}
 	
 	// Are we at our destination?
-	if ( flDistSqr < Square( 16.0f ) )
-		return true;
+	if ( m_hGrappleDest )
+	{
+		if ( flDistSqr < Square( m_hGrappleDest->BoundingRadius() + 8.0f ) )
+			return true;
+	}
+	else
+	{
+		if ( flDistSqr < Square( 16.0f ) )
+			return true;
+	}
 
 	VectorNormalize( vecVelocity );
 
@@ -290,7 +369,7 @@ bool CNPC_Progenitor::GrappleMove()
 	if ( flDistSqr > flAccelDistSqr )
 	{
 		// Accelerate on start
-		vecVelocity = VectorLerp( GetAbsVelocity(), vecVelocity, RemapValClamped( flDistSqr, m_flGrappleStartDistSqr, flAccelDistSqr, 0.1f, 1.0f ) );
+		vecVelocity = VectorLerp( GetAbsVelocity(), vecVelocity, RemapValClamped( flDistSqr, flAccelDistSqr, m_flGrappleStartDistSqr, 1.0f, 0.1f ) );
 	}
 
 	if ( tr.fraction > 0.1f )
@@ -340,6 +419,12 @@ void CNPC_Progenitor::StartGrappling( int nType )
 
 	EmitSound( "NPC_Combine.Zipline_Mid" );
 
+	if ( m_hGrapplingHookCable )
+	{
+		// Technically shouldn't be any slack, but add just enough to shake the rope
+		m_hGrapplingHookCable->m_Slack = 2;
+	}
+
 	if ( m_nGrappleLayer != -1 )
 	{
 		SetLayerAutokill( m_nGrappleLayer, true );
@@ -358,20 +443,21 @@ void CNPC_Progenitor::StopGrappling( bool bCancel )
 	if ( m_iGrapplePhase == GRAPPLE_PHASE_NONE || m_iGrapplePhase == GRAPPLE_PHASE_LANDING )
 		return;
 
-	SetNavType( NAV_GROUND );
-	SetMoveType( MOVETYPE_STEP );
-	SetAbsVelocity( vec3_origin );
+	if ( m_iGrappleType != GRAPPLE_TYPE_PULL )
+	{
+		SetNavType( NAV_GROUND );
+		SetMoveType( MOVETYPE_STEP );
+		SetAbsVelocity( vec3_origin );
 
-	float flTime = GetGroundChangeTime();
-	AddStepDiscontinuity( flTime, GetAbsOrigin(), GetAbsAngles() );
+		float flTime = GetGroundChangeTime();
+		AddStepDiscontinuity( flTime, GetAbsOrigin(), GetAbsAngles() );
+
+		SetIdealActivity( ACT_GLIDE ); // ACT_IDLE
+		ResetActivity();
+	}
 
 	m_vecGrappleDest = vec3_invalid;
 	m_hGrappleDest = NULL;
-
-	m_iGrappleType = GRAPPLE_TYPE_NONE;
-
-	SetIdealActivity( ACT_GLIDE ); // ACT_IDLE
-	ResetActivity();
 
 	if ( m_nGrappleLayer != -1 )
 	{
@@ -403,14 +489,16 @@ void CNPC_Progenitor::StopGrappling( bool bCancel )
 	}
 	else
 	{
-		m_iGrapplePhase = GRAPPLE_PHASE_NONE;
-
-		if ( m_iGrappleType != GRAPPLE_TYPE_PULL )
+		if ( IsGrappling() )
 			EmitSound( "NPC_Combine.Zipline_End" );
+
+		m_iGrapplePhase = GRAPPLE_PHASE_NONE;
 
 		m_bNavEvaluatedJump = false;
 		m_bNavTrueJump = false;
 	}
+
+	m_iGrappleType = GRAPPLE_TYPE_NONE;
 }
 
 //-----------------------------------------------------------------------------
@@ -491,6 +579,26 @@ bool CNPC_Progenitor::ProbeGrappleTarget( const Vector &vecOrigin )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+bool CNPC_Progenitor::GrappleTraceTest( CBaseEntity *pTarget, float flMaxDistSqr )
+{
+	float flDistSqr = ( pTarget->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr();
+	if ( flDistSqr > Square( 200.0f ) && flDistSqr < flMaxDistSqr )
+	{
+		// Would a small box from our eyes make it through?
+		// (we don't do a full hull because we can slide against obstacles... making a lot of assumptions here, though)
+		trace_t tr;
+		Vector bounds( 12, 12, 12 );
+		UTIL_TraceHull( EyePosition(), pTarget->EyePosition(), -bounds, bounds, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction == 1.0f || tr.m_pEnt == pTarget )
+			return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CNPC_Progenitor::CalculateGrappleImpulse( IPhysicsObject *pPhys, float flMagnitude, Vector &vecImpulse, AngularImpulse &vecAngImpulse )
 {
 	Assert( m_hGrapplingHookProjectile );
@@ -538,28 +646,62 @@ void CNPC_Progenitor::GetGrappleDestForEntity( CBaseEntity *pEnt, Vector &vecOri
 		angAngles = pEnt->GetAbsAngles();
 		return;
 	}
-
-	// Move the destination to be outside of the target, since LOS checks won't ignore this
-	// It'd be really good to use fractionleftsolid instead of this trace filter, but I couldn't get it working for this
-	CTraceFilterGrappleTarget traceFilter( pEnt, COLLISION_GROUP_NONE );
-	trace_t tr;
-	UTIL_TraceLine( EyePosition(), pEnt->WorldSpaceCenter(), MASK_SOLID, &traceFilter, &tr );
-
-	vecOrigin = tr.endpos;
-	VectorAngles( tr.plane.normal, angAngles );
-
-	Vector vecVelocity = pEnt->GetAbsVelocity();
-	float flEntSpeed = VectorNormalize( vecVelocity );
-	if ( pEnt->IsCombatCharacter() && flEntSpeed > 0.0f )
+	
+	if ( m_iGrapplePhase < GRAPPLE_PHASE_HOOKED )
 	{
-		// Lead it based on how far away it is
-		Vector vecToDest = (vecOrigin - GetAbsOrigin());
-		float flTimeToReach = 0.0f;
-		if ( sk_progenitor_grapple_hook_speed.GetFloat() > 0.0f )
-			flTimeToReach = ( vecToDest.LengthSqr() / Square( sk_progenitor_grapple_hook_speed.GetFloat() ) );
+		// Move the destination to be outside of the target, since LOS checks won't ignore this
+		// It'd be really good to use fractionleftsolid instead of this trace filter, but I couldn't get it working for this
+		CTraceFilterGrappleTarget traceFilter( pEnt, COLLISION_GROUP_NONE );
+		trace_t tr;
+		UTIL_TraceLine( EyePosition(), pEnt->WorldSpaceCenter(), MASK_SOLID, &traceFilter, &tr );
 
-		vecOrigin += (vecVelocity * flTimeToReach);
+		vecOrigin = tr.endpos;
+		VectorAngles( tr.plane.normal, angAngles );
+
+		Vector vecVelocity = pEnt->GetSmoothedVelocity();
+		float flEntSpeed = VectorNormalize( vecVelocity );
+		if ( pEnt->IsCombatCharacter() && flEntSpeed > 0.0f )
+		{
+			// Lead it based on how far away it is
+			Vector vecToDest = (vecOrigin - GetAbsOrigin());
+			float flTimeToReach = 0.0f;
+			if ( sk_progenitor_grapple_hook_speed.GetFloat() > 0.0f )
+				flTimeToReach = ( vecToDest.LengthSqr() / Square( sk_progenitor_grapple_hook_speed.GetFloat() ) );
+
+			vecOrigin += (vecVelocity * flTimeToReach);
+		}
 	}
+	else
+	{
+		// We're already hooked to the target, so just follow their center
+		vecOrigin = pEnt->WorldSpaceCenter();
+
+		/*if ( pEnt->IsCombatCharacter() )
+		{
+			// Follow half-way to the origin, since the grapple dest will be our origin and we don't want to come in above them
+			// (This is mostly important for when we're grappling to the player)
+			Vector vecCenterToOrigin = ( pEnt->GetAbsOrigin() - vecOrigin );
+			vecOrigin += (vecCenterToOrigin * 0.5f);
+		}*/
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::InputGrappleToTargetForced( inputdata_t &inputdata )
+{
+	CBaseEntity *pTarget = inputdata.value.Entity();
+	if ( !pTarget )
+		return;
+
+	m_hGrappleDest = pTarget;
+	m_vecGrappleDest = pTarget->GetAbsOrigin();
+	m_vecGrappleAngle = pTarget->GetAbsAngles();
+
+	m_iGrappleType = GRAPPLE_TYPE_FORCED;
+
+	ClearSchedule( "Told to grapple via input" );
 }
 
 //-----------------------------------------------------------------------------
@@ -575,7 +717,7 @@ void CNPC_Progenitor::InputGrappleToTarget( inputdata_t &inputdata )
 	m_vecGrappleDest = pTarget->GetAbsOrigin();
 	m_vecGrappleAngle = pTarget->GetAbsAngles();
 
-	m_iGrappleType = GRAPPLE_TYPE_FORCED;
+	m_iGrappleType = GRAPPLE_TYPE_PULL_TO;
 
 	ClearSchedule( "Told to grapple via input" );
 }
@@ -681,7 +823,10 @@ void CNPC_Progenitor::OnMovementFailed()
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::IsInterruptable()
 {
-	if ( IsGrappling() )
+	// Technically we should only truly be uninterruptable when grappling, but usually the conditions
+	// that would interrupt us when we're shooting will become irrelevant after we start grappling
+	// So if we've already gotten far enough to shoot, then consider us uninterruptable
+	if ( m_iGrapplePhase >= GRAPPLE_PHASE_SHOT && ( IsNavGrapple() || IsForcedGrapple() ) )
 		return false;
 
 	return BaseClass::IsInterruptable();
@@ -737,6 +882,8 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 		return BaseClass::MoveJump();
 	}
 
+	GetMotor()->SetMoveInterval( 0 );
+
 	switch ( GetOuter()->m_iGrapplePhase )
 	{
 		case GRAPPLE_PHASE_NONE:
@@ -748,8 +895,12 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 					GetOuter()->m_vecGrappleAngle = vec3_angle;
 				}
 
+				// This makes sure we don't have any lingering blend sequences in CAI_BlendedMotor
+				GetMotor()->MoveStop();
+
 				GetOuter()->SetIdealActivity( ACT_RANGE_ATTACK_GRAPPLE );
 				GetOuter()->m_iGrapplePhase = GRAPPLE_PHASE_PRESHOT;
+				GetOuter()->m_iGrappleType = GRAPPLE_TYPE_NAV;
 			}
 			//break;
 		case GRAPPLE_PHASE_PRESHOT:
@@ -840,8 +991,6 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 			break;
 	}
 
-	GetMotor()->SetMoveInterval( 0 );
-
 	return AIMR_OK;
 }
 
@@ -906,11 +1055,11 @@ void CNPC_Progenitor::CNavigator::MoveCalcBaseGoal( AILocalMoveGoal_t *pMoveGoal
 			}
 		}
 	}
-	/*else if ( pMoveGoal->flags & AILMG_TARGET_IS_GOAL )
+	else if ( pMoveGoal->flags & AILMG_TARGET_IS_GOAL )
 	{
 		if ( GetOuter()->ShouldSlideToGoal( pMoveGoal ) )
 			GetOuter()->StartSlidingToGoal( pMoveGoal );
-	}*/
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -922,6 +1071,9 @@ void CNPC_Progenitor::CNavigator::OnNavComplete()
 
 	GetOuter()->m_bNavEvaluatedJump = false;
 	GetOuter()->m_bNavTrueJump = false;
+
+	if ( GetOuter()->m_bSliding )
+		GetOuter()->StopSliding( true );
 }
 
 //-----------------------------------------------------------------------------
@@ -933,4 +1085,12 @@ void CNPC_Progenitor::CNavigator::OnNewGoal()
 
 	GetOuter()->m_bNavEvaluatedJump = false;
 	GetOuter()->m_bNavTrueJump = false;
+
+	if ( GetOuter()->IsNavGrapple() && GetOuter()->m_iGrapplePhase > GRAPPLE_PHASE_NONE && GetOuter()->m_iGrapplePhase < GRAPPLE_PHASE_SHOT )
+	{
+		GetOuter()->StopGrappling();
+	}
+
+	if ( GetOuter()->m_bSliding )
+		GetOuter()->StopSliding();
 }

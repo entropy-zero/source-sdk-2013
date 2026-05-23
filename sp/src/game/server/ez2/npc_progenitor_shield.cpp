@@ -20,6 +20,7 @@
 
 extern ConVar	sk_progenitor_shield_fire_rate;
 extern ConVar	sk_progenitor_shield_max_time;
+extern ConVar	sk_progenitor_shield_max_cooldown;
 extern ConVar	sk_progenitor_shield_throw;
 extern ConVar	sk_progenitor_shield_throw_speed;
 extern ConVar	sk_progenitor_shield_throw_dmg;
@@ -31,6 +32,13 @@ extern ConVar	sk_progenitor_shield_slam_radius;
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::ShouldActivateShield()
 {
+	if ( !GetEnemy() )
+		return false;
+
+	// Don't equip shield if we just used it
+	if ( gpGlobals->curtime - m_flShieldDeactivateTime < sk_progenitor_shield_max_cooldown.GetFloat() )
+		return false;
+
 	switch ( GetActivity() )
 	{
 		case ACT_IDLE:
@@ -116,6 +124,11 @@ bool CNPC_Progenitor::ShouldDeactivateShield( bool &bThrow )
 
 	if ( bThrow )
 	{
+		// If we aren't under attack and we'll be deactivating soon anyway, try throwing it
+		if ( (gpGlobals->curtime - m_flLastDamageTime) > 2.0f
+			&& (gpGlobals->curtime - m_flShieldDeactivateTime) < (sk_progenitor_shield_max_time.GetFloat() * 0.5f) )
+			return true;
+
 		if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_ENEMY, false ) && GetEnemy() /*&& (gpGlobals->curtime - m_flLastDamageTime) > 1.0f*/ )
 		{
 			// If we are about to get into cover and the enemy isn't right on us, then throw to cover our escape
@@ -141,14 +154,16 @@ bool CNPC_Progenitor::ShouldDeactivateShield( bool &bThrow )
 			return true;
 		}
 	}
-	else
+	else if ( GetEnemy() )
 	{
-		// If we're not trying to press on, deactivate in cover
+		// If we're not trying to press on, deactivate in cover if the enemy isn't close by
 		if ( !IsCurSchedule( SCHED_COMBINE_ASSAULT )
 			&& !IsCurSchedule( SCHED_COMBINE_PRESS_ATTACK )
 			&& !IsCurSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE ) )
 		{
-			if ( !FVisible( GetEnemyLKP() ) )
+			Vector vecEnemyLKP = GetEnemyLKP() + GetEnemy()->GetViewOffset();
+			Vector vecToLKP = (vecEnemyLKP - GetAbsOrigin());
+			if ( vecToLKP.LengthSqr() > 300.0f && !FVisible( vecEnemyLKP ) )
 			{
 				bThrow = false;
 				return true;
@@ -238,8 +253,9 @@ void CNPC_Progenitor::RemoveShieldEffects( bool bOnShield )
 	if ( m_pShieldSound )
 	{
 		CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
-		controller.SoundChangePitch( m_pShieldSound, 90.0f, 0.2f );
-		controller.SoundFadeOut( m_pShieldSound, 0.25f, true );
+		//controller.SoundChangePitch( m_pShieldSound, 90.0f, 0.2f );
+		//controller.SoundFadeOut( m_pShieldSound, 0.25f, true );
+		controller.SoundDestroy( m_pShieldSound );
 		m_pShieldSound = NULL;
 	}
 
@@ -292,6 +308,8 @@ void CNPC_Progenitor::OnShieldRemove( CPropShield *pShield )
 	// Update shot regulator for no shield
 	if ( GetActiveWeapon() )
 		OnUpdateShotRegulator();
+
+	m_flShieldDeactivateTime = gpGlobals->curtime;
 }
 
 //-----------------------------------------------------------------------------
@@ -324,7 +342,7 @@ CBaseEntity *CNPC_Progenitor::CreateShieldProjectile( CPropShield *pShield )
 	if ( GetActiveWeapon() )
 		OnUpdateShotRegulator();
 
-	CPhysicsProp *pProjectile = (CPhysicsProp*)CreateNoSpawn( "prop_progenitor_thrown_shield", pShield->GetAbsOrigin(), pShield->GetAbsAngles(), this );
+	CPropProgenitorThrownShield *pProjectile = (CPropProgenitorThrownShield*)CreateNoSpawn( "prop_progenitor_thrown_shield", pShield->GetAbsOrigin(), pShield->GetAbsAngles(), this );
 	if ( !pProjectile )
 	{
 		if ( m_hShieldLight )
@@ -348,6 +366,7 @@ CBaseEntity *CNPC_Progenitor::CreateShieldProjectile( CPropShield *pShield )
 
 	g_pEffects->Sparks( pShield->GetAbsOrigin(), 2, 2 );
 
+	pProjectile->m_flEnableGravityTime = (m_bInjured ? 1.0f : 2.0f);
 	pProjectile->SetModelName( MAKE_STRING( PROGENITOR_SHIELD_THROWN_MODEL ) );
 	DispatchSpawn( pProjectile );
 
@@ -388,18 +407,23 @@ CBaseEntity *CNPC_Progenitor::CreateShieldProjectile( CPropShield *pShield )
 
 		vecVelocity = ( vecEnemyPos - pProjectile->GetAbsOrigin() );
 		VectorNormalize( vecVelocity );
-
-		QAngle angAngles;
-		VectorAngles( vecVelocity, angAngles );
-
-		// Since our angles are relative to the NPC, this doesn't resolve consistently,
-		// but it's fine for this
-		angAngles.x -= 90.0f;
-
-		pProjectile->SetAbsAngles( angAngles );
-
-		vecVelocity *= sk_progenitor_shield_throw_speed.GetFloat();
 	}
+	else
+	{
+		// Use our body angles if no enemy
+		vecVelocity = BodyDirection3D();
+	}
+
+	QAngle angAngles;
+	VectorAngles( vecVelocity, angAngles );
+
+	// Since our angles are relative to the NPC, this doesn't resolve consistently,
+	// but it's fine for this
+	angAngles.x -= 90.0f;
+
+	pProjectile->SetAbsAngles( angAngles );
+
+	vecVelocity *= sk_progenitor_shield_throw_speed.GetFloat();
 
 	IPhysicsObject *pPhys = pProjectile->VPhysicsGetObject();
 	if ( pPhys )
@@ -501,6 +525,7 @@ BEGIN_DATADESC( CPropProgenitorThrownShield )
 	DEFINE_THINKFUNC( EnableGravityThink ),
 
 	DEFINE_FIELD( m_flNextDangerSoundTime, FIELD_TIME ),
+	//DEFINE_FIELD( m_flEnableGravityTime, FIELD_FLOAT ), // We only use this on spawn
 
 END_DATADESC()
 
@@ -515,6 +540,7 @@ CPropProgenitorThrownShield::CPropProgenitorThrownShield()
 	m_explodeRadius = sk_progenitor_shield_throw_radius.GetFloat();
 
 	m_flNextDangerSoundTime = 0.0f;
+	m_flEnableGravityTime = 2.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -541,7 +567,7 @@ void CPropProgenitorThrownShield::Spawn()
 	SetContextThink( &CPropProgenitorThrownShield::AnimateThink, gpGlobals->curtime + 0.1f, "AnimateThink" );
 
 	SetThink( &CPropProgenitorThrownShield::EnableGravityThink );
-	SetNextThink( gpGlobals->curtime + 2.0f );
+	SetNextThink( gpGlobals->curtime + m_flEnableGravityTime );
 }
 
 //-----------------------------------------------------------------------------

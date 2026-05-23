@@ -18,14 +18,18 @@
 #include "SpriteTrail.h"
 #include "rope.h"
 #include "ai_route.h"
+#include "animation.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 ConVar	sk_progenitor_health( "sk_progenitor_health","1000" );
 ConVar	sk_progenitor_kick( "sk_progenitor_kick", "20" );
+ConVar	sk_progenitor_slide_decel_dist( "sk_progenitor_slide_decel_dist", "100" );
+ConVar	sk_progenitor_slide_always( "sk_progenitor_slide_always", "0" );
 ConVar	sk_progenitor_shield_fire_rate( "sk_progenitor_shield_fire_rate", "2.0" );
 ConVar	sk_progenitor_shield_max_time( "sk_progenitor_shield_max_time", "10" );
+ConVar	sk_progenitor_shield_max_cooldown( "sk_progenitor_shield_max_cooldown", "5" );
 ConVar	sk_progenitor_shield_throw( "sk_progenitor_shield_throw", "1" );
 ConVar	sk_progenitor_shield_throw_speed( "sk_progenitor_shield_throw_speed", "650" );
 ConVar	sk_progenitor_shield_throw_dmg( "sk_progenitor_shield_throw_dmg", "50" );
@@ -39,6 +43,9 @@ ConVar	sk_progenitor_grapple_hook_speed( "sk_progenitor_grapple_hook_speed", "10
 ConVar	sk_progenitor_grapple_hook_dmg( "sk_progenitor_grapple_hook_dmg", "5" );
 ConVar	sk_progenitor_grapple_min_dist( "sk_progenitor_grapple_min_dist", "200" );
 ConVar	sk_progenitor_grapple_max_dist( "sk_progenitor_grapple_max_dist", "3000" );
+
+// Sort of forced to do this, since the enum is in npc_combine.cpp
+#define TACTICAL_VARIANT_PRESSURE_ENEMY	1
 
 //---------------------------------------------------------
 
@@ -61,8 +68,12 @@ Activity ACT_GRAPPLE_FLY;
 //---------------------------------------------------------
 BEGIN_DATADESC( CNPC_Progenitor )
 
-	DEFINE_FIELD( m_bThrowSatchels, FIELD_BOOLEAN ),
+	DEFINE_INPUT( m_bThrowSatchels, FIELD_BOOLEAN, "SetThrowSatchels" ),
 	DEFINE_UTLVECTOR( m_hSatchels, FIELD_EHANDLE ),
+
+	DEFINE_INPUT( m_bInjured, FIELD_BOOLEAN, "SetInjured" ),
+
+	DEFINE_FIELD( m_bSliding, FIELD_BOOLEAN ),
 
 	DEFINE_FIELD( m_flNextShieldStateCheck, FIELD_TIME ),
 	DEFINE_FIELD( m_flShieldDeactivateTime, FIELD_TIME ),
@@ -82,10 +93,12 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_FIELD( m_iGrapplePhase, FIELD_INTEGER ),
 	DEFINE_FIELD( m_iGrappleType, FIELD_INTEGER ),
 	DEFINE_FIELD( m_nGrappleLayer, FIELD_INTEGER ),
-	DEFINE_KEYFIELD( m_bGrappleAllowed, FIELD_BOOLEAN, "GrappleAllowed" ),
+	DEFINE_INPUT( m_bGrappleAllowed, FIELD_BOOLEAN, "SetGrappleAllowed" ),
+	DEFINE_INPUT( m_flGrappleWeight, FIELD_FLOAT, "SetGrappleWeight" ),
 	DEFINE_FIELD( m_bNavEvaluatedJump, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bNavTrueJump, FIELD_BOOLEAN ),
 
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrappleToTargetForced", InputGrappleToTargetForced ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrappleToTarget", InputGrappleToTarget ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrapplePullTarget", InputGrapplePullTarget ),
 
@@ -110,6 +123,9 @@ CNPC_Progenitor::CNPC_Progenitor()
 	m_vecGrappleDest = vec3_invalid;
 	m_bGrappleAllowed = true;
 	m_nGrappleLayer = -1;
+
+	// By default, try not to grapple unless really necessary
+	m_flGrappleWeight = 0.2f;
 }
 
 //-----------------------------------------------------------------------------
@@ -139,6 +155,8 @@ void CNPC_Progenitor::Precache()
 	{
 		SetModelName( MAKE_STRING( "models/progenitor.mdl" ) );
 	}
+
+	PrecacheScriptSound( "NPC_Progenitor.Slide" );
 
 	PrecacheScriptSound( "Weapon_EnergyShield.Holster" );
 	PrecacheScriptSound( "Weapon_EnergyShield.Unholster" );
@@ -173,6 +191,18 @@ void CNPC_Progenitor::Precache()
 void CNPC_Progenitor::Activate()
 {
 	BaseClass::Activate();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::PopulatePoseParameters( void )
+{
+	BaseClass::PopulatePoseParameters();
+
+	// Used for sliding
+	m_poseMove_X = LookupPoseParameter( "move_x" );
+	m_poseMove_Y = LookupPoseParameter( "move_y" );
 }
 
 //-----------------------------------------------------------------------------
@@ -245,6 +275,13 @@ int CNPC_Progenitor::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 		m_flNextShieldStateCheck = gpGlobals->curtime;
 	}
 
+	if ( IsGrappling() )
+	{
+		// Melee attacks break us out of grappling
+		if ( info.GetDamageType() & DMG_CLUB )
+			StopGrappling();
+	}
+
 	return ret;
 }
 
@@ -270,7 +307,7 @@ void CNPC_Progenitor::GatherConditions()
 			ClearCondition( COND_HEAVY_DAMAGE );
 		}
 	}
-	else if ( CanUseShieldDuringAI() && GetEnemy() )
+	else if ( CanUseShieldDuringAI() )
 	{
 		if ( IsPropShieldEquipped() ?
 			( HasCondition( COND_HEAR_DANGER ) )
@@ -281,7 +318,17 @@ void CNPC_Progenitor::GatherConditions()
 
 		if ( m_flNextShieldStateCheck < gpGlobals->curtime )
 		{
-			m_flNextShieldStateCheck = gpGlobals->curtime + 1.0f;
+			switch ( GetState() )
+			{
+				case NPC_STATE_IDLE:
+				case NPC_STATE_ALERT:
+				default:
+					m_flNextShieldStateCheck = gpGlobals->curtime + 1.0f;
+					break;
+				case NPC_STATE_COMBAT:
+					m_flNextShieldStateCheck = gpGlobals->curtime + 0.5f;
+					break;
+			}
 
 			if ( !IsPropShieldEquipped() )
 			{
@@ -319,16 +366,27 @@ void CNPC_Progenitor::GatherConditions()
 					bool bCanThrow = false;
 					if ( CanThrowShield() )
 					{
-						if ( HasCondition( COND_SEE_ENEMY ) || FVisible( GetEnemyLKP() ) )
+						if ( HasCondition( COND_SEE_ENEMY ) || ( GetEnemy() && FVisible( GetEnemyLKP() ) ) )
 						{
-							// See if we can do a trace forward
-							Vector vecShieldOrigin = IsCrouching() ? EyePosition() : m_hShield->GetAbsOrigin();
-							trace_t tr;
-							Vector bounds( 24, 24, 24 );
-							Vector vecTarget = vecShieldOrigin + ( BodyDirection3D() * 64.0f );
-							UTIL_TraceHull( vecShieldOrigin, vecTarget, -bounds, bounds, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
-							if ( !tr.DidHit() || tr.m_pEnt == GetEnemy() )
+							if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) )
+							{
+								// Always throw when angry
 								bCanThrow = true;
+							}
+							else
+							{
+								// See if we can do a trace forward
+								Vector vecShieldOrigin = EyePosition() + (BodyDirection3D() * 24.0f) + (GetSmoothedVelocity() * 0.2f); //IsCrouching() ? EyePosition() : m_hShield->GetAbsOrigin();
+								trace_t tr;
+								Vector bounds( 24, 24, 24 );
+								Vector vecTarget = vecShieldOrigin + ( GetShootEnemyDir( vecShieldOrigin, false ) * 48.0f );
+								UTIL_TraceHull( vecShieldOrigin, vecTarget, -bounds, bounds, MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
+								if ( !tr.DidHit() || tr.m_pEnt == GetEnemy() )
+									bCanThrow = true;
+
+								//if ( !bCanThrow )
+								//	NDebugOverlay::Box( tr.endpos, bounds, -bounds, 255, 0, 0, 64, 4.0f );
+							}
 						}
 					}
 
@@ -387,16 +445,22 @@ void CNPC_Progenitor::PrescheduleThink()
 
 	if ( m_hGrappleDest )
 	{
-		if ( m_iGrapplePhase < GRAPPLE_PHASE_SHOT )
+		if ( m_iGrapplePhase < GRAPPLE_PHASE_SHOT || IsToObjGrapple() )
 			GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
 
-		if ( IsPullObjGrapple() && IsGrappleHooked() && m_hGrappleDest->VPhysicsGetObject() )
+		if ( ( ( IsPullObjGrapple() && IsGrappleHooked() ) || ( IsToObjGrapple() && IsGrappling() ) ) && m_hGrappleDest->VPhysicsGetObject() )
 		{
 			// If this is a physical entity, slowly pull it towards us
 			Vector vecImpulse;
 			AngularImpulse vecAngImpulse;
 			CalculateGrappleImpulse( m_hGrappleDest->VPhysicsGetObject(), 48.0f, vecImpulse, vecAngImpulse );
 			vecImpulse.z += 4.0f;
+
+			if ( m_hGrappleDest->IsPlayer() )
+			{
+				vecImpulse *= 2.5f;
+			}
+
 			ApplyGrappleImpulse( m_hGrappleDest, vecImpulse, vecAngImpulse );
 		}
 	}
@@ -430,6 +494,18 @@ void CNPC_Progenitor::PrescheduleThink()
 			StopGrappling();
 		}
 	}
+
+	if ( m_bInjured )
+	{
+		if ( m_pShieldSound )
+		{
+			// Shield goes crazy
+			CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
+			controller.SoundChangePitch( m_pShieldSound, RandomFloat( 80.0f, 115.0f ), 0.5f );
+
+			RandomGaussianFloat();
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -439,10 +515,13 @@ void CNPC_Progenitor::OnScheduleChange( void )
 {
 	BaseClass::OnScheduleChange();
 
-	if ( m_iGrapplePhase != GRAPPLE_PHASE_NONE && ( !IsGrappling() || GetIdealActivity() != ACT_GRAPPLE_FLY ) /*&& m_bForcedGrapple*/ )
+	if ( m_iGrapplePhase != GRAPPLE_PHASE_NONE && IsInterruptable() )
 	{
 		StopGrappling();
 	}
+
+	if ( m_bSliding )
+		m_bSliding = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -454,7 +533,7 @@ int CNPC_Progenitor::SelectSchedule( void )
 {
 	if ( m_vecGrappleDest != vec3_invalid )
 	{
-		if ( IsForcedGrapple() || IsPullObjGrapple() )
+		if ( !IsNavGrapple() )
 		{
 			if ( !HasCondition( COND_COMBINE_CAN_GRAPPLE ) )
 			{
@@ -484,16 +563,15 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 		case SCHED_COMBINE_MERCILESS_SUPPRESS:
 		case SCHED_COMBINE_MERCILESS_SUPPRESS_CREEP:
 			{
-				if ( CanUseGrapple() && HasCondition( COND_SEE_ENEMY ) )
+				if ( CanUseGrapple() && HasCondition( COND_SEE_ENEMY ) && GetEnemy() && !IsGrappling() )
 				{
 					CBaseEntity *pEnemy = GetEnemy();
-					if ( pEnemy && pEnemy->IsNPC() )
+					if ( pEnemy->IsNPC() )
 					{
 						if ( pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY || pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY_CENTERED )
 						{
 							// Pull towards us?
-							float flDistSqr = ( pEnemy->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr();
-							if ( flDistSqr > Square( 200.0f ) && flDistSqr < Square( 1500.0f ) )
+							if ( GrappleTraceTest( pEnemy, Square( 1500.0f ) ) )
 							{
 								m_hGrappleDest = pEnemy;
 								GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
@@ -501,6 +579,19 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 								m_iGrappleType = GRAPPLE_TYPE_PULL;
 								return SCHED_COMBINE_GRAPPLE_SHOOT;
 							}
+						}
+					}
+
+					if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) && ( GetHealth() > GetMaxHealth() * 0.5 ) && RandomFloat() < m_flGrappleWeight )
+					{
+						// When pressuring, pull self towards enemies
+						if ( GrappleTraceTest( pEnemy, Square( 2500.0f ) ) )
+						{
+							m_hGrappleDest = pEnemy;
+							GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
+
+							m_iGrappleType = GRAPPLE_TYPE_PULL_TO;
+							return SCHED_COMBINE_GRAPPLE_SHOOT;
 						}
 					}
 				}
@@ -562,10 +653,10 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 			break;
 		case SCHED_GET_HEALTHKIT:
 			{
-				if ( CanUseGrapple() && GetTarget() )
+				if ( CanUseGrapple() && GetTarget() && !IsGrappling() )
 				{
 					float flDistToTargetSqr = (GetAbsOrigin() - GetTarget()->GetAbsOrigin()).LengthSqr();
-					if ( flDistToTargetSqr > Square( 96.0f ) && FVisible( GetTarget() ) )
+					if ( flDistToTargetSqr > Square( 128.0f ) && FVisible( GetTarget() ) )
 					{
 						m_hGrappleDest = GetTarget();
 						GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
@@ -619,6 +710,12 @@ void CNPC_Progenitor::HandleAnimEvent( animevent_t *pEvent )
 		{
 			if ( m_hGrapplingHookProjectile )
 			{
+				if ( m_hGrappleDest )
+				{
+					// Update the position before we shoot
+					GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
+				}
+
 				// Launch the projectile in the direction of the destination
 				m_hGrapplingHookProjectile->SetParent( NULL );
 				m_hGrapplingHookProjectile->SetMoveType( MOVETYPE_NOCLIP ); // MOVETYPE_FLY
@@ -671,6 +768,12 @@ void CNPC_Progenitor::HandleAnimEvent( animevent_t *pEvent )
 				ApplyGrappleImpulse( m_hGrappleDest, vecImpulse, vecAngImpulse );
 
 				EmitSound( "NPC_Combine.Zipline_Mid" );
+
+				if ( m_hGrapplingHookCable )
+				{
+					// Technically shouldn't be any slack, but add just enough to shake the rope
+					m_hGrapplingHookCable->m_Slack = 3;
+				}
 			}
 			return;
 		}
@@ -860,16 +963,10 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 				// Wait for that time plus 4 seconds
 				SetWait( flTimeToReach + 4.0f );
 
-				StartGrappling( GRAPPLE_TYPE_FORCED );
+				StartGrappling( m_iGrappleType ); // GRAPPLE_TYPE_FORCED
 
 				SetIdealActivity( ACT_GRAPPLE_FLY );
 				//SetActivity( ACT_GRAPPLE_FLY );
-			}
-			break;
-
-		case TASK_COMBINE_GRAPPLE_END:
-			{
-				TaskComplete();
 			}
 			break;
 
@@ -933,7 +1030,15 @@ void CNPC_Progenitor::RunTask( const Task_t *pTask )
 			{
 				if ( IsWaitFinished() )
 				{
+					StopGrappling();
 					TaskFail( FAIL_BAD_POSITION );
+					break;
+				}
+
+				if ( !IsGrappling() )
+				{
+					// It was canceled somehow
+					TaskComplete();
 					break;
 				}
 
@@ -964,11 +1069,6 @@ void CNPC_Progenitor::RunTask( const Task_t *pTask )
 					StopGrappling();
 					TaskComplete();
 				}
-			}
-			break;
-
-		case TASK_COMBINE_GRAPPLE_END:
-			{
 			}
 			break;
 
@@ -1006,9 +1106,21 @@ void CNPC_Progenitor::RunTask( const Task_t *pTask )
 
 				if ( IsWaitFinished() )
 				{
-					// Do another pull
-					AddActionGesture( ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL );
-					SetWait( 4.0f, 6.0f );
+					// Make sure we can still see the target
+					trace_t tr;
+					UTIL_TraceLine( EyePosition(), m_hGrappleDest->WorldSpaceCenter(), MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
+					if ( !tr.DidHit() || tr.m_pEnt == m_hGrappleDest )
+					{
+						// Do another pull
+						AddActionGesture( ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL );
+						SetWait( 4.0f, 6.0f );
+					}
+					else
+					{
+						// Assume we can't get it
+						TaskFail( FAIL_BAD_POSITION );
+						break;
+					}
 				}
 
 				GetMotor()->SetIdealYawToTargetAndUpdate( m_hGrappleDest->GetAbsOrigin() );
@@ -1142,8 +1254,14 @@ bool CNPC_Progenitor::MovementCost( int moveType, const Vector &vecStart, const 
 	{
 		if ( !IsTrueJumpLegal( vecStart, vecEnd, vecEnd ) )
 		{
-			// Try not to grapple unless really necessary
-			*pCost *= 5.0f;
+			if ( m_flGrappleWeight == 0.0f )
+			{
+				*pCost *= 100.0f;
+			}
+			else
+			{
+				*pCost *= (1.0f / m_flGrappleWeight);
+			}
 		}
 	}
 
@@ -1161,7 +1279,21 @@ Activity CNPC_Progenitor::NPC_TranslateActivity( Activity eNewActivity )
 		return ACT_GRAPPLE_FLY;
 	}
 
-	if ( m_nGrappleLayer != -1 )
+	if ( m_bSliding )
+	{
+		switch ( eNewActivity )
+		{
+			case ACT_IDLE:
+			case ACT_IDLE_ANGRY:
+			case ACT_WALK:
+			case ACT_WALK_AIM:
+			case ACT_RUN:
+			case ACT_RUN_AIM:
+				eNewActivity = ACT_HL2MP_SLIDE;
+				break;
+		}
+	}
+	else if ( m_nGrappleLayer != -1 )
 	{
 		switch ( eNewActivity )
 		{
@@ -1247,15 +1379,49 @@ void CNPC_Progenitor::OnThrowProximitySatchel( CBaseEntity *pGrenade )
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal )
 {
+	// Already sliding
+	if ( m_bSliding )
+		return false;
+
+	if ( sk_progenitor_slide_always.GetBool() )
+		return true;
+
+	// Not in combat
+	if ( GetState() != NPC_STATE_COMBAT || !GetEnemy() || IsInAScript() )
+		return false;
+
+	// Not going fast enough
+	if ( GetNavType() != NAV_GROUND || GetMotor()->GetCurVel().LengthSqr() < Square( 150.0f ) )
+		return false;
+
+	// Not enough or too much distance
+	float flDistSqr = ( GetAbsOrigin() - pMoveGoal->target ).LengthSqr();
+	if ( flDistSqr < Square( 100.0f ) || flDistSqr > Square( 350.0f ) )
+		return false;
+
+	// Too busy
+	if ( IsPropShieldEquipped() || m_bInjured )
+		return false;
+
+	// No sequence
+	if ( !HaveSequenceForActivity( ACT_HL2MP_SLIDE ) )
+		return false;
+
+	// Would we see the enemy if crouched at our goal?
+	trace_t tr;
+	Vector vecEyeAtGoal = pMoveGoal->target + GetCrouchEyeOffset();
+	Vector vecEnemyOffset = GetEnemy()->HeadTarget( vecEyeAtGoal ) - GetEnemy()->GetAbsOrigin();
+	Vector vecEnemyPos = vecEnemyOffset + GetEnemyLKP();
+	AI_TraceLOS( vecEyeAtGoal, vecEnemyPos, this, &tr );
+	if ( tr.fraction != 1.0f && tr.m_pEnt != GetEnemy() )
+		return false;
+
 	/*if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_BEST_SOUND )
 		|| IsCurSchedule( SCHED_HIDE_AND_RELOAD )
 		|| IsCurSchedule( SCHED_COMBINE_TAKE_COVER_FROM_BEST_SOUND, false ) )
-		return true;
+		return true;*/
 
-	if ( !HaveSequenceForActivity( ACT_HL2MP_SLIDE ) )
-		return false;*/
-
-	return false;
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1263,8 +1429,79 @@ bool CNPC_Progenitor::ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal )
 //-----------------------------------------------------------------------------
 void CNPC_Progenitor::StartSlidingToGoal( AILocalMoveGoal_t *pMoveGoal )
 {
-	//SetIdealActivity( ACT_HL2MP_SLIDE );
-	//ResetActivity();
+	m_bSliding = true;
+	GetNavigator()->SetArrivalActivity( ACT_COVER_LOW );
+	ResetActivity();
+
+	EmitSound( "NPC_Progenitor.Slide" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::StopSliding( bool bIntoCrouch )
+{
+	m_bSliding = false;
+
+	if ( bIntoCrouch )
+		Crouch();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval )
+{
+	if ( BaseClass::OverrideMoveFacing( move, flInterval ) )
+		return true;
+
+	if ( m_bSliding )
+	{
+		float flDistRemaining = (move.target - GetLocalOrigin()).LengthSqr() / Square( sk_progenitor_slide_decel_dist.GetFloat() );
+		if ( flDistRemaining > 0.0f )
+		{
+			GetMotor()->SetMoveInterval( 0 );
+
+			// Update yaw using code from CAI_Motor::MoveFacing()
+			Vector dir;
+			if (GetMotor()->IsDeceleratingToGoal() && (GetHintNode() /*|| GetOuter()->m_hOpeningDoor*/))
+			{
+				dir = move.facing;
+				VectorNormalize( dir );
+			}
+			else
+			{
+				float flInfluence = GetFacingDirection( dir );
+				dir = move.facing * (1 - flInfluence) + dir * flInfluence;
+				VectorNormalize( dir );
+			}
+
+			float idealYaw = UTIL_AngleMod( UTIL_VecToYaw( dir ) );
+			GetMotor()->SetIdealYawAndUpdate( idealYaw );	
+
+			// Determine move yaw, then convert it to the X/Y anim type
+			float flMoveYaw = UTIL_VecToYaw( move.dir );
+			float flDiff = DEG2RAD( UTIL_AngleDiff( flMoveYaw, GetLocalAngles().y ) );
+
+			// Approach 0.5 instead of 0 so that we don't become too slow
+			//float flTimeDelta = ( SmoothCurve( flDistRemaining ) * 0.5f ) + 0.5f;
+			float flTimeDelta = 1.0f;
+
+			//Msg( "diff: %.2f (%.2f, %.2f, %.2f), Move X: %.2f, Move Y: %.2f (t: %.2f)\n", flDiff, flMoveYaw, GetLocalAngles().y, RAD2DEG( flDiff ), cos( flDiff ), sin( flDiff ), flTimeDelta );
+
+			SetPoseParameter( m_poseMove_X, cos( flDiff ) * flTimeDelta );
+			SetPoseParameter( m_poseMove_Y, sin( flDiff ) * flTimeDelta );
+
+			return true;
+		}
+		else
+		{
+			SetPoseParameter( m_poseMove_X, 0.0f );
+			SetPoseParameter( m_poseMove_Y, 0.0f );
+		}
+	}
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1304,7 +1541,6 @@ AI_BEGIN_CUSTOM_NPC( npc_progenitor, CNPC_Progenitor )
 	DECLARE_TASK( TASK_COMBINE_SET_GRAPPLE_SCHEDULE )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_SHOOT )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_MOVE )
-	DECLARE_TASK( TASK_COMBINE_GRAPPLE_END )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_PULL_OBJ )
 
 	DECLARE_CONDITION( COND_COMBINE_SHIELD_RETREAT )
@@ -1395,7 +1631,6 @@ AI_BEGIN_CUSTOM_NPC( npc_progenitor, CNPC_Progenitor )
 	
 		"	Tasks"
 		"		TASK_COMBINE_GRAPPLE_MOVE				0"
-		"		TASK_COMBINE_GRAPPLE_END				0"
 		""
 		"	Interrupts"
 	)

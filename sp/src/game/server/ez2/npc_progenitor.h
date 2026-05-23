@@ -41,6 +41,7 @@ public:
 	void		Spawn( void );
 	void		Precache( void );
 	void		Activate( void );
+	void		PopulatePoseParameters();
 
 	void		UpdateOnRemove();
 	void		StopLoopingSounds();
@@ -81,6 +82,8 @@ public:
 
 	bool		ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal );
 	void		StartSlidingToGoal( AILocalMoveGoal_t *pMoveGoal );
+	void		StopSliding( bool bIntoCrouch = false );
+	bool		OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval );
 
 	//-------------------------------------------------------------------------
 
@@ -112,6 +115,7 @@ public:
 	inline bool	IsNavGrapple() const { return m_iGrappleType == GRAPPLE_TYPE_NAV; }
 	inline bool	IsForcedGrapple() const { return m_iGrappleType == GRAPPLE_TYPE_FORCED; }
 	inline bool	IsPullObjGrapple() const { return m_iGrappleType == GRAPPLE_TYPE_PULL; }
+	inline bool	IsToObjGrapple() const { return m_iGrappleType == GRAPPLE_TYPE_PULL_TO; }
 
 	bool	GrappleHookMove();
 	bool	GrappleMove();
@@ -120,10 +124,12 @@ public:
 	void	RemoveGrapplingEntities();
 
 	bool	ProbeGrappleTarget( const Vector &vecOrigin );
+	bool	GrappleTraceTest( CBaseEntity *pTarget, float flMaxDistSqr );
 	void	CalculateGrappleImpulse( IPhysicsObject *pPhys, float flMagnitude, Vector &vecImpulse, AngularImpulse &vecAngImpulse );
 	void	ApplyGrappleImpulse( CBaseEntity *pEntity, Vector &vecImpulse, AngularImpulse &vecAngImpulse );
 	void	GetGrappleDestForEntity( CBaseEntity *pEnt, Vector &vecOrigin, QAngle &angAngles );
 
+	void	InputGrappleToTargetForced( inputdata_t &inputdata );
 	void	InputGrappleToTarget( inputdata_t &inputdata );
 	void	InputGrapplePullTarget( inputdata_t &inputdata );
 
@@ -182,7 +188,6 @@ protected:
 		TASK_COMBINE_SET_GRAPPLE_SCHEDULE,
 		TASK_COMBINE_GRAPPLE_SHOOT,
 		TASK_COMBINE_GRAPPLE_MOVE,
-		TASK_COMBINE_GRAPPLE_END,
 		TASK_COMBINE_GRAPPLE_PULL_OBJ,
 		NEXT_TASK,
 		
@@ -198,6 +203,12 @@ private:
 
 	bool	m_bThrowSatchels;
 	CUtlVector<EHANDLE>	m_hSatchels;
+
+	bool	m_bInjured;
+
+	bool	m_bSliding;
+	int		m_poseMove_X;
+	int		m_poseMove_Y;
 
 	float	m_flNextShieldStateCheck;
 	float	m_flShieldDeactivateTime;
@@ -219,6 +230,7 @@ private:
 		GRAPPLE_TYPE_NAV,			// Grappling during jump navigation
 		GRAPPLE_TYPE_FORCED,		// Grappling to a scripted target
 		GRAPPLE_TYPE_PULL,			// Pulling an object towards me
+		GRAPPLE_TYPE_PULL_TO,		// Pulling myself towards an object
 	};
 
 	EHANDLE	m_hGrappleDest;
@@ -233,6 +245,7 @@ private:
 	int		m_iGrappleType;
 	int		m_nGrappleLayer;		// If we are using a gesture rather than a sequence
 	bool	m_bGrappleAllowed;
+	float	m_flGrappleWeight;		// Influences how much we grapple
 	bool	m_bNavEvaluatedJump;	// Tells navigator whether we've evaluated this jump
 	bool	m_bNavTrueJump;			// Tells navigator we're doing an actual jump, not a grapple
 };
@@ -261,6 +274,7 @@ public:
 	bool OverridePropdata( void ) { return true; }
 
 	float	m_flNextDangerSoundTime;
+	float	m_flEnableGravityTime;
 };
 
 #endif
