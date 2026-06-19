@@ -30,6 +30,12 @@ $Project "Client (Entropy Zero)"
 		{
 			$File	"Human_Error\c_vehicle_drivable_apc.cpp"
 		}
+
+		$Folder	"Mapbase"
+		{
+			$File	"mapbase\mapbase_autocubemap.cpp"
+		}
+
 		$Folder	"HL2 DLL"
 		{
 			$File	"$SRCDIR\game\shared\hl2\basehlcombatweapon_shared.cpp"
