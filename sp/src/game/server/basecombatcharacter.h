@@ -399,6 +399,10 @@ public:
 
 	bool				m_bForceServerRagdoll;
 
+#ifdef EZ
+	EHANDLE				m_hDeathRagdoll;
+#endif
+
 	// Pickup prevention
 	bool				IsAllowedToPickupWeapons( void ) { return !m_bPreventWeaponPickup; }
 	void				SetPreventWeaponPickup( bool bPrevent ) { m_bPreventWeaponPickup = bPrevent; }

@@ -65,7 +65,12 @@ public:
 	virtual bool	InnateWeaponLOSCondition( const Vector &ownerPos, const Vector &targetPos, bool bSetConditions );
 	virtual int		MeleeAttack1Conditions( float flDot, float flDist );	// Dispel
 	virtual float	InnateRange1MinRange( void ) { return 0.0f; }
+#ifndef EZ
 	virtual float	InnateRange1MaxRange( void ) { return sk_vortigaunt_zap_range.GetFloat()*12; }
+#else
+	virtual float	InnateRange1MaxRange( void ) { return MAX( sk_vortigaunt_zap_range.GetFloat()*12, m_flZapRange ); }
+	virtual float	GetDispelAttackRange();
+#endif
 	virtual int		OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual bool	FInViewCone( CBaseEntity *pEntity );
 	virtual bool	ShouldMoveAndShoot( void );
@@ -95,6 +100,7 @@ public:
 	virtual int		SelectSchedule( void );
 	virtual int		SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
 	virtual bool	IsValidEnemy( CBaseEntity *pEnemy );
+	virtual Vector	GetShootEnemyDir( const Vector &shootOrigin, bool bNoisy = true );
 	bool			IsLeading( void ) { return ( GetRunningBehavior() == &m_LeadBehavior && m_LeadBehavior.HasGoal() ); }
 
 	void			DeathSound( const CTakeDamageInfo &info );
@@ -138,14 +144,28 @@ public:
 	// used so a grub can notify me that I stepped on it. Says a line.
 	void	OnSquishedGrub( const CBaseEntity *pGrub );
 
-#ifdef EZ
-	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
-	// Copied from BaseZombie for now
-	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
+#ifdef MAPBASE
+	// Use the vortigaunts' default subtitle color (188,241,174)
+	// bool	GetGameTextSpeechParams( hudtextparms_t &params ) { params.r1 = 188; params.g1 = 241; params.b1 = 174; return BaseClass::GetGameTextSpeechParams( params ); }
+	
+	const char*		GetGrenadeAttachment() { return "rightclaw"; }
 #endif
 
-private:
+#ifdef EZ
+	virtual float GetNextRangeAttackTime( void ) { return gpGlobals->curtime + random->RandomFloat( 2.0f, 3.0f ); }
+	virtual float GetNextDispelTime( void );
 
+	virtual float GetNextHealthDrainTime( void );
+
+	// Copied from BaseZombie for now
+	virtual CBaseEntity *ClawAttack( float flDist, int iDamage, QAngle &qaViewPunch, Vector &vecVelocityPunch, int BloodOrigin, int dmgType );
+
+// Because CNPC_Zombigaunt derives from CNPC_Vortigaunt, these formerly private methods need to be protected
+// so that child classes may call them.
+protected:
+#else
+private:
+#endif
 	int		NumAntlionsInRadius( float flRadius );
 	void	DispelAntlions( const Vector &vecOrigin, float flRadius, bool bDispel = true );
 	bool	HealGestureHasLOS( void );
@@ -158,7 +178,11 @@ private:
 
 	void	CreateBeamBlast( const Vector &vecOrigin );
 
+#ifndef EZ
 private:
+#else
+protected:
+#endif
 	//=========================================================
 	// Vortigaunt schedules
 	//=========================================================
@@ -203,6 +227,10 @@ private:
 		COND_VORTIGAUNT_HEAL_VALID,				// All conditions satisfied	
 		COND_VORTIGAUNT_DISPEL_ANTLIONS,		// Repulse all antlions around us
 	};
+
+#ifdef EZ
+private:
+#endif
 
 	// ------------
 	// Beams
@@ -269,13 +297,56 @@ private:
 	bool			IsCarryingNPC( void ) const { return m_bCarryingNPC; }
 	bool			m_bCarryingNPC;
 
+#ifdef EZ
+	float			m_flNextDrainHealthTime;
+#endif
+
 	COutputEvent	m_OnFinishedExtractingBugbait;
 	COutputEvent	m_OnFinishedChargingTarget;
 	COutputEvent	m_OnPlayerUse;
-	
+
+#ifdef EZ
+	class CVortigauntStandoffBehavior : public CAI_StandoffBehavior
+	{
+		typedef CAI_StandoffBehavior BaseClass;
+
+	public:
+		virtual int SelectScheduleUpdateWeapon();
+		virtual int SelectScheduleAttack()
+		{
+#ifdef EZ2
+			int result = GetOuterVort()->SelectRangeAttack2Schedule();
+#else
+			int result = SCHED_NONE; // No grenades for now - TODO - remove this preprocessor
+#endif
+			if ( result == SCHED_NONE )
+				result = BaseClass::SelectScheduleAttack();
+			return result;
+		}
+
+		virtual int TranslateSchedule( int schedule );
+
+		inline CNPC_Vortigaunt *GetOuterVort() { return static_cast<CNPC_Vortigaunt*>(GetOuter()); }
+	};
+
+	virtual CAI_StandoffBehavior &GetStandoffBehavior( void ) { return m_StandoffBehavior; }
+
+	CVortigauntStandoffBehavior	m_StandoffBehavior;
+#endif
+
+#ifdef EZ
+// Child classes need these attachments!
+protected:
+	// This value represents the range at which the vortigaunt WANTS to attack.
+	// The actual range of the attack can be much farther
+	float			m_flZapRange;
+#endif
 	//Adrian: Let's do it the right way!
 	int				m_iLeftHandAttachment;
 	int				m_iRightHandAttachment;
+#ifdef EZ
+private:
+#endif
 	bool			m_bStopLoopingSounds;
 	float			m_flAimDelay;			// Amount of time to suppress aiming
 
