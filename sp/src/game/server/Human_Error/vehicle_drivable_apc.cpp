@@ -709,10 +709,10 @@ int CPropDrivableAPC::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 		float flNormalDamageModifier = sk_apc_damage_normal.GetFloat();
 
 #ifdef EZ
-		// In Human Error, the view hide damage reduce percent modifier was half of the normal damage modifier divided by the maximum flViewLowered distance, 10
-		// 0.15 / 2 / 10 = 0.0075
-		// In Entropy : Zero, we want it to have half of the normal damage modifier divided by 10 
-		float flViewHideDamageReduce = flNormalDamageModifier / 20.0f;
+		// In Human Error, the view hide damage reduce percent modifier was half of the normal damage modifier divided by flViewLowered which uses the range [-10, 0]
+		// 0.15 + (-10 * 0.0075) = 0.075 or half the original modifier
+		// In Entropy : Zero, to recreate that behavior we just multiply by -0.5
+		float flViewHideDamageReduce = flNormalDamageModifier * -0.5;
 #else
 		float flViewHideDamageReduce = (float)(m_flViewLowered * 0.0075);
 #endif
