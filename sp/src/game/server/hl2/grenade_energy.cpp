@@ -29,6 +29,10 @@
 ConVar    sk_dmg_energy_grenade		( "sk_dmg_energy_grenade","0");
 ConVar	  sk_energy_grenade_radius	( "sk_energy_grenade_radius","0");
 
+#ifdef EZ2
+const char *g_pszDopplerThinkContext = "DopplerThink";
+#endif
+
 BEGIN_DATADESC( CGrenadeEnergy )
 
 	DEFINE_FIELD( m_flMaxFrame,	  FIELD_INTEGER ),
@@ -45,6 +49,10 @@ BEGIN_DATADESC( CGrenadeEnergy )
 #else
 	DEFINE_FUNCTION( Animate ),
 	DEFINE_FUNCTION( GrenadeEnergyTouch ),
+#endif
+
+#ifdef EZ2
+	DEFINE_THINKFUNC( DopplerThink ),
 #endif
 
 END_DATADESC()
@@ -165,6 +173,10 @@ void CGrenadeEnergy::Shoot( CBaseEntity* pOwner, const Vector &vStart, Vector vV
 	pEnergy->SetRenderColor( 160, 160, 160, 255 );
 #endif
 	pEnergy->m_nRenderFX = kRenderFxNone;
+
+#ifdef EZ2
+	pEnergy->SetContextThink( &CGrenadeEnergy::DopplerThink, gpGlobals->curtime + 1.0f, g_pszDopplerThinkContext );
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -311,6 +323,7 @@ void CGrenadeEnergy::Precache( void )
 
 #ifdef EZ2
 	PrecacheParticleSystem( "energy_grenade_electrical_arc" );
+	PrecacheScriptSound( "NPC_Mortarsynth.GrenadeFlyby" );
 #else
 	PrecacheParticleSystem( "electrical_arc_01_system" );
 #endif
@@ -323,3 +336,34 @@ void CGrenadeEnergy::Precache( void )
 	PrecacheModel("Models/weapons/w_energy_grenade.mdl");
 #endif
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Play a near miss sound as we travel past the player.
+//-----------------------------------------------------------------------------
+void CGrenadeEnergy::DopplerThink()
+{
+	CBasePlayer *pPlayer = AI_GetSinglePlayer();
+	if ( !pPlayer )
+		return;
+
+	Vector vecVelocity = GetAbsVelocity();
+	VectorNormalize( vecVelocity );
+	
+	float flMyDot = DotProduct( vecVelocity, GetAbsOrigin() );
+	float flPlayerDot = DotProduct( vecVelocity, pPlayer->GetAbsOrigin() );
+
+	if ( flPlayerDot <= flMyDot )
+	{
+		EmitSound( "NPC_Mortarsynth.GrenadeFlyby" );
+		DevMsg( "grenade_energy flyby" );
+		
+		// We've played the near miss sound and we're not seeking. Stop thinking.
+		SetContextThink( NULL, gpGlobals->curtime, g_pszDopplerThinkContext );
+	}
+	else
+	{
+		SetNextThink( gpGlobals->curtime, g_pszDopplerThinkContext );
+	}
+}
+#endif

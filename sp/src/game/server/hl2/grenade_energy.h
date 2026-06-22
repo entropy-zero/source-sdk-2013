@@ -38,6 +38,10 @@ public:
 	void 		GrenadeEnergyTouch( CBaseEntity *pOther );
 	void		Event_Killed( const CTakeDamageInfo &info );
 
+#ifdef EZ2
+	void		DopplerThink();
+#endif
+
 	int			m_flMaxFrame;
 	int			m_nEnergySprite;
 	float		m_flLaunchTime;		// When was this thing launched
