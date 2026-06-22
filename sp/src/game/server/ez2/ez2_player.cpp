@@ -2112,6 +2112,30 @@ void CEZ2_Player::Event_DisplacerPistolRelease( CBaseCombatWeapon *pWeapon, CBas
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::LostEnemySound( CBaseEntity *pEnemy )
+{
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	modifiers.AppendCriteria( "lastseenenemy", gpGlobals->curtime - GetNPCComponent()->GetEnemies()->LastTimeSeen( pEnemy ) );
+
+	SpeakIfAllowed( TLK_LOSTENEMY, modifiers );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEZ2_Player::FoundEnemySound( CBaseEntity *pEnemy )
+{
+	AI_CriteriaSet modifiers;
+	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
+
+	SpeakIfAllowed( TLK_REFINDENEMY, modifiers );
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: called when a game event is fired
 //-----------------------------------------------------------------------------
 void CEZ2_Player::FireGameEvent( IGameEvent *event )
@@ -2957,6 +2981,20 @@ bool CAI_PlayerNPCDummy::UpdateEnemyMemory( CBaseEntity *pEnemy, const Vector &p
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+void CAI_PlayerNPCDummy::LostEnemySound( CBaseEntity *pEnemy )
+{
+	if (GetOuter())
+		GetOuter()->LostEnemySound( pEnemy );
+}
+
+//-----------------------------------------------------------------------------
+void CAI_PlayerNPCDummy::FoundEnemySound( CBaseEntity *pEnemy )
+{
+	if (GetOuter())
+		GetOuter()->FoundEnemySound( pEnemy );
 }
 
 //-----------------------------------------------------------------------------
