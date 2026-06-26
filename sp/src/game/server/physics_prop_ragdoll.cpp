@@ -1656,7 +1656,8 @@ CBaseAnimating *CreateServerRagdollSubmodel( CBaseAnimating *pOwner, const char 
 	if (pOwner && pOwner->m_ScriptScope.IsInitialized() && CBaseAnimating::g_Hook_OnServerRagdoll.CanRunInScope( pOwner->m_ScriptScope ))
 	{
 		// ragdoll, submodel
-		ScriptVariant_t args[] = { ScriptVariant_t( pRagdoll->GetScriptInstance() ), true };
+		HSCRIPT hRagdoll = pRagdoll ? pRagdoll->GetScriptInstance() : NULL;
+		ScriptVariant_t args[] = { ScriptVariant_t( hRagdoll ), true };
 		CBaseAnimating::g_Hook_OnServerRagdoll.Call( pOwner->m_ScriptScope, NULL, args );
 	}
 #endif
@@ -1690,7 +1691,8 @@ CBaseEntity *CreateServerRagdoll( CBaseAnimating *pAnimating, int forceBone, con
 	if (pAnimating->m_ScriptScope.IsInitialized() && CBaseAnimating::g_Hook_OnServerRagdoll.CanRunInScope( pAnimating->m_ScriptScope ))
 	{
 		// ragdoll, submodel
-		ScriptVariant_t args[] = { ScriptVariant_t( pRagdoll->GetScriptInstance() ), false };
+		HSCRIPT hRagdoll = pRagdoll ? pRagdoll->GetScriptInstance() : NULL;
+		ScriptVariant_t args[] = { ScriptVariant_t( hRagdoll ), false };
 		CBaseAnimating::g_Hook_OnServerRagdoll.Call( pAnimating->m_ScriptScope, NULL, args );
 	}
 #endif
