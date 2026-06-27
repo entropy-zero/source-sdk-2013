@@ -2800,14 +2800,22 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 	case TASK_SMALL_FLINCH:
 		{
 			Remember(bits_MEMORY_FLINCHED);
-			SetIdealActivity( GetFlinchActivity( false, false ) );
+			Activity flinchActivity = GetFlinchActivity( false, false );
+			if ( HaveSequenceForActivity( flinchActivity ) )
+				SetIdealActivity( flinchActivity );
+			else
+				TaskComplete();
 			m_flNextFlinchTime = gpGlobals->curtime + random->RandomFloat( 3, 5 );
 			break;
 		}
 	case TASK_BIG_FLINCH:
 		{
 			Remember(bits_MEMORY_FLINCHED);
-			SetIdealActivity( GetFlinchActivity( true, false ) );
+			Activity flinchActivity = GetFlinchActivity( true, false );
+			if ( HaveSequenceForActivity( flinchActivity ) )
+				SetIdealActivity( flinchActivity );
+			else
+				TaskComplete();
 			m_flNextFlinchTime = gpGlobals->curtime + random->RandomFloat( 3, 5 );
 			break;
 		}
