@@ -665,6 +665,22 @@ void CAI_Motor::MoveStop()
 
 void CAI_Motor::MovePaused()
 {
+#ifdef MAPBASE
+	if ( GetOuter()->m_hOpeningDoor )
+	{
+		// Make sure we face the door
+		UpdateYaw();
+
+		if ( !GetCurVel().IsZero() )
+		{
+			// Clear velocity while move is paused (prevents us from instantly changing speed on resume)
+			// Would be better to do this when move wait is assigned, but m_vecVelocity is private to CAI_Motor, and
+			// we can't use MoveStop() because it causes knock-on effects in CAI_BlendedMotor.
+			memset( &m_vecVelocity, 0, sizeof(m_vecVelocity) );
+			GetOuter()->GetLocalNavigator()->ResetMoveCalculations();
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
