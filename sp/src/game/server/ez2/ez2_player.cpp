@@ -51,6 +51,11 @@ ConVar player_silent_surrender( "player_silent_surrender", "1" );
 
 ConVar player_enemy_mark_mode( "player_enemy_mark_mode", "2" );
 
+ConVar player_assassin_recoil_min_dmg( "player_assassin_recoil_min_dmg", "15" );
+ConVar player_assassin_recoil_max_dmg( "player_assassin_recoil_max_dmg", "220" );
+ConVar player_assassin_recoil_max_force( "player_assassin_recoil_max_force", "350" );
+ConVar player_assassin_recoil_ground_scale( "player_assassin_recoil_ground_scale", "1.0" );
+
 extern ConVar sv_bonus_challenge;
 
 #if EZ2
@@ -2534,8 +2539,60 @@ void CEZ2_Player::FireBullets( const FireBulletsInfo_t &info )
 			flDamage = GetAmmoDef()->PlrDamage( info.m_iAmmoType );
 		}
 		
-		Msg( "%f\n", CLOAK_ATTACK_DRAIN_MULT * (flDamage * info.m_iShots) );
+		//Msg( "%f\n", CLOAK_ATTACK_DRAIN_MULT * (flDamage * info.m_iShots) );
 		SuitPower_Drain( CLOAK_ATTACK_DRAIN_MULT * (flDamage * info.m_iShots) );
+	}
+
+	if (m_bIsAssassin && player_assassin_recoil_max_force.GetFloat() > 0.0f && GetMoveType() != MOVETYPE_NOCLIP)
+	{
+		// Push back from recoil
+		float flForceScale = 1.0f;
+		float flDamage = info.m_flDamage;
+		if (flDamage == 0)
+		{
+			flDamage = GetAmmoDef()->PlrDamage( info.m_iAmmoType );
+		}
+
+		flDamage *= info.m_iShots;
+
+		if ( GetActiveWeapon() )
+		{
+			if ( GetActiveWeapon()->WeaponClassify() != WEPCLASS_HANDGUN && GetActiveWeapon()->FireDuration() > 0.1f )
+			{
+				float flRatio = RemapValClamped( GetActiveWeapon()->FireDuration(), 0.1f, 3.0f, 0.0f, 1.0f );
+				flDamage *= (1.0f + (flRatio * 4.0f));
+				flForceScale *= (1.0f - MIN(flRatio, 0.5f));
+			}
+			/*else if ( gpGlobals->curtime - MuzzleFlashTime() <= 1.0 )
+			{
+				flDamage *= RemapValClamped( MuzzleFlashTime() - gpGlobals->curtime, -1.0f, 0.0f, 1.0f, 2.0f );
+			}*/
+		}
+
+		if ( FStrEq( GetAmmoDef()->Name( info.m_iAmmoType ), "357" ) )
+		{
+			// Artificially increase, for now
+			flDamage *= 1.25f;
+		}
+
+		if ( flDamage > player_assassin_recoil_min_dmg.GetFloat() )
+		{
+			if ( GetGroundEntity() != NULL )
+				flForceScale *= player_assassin_recoil_ground_scale.GetFloat();
+
+			float flCurSpeed = GetSmoothedVelocity().Length();
+			if ( flCurSpeed > 500.0f )
+				flForceScale *= RemapValClamped( flCurSpeed, 500.0f, 1000.0f, 1.0f, 0.0f );
+
+			Vector vecDir = -info.m_vecDirShooting;
+			float flMagnitude = RemapValClamped( flDamage,
+				player_assassin_recoil_min_dmg.GetFloat(), player_assassin_recoil_max_dmg.GetFloat(), 0.0f, player_assassin_recoil_max_force.GetFloat() );
+			flMagnitude *= flForceScale;
+
+			//Msg( "flDamage: %.2f, flForceScale: %.2f, flMagnitude: %.2f\n", flDamage, flForceScale, flMagnitude );
+
+			ApplyAbsVelocityImpulse( vecDir * flMagnitude );
+		}
 	}
 }
 
