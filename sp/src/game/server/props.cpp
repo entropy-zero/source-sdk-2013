@@ -2802,6 +2802,7 @@ public:
 	void Spawn();
 	void Precache();
 	//void Activate();
+	bool KeyValue( const char *szKeyName, const char *szValue );
 
 	int	ObjectCaps()
 	{
@@ -2823,6 +2824,12 @@ public:
 
 	void SetPushSequence(int iSequence);
 	void PushThink();
+
+	inline bool CanBeUsedByNPCs() const { return m_bNPCsCanUse; }
+	void InitNPCData();
+
+	bool PassesInteractFilter( CBaseEntity *pOther );
+	void GetNPCInteractData( CAI_BaseNPC *pNPC, opendata_t &opendata );
 
 	// Input handlers
 	void InputLock( inputdata_t &inputdata );
@@ -2868,6 +2875,13 @@ private:
 
 	Vector		m_vecUseMins;
 	Vector		m_vecUseMaxs;
+
+	string_t				m_iszInteractFilter;
+	CHandle<CBaseFilter>	m_hInteractFilter;
+
+	bool		m_bNPCsCanUse;
+	Activity	m_eNPCInteractActivity = ACT_INVALID;
+	float		m_flNPCInteractDistance = -1;
 };
 
 LINK_ENTITY_TO_CLASS( prop_interactable, CInteractableProp );
@@ -2887,6 +2901,13 @@ BEGIN_DATADESC( CInteractableProp )
 
 	DEFINE_KEYFIELD( m_vecUseMins, FIELD_VECTOR, "use_mins" ),
 	DEFINE_KEYFIELD( m_vecUseMaxs, FIELD_VECTOR, "use_maxs" ),
+
+	DEFINE_KEYFIELD( m_iszInteractFilter, FIELD_STRING, "InteractFilter" ),
+	DEFINE_FIELD( m_hInteractFilter, FIELD_EHANDLE ),
+
+	DEFINE_KEYFIELD( m_bNPCsCanUse, FIELD_BOOLEAN, "NPCsCanUse" ),
+	DEFINE_KEYFIELD( m_eNPCInteractActivity, FIELD_INTEGER, "InteractNPCActivity" ),
+	DEFINE_KEYFIELD( m_flNPCInteractDistance, FIELD_FLOAT, "InteractNPCDist" ),
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID,	"Lock",		InputLock ),
@@ -2920,6 +2941,16 @@ void CInteractableProp::Spawn( void )
 {
 	BaseClass::Spawn();
 
+	if ( m_iszInteractFilter != NULL_STRING )
+	{
+		m_hInteractFilter = dynamic_cast<CBaseFilter *>(gEntList.FindEntityByName( NULL, m_iszInteractFilter, this ));
+	}
+
+	if ( CanBeUsedByNPCs() )
+	{
+		InitNPCData();
+	}
+
 	SetTouch( &CInteractableProp::InteractablePropTouch );
 }
 
@@ -2934,6 +2965,23 @@ void CInteractableProp::Precache( void )
 		PrecacheScriptSound( STRING(m_iszPressedSound) );
 	if (m_iszLockedSound != NULL_STRING)
 		PrecacheScriptSound( STRING(m_iszLockedSound) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Handles keyvalues from the BSP. Called before spawning.
+//-----------------------------------------------------------------------------
+bool CInteractableProp::KeyValue( const char *szKeyName, const char *szValue )
+{
+	if ( FStrEq(szKeyName, "InteractNPCActivity") )
+	{
+		m_eNPCInteractActivity = (Activity)CAI_BaseNPC::GetActivityID( szValue );
+		if (m_eNPCInteractActivity == ACT_INVALID)
+			m_eNPCInteractActivity = ActivityList_RegisterPrivateActivity( szValue );
+	}
+	else
+		return BaseClass::KeyValue( szKeyName, szValue );
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -2971,9 +3019,17 @@ void CInteractableProp::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_T
 		}
 	}
 
+	bool bLocked = m_bLocked;
 	int nSequence = -1;
 
-	if (m_bLocked)
+	if ( !bLocked )
+	{
+		// Act like we're locked if neither the activator nor caller pass our filter
+		if ( !PassesInteractFilter( pActivator ) && ( pActivator == pCaller || !PassesInteractFilter( pCaller ) ) )
+			bLocked = true;
+	}
+
+	if (bLocked)
 	{
 		m_OnLockedUse.FireOutput(pActivator, this);
 		EmitSound(STRING(m_iszLockedSound));
@@ -3133,6 +3189,67 @@ void CInteractableProp::PushThink()
 			SetNextThink( TICK_NEVER_THINK );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CInteractableProp::InitNPCData()
+{
+	KeyValues *modelKeyValues = new KeyValues("");
+	if ( modelKeyValues->LoadFromBuffer( modelinfo->GetModelName( GetModel() ), modelinfo->GetModelKeyValueText( GetModel() ) ) )
+	{
+		KeyValues *pkvNPCOptions = modelKeyValues->FindKey("npc_options");
+		if ( pkvNPCOptions )
+		{
+			if (m_eNPCInteractActivity == ACT_INVALID)
+			{
+				const char *pszActivity = pkvNPCOptions->GetString( "activity" );
+				if (pszActivity[0] != '\0')
+				{
+					m_eNPCInteractActivity = (Activity)CAI_BaseNPC::GetActivityID( pszActivity );
+					if (m_eNPCInteractActivity == ACT_INVALID)
+						m_eNPCInteractActivity = ActivityList_RegisterPrivateActivity( pszActivity );
+				}
+			}
+
+			if (m_flNPCInteractDistance == -1)
+				m_flNPCInteractDistance = pkvNPCOptions->GetFloat( "distance", 32.0 );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CInteractableProp::PassesInteractFilter( CBaseEntity *pOther )
+{
+	if ( m_hInteractFilter )
+	{
+		return m_hInteractFilter->PassesFilter( this, pOther );
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CInteractableProp::GetNPCInteractData( CAI_BaseNPC *pNPC, opendata_t &opendata )
+{
+	Vector vecForward;
+	GetVectors( &vecForward, NULL, NULL );
+
+	opendata.vecStandPos = WorldSpaceCenter();
+	opendata.vecStandPos += vecForward * m_flNPCInteractDistance;
+	opendata.vecFaceDir = -vecForward;
+	opendata.eActivity = m_eNPCInteractActivity;
+
+	// Trace down towards the ground
+	trace_t tr;
+	UTIL_TraceLine( opendata.vecStandPos, opendata.vecStandPos - Vector(0,0,128), MASK_NPCSOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
+
+	opendata.vecStandPos = tr.endpos;
 }
 #endif
 
@@ -4892,6 +5009,32 @@ void CBasePropDoor::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE
 //-----------------------------------------------------------------------------
 void CBasePropDoor::OnUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
+#if defined(MAPBASE) && defined(HL2_DLL)
+	if ( pActivator->IsPlayer() )
+	{
+		CHL2_Player *pHL2Player = static_cast<CHL2_Player *>(pActivator);
+		if ( pHL2Player->UsesAnimState() )
+		{
+			// Add an animation layer for opening the door
+			Vector vecForward;
+			GetVectors( &vecForward, NULL, NULL );
+
+			Activity eActivity;
+			if (pHL2Player->GetAbsOrigin().Dot(vecForward) > GetAbsOrigin().Dot(vecForward))
+			{
+				eActivity = GetNPCOpenFrontActivity();
+			}
+			else
+			{
+				eActivity = GetNPCOpenBackActivity();
+			}
+
+			if ( eActivity != ACT_INVALID )
+				pHL2Player->AddAnimStateLayer( pHL2Player->SelectWeightedSequence( eActivity ), 0.0f, 0.0f, 1.0f );
+		}
+	}
+#endif
+
 	// If we're blocked while closing, open away from our blocker. This will
 	// liberate whatever bit of detritus is stuck in us.
 	if ( IsDoorBlocked() && IsDoorClosing() )
@@ -5694,6 +5837,17 @@ void CBasePropDoor::OnEndBlocked( void )
 //-----------------------------------------------------------------------------
 bool CBasePropDoor::NPCOpenDoor( CAI_BaseNPC *pNPC )
 {
+#ifdef MAPBASE
+	if ( IsDoorLocked() && GetExternalLock() )
+	{
+		// Change if we end up having other possible lock classes
+		CInteractableProp *pLock = assert_cast<CInteractableProp *>(GetExternalLock());
+
+		pLock->Use( pNPC, pNPC, USE_ON, 0 );
+		return true;
+	}
+#endif
+
 	// dvs: TODO: use activator filter here
 	// dvs: TODO: outboard entity containing rules for whether door is operable?
 	
@@ -5930,6 +6084,12 @@ public:
 
 	void	GetNPCOpenData(CAI_BaseNPC *pNPC, opendata_t &opendata);
 
+#ifdef MAPBASE
+	bool	CanBeUnlockedBy( CBaseEntity *pEnt );
+	void	GetNPCUnlockData( CAI_BaseNPC *pNPC, opendata_t &opendata );
+	CBaseEntity *GetExternalLock() { return m_hExternalLock; }
+#endif
+
 	void	DoorClose( void );
 	bool	DoorCanClose( bool bAutoClose );
 	void	DoorOpen( CBaseEntity *pOpenAwayFrom );
@@ -5998,6 +6158,11 @@ private:
 	Vector	m_vecBackBoundsMax;
 
 	CHandle<CEntityBlocker>	m_hDoorBlocker;
+
+#ifdef MAPBASE
+	string_t					m_iszExternalLock;
+	CHandle<CInteractableProp>	m_hExternalLock;
+#endif
 };
 
 
@@ -6015,6 +6180,10 @@ BEGIN_DATADESC(CPropDoorRotating)
 	DEFINE_FIELD( m_angRotationOpenBack, FIELD_VECTOR ),
 	DEFINE_FIELD( m_angGoal, FIELD_VECTOR ),
 	DEFINE_FIELD( m_hDoorBlocker, FIELD_EHANDLE ),
+#ifdef MAPBASE
+	DEFINE_KEYFIELD( m_iszExternalLock, FIELD_STRING, "ExternalLock" ),
+	DEFINE_FIELD( m_hExternalLock, FIELD_EHANDLE ),
+#endif
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetRotationDistance", InputSetRotationDistance ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetSpeed", InputSetSpeed ),
 	//m_vecForwardBoundsMin
@@ -6087,6 +6256,13 @@ void CPropDoorRotating::Spawn()
 	// Figure out our volumes of movement as this door opens
 	CalculateDoorVolume( GetLocalAngles(), m_angRotationOpenForward, &m_vecForwardBoundsMin, &m_vecForwardBoundsMax );
 	CalculateDoorVolume( GetLocalAngles(), m_angRotationOpenBack, &m_vecBackBoundsMin, &m_vecBackBoundsMax );
+
+#ifdef MAPBASE
+	if ( m_iszExternalLock != NULL_STRING )
+	{
+		m_hExternalLock = dynamic_cast<CInteractableProp *>(gEntList.FindEntityByName( NULL, m_iszExternalLock, this ));
+	}
+#endif
 
 #ifdef EZ2
 	if ( m_flKickSpeed <= 0)
@@ -6695,6 +6871,35 @@ void CPropDoorRotating::GetNPCOpenData(CAI_BaseNPC *pNPC, opendata_t &opendata)
 	opendata.eActivity = ACT_OPEN_DOOR;
 #endif
 }
+
+#ifdef MAPBASE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CPropDoorRotating::CanBeUnlockedBy( CBaseEntity *pEnt )
+{
+	if ( m_hExternalLock )
+	{
+		if ( m_hExternalLock->PassesInteractFilter( pEnt ) )
+			return true;
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : vecMoveDir - 
+//			opendata - 
+//-----------------------------------------------------------------------------
+void CPropDoorRotating::GetNPCUnlockData( CAI_BaseNPC *pNPC, opendata_t &opendata )
+{
+	if ( m_hExternalLock )
+	{
+		m_hExternalLock->GetNPCInteractData( pNPC, opendata );
+	}
+}
+#endif
 
 
 //-----------------------------------------------------------------------------

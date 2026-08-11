@@ -76,6 +76,12 @@ public:
 
 	virtual void GetNPCOpenData(CAI_BaseNPC *pNPC, opendata_t &opendata) = 0;
 	virtual float GetOpenInterval(void) = 0;
+
+#ifdef MAPBASE
+	virtual bool CanBeUnlockedBy( CBaseEntity *pEnt ) { return false; }
+	virtual void GetNPCUnlockData( CAI_BaseNPC *pNPC, opendata_t &opendata ) {}
+	virtual CBaseEntity *GetExternalLock() { return NULL; }
+#endif
 	// }
 
 #ifdef MAPBASE

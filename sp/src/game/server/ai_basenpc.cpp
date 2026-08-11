@@ -15218,7 +15218,10 @@ bool CAI_BaseNPC::OnUpcomingPropDoor( AILocalMoveGoal_t *pMoveGoal,
 	}
 
 #ifdef MAPBASE
-	if ((CapabilitiesGet() & bits_CAP_DOORS_GROUP) && !pDoor->IsDoorLocked() && (pDoor->IsDoorClosed() || pDoor->IsDoorClosing()) && pDoor->PassesDoorFilter(this))
+	if (!(CapabilitiesGet() & bits_CAP_DOORS_GROUP) || !(pDoor->IsDoorClosed() || pDoor->IsDoorClosing()) || !pDoor->PassesDoorFilter(this))
+		return false;
+
+	if (!pDoor->IsDoorLocked())
 #else
 	if ((CapabilitiesGet() & bits_CAP_DOORS_GROUP) && !pDoor->IsDoorLocked() && (pDoor->IsDoorClosed() || pDoor->IsDoorClosing()))
 #endif
@@ -15266,6 +15269,92 @@ bool CAI_BaseNPC::OnUpcomingPropDoor( AILocalMoveGoal_t *pMoveGoal,
 		else
 			AIDoorDebugMsg( this, "Failed create door route!\n" );
 	}
+#ifdef MAPBASE
+	else if ( pDoor->CanBeUnlockedBy( this ) )
+	{
+		AI_Waypoint_t *pOpenDoorRoute = NULL;
+
+		opendata_t opendata;
+		pDoor->GetNPCUnlockData(this, opendata);
+
+		pOpenDoorRoute = GetPathfinder()->BuildLocalRoute(
+			GetLocalOrigin(), 
+			opendata.vecStandPos,
+			NULL, 
+			bits_WP_TO_DOOR | bits_WP_DONT_SIMPLIFY, 
+			NO_NODE,
+			bits_BUILD_GROUND | bits_BUILD_IGNORE_NPCS,
+			0.0);
+
+		if ( !pOpenDoorRoute )
+		{
+			// Allow building a full route, since this could be more than a few steps away
+			pOpenDoorRoute = GetPathfinder()->BuildNodeRoute(
+				GetLocalOrigin(), opendata.vecStandPos,
+				bits_BUILD_GROUND | bits_BUILD_IGNORE_NPCS,
+				0.0);
+		}
+		
+		if ( pOpenDoorRoute )
+		{
+			// But also make a path back
+			opendata_t opendataDoor;
+			pDoor->GetNPCOpenData( this, opendataDoor );
+
+			AI_Waypoint_t *pBackPath = GetPathfinder()->BuildLocalRoute(
+				opendata.vecStandPos,
+				opendataDoor.vecStandPos,
+				NULL, 
+				bits_WP_TO_DOOR | bits_WP_DONT_SIMPLIFY, 
+				NO_NODE,
+				bits_BUILD_GROUND | bits_BUILD_IGNORE_NPCS,
+				0.0);
+
+			if ( !pBackPath )
+			{
+				pBackPath = GetPathfinder()->BuildNodeRoute(
+					opendata.vecStandPos, opendataDoor.vecStandPos,
+					bits_BUILD_GROUND | bits_BUILD_IGNORE_NPCS,
+					0.0);
+			}
+
+			if ( !pBackPath )
+			{
+				AIDoorDebugMsg( this, "Failed create door unlock return route!\n" );
+				return false;
+			}
+
+			if ( AIIsDebuggingDoors(this) )
+			{
+				NDebugOverlay::Cross3D(opendata.vecStandPos + Vector(0,0,1), 32, 255, 255, 255, false, 1.0 );
+				Msg( "Moving to unlock door!\n" );
+			}
+
+			// Get the end point, since this may not be a local route
+			AI_Waypoint_t *pEndPoint = pOpenDoorRoute;
+			while ( pEndPoint->GetNext() )
+				pEndPoint = pEndPoint->GetNext();
+
+			pEndPoint->m_hData = pDoor;
+			pEndPoint->ModifyFlags( bits_WP_TO_DOOR | bits_WP_DONT_SIMPLIFY, true );
+
+			GetNavigator()->GetPath()->PrependWaypoints( pBackPath );
+			GetNavigator()->GetPath()->PrependWaypoints( pOpenDoorRoute );
+
+			//GetNavigator()->SetArrivalDirection( opendata.vecFaceDir );
+
+			pEndPoint->flYaw = UTIL_VecToYaw( opendata.vecFaceDir );
+
+			m_hOpeningDoor = pDoor;
+			pMoveGoal->maxDist = distClear;
+			*pResult = AIMR_CHANGE_TYPE;
+			
+			return true;
+		}
+		else
+			AIDoorDebugMsg( this, "Failed create door unlock route!\n" );
+	}
+#endif
 
 	return false;
 }
@@ -15279,7 +15368,10 @@ void CAI_BaseNPC::OpenPropDoorBegin( CBasePropDoor *pDoor )
 {
 #ifdef MAPBASE
 	opendata_t opendata;
-	pDoor->GetNPCOpenData(this, opendata);
+	if ( pDoor->IsDoorLocked() && pDoor->GetExternalLock() )
+		pDoor->GetNPCUnlockData(this, opendata);
+	else
+		pDoor->GetNPCOpenData(this, opendata);
 	
 	if (HaveSequenceForActivity( opendata.eActivity ))
 	{
@@ -15288,7 +15380,10 @@ void CAI_BaseNPC::OpenPropDoorBegin( CBasePropDoor *pDoor )
 
 		// Face the door and wait for the activity to finish before trying to move through the doorway.
 		m_flMoveWaitFinished = gpGlobals->curtime + flDuration + pDoor->GetOpenInterval();
-		AddFacingTarget( opendata.vecFaceDir, 1.0, flDuration );
+
+		GetMotor()->SetMoveInterval( m_flMoveWaitFinished - gpGlobals->curtime );
+		GetMotor()->SetIdealYaw( UTIL_VecToYaw( opendata.vecFaceDir ) );
+		//AddFacingTarget( opendata.vecStandPos + (opendata.vecFaceDir * 24.0f), 1.0, flDuration );
 	}
 	else
 #else
