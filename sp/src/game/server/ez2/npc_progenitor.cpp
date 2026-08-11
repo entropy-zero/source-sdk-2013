@@ -85,6 +85,7 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_FIELD( m_hGrappleDest, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_vecGrappleDest, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( m_vecGrappleAngle, FIELD_VECTOR ),
+	DEFINE_FIELD( m_vecGrappleDropDest, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( m_vecGrappleLastOrigin, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( m_flGrappleStartDistSqr, FIELD_FLOAT ),
 	DEFINE_FIELD( m_hGrapplingHook, FIELD_EHANDLE ),
@@ -98,7 +99,7 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_FIELD( m_bNavEvaluatedJump, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bNavTrueJump, FIELD_BOOLEAN ),
 
-	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrappleToTargetForced", InputGrappleToTargetForced ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "GrappleToTargetForced", InputGrappleToTargetForced ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrappleToTarget", InputGrappleToTarget ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrapplePullTarget", InputGrapplePullTarget ),
 
@@ -121,6 +122,7 @@ CNPC_Progenitor::CNPC_Progenitor()
 	m_flNextShieldStateCheck = 0.0f;
 
 	m_vecGrappleDest = vec3_invalid;
+	m_vecGrappleDropDest = vec3_invalid;
 	m_bGrappleAllowed = true;
 	m_nGrappleLayer = -1;
 
@@ -495,6 +497,15 @@ void CNPC_Progenitor::PrescheduleThink()
 		}
 	}
 
+	if ( m_iGrapplePhase == GRAPPLE_PHASE_LANDING && GetMoveType() == MOVETYPE_STEP && GetIdealActivity() != ACT_GLIDE )
+	{
+		// Stuck landing when we're already on the ground
+		// This can happen sometimes when grapple isn't interrupted properly
+		// Should have warnings there instead of here...
+		Warning( "%s had to break out of grapple land\n", GetDebugName() );
+		m_iGrapplePhase = GRAPPLE_PHASE_NONE;
+	}
+
 	if ( m_bInjured )
 	{
 		if ( m_pShieldSound )
@@ -566,7 +577,7 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 				if ( CanUseGrapple() && HasCondition( COND_SEE_ENEMY ) && GetEnemy() && !IsGrappling() )
 				{
 					CBaseEntity *pEnemy = GetEnemy();
-					if ( pEnemy->IsNPC() )
+					if ( pEnemy->IsNPC() && pEnemy->GetGroundEntity() ) // Flying enemies don't catch well
 					{
 						if ( pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY || pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY_CENTERED )
 						{
@@ -582,10 +593,25 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 						}
 					}
 
-					if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) && ( GetHealth() > GetMaxHealth() * 0.5 ) && RandomFloat() < m_flGrappleWeight )
+					if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) && ( GetHealth() > GetMaxHealth() * 0.3 ) && RandomFloat() < m_flGrappleWeight )
 					{
+						// Make sure grappling to this enemy doesn't put me in a bad position
+						AIEnemiesIter_t iter;
+						bool bFailed = false;
+						for ( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
+						{
+							if ( pEMemory->hEnemy != pEnemy && pEMemory->hEnemy->IsAlive() && pEMemory->hEnemy->Classify() != CLASS_BULLSEYE )
+							{
+								if ( ( pEMemory->vLastKnownLocation - pEnemy->GetAbsOrigin() ).LengthSqr() < Square( 200.0f ) && pEnemy->FVisible( pEMemory->hEnemy ) )
+								{
+									bFailed = true;
+									break;
+								}
+							}
+						}
+
 						// When pressuring, pull self towards enemies
-						if ( GrappleTraceTest( pEnemy, Square( 2500.0f ) ) )
+						if ( !bFailed && GrappleTraceTest( pEnemy, Square( 2500.0f ) ) )
 						{
 							m_hGrappleDest = pEnemy;
 							GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
@@ -1209,6 +1235,24 @@ void CNPC_Progenitor::ModifyOrAppendCriteria( AI_CriteriaSet& set )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::FValidateHintType( CAI_Hint *pHint )
+{
+	switch( pHint->HintType() )
+	{
+		case HINT_GRAPPLE_POINT:
+			return true;
+			break;
+
+		default:
+			break;
+	}
+
+	return BaseClass::FValidateHintType( pHint );
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::MovementCost( int moveType, const Vector &vecStart, const Vector &vecEnd, float *pCost )
@@ -1260,6 +1304,20 @@ bool CNPC_Progenitor::MovementCost( int moveType, const Vector &vecStart, const 
 			}
 			else
 			{
+				// Prefer not to grapple if our enemy is close to the start
+				if ( GetEnemy() )
+				{
+					float flEnemyDistSqr = (GetEnemyLKP() - vecStart).LengthSqr();
+					if ( flEnemyDistSqr < Square( 350.0f ) )
+					{
+						float flDistFrac = (sqrtf( flEnemyDistSqr ) / 350.0f);
+						if ( flDistFrac > 0.01f )
+							*pCost *= (1.0f / flDistFrac);
+						else
+							*pCost *= 100.0f;
+					}
+				}
+
 				*pCost *= (1.0f / m_flGrappleWeight);
 			}
 		}

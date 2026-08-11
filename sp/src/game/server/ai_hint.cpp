@@ -1825,6 +1825,8 @@ hinttypedescs_t g_pszHintDescriptions[] =
 	{	HINT_SURRENDER_IDLE_DEST, "EZ2: Surrender Idle Destination"	},
 	{	HINT_TACTICAL_VANTAGE_POINT, "Tactical: Vantage Point"	},
 	{	HINT_TURRET_SETUP, "EZ2: Turret Setup"	},
+	{	HINT_TRIPMINE_PLACE, "EZ2: Tripmine Place"	},
+	{	HINT_GRAPPLE_POINT, "EZ2: Grapple Point"	},
 
 	{	HINT_STEALTH_ALARM, "Stealth: Alarm"	},
 	{	HINT_STEALTH_SEARCH_POINT, "Stealth: Search Point"	},

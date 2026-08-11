@@ -70,6 +70,7 @@ public:
 
 	void		ModifyOrAppendCriteria( AI_CriteriaSet& set );
 
+	bool		FValidateHintType( CAI_Hint *pHint );
 	bool		MovementCost( int moveType, const Vector &vecStart, const Vector &vecEnd, float *pCost );
 	Activity	NPC_TranslateActivity( Activity eNewActivity );
 
@@ -123,7 +124,7 @@ public:
 	void	StopGrappling( bool bCancel = true );
 	void	RemoveGrapplingEntities();
 
-	bool	ProbeGrappleTarget( const Vector &vecOrigin );
+	bool	ProbeGrappleTarget( const Vector &vecOrigin, bool bSetGrappleDest = true );
 	bool	GrappleTraceTest( CBaseEntity *pTarget, float flMaxDistSqr );
 	void	CalculateGrappleImpulse( IPhysicsObject *pPhys, float flMagnitude, Vector &vecImpulse, AngularImpulse &vecAngImpulse );
 	void	ApplyGrappleImpulse( CBaseEntity *pEntity, Vector &vecImpulse, AngularImpulse &vecAngImpulse );
@@ -236,6 +237,7 @@ private:
 	EHANDLE	m_hGrappleDest;
 	Vector	m_vecGrappleDest;
 	QAngle	m_vecGrappleAngle;
+	Vector	m_vecGrappleDropDest;	// Custom position to fall to
 	Vector	m_vecGrappleLastOrigin;
 	float	m_flGrappleStartDistSqr;
 	CHandle<CBaseAnimating>	m_hGrapplingHook;

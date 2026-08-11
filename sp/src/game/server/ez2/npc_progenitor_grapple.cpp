@@ -48,6 +48,16 @@ bool CNPC_Progenitor::CanUseGrapple() const
 	if ( IsPropShieldEquipped() )
 		return false;
 
+	if ( m_iGrapplePhase < GRAPPLE_PHASE_HOOKED && !const_cast<CNPC_Progenitor*>(this)->IsInAScript() )
+	{
+		// Don't grapple if our enemy might exploit it
+		if ( m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.9f )
+			return false;
+
+		if ( const_cast<CNPC_Progenitor*>(this)->HasCondition( COND_SEE_ENEMY ) && GetEnemy() && (GetEnemyLKP() - GetAbsOrigin()).LengthSqr() < Square( 200.0f ) )
+			return false;
+	}
+
 	return true;
 }
 
@@ -300,7 +310,36 @@ bool CNPC_Progenitor::GrappleMove()
 	float flHangDist = 0.0f;
 	float flMinDistToHangSqr = 0.0f;
 
-	if ( !IsToObjGrapple() )
+	if ( m_vecGrappleDropDest != vec3_invalid )
+	{
+		Vector vecDropDest = m_vecGrappleDropDest;
+		vecDropDest.z += 8;
+		vecDest.z -= (GetHullHeight() + 8);
+
+		UTIL_TraceEntity( this, vecDest, vecDropDest, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+		flHangDist = ( vecDest - tr.endpos ).Length();
+		flMinDistToHangSqr = Square( flHangDist * 2.0f );
+
+		if ( (m_flGrappleStartDistSqr <= flMinDistToHangSqr)
+			? flDistSqr < flMinDistToHangSqr
+			: fl2DDistSqr < flMinDistToHangSqr )
+		{
+			// Make sure we can actually go to the custom position
+			UTIL_TraceEntity( this, GetAbsOrigin(), vecDropDest, MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+			if ( tr.fraction == 1.0f )
+			{
+				fl2DDistSqr = (vecDropDest - GetAbsOrigin()).Length2DSqr();
+				vecDest = VectorLerp( vecDest, vecDropDest, SmoothCurve_Tweak( 1.0f - (fl2DDistSqr / flMinDistToHangSqr) ) );
+
+				// Recalculate 3D and 2D position
+				vecVelocity = (vecDest - GetAbsOrigin());
+				flDistSqr = vecVelocity.LengthSqr();
+				fl2DDistSqr = vecVelocity.Length2DSqr();
+				bHanging = true;
+			}
+		}
+	}
+	else if ( !IsToObjGrapple() )
 	{
 		vecDest.z -= (GetHullHeight() + 8);
 
@@ -330,7 +369,7 @@ bool CNPC_Progenitor::GrappleMove()
 	}
 	
 	// Are we at our destination?
-	if ( m_hGrappleDest )
+	if ( m_hGrappleDest && m_vecGrappleDropDest == vec3_invalid )
 	{
 		if ( flDistSqr < Square( m_hGrappleDest->BoundingRadius() + 8.0f ) )
 			return true;
@@ -457,6 +496,7 @@ void CNPC_Progenitor::StopGrappling( bool bCancel )
 	}
 
 	m_vecGrappleDest = vec3_invalid;
+	m_vecGrappleDropDest = vec3_invalid;
 	m_hGrappleDest = NULL;
 
 	if ( m_nGrappleLayer != -1 )
@@ -529,8 +569,85 @@ void CNPC_Progenitor::RemoveGrapplingEntities()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CNPC_Progenitor::ProbeGrappleTarget( const Vector &vecOrigin )
+static bool GrappleHintFilter( void *pContext, CAI_Hint *pCandidate )
 {
+	const Vector &vecOrigin = *(Vector *)pContext;
+	const Vector &vecHintOrigin = pCandidate->GetAbsOrigin();
+
+	if ( pCandidate->GetTargetNode() != NO_NODE )
+	{
+		// If this hint has a target node, ignore distance and just check if
+		// the node's origin is roughly at our search origin
+		CAI_Node *pNode = g_pBigAINet->GetNode( pCandidate->GetTargetNode() );
+		if ( pNode )
+		{
+			if ( (pNode->GetOrigin() - vecOrigin).LengthSqr() < Square( 32.0f ) )
+				return true;
+
+			return false;
+		}
+	}
+
+	// Check height
+	if ( abs( vecHintOrigin.z - vecOrigin.z ) > 2000.0f )
+		return false;
+
+	// Check 2D distance
+	Vector vecDelta = (pCandidate->GetAbsOrigin() - vecOrigin);
+	if ( vecDelta.Length2DSqr() > Square( 500.0f ) )
+		return false;
+
+	// Superseded by node FOV check below
+	/*VectorNormalize( vecDelta );
+
+	// Check angle
+	if ( vecDelta.z < DOT_45DEGREE && pCandidate->GetIgnoreFacing() != HIF_YES )
+		return false;*/
+
+	// Check FOV
+	if ( !pCandidate->IsInNodeFOV( vecOrigin ) )
+		return false;
+
+	// See if this point is visible to the hint
+	if ( !pCandidate->FVisible( vecOrigin, MASK_BLOCKLOS ) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::ProbeGrappleTarget( const Vector &vecOrigin, bool bSetGrappleDest )
+{
+	// Find a hint with low 2D distance
+	CHintCriteria hintCriteria;
+	hintCriteria.SetGroup( GetHintGroup() );
+	hintCriteria.SetHintType( HINT_GRAPPLE_POINT );
+	hintCriteria.SetFlag( bits_HINT_NODE_NEAREST /*| bits_HINT_NODE_VISIBLE | bits_HINT_NPC_IN_NODE_FOV*/ ); // NPC may not be in position
+
+	// Filter func handles distance check
+	hintCriteria.SetFilterFunc( GrappleHintFilter, &const_cast<Vector&>(vecOrigin) );
+	//hintCriteria.AddIncludePosition( vecOrigin, FLT_MAX );
+
+	CAI_Hint *pHint = CAI_HintManager::FindHint( this, vecOrigin, hintCriteria );
+	if ( pHint )
+	{
+		if ( bSetGrappleDest )
+		{
+			// Do not set hint node in case we're already navigating to one.
+			// Just use its origin and angles
+			m_vecGrappleDest = pHint->GetAbsOrigin();
+			m_vecGrappleAngle = pHint->GetAbsAngles();
+
+			// Only set drop dest if we're not directly below
+			if ( (m_vecGrappleDest.AsVector2D() - vecOrigin.AsVector2D()).LengthSqr() > Square( 4.0f ) )
+				m_vecGrappleDropDest = vecOrigin;
+		}
+		return true;
+	}
+
+	// If no hint, then find grapple location procedurally
 	// Trace directly up first
 	trace_t tr;
 	UTIL_TraceLine( vecOrigin, vecOrigin + Vector(0,0,2000), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
@@ -540,8 +657,11 @@ bool CNPC_Progenitor::ProbeGrappleTarget( const Vector &vecOrigin )
 		// Make sure it's close enough
 		if ( (GetAbsOrigin() - tr.endpos).LengthSqr() < Square( sk_progenitor_grapple_max_dist.GetFloat() ) )
 		{
-			m_vecGrappleDest = tr.endpos;
-			VectorAngles( tr.plane.normal, m_vecGrappleAngle );
+			if ( bSetGrappleDest )
+			{
+				m_vecGrappleDest = tr.endpos;
+				VectorAngles( tr.plane.normal, m_vecGrappleAngle );
+			}
 			return true;
 		}
 	}
@@ -558,15 +678,19 @@ bool CNPC_Progenitor::ProbeGrappleTarget( const Vector &vecOrigin )
 
 		for ( int i = 0; i < 4; i++ )
 		{
-			UTIL_TraceLine( vecOrigin, vecOrigin + Vector(0,0,200) + (vecDirs[i] * 96.0f), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr);
+			UTIL_TraceLine( vecOrigin, vecOrigin + Vector(0,0,200) + (vecDirs[i] * 200.0f), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr);
 
 			if ( tr.fraction != 1.0f && !(tr.surface.flags & SURF_SKY) )
 			{
-				// Make sure it's close enough
-				if ( (GetAbsOrigin() - tr.endpos).LengthSqr() < Square( sk_progenitor_grapple_max_dist.GetFloat() ) )
+				// Make sure it's close enough and visible
+				if ( (GetAbsOrigin() - tr.endpos).LengthSqr() < Square( sk_progenitor_grapple_max_dist.GetFloat() ) && FVisible( tr.endpos - vecDirs[i] ) )
 				{
-					m_vecGrappleDest = tr.endpos;
-					VectorAngles( tr.plane.normal, m_vecGrappleAngle );
+					if ( bSetGrappleDest )
+					{
+						m_vecGrappleDest = tr.endpos;
+						VectorAngles( tr.plane.normal, m_vecGrappleAngle );
+						m_vecGrappleDropDest = vecOrigin;
+					}
 					return true;
 				}
 			}
@@ -691,7 +815,24 @@ void CNPC_Progenitor::GetGrappleDestForEntity( CBaseEntity *pEnt, Vector &vecOri
 //-----------------------------------------------------------------------------
 void CNPC_Progenitor::InputGrappleToTargetForced( inputdata_t &inputdata )
 {
-	CBaseEntity *pTarget = inputdata.value.Entity();
+	char szParam[128];
+	V_strncpy( szParam, inputdata.value.String(), sizeof( szParam ) );
+
+	m_vecGrappleDropDest = vec3_invalid;
+
+	char *pszSpace = V_strstr( szParam, " " );
+	if ( pszSpace )
+	{
+		// Drop target specified
+		CBaseEntity *pDropTarget = gEntList.FindEntityByName( NULL, pszSpace + 1, this, inputdata.pActivator, inputdata.pCaller );
+		if ( pDropTarget )
+		{
+			m_vecGrappleDropDest = pDropTarget->GetAbsOrigin();
+			*pszSpace = '\0';
+		}
+	}
+
+	CBaseEntity *pTarget = gEntList.FindEntityByName( NULL, szParam, this, inputdata.pActivator, inputdata.pCaller );
 	if ( !pTarget )
 		return;
 
@@ -782,7 +923,14 @@ bool CNPC_Progenitor::IsJumpLegal( const Vector &startPos, const Vector &apex, c
 	const float MAX_JUMP_DISTANCE		= sk_progenitor_grapple_max_dist.GetFloat();		// 224
 	const float MAX_JUMP_DROP			= sk_progenitor_grapple_max_dist.GetFloat();		// 384
 
-	return CNPC_PlayerCompanion::IsJumpLegal(startPos, apex, endPos, MAX_JUMP_RISE, MAX_JUMP_DROP, MAX_JUMP_DISTANCE);
+	if ( !CNPC_PlayerCompanion::IsJumpLegal(startPos, apex, endPos, MAX_JUMP_RISE, MAX_JUMP_DROP, MAX_JUMP_DISTANCE) )
+		return false;
+
+	// Make sure our grappling hook can actually be used here
+	if ( !const_cast<CNPC_Progenitor*>(this)->ProbeGrappleTarget( endPos, false ) )
+		return false;
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -890,9 +1038,10 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 			{
 				if ( !GetOuter()->ProbeGrappleTarget( GetPath()->CurWaypointPos() ) )
 				{
-					// hack...
-					GetOuter()->m_vecGrappleDest = GetPath()->CurWaypointPos() + Vector(0,0,64);
-					GetOuter()->m_vecGrappleAngle = vec3_angle;
+					// It shouldn't be possible for this to fail since we probed it in IsJumpLegal(),
+					// but just continue on the path instead of suddenly cancelling
+					GetOuter()->m_vecGrappleDest = GetPath()->CurWaypointPos() /*+ Vector(0,0,64)*/;
+					GetOuter()->m_vecGrappleAngle = QAngle(-90,0,0);
 				}
 
 				// This makes sure we don't have any lingering blend sequences in CAI_BlendedMotor
@@ -1086,7 +1235,7 @@ void CNPC_Progenitor::CNavigator::OnNewGoal()
 	GetOuter()->m_bNavEvaluatedJump = false;
 	GetOuter()->m_bNavTrueJump = false;
 
-	if ( GetOuter()->IsNavGrapple() && GetOuter()->m_iGrapplePhase > GRAPPLE_PHASE_NONE && GetOuter()->m_iGrapplePhase < GRAPPLE_PHASE_SHOT )
+	if ( GetOuter()->IsNavGrapple() && GetOuter()->m_iGrapplePhase > GRAPPLE_PHASE_NONE && GetOuter()->m_iGrapplePhase < GRAPPLE_PHASE_GRAPPLING )
 	{
 		GetOuter()->StopGrappling();
 	}
