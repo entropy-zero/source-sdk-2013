@@ -75,10 +75,22 @@ class CPropShield;
 class CAI_BaseActor;
 
 //-----------------------------------------------------------------------------
+// Other classes can use this and access some CAI_PropShieldUser functions.
+//-----------------------------------------------------------------------------
+class CAI_PropShieldUserSink
+{
+public:
+	CAI_PropShieldUserSink() {}
+
+	virtual void		OnShieldTraceAttack( CPropShield *pShield, const CTakeDamageInfo &info ) {}
+	virtual bool		OnShieldBreak( CPropShield *pShield, const CTakeDamageInfo &info ) { return true; }
+};
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 template <class BASE_NPC>
-class CAI_PropShieldUser : public BASE_NPC
+class CAI_PropShieldUser : public BASE_NPC, public CAI_PropShieldUserSink
 {
 	DECLARE_CLASS_NOFRIEND( CAI_PropShieldUser, BASE_NPC );
 
@@ -122,6 +134,8 @@ public:
 
 	virtual void		OnShieldSpawn( CPropShield *pShield ) {}
 	virtual void		OnShieldRemove( CPropShield *pShield ) {}
+	virtual void		OnShieldTraceAttack( CPropShield *pShield, const CTakeDamageInfo &info ) {}
+	virtual bool		OnShieldBreak( CPropShield *pShield, const CTakeDamageInfo &info ) { this->m_hShield = NULL; return true; }
 	virtual void		OnShieldSlam( CPropShield *pShield ) { UTIL_Remove( pShield ); }
 	virtual CBaseEntity *CreateShieldProjectile( CPropShield *pShield ) { UTIL_Remove( pShield ); return NULL; }
 
@@ -145,6 +159,8 @@ public:
 
 	static CPropShield *CreatePropShield( CAI_BaseActor *pNPC, bool bStartHolstered = false, const char *pszModelName = SHIELD_MODEL_NAME );
 
+	inline CAI_PropShieldUserSink *GetNPCShieldUser() { return dynamic_cast<CAI_PropShieldUserSink *>(GetParent()); }
+
 	void	Spawn();
 	void	Precache();
 
@@ -152,6 +168,7 @@ public:
 	void	ModifyTraceAttackDamage( CTakeDamageInfo &info, float flPenetrationScale = 1.0f );
 
 	void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
+	void	Event_Killed( const CTakeDamageInfo &info );
 
 	void	Holster();
 	void	Unholster();

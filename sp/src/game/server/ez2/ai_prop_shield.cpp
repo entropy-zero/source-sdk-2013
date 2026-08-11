@@ -187,6 +187,37 @@ void CPropShield::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir
 	BaseClass::TraceAttack( info, vecDir, ptr, pAccumulator );
 
 	g_pEffects->Sparks( ptr->endpos );
+
+	if ( HasNPCParent() && GetNPCParent()->GetHealth() > 0 )
+	{
+		CAI_PropShieldUserSink *pShieldUser = GetNPCShieldUser();
+		if ( pShieldUser )
+		{
+			pShieldUser->OnShieldTraceAttack( this, info );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CPropShield::Event_Killed( const CTakeDamageInfo &info )
+{
+	if ( HasNPCParent() && GetNPCParent()->GetHealth() > 0 )
+	{
+		CAI_PropShieldUserSink *pShieldUser = GetNPCShieldUser();
+		if ( pShieldUser )
+		{
+			if ( !pShieldUser->OnShieldBreak( this, info ) )
+			{
+				// Skip traditional breakage code
+				CBaseEntity::Event_Killed( info );
+				return;
+			}
+		}
+	}
+
+	BaseClass::Event_Killed( info );
 }
 
 //-----------------------------------------------------------------------------
