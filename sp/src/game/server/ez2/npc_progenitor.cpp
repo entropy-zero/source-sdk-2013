@@ -27,6 +27,7 @@ ConVar	sk_progenitor_health( "sk_progenitor_health","1000" );
 ConVar	sk_progenitor_kick( "sk_progenitor_kick", "20" );
 ConVar	sk_progenitor_slide_decel_dist( "sk_progenitor_slide_decel_dist", "100" );
 ConVar	sk_progenitor_slide_always( "sk_progenitor_slide_always", "0" );
+ConVar	sk_progenitor_shield_health( "sk_progenitor_shield_health", "500" );
 ConVar	sk_progenitor_shield_fire_rate( "sk_progenitor_shield_fire_rate", "2.0" );
 ConVar	sk_progenitor_shield_max_time( "sk_progenitor_shield_max_time", "10" );
 ConVar	sk_progenitor_shield_max_cooldown( "sk_progenitor_shield_max_cooldown", "5" );
@@ -960,9 +961,11 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 				if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_ENEMY, false )
 					|| IsCurSchedule( SCHED_COMBINE_HIDE_AND_RELOAD, false ) )
 				{
+					Vector vecToEnemy = (GetEnemyLKP() - GetAbsOrigin());
 					if ( GetNavigator()->IsGoalSet()
 						&& ( GetNavigator()->GetGoalPos() - GetAbsOrigin() ).LengthSqr() > Square( 128.0f )
-						&& abs( GetAbsOrigin().z - GetEnemyLKP().z ) < 64.0f && !IsPropShieldEquipped() && ShouldThrowProximitySatchel( true ) )
+						&& abs( vecToEnemy.z ) < 64.0f && vecToEnemy.LengthSqr() > Square( 200.0f )
+						&& !IsPropShieldEquipped() && ShouldThrowProximitySatchel( true ) )
 					{
 						AddActionGesture( ACT_GESTURE_SPECIAL_ATTACK2 );
 					}

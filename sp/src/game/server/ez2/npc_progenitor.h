@@ -99,6 +99,8 @@ public:
 	void			RemoveShieldEffects( bool bOnShield = true );
 	virtual void	OnShieldRemove( CPropShield *pShield );
 	virtual void	OnShieldSlam( CPropShield *pShield );
+	virtual void	OnShieldTraceAttack( CPropShield *pShield, const CTakeDamageInfo &info );
+	virtual bool	OnShieldBreak( CPropShield *pShield, const CTakeDamageInfo &info );
 	CBaseEntity		*CreateShieldProjectile( CPropShield *pShield );
 
 	virtual void		OnUpdateShotRegulator();

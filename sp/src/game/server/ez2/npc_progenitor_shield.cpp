@@ -18,6 +18,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+extern ConVar	sk_progenitor_shield_health;
 extern ConVar	sk_progenitor_shield_fire_rate;
 extern ConVar	sk_progenitor_shield_max_time;
 extern ConVar	sk_progenitor_shield_max_cooldown;
@@ -181,6 +182,15 @@ void CNPC_Progenitor::OnShieldSpawn( CPropShield *pShield )
 {
 	BaseClass::OnShieldSpawn( pShield );
 
+	if ( sk_progenitor_shield_health.GetInt() > 0 )
+	{
+		pShield->SetMaxHealth( sk_progenitor_shield_health.GetInt() );
+		pShield->SetHealth( sk_progenitor_shield_health.GetInt() );
+		pShield->m_takedamage = DAMAGE_YES;
+
+		pShield->SetRenderMode( kRenderTransColor );
+	}
+
 	EmitSound( "Weapon_EnergyShield.Unholster" );
 
 	int nShieldAttach = LookupAttachment( "shield_projector" );
@@ -217,7 +227,7 @@ void CNPC_Progenitor::OnShieldSpawn( CPropShield *pShield )
 	{
 		m_hShieldSprite = CSprite::SpriteCreate( PROGENITOR_SHIELD_SPRITE, GetAbsOrigin(), false );
 		m_hShieldSprite->SetAttachment( this, nShieldAttach );
-		m_hShieldSprite->SetTransparency( kRenderWorldGlow, 255, 192, 224, 255, kRenderFxHologram );
+		m_hShieldSprite->SetTransparency( kRenderWorldGlow, 255, 192, 224, 255, kRenderFxDistort ); // kRenderFxHologram
 		m_hShieldSprite->SetBrightness( 255, 1.0f );
 		m_hShieldSprite->SetScale( 0.3f, 0.5f );
 		m_hShieldSprite->SetGlowProxySize( 4.0f );
@@ -329,6 +339,96 @@ void CNPC_Progenitor::OnShieldSlam( CPropShield *pShield )
 	g_pEffects->Sparks( pShield->WorldSpaceCenter(), 4, 3 );
 
 	BaseClass::OnShieldSlam( pShield );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::OnShieldTraceAttack( CPropShield *pShield, const CTakeDamageInfo &info )
+{
+	if ( pShield->GetRenderMode() == kRenderTransColor )
+	{
+		pShield->SetRenderColorA( RemapValClamped( pShield->GetHealth(), 0, pShield->GetMaxHealth(), 16, 255 ) );
+	}
+
+	BaseClass::OnShieldTraceAttack( pShield, info );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::OnShieldBreak( CPropShield *pShield, const CTakeDamageInfo &info )
+{
+	RemoveShieldEffects( false );
+
+	// Create and then immediately break a fake shield projectile
+	//CBaseEntity *pProjectile = CreateShieldProjectile( pShield );
+	CPhysicsProp *pProjectile = (CPhysicsProp*)CreateNoSpawn( "prop_physics_override", pShield->GetAbsOrigin(), pShield->GetAbsAngles(), this );
+	if (pProjectile)
+	{
+		pProjectile->SetModelName( pShield->GetModelName() );
+		DispatchSpawn( pProjectile );
+
+		DispatchParticleEffect( "temporal_striderbuster_attach_flash", pShield->GetAbsOrigin(), pShield->GetAbsAngles() );
+		pProjectile->EmitSound( "Weapon_EnergyShield.Thrown_Explode" );
+
+		Vector vecSparkDir = -info.GetDamageForce();
+		VectorNormalize( vecSparkDir );
+		g_pEffects->Sparks( info.GetDamagePosition(), 3, 2 );
+		g_pEffects->Sparks( info.GetDamagePosition(), 2, 4, &vecSparkDir );
+
+		IPhysicsObject *pPhys = pProjectile->VPhysicsGetObject();
+		if ( pPhys )
+		{
+			pPhys->EnableDrag( false );
+			pPhys->EnableGravity( false );
+
+			Vector vecDamageForce = info.GetDamageForce();
+			vecDamageForce *= 0.025f;
+
+			Vector vecForce;
+			AngularImpulse vecTorque;
+			pPhys->CalculateForceOffset( vecDamageForce, info.GetDamagePosition(), &vecForce, &vecTorque );
+
+			pPhys->SetVelocity( &vecForce, &vecTorque );
+		}
+
+		if ( m_hShieldLight )
+		{
+			m_hShieldLight->SetParent( pProjectile );
+			m_hShieldLight->SetLocalOrigin( vec3_origin );
+			m_hShieldLight->SetLocalAngles( vec3_angle );
+			m_hShieldLight = NULL;
+		}
+
+		// Detach all sprite trails
+		for ( int i = 0; i < PROGENITOR_SHIELD_NUM_CORNERS; i++ )
+		{
+			if ( m_hShieldSpriteTrails[i] )
+			{
+				m_hShieldSpriteTrails[i]->StopFollowingEntity();
+
+				// Make sure they stop following it too
+				m_hShieldSpriteTrails[i]->m_hAttachedToEntity = NULL;
+				m_hShieldSpriteTrails[i]->m_nAttachment = 0;
+
+				//m_hShieldSpriteTrails[i]->FadeAndDie( 1.0f );
+				m_hShieldSpriteTrails[i]->SetThink( &CBaseEntity::SUB_Remove );
+				m_hShieldSpriteTrails[i]->SetNextThink( gpGlobals->curtime + 2.0f );
+
+				m_hShieldSpriteTrails[i] = NULL;
+			}
+		}
+
+		pProjectile->Dissolve( "", gpGlobals->curtime, false, ENTITY_DISSOLVE_NORMAL ); // ENTITY_DISSOLVE_ELECTRICAL
+	}
+
+	m_bShieldEquipped = false;
+	ResetActivity();
+	BaseClass::OnShieldBreak( pShield, info );
+
+	// Don't do traditional gibbing
+	return false;
 }
 
 //-----------------------------------------------------------------------------
