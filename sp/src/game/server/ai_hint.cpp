@@ -896,6 +896,8 @@ BEGIN_DATADESC( CAI_Hint )
 	DEFINE_INPUTFUNC( FIELD_VOID,		"DisableHint",		InputDisableHint ),
 #ifdef MAPBASE
 	DEFINE_INPUTFUNC( FIELD_STRING,		"SetHintGroup",		InputSetHintGroup ),
+	DEFINE_INPUTFUNC( FIELD_VOID,		"EnableNode",		InputEnableNode ),
+	DEFINE_INPUTFUNC( FIELD_VOID,		"DisableNode",		InputDisableNode ),
 #endif
 
 	// Outputs
@@ -957,6 +959,23 @@ void CAI_Hint::SetGroup( string_t iszNewGroup )
 void CAI_Hint::InputSetHintGroup( inputdata_t &inputdata )
 {
 	SetGroup(inputdata.value.StringID());
+}
+
+//------------------------------------------------------------------------------
+// Purpose : 
+//------------------------------------------------------------------------------
+void CAI_Hint::InputEnableNode( inputdata_t &inputdata )
+{
+	// TODO: Enable node but keep hint disabled?
+	m_NodeData.iDisabled		= false;
+}
+
+//------------------------------------------------------------------------------
+// Purpose :
+//------------------------------------------------------------------------------
+void CAI_Hint::InputDisableNode( inputdata_t &inputdata )
+{
+	m_NodeData.iDisabled		= 2;
 }
 #endif
 
@@ -1123,6 +1142,38 @@ bool CAI_Hint::IsInNodeFOV( CBaseEntity *pOther )
 }
 
 #ifdef MAPBASE
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CAI_Hint::IsInNodeFOV( const Vector &vecOrigin )
+{
+	if( m_nodeFOV == 360 )
+	{
+		return true;
+	}
+
+#if 0 
+	NDebugOverlay::Line( GetAbsOrigin(), GetAbsOrigin() + m_vecForward * 16, 255, 255, 0, false, 1 );
+#endif
+
+	Vector vecToOrigin = vecOrigin - GetAbsOrigin();
+	VectorNormalize( vecToOrigin );
+	float flDot = DotProduct( vecToOrigin, m_vecForward );
+
+	if( flDot > m_nodeFOV )
+	{
+#if 0 
+		NDebugOverlay::Line( GetAbsOrigin(), vecOrigin, 0, 255, 0, false, 1 );
+#endif
+		return true;
+	}
+
+#if 0 
+	NDebugOverlay::Line( GetAbsOrigin(), vecOrigin, 255, 0, 0, false, 1 );
+#endif
+
+	return false;
+}
+
 //-----------------------------------------------------------------------------
 // An easy way of engaging certain hint parameters on certain hint types that didn't use it before.
 //-----------------------------------------------------------------------------

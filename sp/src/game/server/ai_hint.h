@@ -359,12 +359,18 @@ public:
 
 	float				GetHintWeight() const { return m_NodeData.flWeight; }
 	float				GetHintWeightInverse() const { return m_NodeData.flWeightInverse; }		// Used to multiply distances
+
+	// Whether the node itself is disabled, not just the hint.
+	// Use IsDisabled() for just the hint.
+	bool				IsNodeDisabled() const { return m_NodeData.iDisabled == 2; }
 #endif
 
 	bool				HintMatchesCriteria( CAI_BaseNPC *pNPC, const CHintCriteria &hintCriteria, const Vector &position, float *flNearestDistance, bool bIgnoreLock = false, bool bIgnoreHintType = false );
 	bool				IsInNodeFOV( CBaseEntity *pOther );
 
 #ifdef MAPBASE
+	bool				IsInNodeFOV( const Vector &vecOrigin );
+
 	void				NPCHandleStartNav( CAI_BaseNPC *pNPC, bool bDefaultFacing );
 
 	// Returns true if this hint should override a NPC's yaw even during regular AI.
@@ -394,6 +400,8 @@ private:
 	void				InputDisableHint( inputdata_t &inputdata );
 #ifdef MAPBASE
 	void				InputSetHintGroup( inputdata_t &inputdata );
+	void				InputEnableNode( inputdata_t &inputdata );
+	void				InputDisableNode( inputdata_t &inputdata );
 #endif
 
 private:

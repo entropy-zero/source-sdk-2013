@@ -1782,6 +1782,26 @@ void CAI_NetworkEditTools::DrawAINetworkOverlay(void)
 					{
 						m_pManager->RebuildNetworkGraph();
 					}
+#ifdef MAPBASE
+					else if (pAINode[node]->GetHint() && pAINode[node]->GetHint()->IsNodeDisabled())
+					{
+						// Draw all links as if they were disabled
+						for (int link=0;link<pAINode[node]->NumLinks();link++)
+						{
+							// Only draw link once
+							if (pAINode[node]->GetLinkByIndex(link)->DestNodeID(node) < node)
+							{
+								int srcID = pAINode[node]->GetLinkByIndex(link)->m_iSrcID;
+								int desID = pAINode[node]->GetLinkByIndex(link)->m_iDestID;
+
+								Vector srcPos	 = pAINode[srcID]->GetPosition(m_iHullDrawNum);
+								Vector desPos	 = pAINode[desID]->GetPosition(m_iHullDrawNum);
+								
+								NDebugOverlay::Line(srcPos, desPos, 100,100,100, false, flDrawDuration);
+							}
+						}
+					}
+#endif
 					else
 					{
 						for (int link=0;link<pAINode[node]->NumLinks();link++) {
@@ -1822,6 +1842,12 @@ void CAI_NetworkEditTools::DrawAINetworkOverlay(void)
 								{
 									NDebugOverlay::Line(srcPos, desPos, 100,100,100, false, flDrawDuration);
 								}
+#ifdef MAPBASE
+								else if (pAINode[desID]->GetHint() && pAINode[desID]->GetHint()->IsNodeDisabled())
+								{
+									NDebugOverlay::Line(srcPos, desPos, 100,100,100, false, flDrawDuration);
+								}
+#endif
 								else if ((m_debugNetOverlays & bits_debugOverlayFlyConnections) && (moveTypes & bits_CAP_MOVE_FLY))
 								{	
 									NDebugOverlay::Line(srcPos, desPos, 100,255,255, false, flDrawDuration);

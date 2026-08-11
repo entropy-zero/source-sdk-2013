@@ -18,6 +18,9 @@
 #include "ai_navigator.h"
 #include "ai_hint.h"
 #include "scripted.h"
+#ifdef MAPBASE
+#include "ai_network.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -197,6 +200,12 @@ bool CAI_BaseNPC::IsUnusableNode(int iNodeID, CAI_Hint *pHint)
 			return true;
 		}
 	}
+
+#ifdef MAPBASE
+	if ( pHint && pHint->IsNodeDisabled() )
+		return true;
+#endif
+
 	return false;
 }
 
