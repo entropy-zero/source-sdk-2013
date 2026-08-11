@@ -2107,7 +2107,12 @@ public:
 	virtual bool			CanGrabAccessory( CBaseEntity *pAccessory ) { return false; }
 	virtual CBaseEntity		*GetGrabbableAccessory( int nIdx ) { return NULL; }
 	virtual CBaseEntity		*GetGrabbableAccessoryFromGrab( CBasePlayer *pGrabActivator ) { return NULL; }
-	virtual void			RemoveGrabbableAccessory( CBaseEntity *pAccessory ) {}
+	virtual void			AddGrabbableAccessory( CBaseEntity *pItem, int nBodyIdx = -1 ) {}
+	virtual void			RemoveGrabbableAccessory( CBaseEntity *pAccessory, bool bMakeStealthObj = true ) {}
+	virtual void			PutGrabbableAccessoryInOtherAttach( int nBodyIdx, const char *pszAttach ) {}
+	virtual void			ResetGrabbableAccessoryPosition( int nBodyIdx ) {}
+	virtual void			TransferGrabbableAccessory( int nBodyIdx, CAI_BaseNPC *pTarget, int nTheirBodyIdx = -1 ) {}
+	virtual void			TransferGrabbableAccessory( int nBodyIdx, CAI_BaseNPC *pTarget, const char *pszTheirAttach ) {}
 #endif
 
 	// override to change the chase location of an enemy

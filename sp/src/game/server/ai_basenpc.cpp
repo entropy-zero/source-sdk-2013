@@ -10796,6 +10796,62 @@ void CAI_BaseNPC::HandleAnimEvent( animevent_t *pEvent )
 				DevWarning( "%s received AE_NPC_HURT_INTERACTION_PARTNER anim event, but it's not interacting with anything.\n", GetDebugName() );
 				return;
 			}
+#ifdef EZ2
+			else if ( pEvent->event == AE_NPC_BODY_ITEM_ATTACH )
+			{
+				if ( !UsesGrabbableAccessories() )
+					return;
+
+				if ( pEvent->options )
+				{
+					// <item> <attachment>
+					char szEventOptions[128];
+					Q_strncpy( szEventOptions, pEvent->options, sizeof(szEventOptions) );
+					char *pszParam = strstr( szEventOptions, " " );
+					if ( pszParam )
+					{
+						// Separate the strings
+						const char *pszItem = szEventOptions;
+						const char *pszAttach = pszParam + 1;
+						*pszParam = '\0';
+
+						// Now find the item
+						// The item name is either a classname, targetname, or context name
+						for ( int i = 0; i < GetNumGrabbableAccessories(); i++ )
+						{
+							CBaseEntity *pAccessory = GetGrabbableAccessory( i );
+							if ( pAccessory &&
+								( pAccessory->ClassMatches( pszItem ) || pAccessory->NameMatches( pszItem ) || pAccessory->FindContextByName( pszItem ) != -1 ) )
+							{
+								// Put it on the attachment point
+								PutGrabbableAccessoryInOtherAttach( i, pszAttach );
+								break;
+							}
+						}
+					}
+				}
+				return;
+			}
+			else if ( pEvent->event == AE_NPC_BODY_ITEM_RESET )
+			{
+				if ( pEvent->options )
+				{
+					// The item name is either a classname, targetname, or context name
+					const char *pszItem = pEvent->options;
+					for ( int i = 0; i < GetNumGrabbableAccessories(); i++ )
+					{
+						CBaseEntity *pAccessory = GetGrabbableAccessory( i );
+						if ( pAccessory &&
+							( pAccessory->ClassMatches( pszItem ) || pAccessory->NameMatches( pszItem ) || pAccessory->FindContextByName( pszItem ) != -1 ) )
+						{
+							ResetGrabbableAccessoryPosition( i );
+							break;
+						}
+					}
+				}
+				return;
+			}
+#endif
 		}
 
 		// FIXME: why doesn't this code pass unhandled events down to its parent?

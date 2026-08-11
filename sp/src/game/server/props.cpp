@@ -5842,6 +5842,26 @@ bool CBasePropDoor::NPCOpenDoor( CAI_BaseNPC *pNPC )
 	{
 		// Change if we end up having other possible lock classes
 		CInteractableProp *pLock = assert_cast<CInteractableProp *>(GetExternalLock());
+		
+#ifdef EZ2
+		if ( !pLock->PassesInteractFilter( pNPC ) )
+		{
+			// See if we have an accessory on us that can unlock this door
+			if ( pNPC->UsesGrabbableAccessories() )
+			{
+				for ( int i = 0; i < pNPC->GetNumGrabbableAccessories(); i++ )
+				{
+					// TODO: Accessory as caller, if applicable
+					CBaseEntity *pAccessory = pNPC->GetGrabbableAccessory( i );
+					if ( pAccessory && pLock->PassesInteractFilter( pAccessory ) )
+					{
+						pLock->Use( pNPC, pAccessory, USE_ON, 0 );
+						return true;
+					}
+				}
+			}
+		}
+#endif
 
 		pLock->Use( pNPC, pNPC, USE_ON, 0 );
 		return true;
@@ -6882,6 +6902,20 @@ bool CPropDoorRotating::CanBeUnlockedBy( CBaseEntity *pEnt )
 	{
 		if ( m_hExternalLock->PassesInteractFilter( pEnt ) )
 			return true;
+
+#ifdef EZ2
+		// See if we have an accessory on us that can unlock this door
+		CAI_BaseNPC *pNPC = pEnt->MyNPCPointer();
+		if ( pNPC && pNPC->UsesGrabbableAccessories() )
+		{
+			for ( int i = 0; i < pNPC->GetNumGrabbableAccessories(); i++ )
+			{
+				CBaseEntity *pAccessory = pNPC->GetGrabbableAccessory( i );
+				if ( pAccessory && m_hExternalLock->PassesInteractFilter( pAccessory ) )
+					return true;
+			}
+		}
+#endif
 	}
 
 	return false;
