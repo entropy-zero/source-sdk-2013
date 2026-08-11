@@ -58,7 +58,7 @@ public:
 	bool		ShouldDodgeProjectile( CBaseEntity *pProjectile );
 	bool		CanDodgeSounds() { return true; }
 	bool		CanDodgeProjectiles() { return true; }
-	Activity	GetDodgeActivity( int nIdx );
+	Activity	GetDodgeActivity( int nIdx, CUtlVector<interval_t> *vecDeadZones = NULL );
 	int			GetNumDodgeActivities();
 	float		GetDodgeWarning();
 	float		GetDodgeWarningCone();

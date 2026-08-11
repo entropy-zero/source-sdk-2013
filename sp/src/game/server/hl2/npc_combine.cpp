@@ -255,6 +255,10 @@ Activity ACT_GESTURE_DEPLOY_MANHACK;
 #ifdef EZ2
 Activity ACT_DODGE_HOP;
 Activity ACT_DODGE_STEP;
+Activity ACT_DODGE_ROLL;
+Activity ACT_GESTURE_DODGE_HOP;
+Activity ACT_GESTURE_DODGE_STEP;
+Activity ACT_GESTURE_DODGE_ROLL;
 #endif
 
 // -----------------------------------------------
@@ -1485,7 +1489,17 @@ void CNPC_Combine::TaskFindDodgeActivity()
 		pDodgeTarget = GetTarget();
 		if (pDodgeTarget)
 		{
-			pDodgeTarget->GetVectors( &vecDodgeTargetVel, NULL, NULL );
+			if ( !pDodgeTarget->IsCombatCharacter() )
+			{
+				// Get its direction to me (it's a grenade, etc.)
+				vecDodgeTargetVel = (WorldSpaceCenter() - pDodgeTarget->WorldSpaceCenter());
+				VectorNormalize( vecDodgeTargetVel );
+			}
+			else
+			{
+				// Get its direction to me (it's someone aiming at me, etc.)
+				pDodgeTarget->GetVectors( &vecDodgeTargetVel, NULL, NULL );
+			}
 			vecDodgeTargetVel *= 100.0f;
 		}
 	}
@@ -1591,12 +1605,46 @@ void CNPC_Combine::TaskFindDodgeActivity()
 	for ( ; i < nNumDodgeActs; i++ )
 	{
 		// Go through each of our dodge activities
+		CUtlVector<interval_t> vecDeadZones;
 		int nTries = 0;
-		Activity nDodgeActivity = GetDodgeActivity( i );
+		Activity nDodgeActivity = GetDodgeActivity( i, &vecDeadZones );
 
 		while ( !bFoundDir && ( nTries < 3 ) )
 		{
-			SetPoseParameter( LookupPoseMoveYaw(), flDodgeDirection );
+			// Avoid pose values that this dodge act doesn't support
+			float flThisDodgeDirection = flDodgeDirection;
+			bool bInvalidAngle = false;
+			FOR_EACH_VEC( vecDeadZones, i )
+			{
+				float flDist = abs( flDodgeDirection - vecDeadZones[i].start );
+				if ( flDist < vecDeadZones[i].range )
+				{
+					float flFrac = (flDist / vecDeadZones[i].range);
+					if ( flFrac > 0.5f )
+					{
+						// Too far. Just use the next direction
+						bInvalidAngle = true;
+						break;
+					}
+					else
+					{
+						// Clamp to the closest valid angle
+						if ( flDodgeDirection > vecDeadZones[i].start )
+							flThisDodgeDirection = vecDeadZones[i].start + vecDeadZones[i].range;
+						else
+							flThisDodgeDirection = vecDeadZones[i].start - vecDeadZones[i].range;
+					}
+				}
+			}
+
+			if ( bInvalidAngle )
+			{
+				nTries++;
+				flDodgeDirection += (bStartLeft ? 90.0f : -90.0f);
+				continue;
+			}
+
+			SetPoseParameter( LookupPoseMoveYaw(), flThisDodgeDirection );
 
 			// See where the dodge will put us.
 			Vector vecLocalDelta;
@@ -1664,6 +1712,10 @@ int CNPC_Combine::GetStartDodgeActivityIdx( CBaseEntity *pProjectile )
 {
 	// Prefer to step away instead of hop with smaller, less deadly objects
 	if ( pProjectile->ClassMatches( "crossbow_bolt" ) )
+		return 2;
+
+	// If we already recently dodged, don't roll
+	if ( gpGlobals->curtime - m_flNextDodgeTime < 5.0f )
 		return 1;
 
 	return 0;
@@ -1694,15 +1746,38 @@ bool CNPC_Combine::CanDodgeProjectiles()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-Activity CNPC_Combine::GetDodgeActivity( int nIdx )
+Activity CNPC_Combine::GetDodgeActivity( int nIdx, CUtlVector<interval_t> *vecDeadZones )
 {
 	// Should be in order from longest to shortest dodge
 	switch ( nIdx )
 	{
 		case 0:
 		default:
-			return ACT_DODGE_HOP;
+			if ( vecDeadZones )
+			{
+				// These directions don't work right due to issues w/ blending full pelvis rotation
+				// (a bit difficult to explain; test these pose values in HLMV to see what this means)
+				// It's possible these could be fixed if this were a 8-way blend instead of a 5-way blend
+
+				// 10 to 80 degrees
+				int i = vecDeadZones->AddToTail();
+				vecDeadZones->Element( i ).start = 45.0f;
+				vecDeadZones->Element( i ).range = 35.0f;
+
+				// -100 to -180 degrees
+				i = vecDeadZones->AddToTail();
+				vecDeadZones->Element( i ).start = -135.0f;
+				vecDeadZones->Element( i ).range = 35.0f;
+
+				// 100 to 180 degrees
+				i = vecDeadZones->AddToTail();
+				vecDeadZones->Element( i ).start = 135.0f;
+				vecDeadZones->Element( i ).range = 35.0f;
+			}
+			return ACT_DODGE_ROLL;
 		case 1:
+			return ACT_DODGE_HOP;
+		case 2:
 			return ACT_DODGE_STEP;
 	}
 }
@@ -1712,7 +1787,7 @@ Activity CNPC_Combine::GetDodgeActivity( int nIdx )
 //-----------------------------------------------------------------------------
 int CNPC_Combine::GetNumDodgeActivities()
 {
-	return 2;
+	return 3;
 }
 
 //-----------------------------------------------------------------------------
@@ -7608,6 +7683,10 @@ DECLARE_ACTIVITY( ACT_GESTURE_DEPLOY_MANHACK )
 #ifdef EZ2
 DECLARE_ACTIVITY( ACT_DODGE_HOP )
 DECLARE_ACTIVITY( ACT_DODGE_STEP )
+DECLARE_ACTIVITY( ACT_DODGE_ROLL )
+DECLARE_ACTIVITY( ACT_GESTURE_DODGE_HOP )
+DECLARE_ACTIVITY( ACT_GESTURE_DODGE_STEP )
+DECLARE_ACTIVITY( ACT_GESTURE_DODGE_ROLL )
 #endif
 
 DECLARE_ANIMEVENT( COMBINE_AE_BEGIN_ALTFIRE )

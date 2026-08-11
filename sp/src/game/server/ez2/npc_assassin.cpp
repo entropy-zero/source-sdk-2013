@@ -1325,7 +1325,7 @@ bool CNPC_Assassin::ShouldDodgeProjectile( CBaseEntity *pProjectile )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-Activity CNPC_Assassin::GetDodgeActivity( int nIdx )
+Activity CNPC_Assassin::GetDodgeActivity( int nIdx, CUtlVector<interval_t> *vecDeadZones )
 {
 	// Only flipping for now
 	return ACT_ASSASSIN_FLIP;

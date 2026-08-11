@@ -224,7 +224,7 @@ public:
 	virtual int			GetStartDodgeActivityIdx( CBaseEntity *pProjectile );
 	virtual bool		CanDodgeSounds();
 	virtual bool		CanDodgeProjectiles();
-	virtual Activity	GetDodgeActivity( int nIdx );
+	virtual Activity	GetDodgeActivity( int nIdx, CUtlVector<interval_t> *vecDeadZones = NULL );
 	virtual int			GetNumDodgeActivities();
 	virtual float		GetDodgeWarning();
 	virtual float		GetDodgeWarningCone();
@@ -653,8 +653,10 @@ private:
 
 	bool			m_bTossesMedkits;
 
+protected:
 	EHANDLE			m_hDodgeTarget;
 	Activity		m_eDodgeActivity;
+private:
 #endif
 
 	// Time Variables

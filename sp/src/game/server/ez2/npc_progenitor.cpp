@@ -63,6 +63,10 @@ Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE;
 Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL;
 Activity ACT_GRAPPLE_FLY;
 
+extern Activity ACT_GESTURE_DODGE_HOP;
+extern Activity ACT_GESTURE_DODGE_STEP;
+extern Activity ACT_GESTURE_DODGE_ROLL;
+
 //---------------------------------------------------------
 // Save/Restore
 //---------------------------------------------------------
@@ -419,6 +423,98 @@ void CNPC_Progenitor::GatherConditions()
 			if ( FVisible( m_vecGrappleDest, MASK_NPCSOLID ) )
 			{
 				SetCondition( COND_COMBINE_CAN_GRAPPLE );
+			}
+		}
+	}
+
+	CBaseEntity *pGestureDodgeTarget = m_hDodgeTarget;
+
+	if ( HasCondition( COND_ENEMY_FACING_ME )
+		&& GetEnemy() && ( GetEnemy()->IsPlayer() || ( GetEnemy()->IsNPC() && GetEnemy()->MyNPCPointer()->HasCondition( COND_CAN_RANGE_ATTACK1 ) ) )
+		&& !HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) && IsAllowedToDodge() )
+	{
+		// Are we not in a good position to just keep shooting?
+		if ( !HasCondition( COND_CAN_RANGE_ATTACK1 ) || HasCondition( COND_LOW_PRIMARY_AMMO ) || HasCondition( COND_HEAVY_DAMAGE ) )
+		{
+			// See if our enemy is aiming directly at us
+			Vector vecEnemyToMyHead = (HeadTarget( GetEnemy()->EyePosition() ) - GetEnemy()->EyePosition());
+			float flDist = VectorNormalize( vecEnemyToMyHead );
+
+			if ( flDist < 2000.0f && DotProduct( vecEnemyToMyHead, GetEnemy()->MyCombatCharacterPointer()->EyeDirection3D() ) > DOT_3DEGREE )
+			{
+				// If we have full attention as well, then try to dodge their attack
+				if ( DotProduct( -vecEnemyToMyHead, HeadDirection3D() ) > DOT_30DEGREE )
+				{
+					SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+					SetTarget( GetEnemy() );
+					pGestureDodgeTarget = GetEnemy();
+				}
+			}
+		}
+	}
+
+	if ( HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) && pGestureDodgeTarget && GetMotor()->GetCurSpeed() > 100.0f && m_iGrapplePhase == GRAPPLE_PHASE_NONE )
+	{
+		if ( m_bSliding )
+		{
+			// Not in a position to dodge
+			m_hDodgeTarget = NULL;
+			ClearCondition( COND_COMBINE_INCOMING_PROJECTILE );
+		}
+		else
+		{
+			// Consider doing a gesture dodge instead, if our center will be out of the way
+			Vector vecMyPos = WorldSpaceCenter() + (GetSmoothedVelocity() * 0.5f);
+			Vector vecTheirPos;
+
+			if ( pGestureDodgeTarget == m_hDodgeTarget )
+			{
+				vecTheirPos = pGestureDodgeTarget->WorldSpaceCenter() + (GetSmoothedVelocity() * 0.5f);
+			}
+			else
+			{
+				// Just their direct vector
+				pGestureDodgeTarget->GetVectors( &vecTheirPos, NULL, NULL );
+				vecTheirPos += pGestureDodgeTarget->WorldSpaceCenter();
+			}
+
+			if ( CalcDistanceSqrToLine( vecMyPos, pGestureDodgeTarget->EyePosition(), vecTheirPos ) > Square( pGestureDodgeTarget->BoundingRadius() * 1.5f ) )
+			{
+				Activity actDodgeGesture = ACT_INVALID;
+
+				float flPathDist = GetNavigator()->GetPathDistanceToGoal();
+				if ( flPathDist > 150.0f )
+				{
+					actDodgeGesture = ACT_GESTURE_DODGE_ROLL;
+
+					// Check dead zones before committing
+					CUtlVector<interval_t> vecDeadZones;
+					GetDodgeActivity( 0, &vecDeadZones );
+
+					float flMoveYaw = GetPoseParameter( LookupPoseMoveYaw() );
+					FOR_EACH_VEC( vecDeadZones, i )
+					{
+						float flDist = abs( flMoveYaw - vecDeadZones[i].start );
+						if ( flDist < vecDeadZones[i].range )
+						{
+							actDodgeGesture = ACT_GESTURE_DODGE_HOP;
+							break;
+						}
+					}
+				}
+				else if ( flPathDist > 72.0f )
+				{
+					actDodgeGesture = ACT_GESTURE_DODGE_HOP;
+				}
+
+				if ( actDodgeGesture != ACT_INVALID )
+				{
+					// Replace the condition with an action gesture
+					m_hDodgeTarget = NULL;
+					m_flNextDodgeTime = gpGlobals->curtime + 5.0f;
+					ClearCondition( COND_COMBINE_INCOMING_PROJECTILE );
+					AddActionGesture( actDodgeGesture );
+				}
 			}
 		}
 	}
@@ -819,7 +915,7 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 	{
 		case TASK_DEFER_DODGE:
 			// Progenitor can dodge again sooner
-			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.25f);
+			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.4f);
 			TaskComplete();
 			break;
 
