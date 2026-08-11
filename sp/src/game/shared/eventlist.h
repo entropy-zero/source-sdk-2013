@@ -101,6 +101,9 @@ typedef enum
 #ifdef EZ2
 	AE_KICKATTACK, // For Bad Cop kicks
 	AE_SLIDERETURN, // For the pulse pistol chambering one charge during 'dry fire'
+
+	AE_NPC_BODY_ITEM_ATTACH, // Moves a body item to a specific attachment
+	AE_NPC_BODY_ITEM_RESET, // Resets a body item's position
 #endif
 
 	LAST_SHARED_ANIMEVENT,
