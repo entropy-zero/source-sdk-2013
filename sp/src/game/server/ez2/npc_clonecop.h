@@ -91,6 +91,7 @@ public:
 	Activity	NPC_TranslateActivity( Activity eNewActivity );
 	Activity	Weapon_TranslateActivity( Activity eNewActivity, bool *pRequired = NULL );
 	void		Weapon_HandleEquip( CBaseCombatWeapon *pWeapon );
+	void		Weapon_SetActivity( Activity newActivity, float duration );
 
 	bool		MovementCost( int moveType, const Vector &vecStart, const Vector &vecEnd, float *pCost );
 	bool		CanPickupWhileMoving() { return true; }
@@ -105,6 +106,8 @@ public:
 	bool		IsJumpLegal( const Vector & startPos, const Vector & apex, const Vector & endPos ) const;
 
 	bool		GetGameTextSpeechParams( hudtextparms_t &params );
+
+	int			DrawDebugTextOverlays( void );
 
 	bool		AllowedToIgnite( void ) { return false; }
 
@@ -147,6 +150,21 @@ public:
 
 		WEAPONSWITCH_COUNT,
 	};
+
+	//---------------------------------------
+
+	enum
+	{
+		COUNTER_TACTIC_BRUTE,		// Based on how much enemy is seen with shotgun + buckshot/club damage we take
+		COUNTER_TACTIC_SNIPER,		// Based on how much enemy attacks us at long range
+		COUNTER_TACTIC_MOBILE,		// Based on how much enemy moves
+		//COUNTER_TACTIC_DISTRACTION,
+
+		COUNTER_TACTIC_COUNT,
+	};
+
+	float		m_flCounterTacticWeights[COUNTER_TACTIC_COUNT];
+	bool		m_bCounterTacticsAllowed;
 
 protected:
 	//=========================================================

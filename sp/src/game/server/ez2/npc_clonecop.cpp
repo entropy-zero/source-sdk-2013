@@ -76,6 +76,10 @@ CNPC_CloneCop::SwitchableWeaponData_t CNPC_CloneCop::g_SwitchableWeaponData[] = 
 	{ "weapon_smg1",		100.0f,				1000.0f,			SPECIAL2 },
 	{ "weapon_ar2*",		100.0f,				2000.0f,			RELOAD_NPC },
 	{ "weapon_crossbow",	1000.0f,			4000.0f,			RELOAD_NPC },
+
+	{ "weapon_oicw",		100.0f,				1500.0f,			SPECIAL2 },
+	{ "weapon_css_m249",	100.0f,				1500.0f,			RELOAD_NPC },
+	{ "weapon_css_scout",	1000.0f,			4000.0f,			RELOAD_NPC },
 };
 
 //---------------------------------------------------------
@@ -90,6 +94,9 @@ BEGIN_DATADESC( CNPC_CloneCop )
 
 	DEFINE_INPUT( m_bUseAvoidantFlanking, FIELD_BOOLEAN, "SetUseAvoidantFlanking" ),
 	DEFINE_INPUT( m_bUseGestureAltFire, FIELD_BOOLEAN, "SetUseGestureAltFire" ),
+
+	DEFINE_KEYFIELD( m_bCounterTacticsAllowed, FIELD_BOOLEAN, "CounterTacticsAllowed" ),
+	DEFINE_ARRAY( m_flCounterTacticWeights, FIELD_FLOAT, CNPC_CloneCop::COUNTER_TACTIC_COUNT ),
 
 	DEFINE_FIELD( m_hClosestItem, FIELD_EHANDLE ),
 	DEFINE_UTLVECTOR( m_hIgnoreItems, FIELD_EHANDLE ),
@@ -366,6 +373,87 @@ void CNPC_CloneCop::GatherConditions()
 					m_hClosestItem = pClosestItem;
 				}
 			}
+		}
+	}
+
+	if ( m_bCounterTacticsAllowed )
+	{
+		for ( int i = 0; i < COUNTER_TACTIC_COUNT; i++ )
+		{
+			float flTacticWeightAdd = -0.002f;
+
+			if ( GetEnemy() )
+			{
+				switch ( i )
+				{
+					case COUNTER_TACTIC_BRUTE:
+						{
+							if ( HasCondition( COND_SEE_ENEMY ) )
+							{
+								// If they have a shotgun or deagle, steadily increase
+								CBaseCombatCharacter *pBCC = GetEnemy()->MyCombatCharacterPointer();
+								if ( pBCC && pBCC->GetActiveWeapon()
+									&& ( pBCC->GetActiveWeapon()->ClassMatches( "weapon*shotgun" ) || pBCC->GetActiveWeapon()->ClassMatches( "weapon_css_deagle*" ) ) )
+								{
+									flTacticWeightAdd += 0.005f;
+
+									// If the enemy is rapidly approaching me with a shotgun, assume they're going in for a blast
+									// Try to dodge it
+									if ( m_flCounterTacticWeights[i] > 0.3f && GetEnemy()->IsPlayer() && IsAllowedToDodge() )
+									{
+										Vector vecEnemyToMe = (GetAbsOrigin() - GetEnemy()->GetAbsOrigin());
+										Vector vecEnemyVel = GetEnemy()->GetSmoothedVelocity();
+
+										float flDist = VectorNormalize( vecEnemyToMe );
+										float flSpeed = VectorNormalize( vecEnemyVel );
+
+										if ( flDist < 300.0f && flSpeed > 200.0f && DotProduct( vecEnemyToMe, vecEnemyVel ) > DOT_30DEGREE )
+										{
+											SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
+											SetTarget( GetEnemy() );
+										}
+									}
+								}
+
+								// Get a shotgun to match
+								if ( m_flCounterTacticWeights[i] > 0.7f && GetActiveWeapon() && !GetActiveWeapon()->ClassMatches( "weapon*shotgun" ) )
+									SetCondition( COND_COMBINE_DESIRE_WEAPON_SWITCH );
+							}
+						}
+						break;
+
+					case COUNTER_TACTIC_SNIPER:
+						{
+							// Steadily increase or decrease based on distance
+							float flEnemyDistSqr = (GetEnemyLKP() - GetAbsOrigin()).LengthSqr();
+
+							if ( flEnemyDistSqr > Square( 350.0f ) )
+								flTacticWeightAdd += RemapValClamped( flEnemyDistSqr, Square( 350.0f ), Square( 4000.0f ), 0.002f, 0.03f );
+							else
+								flTacticWeightAdd += RemapValClamped( flEnemyDistSqr, 0.0f, Square( 350.0f ), -0.05f, 0.002f );
+						}
+						break;
+
+					case COUNTER_TACTIC_MOBILE:
+						{
+							if ( HasCondition( COND_SEE_ENEMY ) )
+							{
+								// Steadily increase if enemy is moving
+								Vector vecEnemyVel = GetEnemy()->GetSmoothedVelocity();
+
+								float flRatio = Bias( Clamp( vecEnemyVel.LengthSqr() / Square( 500.0f ), 0.0f, 1.0f ), 0.25f );
+								flTacticWeightAdd += (0.03f * flRatio);
+							}
+						}
+						break;
+				}
+
+				// More influence if the enemy just hurt me (they are actively using, or not using, this tactic against me)
+				if ( gpGlobals->curtime - GetLastDamageTime() < 1.0f )
+					flTacticWeightAdd *= 2.0f;
+			}
+
+			m_flCounterTacticWeights[i] = Clamp( m_flCounterTacticWeights[i] + flTacticWeightAdd, 0.0f, 1.0f );
 		}
 	}
 }
@@ -702,7 +790,8 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 					if ( m_TripminePlaceBehavior.GetTripmineContext() != TRIPMINE_CONTEXT_MOVING || m_TripminePlaceBehavior.GetTripmineCandidates().Count() == 0 )
 					{
 						// Place tripmines while moving away from enemy and unable to fire (taking cover, etc.)
-						if ( DotProduct2D( vec2DToEnemy, vecVelocity.AsVector2D() ) < DOT_45DEGREE )
+						// Ignore direction if our enemy is moving a lot
+						if ( DotProduct2D( vec2DToEnemy, vecVelocity.AsVector2D() ) < DOT_45DEGREE || m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] > 0.6f )
 						{
 							m_TripminePlaceBehavior.TryFindTripmineSurfaces( vecPlaceOrigin, 128.0f, TRIPMINE_CONTEXT_MOVING );
 						}
@@ -752,7 +841,7 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 						|| HasCondition( COND_TOO_CLOSE_TO_ATTACK ) )
 				{
 					// Collect any weapons we might want under these conditions
-					CUtlVector< CHandle<CBaseCombatWeapon> > vecSelectableWeapons;
+					CUtlVector< int > vecSelectableWeapons;
 
 					float flDistToEnemy = ( GetEnemyLKP() - GetAbsOrigin() ).Length();
 
@@ -775,16 +864,58 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 						if ( flDistToEnemy > data.flMaxRange || flDistToEnemy < data.flMinRange )
 							continue;
 
-						// TODO: Other conditions? Num enemies, size of enemy, health of enemy? Weigh options?
+						// TODO: Other conditions? Num enemies, size of enemy, health of enemy?
 
 						// We want to consider this weapon
-						vecSelectableWeapons.AddToTail( m_hMyWeapons[i] );
+						vecSelectableWeapons.AddToTail( j );
 					}
 
 					if ( vecSelectableWeapons.Count() > 0 )
 					{
-						// Now select a random weapon to switch to
-						CBaseCombatWeapon *pSelectedWeapon = vecSelectableWeapons[ RandomInt(0, vecSelectableWeapons.Count()-1) ];
+						bool bSorted = false;
+
+						//------------------------------------------
+						// COUNTER TACTICS
+						//------------------------------------------
+						if ( m_bCounterTacticsAllowed )
+						{
+							if ( m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.7f )
+							{
+								// If the enemy is aggressive, pick the lowest ranged weapon we can use
+								vecSelectableWeapons.Sort( []( const int *a, const int *b )
+									{
+										if (g_SwitchableWeaponData[*a].flMaxRange < g_SwitchableWeaponData[*b].flMaxRange)
+											return -1;
+										return 1;
+									} );
+
+								bSorted = true;
+							}
+							else if ( m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER] > 0.7f )
+							{
+								// If the enemy snipes a lot, pick the longest ranged weapon we can use
+								vecSelectableWeapons.Sort( []( const int *a, const int *b )
+									{
+										if (g_SwitchableWeaponData[*a].flMaxRange > g_SwitchableWeaponData[*b].flMaxRange)
+											return -1;
+										return 1;
+									} );
+
+								bSorted = true;
+							}
+						}
+
+						CBaseCombatWeapon *pSelectedWeapon = NULL;
+						if ( bSorted )
+						{
+							// Just use the head weapon
+							pSelectedWeapon = Weapon_OwnsThisType( g_SwitchableWeaponData[vecSelectableWeapons[0]].pszClassname );
+						}
+						else
+						{
+							// Select a random weapon to switch to
+							pSelectedWeapon = Weapon_OwnsThisType( g_SwitchableWeaponData[vecSelectableWeapons[RandomInt(0, vecSelectableWeapons.Count()-1)]].pszClassname );
+						}
 
 						// Try again in a while
 						m_flNextWeaponSwitchTime = gpGlobals->curtime + 15.0f;
@@ -953,6 +1084,12 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 					if ( GetActiveWeapon() && GetActiveWeapon()->ClassMatches( "weapon*shotgun" ) )
 						bHasShotgun = true;
 
+					if ( bHasShotgun && m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.75f )
+					{
+						// Be more defensive with the shotgun
+						bHasShotgun = false;
+					}
+
 					if ( ShouldUseAvoidantFlanking() )
 					{
 						// Go behind our enemy if we're fighting a particularly dangerous opponent
@@ -975,6 +1112,17 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 		case SCHED_RANGE_ATTACK1:
 		case SCHED_COMBINE_RANGE_ATTACK1:
 		{
+			if ( m_bCounterTacticsAllowed )
+			{
+				// Instead of standing still, use flanking schedules depending on what we would expect our opponent to do
+
+				if ( m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.5f )
+					return SCHED_COMBINE_FLANK_AWAY_LINE_OF_FIRE;
+
+				if ( m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER] > 0.3f )
+					return SCHED_COMBINE_FLANK_BEHIND_LINE_OF_FIRE;
+			}
+
 			// Only do this for weapons that are meant to be fired continuously (prototype AR2, M249, other LMG-like weapons)
 			if ( GetActiveWeapon() && GetActiveWeapon()->GetMaxBurst() >= 8 )
 			{
@@ -1321,6 +1469,19 @@ int CNPC_CloneCop::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 		if ( !IsBleeding() && ( GetHealth() <= GetMaxHealth() * 0.3 ) )
 		{
 			StartBleeding();
+		}
+
+		if ( m_bCounterTacticsAllowed )
+		{
+			if ( info.GetDamageType() & (DMG_BUCKSHOT | DMG_CLUB) )
+			{
+				// Increase brute tactic based on damage amount
+				m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] += Clamp( info.GetDamage() / 150.0f, 0.0f, 1.0f ) * 0.5f;
+
+				// Make sure we consider getting a shotgun now
+				if ( GetActiveWeapon() && !GetActiveWeapon()->ClassMatches( "weapon*shotgun" ) )
+					m_flNextWeaponSwitchTime = gpGlobals->curtime;
+			}
 		}
 	}
 
@@ -1862,6 +2023,31 @@ void CNPC_CloneCop::Weapon_HandleEquip( CBaseCombatWeapon *pWeapon )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CNPC_CloneCop::Weapon_SetActivity( Activity newActivity, float duration )
+{
+	if ( newActivity == ACT_RANGE_ATTACK_SHOTGUN )
+	{
+		// Allow double barrel shot if our enemy is being equally aggressive
+		if ( m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.5f && GetEnemy() && EnemyDistance( GetEnemy() ) < 250.0f && GetActiveWeapon() && GetActiveWeapon()->m_iClip1 > 1 )
+		{
+			animevent_t animEvent;
+			animEvent.event = EVENT_WEAPON_AR2_GRENADE;
+			GetActiveWeapon()->Operator_HandleAnimEvent( &animEvent, this );
+
+			// Twice as much delay
+			SetNextAttack( gpGlobals->curtime + ( ( GetNextAttack() - gpGlobals->curtime ) * 2.0f ) );
+
+
+			return;
+		}
+	}
+
+	BaseClass::Weapon_SetActivity( newActivity, duration );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 bool CNPC_CloneCop::MovementCost( int moveType, const Vector &vecStart, const Vector &vecEnd, float *pCost )
 {
 	bool bResult = BaseClass::MovementCost( moveType, vecStart, vecEnd, pCost );
@@ -1873,7 +2059,7 @@ bool CNPC_CloneCop::MovementCost( int moveType, const Vector &vecStart, const Ve
 		|| IsCurSchedule( SCHED_COMBINE_FLANK_BEHIND_LINE_OF_FIRE, false ) )
 	{
 		// If this node is visible to the enemy and it isn't near the goal, try not to take it
-		// This is needed becuase the flanking tasks may select a node that is on the other side of the enemy,
+		// This is needed because the flanking tasks may select a node that is on the other side of the enemy,
 		// and they need to avoid cutting straight through.
 		Vector vecToGoal = ( vecEnd - GetNavigator()->GetGoalPos() );
 		Vector vecToEnemy = ( vecEnd - GetEnemy()->GetAbsOrigin() );
@@ -1890,6 +2076,39 @@ bool CNPC_CloneCop::MovementCost( int moveType, const Vector &vecStart, const Ve
 				// Not as expensive, but we should still prefer nodes closer to the goal
 				*pCost *= 10.0f;
 			}
+		}
+	}
+	else if ( m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER] > 0.1f )
+	{
+		// Same as above, but for when we're countering sniper tactics
+		Vector vecToGoal = ( vecEnd - GetNavigator()->GetGoalPos() );
+		Vector vecToEnemy = ( vecEnd - GetEnemy()->GetAbsOrigin() );
+		if ( vecToEnemy.LengthSqr() < vecToGoal.LengthSqr() )
+		{
+			if ( GetEnemy()->FVisible( vecEnd ) )
+			{
+				*pCost *= MAX( (20.0f * m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER]), 1.0f );
+			}
+			else
+			{
+				// Not as expensive, but we should still prefer nodes closer to the goal
+				*pCost *= MAX( (10.0f * m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER]), 1.0f );
+			}
+		}
+	}
+
+	if ( ShouldUseAvoidantFlanking() )
+	{
+		// Avoid nodes that put me below my enemy, prefer nodes that put me above
+		Vector vecEnemyOrigin = GetEnemyLKP();
+
+		if ( vecEnd.z > vecEnemyOrigin.z )
+		{
+			*pCost *= RemapValClamped( vecEnd.z - vecEnemyOrigin.z, 0.0f, 200.0f, 1.0f, 0.5f );
+		}
+		else if ( vecEnd.z < vecEnemyOrigin.z )
+		{
+			*pCost *= RemapValClamped( vecEnemyOrigin.z - vecEnd.z, 0.0f, 300.0f, 1.0f, 2.0f );
 		}
 	}
 
@@ -2076,6 +2295,44 @@ bool CNPC_CloneCop::GetGameTextSpeechParams( hudtextparms_t &params )
 	params.b1 = 2;
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CNPC_CloneCop::DrawDebugTextOverlays( void )
+{
+	int nOffset = BaseClass::DrawDebugTextOverlays();
+
+	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
+	{
+		if ( m_bCounterTacticsAllowed )
+		{
+			char tempstr[512];
+
+			Q_strncpy( tempstr, "Counter Tactic Weights:", sizeof( tempstr ) );
+			EntityText( nOffset, tempstr, 0 );
+			nOffset++;
+
+			static const char *g_pszCounterTacticNames[COUNTER_TACTIC_COUNT] = {
+				"Brute",
+				"Sniper",
+				"Mobile",
+				//"Distraction",
+			};
+
+			for ( int i = 0; i < COUNTER_TACTIC_COUNT; i++ )
+			{
+				Q_snprintf( tempstr, sizeof( tempstr ), "- %s: %.3f", g_pszCounterTacticNames[i], m_flCounterTacticWeights[i] );
+
+				int nClr = 255 * (1.0f - m_flCounterTacticWeights[i]);
+				EntityText( nOffset, tempstr, 0, 255, nClr, nClr );
+				nOffset++;
+			}
+		}
+	}
+
+	return nOffset;
 }
 
 //-----------------------------------------------------------------------------

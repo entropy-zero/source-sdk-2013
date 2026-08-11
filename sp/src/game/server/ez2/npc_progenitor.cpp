@@ -1515,8 +1515,8 @@ bool CNPC_Progenitor::ShouldThrowProximitySatchel( bool bDrop )
 	}
 	else
 	{
-		// No need if we can see our enemy
-		if ( HasCondition( COND_SEE_ENEMY ) )
+		// No need if we can see our enemy (unless they're moving a lot)
+		if ( HasCondition( COND_SEE_ENEMY ) && m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] < 0.5f )
 			return false;
 	}
 

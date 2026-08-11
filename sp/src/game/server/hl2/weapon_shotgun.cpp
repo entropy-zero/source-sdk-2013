@@ -93,6 +93,7 @@ public:
 #endif
 
 #ifdef EZ2
+	virtual void FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
 	virtual
 #endif
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
@@ -307,6 +308,53 @@ void CWeaponShotgun::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool
 #endif
 }
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pOperator - 
+//-----------------------------------------------------------------------------
+void CWeaponShotgun::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles )
+{
+	Vector vecShootOrigin, vecShootDir;
+	CAI_BaseNPC *npc = pOperator->MyNPCPointer();
+	ASSERT( npc != NULL );
+
+	// DOUBLE_NPC is not used in the default scripts, so check for it first
+	const char *pszShootSound = GetShootSound( DOUBLE_NPC );
+	if ( pszShootSound && *pszShootSound )
+		WeaponSound( DOUBLE_NPC );
+	else
+		WeaponSound( WPN_DOUBLE );
+
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = m_iClip1 - 2;
+
+	if ( bUseWeaponAngles )
+	{
+		QAngle	angShootDir;
+		GetAttachment( LookupAttachment( "muzzle" ), vecShootOrigin, angShootDir );
+		AngleVectors( angShootDir, &vecShootDir );
+	}
+	else 
+	{
+		vecShootOrigin = pOperator->Weapon_ShootPosition();
+		vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
+	}
+
+	int nNumPellets = sk_npc_num_shotgun_pellets.GetInt();
+
+	if ( sk_plr_num_shotgun_pellets.GetFloat() > 0.0f )
+	{
+		// For now, just get the ratio between the player's single and double pellets, then apply that to the NPC pellets.
+		// Consider proper cvar if this is used in wider, more standardized cases
+		float flRatio = sk_plr_num_shotgun_pellets_double.GetFloat() / sk_plr_num_shotgun_pellets.GetFloat();
+		nNumPellets *= flRatio;
+	}
+
+	pOperator->FireBullets( nNumPellets, vecShootOrigin, vecShootDir, GetBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 0 );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -332,6 +380,14 @@ void CWeaponShotgun::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatC
 			FireNPCPrimaryAttack( pOperator, false );
 		}
 		break;
+#ifdef EZ2
+		// Consider unique event
+		case EVENT_WEAPON_AR2_GRENADE:
+		{
+			FireNPCSecondaryAttack( pOperator, false );
+		}
+		break;
+#endif
 
 		default:
 			CBaseCombatWeapon::Operator_HandleAnimEvent( pEvent, pOperator );
@@ -1035,6 +1091,7 @@ public:
 	void SecondaryAttack( void );
 
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
+	void FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
 
 	//DECLARE_ACTTABLE();
 
@@ -1083,6 +1140,60 @@ void CWeaponFlechetteShotgun::FireNPCPrimaryAttack( CBaseCombatCharacter *pOpera
 	static const Vector vecCone = VECTOR_CONE_10DEGREES;
 
 	for (int i = 0; i < sk_npc_flechette_shotgun_num_pellets.GetInt(); i++)
+	{
+		vecDir = Manipulator.ApplySpread( vecCone );
+		vecDir *= RandomFloat( sk_npc_flechette_shotgun_speed_min.GetFloat(), sk_npc_flechette_shotgun_speed_max.GetFloat() );
+		FlechetteShotgun_CreateFlechette( vecShootOrigin, vecDir, npc );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pOperator - 
+//-----------------------------------------------------------------------------
+void CWeaponFlechetteShotgun::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles )
+{
+	Vector vecShootOrigin, vecShootDir;
+	CAI_BaseNPC *npc = pOperator->MyNPCPointer();
+	ASSERT( npc != NULL );
+
+	// DOUBLE_NPC is not used in the default scripts, so check for it first
+	const char *pszShootSound = GetShootSound( DOUBLE_NPC );
+	if ( pszShootSound && *pszShootSound )
+		WeaponSound( DOUBLE_NPC );
+	else
+		WeaponSound( WPN_DOUBLE );
+
+	pOperator->DoMuzzleFlash();
+	m_iClip1 = m_iClip1 - 2;
+
+	if ( bUseWeaponAngles )
+	{
+		QAngle	angShootDir;
+		GetAttachment( LookupAttachment( "muzzle" ), vecShootOrigin, angShootDir );
+		AngleVectors( angShootDir, &vecShootDir );
+	}
+	else 
+	{
+		vecShootOrigin = pOperator->Weapon_ShootPosition();
+		vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
+	}
+
+	CShotManipulator Manipulator( vecShootDir );
+	Vector vecDir;
+	static const Vector vecCone = VECTOR_CONE_15DEGREES;
+
+	int nNumPellets = sk_npc_flechette_shotgun_num_pellets.GetInt();
+
+	if ( sk_plr_flechette_shotgun_num_pellets.GetFloat() > 0.0f )
+	{
+		// For now, just get the ratio between the player's single and double pellets, then apply that to the NPC pellets.
+		// Consider proper cvar if this is used in wider, more standardized cases
+		float flRatio = sk_plr_flechette_shotgun_num_pellets_double.GetFloat() / sk_plr_flechette_shotgun_num_pellets.GetFloat();
+		nNumPellets *= flRatio;
+	}
+
+	for (int i = 0; i < nNumPellets; i++)
 	{
 		vecDir = Manipulator.ApplySpread( vecCone );
 		vecDir *= RandomFloat( sk_npc_flechette_shotgun_speed_min.GetFloat(), sk_npc_flechette_shotgun_speed_max.GetFloat() );
