@@ -457,6 +457,10 @@ public:
 
 	virtual CHudTexture const	*GetSpriteActive( void ) const;
 	virtual CHudTexture const	*GetSpriteInactive( void ) const;
+#ifdef EZ2
+	virtual CHudTexture const	*GetSpriteAltActive( void ) const;
+	virtual CHudTexture const	*GetSpriteAltInactive( void ) const;
+#endif
 	virtual CHudTexture const	*GetSpriteAmmo( void ) const;
 	virtual CHudTexture const	*GetSpriteAmmo2( void ) const;
 	virtual CHudTexture const	*GetSpriteCrosshair( void ) const;

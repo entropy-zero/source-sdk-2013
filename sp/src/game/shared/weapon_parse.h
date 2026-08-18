@@ -165,6 +165,11 @@ public:
 
 	float					m_flDynamicScopeFOV;		// Dynamic scope FOV. 0 = No dynamic scope
 	float					m_flDynamicScopeSuitFOV;	// If overridden, makes the suit zoom use this FOV (complements dynamic scope)
+
+	bool					m_bSupportsSplitSelect;		// Allows this weapon to use split weapon select buttons
+	char					szPrintNameSplitL[MAX_WEAPON_STRING];	// The left button's print name when using split weapon select buttons
+	char					szPrintNameSplitR[MAX_WEAPON_STRING];	// The right button's print name when using split weapon select buttons
+	bool					bSplitSelect;				// This weapon has alt select enabled right now (i.e. not cvar disabled)
 #endif
 
 // CLIENT DLL
