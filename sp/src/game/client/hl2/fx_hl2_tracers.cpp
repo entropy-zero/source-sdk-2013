@@ -14,6 +14,9 @@
 #include "dlight.h"
 #include "iefx.h"
 #include "clienteffectprecachesystem.h"
+#ifdef EZ2
+#include "basehlcombatweapon_shared.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -693,3 +696,44 @@ void HunterMuzzleFlashCallback( const CEffectData &data )
 }
 
 DECLARE_CLIENT_EFFECT( "HunterMuzzleFlash", HunterMuzzleFlashCallback );
+
+
+#ifdef EZ2
+void TracerCallback( const CEffectData &data );
+
+//-----------------------------------------------------------------------------
+// Purpose: Makes sure bullets from the left gun come from the left.
+//			Having a whole new tracer callback just for having a different position
+//			isn't super ideal, but there aren't many other ways of doing this.
+//-----------------------------------------------------------------------------
+void TracerDualLeftCallback( const CEffectData &data )
+{
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+	if ( !player )
+		return;
+
+	int iEntIndex = data.entindex();
+	if ( !iEntIndex || iEntIndex != player->index )
+	{
+		TracerCallback( data );
+		return;
+	}
+
+	Vector	foo = data.m_vStart;
+	QAngle	vangles;
+	Vector	vforward, vright, vup;
+
+	engine->GetViewAngles( vangles );
+	AngleVectors( vangles, &vforward, &vright, &vup );
+
+	// Come from the other side
+	vright *= -1.0f;
+
+	VectorMA( data.m_vStart, 4, vright, foo );
+	foo[2] -= 0.5f;
+
+	FX_PlayerTracer( foo, (Vector&)data.m_vOrigin );
+}
+
+DECLARE_CLIENT_EFFECT( "TracerDualLeft", TracerDualLeftCallback );
+#endif

@@ -19,6 +19,10 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+#ifdef EZ2
+ConVar	weapon_dual_control( "weapon_dual_control", "0", FCVAR_ARCHIVE | FCVAR_REPLICATED, "Allows primary and secondary attack to control which pistol is being fired (unless one is empty)" );
+#endif
+
 LINK_ENTITY_TO_CLASS( basehlcombatweapon, CBaseHLCombatWeapon );
 
 IMPLEMENT_NETWORKCLASS_ALIASED( BaseHLCombatWeapon , DT_BaseHLCombatWeapon )
@@ -28,11 +32,13 @@ BEGIN_NETWORK_TABLE( CBaseHLCombatWeapon , DT_BaseHLCombatWeapon )
 //	SendPropInt( SENDINFO( m_bReflectViewModelAnimations ), 1, SPROP_UNSIGNED ),
 #ifdef EZ2
 	SendPropEHandle( SENDINFO( m_hLeftHandGun ) ),
+	SendPropBool( SENDINFO( m_bFiringLeft ) ),
 #endif
 #else
 //	RecvPropInt( RECVINFO( m_bReflectViewModelAnimations ) ),
 #ifdef EZ2
 	RecvPropEHandle( RECVINFO( m_hLeftHandGun ) ),
+	RecvPropBool( RECVINFO( m_bFiringLeft ) ),
 #endif
 #endif
 END_NETWORK_TABLE()
@@ -282,34 +288,99 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 void CBaseHLCombatWeapon::ItemPostFrame( void )
 {
 #ifdef GAME_DLL
-	// When dual wielding, secondary attack is synonymous with primary attack
-	if (IsDualWielding() && DualWieldOverridesSecondary())
+	if ( IsDualWielding() )
 	{
 		CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 		if ( pOwner != NULL )
 		{
-			if (pOwner->m_nButtons & IN_ATTACK2)
+			// When dual wielding, secondary attack is synonymous with primary attack
+			bool bFiringLeft = false;
+			if ( DualWieldOverridesSecondary() )
 			{
-				pOwner->m_nButtons |= IN_ATTACK;
-				pOwner->m_nButtons &= ~IN_ATTACK2;
+				if (pOwner->m_nButtons & IN_ATTACK2)
+				{
+					pOwner->m_nButtons |= IN_ATTACK;
+					pOwner->m_nButtons &= ~IN_ATTACK2;
+
+					if ( weapon_dual_control.GetBool() )
+						bFiringLeft = true;
+				}
+
+				if (pOwner->m_afButtonPressed & IN_ATTACK2)
+				{
+					pOwner->m_afButtonPressed |= IN_ATTACK;
+					pOwner->m_afButtonPressed &= ~IN_ATTACK2;
+				}
+
+				if (pOwner->m_afButtonReleased & IN_ATTACK2)
+				{
+					pOwner->m_afButtonReleased |= IN_ATTACK;
+					pOwner->m_afButtonReleased &= ~IN_ATTACK2;
+				}
 			}
 
-			if (pOwner->m_afButtonPressed & IN_ATTACK2)
+			if ( pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime )
 			{
-				pOwner->m_afButtonPressed |= IN_ATTACK;
-				pOwner->m_afButtonPressed &= ~IN_ATTACK2;
-			}
+				int nClipR = m_iClip1 - m_iLeftClip1;
 
-			if (pOwner->m_afButtonReleased & IN_ATTACK2)
-			{
-				pOwner->m_afButtonReleased |= IN_ATTACK;
-				pOwner->m_afButtonReleased &= ~IN_ATTACK2;
+				if ( weapon_dual_control.GetBool() )
+				{
+					// Left click is left gun, etc.
+					bFiringLeft = !bFiringLeft;
+
+					// Make sure we have enough for the gun we want to use
+					if ( m_iClip1 > 0 )
+					{
+						if ( m_iLeftClip1 <= 0 )
+							bFiringLeft = false;
+						else if ( nClipR <= 0 )
+							bFiringLeft = true;
+					}
+				}
+				else if ( m_iClip1 <= 0 )
+				{
+					// Dry fire. Just random
+					if ( RandomInt( 0, 1 ) == 1 )
+						bFiringLeft = true;
+				}
+				else
+				{
+					// Decide whether to use left or right gun based on which one has more
+					if ( m_iLeftClip1 > nClipR )
+						bFiringLeft = true;
+					else if ( nClipR == m_iLeftClip1 && RandomInt( 0, 1 ) == 1 )
+						bFiringLeft = true;
+				}
+
+				if ( bFiringLeft )
+				{
+					SetFiringLeft( true );
+					BaseClass::ItemPostFrame();
+					SetFiringLeft( false );
+					return;
+				}
 			}
 		}
 	}
 #endif
 
 	BaseClass::ItemPostFrame();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::FinishReload( void )
+{
+	BaseClass::FinishReload();
+	
+#ifdef GAME_DLL
+	if ( GetLeftHandGun() )
+	{
+		// Refill left gun ammo counter with regular ammo count
+		m_iLeftClip1 = BaseClass::GetMaxClip1();
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -346,6 +417,18 @@ CHudTexture const *CBaseHLCombatWeapon::GetSpriteInactive( void ) const
 		return GetWpnData().iconInactiveDual;
 
 	return GetWpnData().iconInactive;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const char *CBaseHLCombatWeapon::GetTracerType( void )
+{
+	// Need to be a unique tracer type to come from the left-hand gun; see fx_hl2_tracers.cpp
+	if (IsFiringLeft())
+		return "TracerDualLeft";
+
+	return BaseClass::GetTracerType();
 }
 
 #ifdef GAME_DLL
@@ -388,7 +471,9 @@ void CBaseHLCombatWeapon::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCo
 
 		vecShootDir = npc->GetActualShootTrajectory( vecShootOrigin );
 
+		SetFiringLeft( true );
 		FireNPCPrimaryAttack( pOperator, vecShootOrigin, vecShootDir );
+		SetFiringLeft( false );
 		return;
 	}
 	else
@@ -574,12 +659,6 @@ CBaseAnimating *CBaseHLCombatWeapon::CreateLeftHandGun()
 		return NULL;
 	}
 
-	if (!CanDualWield())
-	{
-		Warning( "%s not capable of dual wielding\n", GetDebugName() );
-		return NULL;
-	}
-
 	if (GetLeftHandGun())
 	{
 		Warning("%s already has a left-handed weapon (%s)\n", GetDebugName(), GetLeftHandGun()->GetDebugName());
@@ -622,6 +701,8 @@ CBaseAnimating *CBaseHLCombatWeapon::CreateLeftHandGun()
 				m_bFirstDraw = true;
 				DefaultDeploy( (char *)GetViewModel(), (char *)GetWorldModel(), GetDrawActivity(), (char *)GetAnimPrefix() );
 			}
+
+			m_iLeftClip1 = m_iClip1 * 0.5f;
 		}
 
 		return pAnimating;

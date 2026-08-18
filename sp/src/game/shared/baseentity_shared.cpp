@@ -61,6 +61,10 @@ ConVar hl2_episodic( "hl2_episodic", "0", FCVAR_REPLICATED );
 #include "mapbase/vscript_funcs_shared.h"
 #endif
 
+#ifdef EZ2
+#include "hl2/basehlcombatweapon_shared.h"
+#endif
+
 #include "rumble_shared.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -2268,6 +2272,16 @@ void CBaseEntity::ComputeTracerStartPosition( const Vector &vecShotSrc, Vector *
 		Vector forward, right;
 		CBasePlayer *pPlayer = ToBasePlayer( this );
 		pPlayer->EyeVectors( &forward, &right, NULL );
+
+#ifdef EZ2
+		CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pPlayer->GetActiveWeapon());
+		if ( pHLWeapon && pHLWeapon->IsFiringLeft() )
+		{
+			// Coming from opposite side
+			right *= -1.0f;
+		}
+#endif
+
 		*pVecTracerStart = vecShotSrc + Vector ( 0 , 0 , -4 ) + right * 2 + forward * 16;
 	}
 	else
@@ -2286,6 +2300,13 @@ void CBaseEntity::ComputeTracerStartPosition( const Vector &vecShotSrc, Vector *
 
 				if ( pWeapon->GetAttachment( 1, vecMuzzle, vecMuzzleAngles ) )
 				{
+#ifdef EZ2
+					// If firing left, then vecShotSrc already has the correct location
+					CBaseHLCombatWeapon *pHLWeapon = dynamic_cast<CBaseHLCombatWeapon*>(pWeapon);
+					if ( pHLWeapon && pHLWeapon->IsFiringLeft() )
+						return;
+#endif
+
 					*pVecTracerStart = vecMuzzle;
 				}
 			}

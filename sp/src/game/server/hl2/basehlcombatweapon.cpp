@@ -84,6 +84,11 @@ void CHLMachineGun::PrimaryAttack( void )
 		if ( iBulletsToFire > m_iClip1 )
 			iBulletsToFire = m_iClip1;
 		m_iClip1 -= iBulletsToFire;
+
+#ifdef EZ2
+		if ( IsFiringLeft() )
+			m_iLeftClip1 -= iBulletsToFire;
+#endif
 	}
 
 	m_iPrimaryAttacks++;

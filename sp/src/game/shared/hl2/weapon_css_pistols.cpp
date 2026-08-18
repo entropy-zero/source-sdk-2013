@@ -129,6 +129,11 @@ void CWeapon_CSS_HL2_Glock18::FinishBurst( void )
 //-----------------------------------------------------------------------------
 Activity CWeapon_CSS_HL2_Glock18::GetPrimaryAttackActivity( void )
 {
+#ifdef EZ2
+	if (IsDualWielding())
+		return BaseClass::GetPrimaryAttackActivity();
+#endif
+
 	if (m_bInBurstMode)
 		return ACT_VM_SECONDARYATTACK;
 
@@ -1248,7 +1253,7 @@ PRECACHE_WEAPON_REGISTER( weapon_css_glock_silenced );
 
 BEGIN_DATADESC( CWeapon_CSS_HL2_Glock18_Silenced )
 
-	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+	DEFINE_DUALCAPABLE_DATADESC()
 
 END_DATADESC()
 

@@ -16,6 +16,20 @@
 #define CBaseHLCombatWeapon C_BaseHLCombatWeapon
 #endif
 
+#ifdef EZ2
+
+// Put this in the datadesc of weapons capable of being dual wielded
+#ifdef CLIENT_DLL
+#define	DEFINE_DUALCAPABLE_DATADESC() \
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+#else
+#define	DEFINE_DUALCAPABLE_DATADESC() \
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ), \
+	DEFINE_FIELD( m_iLeftClip1, FIELD_INTEGER ),
+#endif
+
+#endif
+
 class CBaseHLCombatWeapon : public CBaseCombatWeapon
 {
 #if !defined( CLIENT_DLL )
@@ -66,11 +80,14 @@ public:
 	// Dual wielding
 	//
 	virtual void		ItemPostFrame( void );
+	virtual void		FinishReload( void );
 
 	virtual void		WeaponSound( WeaponSound_t sound_type, float soundtime = 0.0f );
 	
 	virtual CHudTexture const	*GetSpriteActive( void ) const;
 	virtual CHudTexture const	*GetSpriteInactive( void ) const;
+
+	virtual const char		*GetTracerType( void );
 
 	virtual bool			CanDualWield() const { return false; }
 	virtual bool			DualWieldOverridesSecondary() const { return true; }
@@ -78,6 +95,9 @@ public:
 
 	CBaseAnimating			*GetLeftHandGun() const { return m_hLeftHandGun; }
 	void					SetLeftHandGun( CBaseAnimating *pGun ) { m_hLeftHandGun = pGun; }
+
+	inline bool				IsFiringLeft() const { return m_bFiringLeft; }
+	inline void				SetFiringLeft( bool bFiringLeft ) { m_bFiringLeft = bFiringLeft; }
 	
 	int GetMaxClip1( void ) const
 	{
@@ -103,6 +123,15 @@ protected:
 
 	CNetworkHandle( CBaseAnimating, m_hLeftHandGun );
 
+	// Checked by code farther in the bullet firing process to inform tracer appearance.
+	// Bit of a hack, but there aren't many options without modifying a ton of functions.
+	// Networked, but not saved.
+	CNetworkVar( bool, m_bFiringLeft );
+
+	// Tracks how many bullets are supposed to remain in the left gun.
+	// This only influences which activity to select and doesn't influence gameplay.
+	int					m_iLeftClip1;
+
 private:
 
 	static acttable_t m_dual_acttable[];
@@ -110,6 +139,7 @@ private:
 public:
 #else
 	CHandle<C_BaseAnimating>	m_hLeftHandGun;
+	bool	m_bFiringLeft;
 #endif
 #endif
 

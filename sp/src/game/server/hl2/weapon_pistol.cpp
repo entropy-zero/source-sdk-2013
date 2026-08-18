@@ -169,7 +169,7 @@ BEGIN_DATADESC( CWeaponPistol )
 	DEFINE_FIELD( m_nNumShotsFired,			FIELD_INTEGER ),
 
 #ifdef EZ2
-	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+	DEFINE_DUALCAPABLE_DATADESC()
 #endif
 
 END_DATADESC()
@@ -452,7 +452,16 @@ void CWeaponPistol::Operator_ForceNPCFire( CBaseCombatCharacter *pOperator, bool
 void CWeaponPistol::DryFire( void )
 {
 	WeaponSound( EMPTY );
+#ifdef EZ2
+	// A bit of a hack, since this happens after CBaseHLCombatWeapon's dual code
+	bool bFiringLeft = false;
+	if ( IsDualWielding() && RandomInt(0,1) == 1 )
+		bFiringLeft = true;
+
+	SendWeaponAnim( bFiringLeft ? ACT_VM_DRYFIRE_LEFT : ACT_VM_DRYFIRE );
+#else
 	SendWeaponAnim( ACT_VM_DRYFIRE );
+#endif
 	
 	m_flSoonestPrimaryAttack	= gpGlobals->curtime + PISTOL_FASTEST_DRY_REFIRE_TIME;
 	m_flNextPrimaryAttack		= gpGlobals->curtime + SequenceDuration();
@@ -571,6 +580,22 @@ void CWeaponPistol::ItemPostFrame( void )
 //-----------------------------------------------------------------------------
 Activity CWeaponPistol::GetPrimaryAttackActivity( void )
 {
+#ifdef EZ2
+	if ( IsFiringLeft() && SelectWeightedSequence( ACT_VM_SECONDARYATTACK ) > 0 )
+	{
+		if ( m_nNumShotsFired < 1 || SelectWeightedSequence( ACT_VM_RECOIL1_LEFT ) <= 0 )
+			return ACT_VM_SECONDARYATTACK;
+
+		if ( m_nNumShotsFired < 2 )
+			return ACT_VM_RECOIL1_LEFT;
+
+		if ( m_nNumShotsFired < 3 )
+			return ACT_VM_RECOIL2_LEFT;
+
+		return ACT_VM_RECOIL3_LEFT;
+	}
+#endif
+
 	if ( m_nNumShotsFired < 1 )
 		return ACT_VM_PRIMARYATTACK;
 
@@ -999,7 +1024,13 @@ void CWeaponPulsePistol::ItemPostFrame( void )
 void CWeaponPulsePistol::DryFire( void )
 {
 	WeaponSound( EMPTY );
-	SendWeaponAnim( ACT_VM_DRYFIRE );
+
+	// A bit of a hack, since this happens after CBaseHLCombatWeapon's dual code
+	bool bFiringLeft = false;
+	if ( IsDualWielding() && RandomInt(0,1) == 1 )
+		bFiringLeft = true;
+
+	SendWeaponAnim( bFiringLeft ? ACT_VM_DRYFIRE_LEFT : ACT_VM_DRYFIRE );
 
 	m_flSoonestPrimaryAttack	= gpGlobals->curtime + PULSE_PISTOL_FASTEST_DRY_REFIRE_TIME;
 	m_flNextPrimaryAttack		= gpGlobals->curtime + SequenceDuration();

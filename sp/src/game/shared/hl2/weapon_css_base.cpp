@@ -172,7 +172,17 @@ void CBase_CSS_HL2_Pistol::Operator_ForceNPCFire( CBaseCombatCharacter *pOperato
 void CBase_CSS_HL2_Pistol::DryFire( void )
 {
 	WeaponSound( EMPTY );
+
+#ifdef EZ2
+	// A bit of a hack, since this happens after CBaseHLCombatWeapon's dual code
+	bool bFiringLeft = false;
+	if ( IsDualWielding() && RandomInt(0,1) == 1 )
+		bFiringLeft = true;
+
+	SendWeaponAnim( bFiringLeft ? ACT_VM_DRYFIRE_LEFT : ACT_VM_DRYFIRE );
+#else
 	SendWeaponAnim( ACT_VM_DRYFIRE );
+#endif
 	
 	m_flSoonestPrimaryAttack	= gpGlobals->curtime + GetDryRefireRate();
 	m_flNextPrimaryAttack		= gpGlobals->curtime + SequenceDuration();
@@ -260,6 +270,11 @@ void CBase_CSS_HL2_Pistol::PrimaryAttack( void )
 	{
 		info.m_iShots = MIN( info.m_iShots, m_iClip1 );
 		m_iClip1 -= info.m_iShots;
+
+#if defined(EZ2) && defined(GAME_DLL)
+		if ( IsFiringLeft() )
+			m_iLeftClip1 -= info.m_iShots;
+#endif
 	}
 	else
 	{
@@ -410,6 +425,22 @@ void CBase_CSS_HL2_Pistol::ItemPostFrame( void )
 //-----------------------------------------------------------------------------
 Activity CBase_CSS_HL2_Pistol::GetPrimaryAttackActivity( void )
 {
+#ifdef EZ2
+	if ( IsFiringLeft() && SelectWeightedSequence( ACT_VM_SECONDARYATTACK ) > 0 )
+	{
+		if ( m_nNumShotsFired < 1 || SelectWeightedSequence( ACT_VM_RECOIL1_LEFT ) <= 0 )
+			return ACT_VM_SECONDARYATTACK;
+
+		if ( m_nNumShotsFired < 2 )
+			return ACT_VM_RECOIL1_LEFT;
+
+		if ( m_nNumShotsFired < 3 )
+			return ACT_VM_RECOIL2_LEFT;
+
+		return ACT_VM_RECOIL3_LEFT;
+	}
+#endif
+
 	if ( m_nNumShotsFired < 1 || SelectWeightedSequence( ACT_VM_RECOIL1 ) <= 0 )
 		return ACT_VM_PRIMARYATTACK;
 
