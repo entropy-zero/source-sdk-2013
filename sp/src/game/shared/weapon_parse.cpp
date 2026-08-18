@@ -559,6 +559,11 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 
 	m_flDynamicScopeFOV = pKeyValuesData->GetFloat( "dynamic_scope_fov", 0.0f );
 	m_flDynamicScopeSuitFOV = pKeyValuesData->GetFloat( "dynamic_scope_suit_fov", 0.0f );
+
+	m_bSupportsSplitSelect = pKeyValuesData->GetBool( "AllowSplitSelect", false );
+	Q_strncpy( szPrintNameSplitL, pKeyValuesData->GetString( "printname_split_l" ), MAX_WEAPON_STRING );
+	Q_strncpy( szPrintNameSplitR, pKeyValuesData->GetString( "printname_split_r" ), MAX_WEAPON_STRING );
+	bSplitSelect = false;
 #endif
 
 #ifndef MAPBASE // Mapbase makes weapons in the same slot & position swap each other out, which is a feature mods can intentionally use.

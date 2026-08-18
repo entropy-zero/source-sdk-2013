@@ -165,6 +165,45 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	CHudHistoryResource *pHudHR = GET_HUDELEMENT( CHudHistoryResource );	
 	if( pHudHR )
 	{
+#ifdef EZ2
+		if ( pWeaponInfo->m_bSupportsSplitSelect )
+		{
+			// Use alternate icons if supported
+			ConVarRef weapon_alt_select( VarArgs( "%s_split_select", pWeaponInfo->szClassName ) );
+			if ( !weapon_alt_select.IsValid() || weapon_alt_select.GetBool() )
+			{
+				pWeaponInfo->bSplitSelect = true;
+
+				p = FindHudTextureInDict( tempList, "weapon_split" );
+				if ( p )
+				{
+					pWeaponInfo->iconInactive = gHUD.AddUnsearchableHudIconToList( *p );
+					if ( pWeaponInfo->iconInactive )
+					{
+						pWeaponInfo->iconInactive->Precache();
+						pHudHR->SetHistoryGap( pWeaponInfo->iconInactive->Height() );
+					}
+				}
+
+				p = FindHudTextureInDict( tempList, "weapon_split_s" );
+				if ( p )
+				{
+					pWeaponInfo->iconActive = gHUD.AddUnsearchableHudIconToList( *p );
+					if ( pWeaponInfo->iconActive )
+					{
+						pWeaponInfo->iconActive->Precache();
+					}
+
+					// This is how we skip the original icons without restructuring this whole function
+					// (please spare me. it's just trying to maintain the original design)
+					goto after_stock_icons;
+				}
+			}
+			else
+				pWeaponInfo->bSplitSelect = false;
+		}
+#endif
+
 		p = FindHudTextureInDict( tempList, "weapon" );
 		if ( p )
 		{
@@ -187,6 +226,8 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 		}
 
 #ifdef EZ2
+		after_stock_icons:
+
 		p = FindHudTextureInDict( tempList, "weapon_dual" );
 		if ( p )
 		{

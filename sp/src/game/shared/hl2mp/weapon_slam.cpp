@@ -134,8 +134,25 @@ ConVar weapon_slam_no_detonator( "weapon_slam_no_detonator",
 	FCVAR_REPLICATED, "Should weapon_slam use detonator animations and secondary fire detonator?" );
 #endif
 
-#if defined(EZ2) && !defined(CLIENT_DLL)
+#ifdef EZ2
+#ifdef CLIENT_DLL
+void CV_WeaponSlamSplitSelect( IConVar *var, const char *pOldValue, float flOldValue )
+{
+	// Reload the SLAM's HUD icons
+	WEAPON_FILE_INFO_HANDLE handle = LookupWeaponInfoSlot( "weapon_slam" );
+	FileWeaponInfo_t *info = GetFileWeaponInfoFromHandle( handle );
+
+	if ( !info->bLoadedHudElements )
+		return;
+
+	info->bLoadedHudElements = false;
+	gWR.LoadWeaponSprites( handle );
+}
+
+ConVar weapon_slam_split_select( "weapon_slam_split_select", "0", FCVAR_ARCHIVE, "Whether or not the SLAM icon should be split in the weapon selection HUD", CV_WeaponSlamSplitSelect );
+#else
 ConVar weapon_slam_visible_to_npcs( "weapon_slam_visible_to_npcs", "1", FCVAR_NONE, "Whether or not tripmines and satchels created by weapon_slam are visible to NPCs" );
+#endif
 #endif
 
 void CWeapon_SLAM::Spawn( )
@@ -922,6 +939,22 @@ void CWeapon_SLAM::ItemPostFrame( void )
 	{
 		PrimaryAttack();
 	}
+#ifdef EZ2
+	else if (pOwner->m_nButtons & (IN_WEAPON1 | IN_WEAPON2) && (m_flNextSecondaryAttack <= gpGlobals->curtime))
+	{
+		// Explicit weapon select buttons for each mode
+		if ( pOwner->m_nButtons & IN_WEAPON1 )
+		{
+			if ( m_tSlamState == SLAM_TRIPMINE_READY )
+				SwitchMode();
+		}
+		else if ( pOwner->m_nButtons & IN_WEAPON2 )
+		{
+			if ( m_tSlamState != SLAM_TRIPMINE_READY )
+				SwitchMode();
+		}
+	}
+#endif
 
 	// -----------------------
 	//  No buttons down
@@ -1302,6 +1335,18 @@ bool CWeapon_SLAM::Deploy( void )
 	}
 	else
 	{	
+#if defined(EZ2) && !defined(CLIENT_DLL)
+		// Need to check command directly because it hasn't been passed to m_nButtons yet
+		CBasePlayer *pPlayer = ToBasePlayer( pOwner );
+		if (pPlayer && pPlayer->GetCurrentCommand() && pPlayer->GetCurrentCommand()->buttons & IN_WEAPON2 )
+		{
+			// Deploy in tripmine mode
+			iActivity = ACT_SLAM_TRIPMINE_DRAW;
+			SetSlamState( SLAM_TRIPMINE_READY );
+		}
+		else
+#endif
+
 		if (CanAttachSLAM())
 		{
 			iActivity = ACT_SLAM_TRIPMINE_DRAW; 

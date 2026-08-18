@@ -23,6 +23,7 @@
 
 #ifdef EZ2
 #include "ez2/c_ez2_player.h"
+#include "in_buttons.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -43,6 +44,10 @@ ConVar hud_showemptyweaponslots( "hud_showemptyweaponslots", "1", FCVAR_ARCHIVE,
 #define FASTSWITCH_SMALL_DISPLAY_ALPHA	160.0f
 
 #define MAX_CAROUSEL_SLOTS				5
+
+#ifdef EZ2
+#define ALT_SELECT_BOX_WIDE				1.5f
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: hl2 weapon selection hud element
@@ -90,6 +95,18 @@ protected:
 	{
 		CBaseHudWeaponSelection::SetWeaponSelected();
 
+#ifdef EZ2
+		// IN_WEAPON1 and IN_WEAPON2 are special buttons allocated for use by clientside weapon code for serverside weapon behavior.
+		// For example, the unused physgun's pull functions by checking mouse wheel use on the client, and then acting accordingly on the server.
+		// In fact, that is the only example of their use in the stock SDK.
+		// We use them here so that the server knows which side of the box we selected. It's unlikely that any weapon which uses split select
+		// would use or benefit from these binds in other ways, but keep in mind that you would be giving them up for this.
+		if ( IsWeaponSplitSelect( GetSelectedWeapon() ) )
+		{
+			gHUD.m_iKeyBits |= (m_bSplitSelected ? IN_WEAPON2 : IN_WEAPON1);
+		}
+#endif
+
 		switch( hud_fastswitch.GetInt() )
 		{
 		case HUDTYPE_FASTSWITCH:
@@ -132,6 +149,13 @@ private:
 	{
 		m_iSelectedSlideDir = dir;
 	}
+
+#ifdef EZ2
+	bool IsWeaponSplitSelect( C_BaseCombatWeapon *pWeapon )
+	{
+		return pWeapon->GetWpnData().bSplitSelect;
+	}
+#endif
 
 	void DrawBox(int x, int y, int wide, int tall, Color color, float normalizedAlpha, int number);
 
@@ -183,6 +207,10 @@ private:
 	int						m_iSelectedSlot;
 	C_BaseCombatWeapon		*m_pLastWeapon;
 	CPanelAnimationVar( float, m_flHorizWeaponSelectOffsetPoint, "WeaponBoxOffset", "0" );
+
+#ifdef EZ2
+	bool	m_bSplitSelected;
+#endif
 };
 
 DECLARE_HUDELEMENT( CHudWeaponSelection );
@@ -702,6 +730,14 @@ void CHudWeaponSelection::Paint()
 						}
 						else
 						{
+#ifdef EZ2
+							if ( IsWeaponSplitSelect( pWeapon ) && bDrawBucketNumber )
+							{
+								// Not enough room at the top
+								ypos += (m_flSmallBoxSize + m_flBoxGap);
+							}
+#endif
+
 							bool bSelected = (pWeapon == pSelectedWeapon);
 							DrawLargeWeaponBox( pWeapon, 
 												bSelected, 
@@ -770,6 +806,32 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 	{
 	case HUDTYPE_BUCKETS:
 		{
+#ifdef EZ2
+			if ( IsWeaponSplitSelect( pWeapon ) )
+			{
+				float flExpandedBoxWide = boxWide * ALT_SELECT_BOX_WIDE;
+				xpos -= ((flExpandedBoxWide - boxWide) * 0.5f);
+
+				if ( bSelected )
+				{
+					int nUnselectedAlpha = GetWeaponBoxAlpha( false );
+					DrawBox( xpos, ypos, flExpandedBoxWide, boxTall, m_BoxColor, nUnselectedAlpha, number );
+
+					flExpandedBoxWide *= 0.5f;
+					BaseClass::DrawBox( m_bSplitSelected ? xpos + flExpandedBoxWide : xpos, ypos, flExpandedBoxWide, boxTall, selectedColor, (alpha - nUnselectedAlpha) / 255.0f );
+
+					//flExpandedBoxWide *= 0.5f;
+					//DrawBox( xpos, ypos, flExpandedBoxWide, boxTall, m_bSplitSelected ? m_BoxColor : selectedColor, m_bSplitSelected ? GetWeaponBoxAlpha( false ) : alpha, number );
+					//BaseClass::DrawBox( xpos + flExpandedBoxWide, ypos, flExpandedBoxWide, boxTall, m_bSplitSelected ? selectedColor : m_BoxColor, (m_bSplitSelected ? alpha : GetWeaponBoxAlpha( false )) / 255.0f );
+				}
+				else
+				{
+					DrawBox( xpos, ypos, flExpandedBoxWide, boxTall, selectedColor, alpha, number );
+				}
+			}
+			else
+#endif
+
 			// draw box for selected weapon
 			DrawBox( xpos, ypos, boxWide, boxTall, selectedColor, alpha, number );
 
@@ -795,6 +857,12 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 				}
 	
 #ifdef EZ2
+				if ( IsWeaponSplitSelect( pWeapon ) )
+				{
+					// Put it on the left side
+					x_offs = ((boxWide * ALT_SELECT_BOX_WIDE * 0.5f) - iconWidth) / 2;
+				}
+
 				C_EZ2_Player *player = ToEZ2Player( C_BasePlayer::GetLocalPlayer() );
 				if ( player && player->IsMalfunctioning() )
 				{
@@ -823,7 +891,11 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 					// unselectable weapon, display as such
 					col = Color(255, 0, 0, col[3]);
 				}
+#ifdef EZ2
+				else if (bSelected && !m_bSplitSelected)
+#else
 				else if (bSelected)
+#endif
 				{
 					// currently selected weapon, display brighter
 					col[3] = alpha;
@@ -834,6 +906,38 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 				
 				// draw the inactive version
 				pWeapon->GetSpriteInactive()->DrawSelf( xpos + x_offs, ypos + y_offs, col );
+
+#ifdef EZ2
+				if ( IsWeaponSplitSelect( pWeapon ) )
+				{
+					const CHudTexture *pSpriteAltActive = pWeapon->GetSpriteAltActive();
+					if ( !pSpriteAltActive )
+						pSpriteAltActive = pWeapon->GetSpriteActive();
+					
+					const CHudTexture *pSpriteAltInactive = pWeapon->GetSpriteAltInactive();
+					if ( !pSpriteAltInactive )
+						pSpriteAltInactive = pWeapon->GetSpriteInactive();
+
+					// Draw the other icon
+					x_offs = (boxWide * ALT_SELECT_BOX_WIDE) - x_offs - iconWidth;
+
+					if ( bSelected )
+					{
+						if ( m_bSplitSelected )
+						{
+							col[3] = alpha;
+							pSpriteAltActive->DrawSelf( xpos + x_offs, ypos + y_offs, col );
+						}
+						else
+						{
+							// Don't want the alt icon to appear selected
+							col[3] = GetFgColor()[3];
+						}
+					}
+
+					pSpriteAltInactive->DrawSelf( xpos + x_offs, ypos + y_offs, col );
+				}
+#endif
 			}
 		}
 		break;
@@ -956,6 +1060,24 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 		wchar_t *tempString = g_pVGuiLocalize->Find(weaponInfo.szPrintName);
 #endif
 
+#ifdef EZ2
+		bool bSplitText = false;
+		if ( IsWeaponSplitSelect( pWeapon ) )
+		{
+			wchar_t *splitName = NULL;
+			if ( m_bSplitSelected )
+				splitName = g_pVGuiLocalize->Find( pWeapon->GetWpnData().szPrintNameSplitR );
+			else
+				splitName = g_pVGuiLocalize->Find( pWeapon->GetWpnData().szPrintNameSplitL );
+
+			if ( splitName )
+			{
+				tempString = splitName;
+				bSplitText = true;
+			}
+		}
+#endif
+
 		// setup our localized string
 		if ( tempString )
 		{
@@ -969,6 +1091,23 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 		else
 		{
 			// string wasn't found by g_pVGuiLocalize->Find()
+#ifdef EZ2
+			if ( IsWeaponSplitSelect( pWeapon ) )
+			{
+				const char *splitName = NULL;
+				if ( m_bSplitSelected )
+					splitName = pWeapon->GetWpnData().szPrintNameSplitR;
+				else
+					splitName = pWeapon->GetWpnData().szPrintNameSplitL;
+
+				if ( splitName )
+				{
+					g_pVGuiLocalize->ConvertANSIToUnicode(splitName, text, sizeof(text));
+					bSplitText = true;
+				}
+			}
+			else
+#endif
 #ifdef MAPBASE
 			// Allows derived classes to override
 			g_pVGuiLocalize->ConvertANSIToUnicode(pWeapon->GetPrintName(), text, sizeof(text));
@@ -1033,8 +1172,28 @@ void CHudWeaponSelection::DrawLargeWeaponBox( C_BaseCombatWeapon *pWeapon, bool 
 			firstslen = maxslen;
 		}
 
-		int tx = xpos + ((m_flLargeBoxWide - firstslen) / 2);
+		float flBoxWide = m_flLargeBoxWide;
+
+#ifdef EZ2
+		if ( IsWeaponSplitSelect( pWeapon ) )
+		{
+			flBoxWide *= ALT_SELECT_BOX_WIDE;
+			boxWide *= ALT_SELECT_BOX_WIDE;
+		}
+#endif
+
+		int tx = xpos + ((flBoxWide - firstslen) / 2);
 		int ty = ypos + (int)m_flTextYPos;
+
+#ifdef EZ2
+		if ( bSplitText )
+		{
+			tx = xpos + (((flBoxWide * 0.5f) - firstslen) / 2);
+			if ( m_bSplitSelected )
+				tx += (flBoxWide * 0.5f);
+		}
+#endif
+
 		surface()->DrawSetTextPos( tx, ty );
 		// adjust the charCount by the scan amount
 		charCount *= m_flTextScan;
@@ -1116,6 +1275,10 @@ void CHudWeaponSelection::OpenSelection( void )
 	g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("OpenWeaponSelectionMenu");
 	m_iSelectedBoxPosition = 0;
 	m_iSelectedSlot = -1;
+
+#ifdef EZ2
+	m_bSplitSelected = false;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1230,6 +1393,21 @@ void CHudWeaponSelection::CycleToNextWeapon( void )
 		if ( !pWeapon )
 			return;
 
+#ifdef EZ2
+		if ( IsWeaponSplitSelect( pWeapon ) )
+		{
+			if ( !m_bSplitSelected )
+			{
+				// Select the alt side instead of next weapon
+				m_bSplitSelected = true;
+				pPlayer->EmitSound( "Player.WeaponSelectionMoveSlot" );
+				return;
+			}
+			else
+				m_bSplitSelected = false;
+		}
+#endif
+
 		pNextWeapon = FindNextWeaponInWeaponSelection( pWeapon->GetSlot(), pWeapon->GetPosition() );
 	}
 	else
@@ -1283,6 +1461,18 @@ void CHudWeaponSelection::CycleToPrevWeapon( void )
 		if ( !pWeapon )
 			return;
 
+#ifdef EZ2
+		if ( IsWeaponSplitSelect( pWeapon ) )
+		{
+			if ( m_bSplitSelected )
+			{
+				m_bSplitSelected = false;
+				pPlayer->EmitSound( "Player.WeaponSelectionMoveSlot" );
+				return;
+			}
+		}
+#endif
+
 		pNextWeapon = FindPrevWeaponInWeaponSelection( pWeapon->GetSlot(), pWeapon->GetPosition() );
 	}
 	else
@@ -1310,6 +1500,14 @@ void CHudWeaponSelection::CycleToPrevWeapon( void )
 		{
 			OpenSelection();
 		}
+
+#ifdef EZ2
+		if ( IsWeaponSplitSelect( pNextWeapon ) )
+		{
+			// Select the alt side since we're coming in backwards
+			m_bSplitSelected = true;
+		}
+#endif
 
 		// Play the "cycle to next weapon" sound
 		pPlayer->EmitSound( "Player.WeaponSelectionMoveSlot" );
@@ -1619,8 +1817,27 @@ void CHudWeaponSelection::SelectWeaponSlot( int iSlot )
 			// start later in the list
 			if ( IsInSelectionMode() && pActiveWeapon && pActiveWeapon->GetSlot() == iSlot )
 			{
+#ifdef EZ2
+				if ( IsWeaponSplitSelect( pActiveWeapon ) && !m_bSplitSelected )
+				{
+					// Select the alt side instead of next weapon
+					m_bSplitSelected = true;
+					pPlayer->EmitSound( "Player.WeaponSelectionMoveSlot" );
+					return;
+				}
+				else
+				{
+					slotPos = pActiveWeapon->GetPosition() + 1;
+					m_bSplitSelected = false;
+				}
+#else
 				slotPos = pActiveWeapon->GetPosition() + 1;
+#endif
 			}
+#ifdef EZ2
+			else
+				m_bSplitSelected = false;
+#endif
 
 			// find the weapon in this slot
 			pActiveWeapon = GetNextActivePos( iSlot, slotPos );

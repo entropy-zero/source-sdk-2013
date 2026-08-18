@@ -636,6 +636,25 @@ CHudTexture const *CBaseCombatWeapon::GetSpriteInactive( void ) const
 	return GetWpnData().iconInactive;
 }
 
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CHudTexture const *CBaseCombatWeapon::GetSpriteAltActive( void ) const
+{
+	// Reuse dual icons
+	return GetWpnData().iconActiveDual;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CHudTexture const *CBaseCombatWeapon::GetSpriteAltInactive( void ) const
+{
+	return GetWpnData().iconInactiveDual;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
