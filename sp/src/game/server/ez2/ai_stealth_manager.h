@@ -10,6 +10,7 @@
 #define AI_STEALTH_MANAGER_H
 
 #include "baseentity.h"
+#include "ez2/ai_stealth_shared.h"
 
 #if defined( _WIN32 )
 #pragma once
@@ -23,17 +24,6 @@ class CTriggerStealthArea;
 class CAI_StealthPointObject;
 
 //-----------------------------------------------------------------------------
-
-enum StealthLevel_t
-{
-	STEALTH_LEVEL_NONE,			// No stealth sensing NPCs in PVS
-	STEALTH_LEVEL_QUIET,		// Stealth sensing NPCs are idle
-	STEALTH_LEVEL_GUARD,		// Stealth sensing NPCs are idle, but expecting enemies (less naive)
-	STEALTH_LEVEL_TENSE,		// Stealth sensing NPCs know danger is nearby/the area isn't safe
-	STEALTH_LEVEL_LOUD,			// Stealth sensing NPCs are in combat
-
-	NUM_STEALTH_LEVELS,
-};
 
 enum StealthObjectType_t
 {
@@ -148,10 +138,11 @@ struct	StealthSquadInfo_t
 
 //-----------------------------------------------------------------------------
 
-class CAI_StealthManager : public CLogicalEntity
+class CAI_StealthManager : public CPointEntity
 {
 public:
-	DECLARE_CLASS( CAI_StealthManager, CLogicalEntity );
+	DECLARE_CLASS( CAI_StealthManager, CPointEntity );
+	DECLARE_SERVERCLASS();
 
 	CAI_StealthManager();
 	~CAI_StealthManager();
@@ -159,13 +150,14 @@ public:
 	void	Spawn();
 	void	OnRestore();
 	void	UpdateOnRemove();
+	int		UpdateTransmitState( void );
 
 	void	StealthManagerThink();
 
 	void	CheckStealthManagerState();
 	void	Cleanup();
 	void	Enable() { m_bDisabled = false; CheckStealthManagerState(); }
-	void	Disable() { m_bDisabled = true; CheckStealthManagerState(); }
+	void	Disable() { m_bDisabled = true; m_nDisabledTick = gpGlobals->tickcount; CheckStealthManagerState(); }
 	void	InputEnable( inputdata_t &inputdata ) { Enable(); }
 	void	InputDisable( inputdata_t &inputdata ) { Disable(); }
 
@@ -173,7 +165,7 @@ public:
 	// Stealth Level & NPC Callbacks
 	//-----------------------------------------------
 
-	StealthLevel_t	GetStealthLevel() const { return m_nStealthLevel; }
+	StealthLevel_t	GetStealthLevel() const { return (StealthLevel_t)(m_nStealthLevel.Get()); }
 	StealthLevel_t	GetMinStealthLevel() const { return m_nMinStealthLevel; }
 	void			SetMinStealthLevel( StealthLevel_t nStealthLevel );
 	bool			IsStealthLevel( int nStealthLevel ) const { return m_nStealthLevel == nStealthLevel; }
@@ -323,10 +315,11 @@ private:
 
 private:
 
-	StealthLevel_t		m_nStealthLevel;
+	CNetworkVar( int, m_nStealthLevel);
 	StealthLevel_t		m_nMinStealthLevel;
 
-	bool	m_bDisabled;
+	CNetworkVar( bool, m_bDisabled );
+	int		m_nDisabledTick;
 	bool	m_bCleanupWhenDisabled;
 
 	bool	m_bAlerted;							// A squad has been alerted to the player

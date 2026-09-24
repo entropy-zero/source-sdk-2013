@@ -179,6 +179,11 @@ BEGIN_DATADESC( CAI_StealthManager )
 
 END_DATADESC();
 
+IMPLEMENT_SERVERCLASS_ST( CAI_StealthManager, DT_AI_StealthManager )
+	SendPropInt( SENDINFO( m_nStealthLevel ), 3, SPROP_UNSIGNED ),
+	SendPropBool( SENDINFO( m_bDisabled ) ),
+END_SEND_TABLE()
+
 LINK_ENTITY_TO_CLASS( ai_stealth_manager, CAI_StealthManager );
 
 //-------------------------------------
@@ -252,10 +257,21 @@ void CAI_StealthManager::UpdateOnRemove()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+int CAI_StealthManager::UpdateTransmitState()
+{
+	if ( !m_bDisabled || gpGlobals->tickcount == m_nDisabledTick )
+		return SetTransmitState( FL_EDICT_ALWAYS );
+
+	return SetTransmitState( FL_EDICT_DONTSEND );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CAI_StealthManager::StealthManagerThink()
 {
 	// Evaluate stealth level
-	m_nStealthLevel = STEALTH_LEVEL_NONE;
+	int nStealthLevel = STEALTH_LEVEL_NONE;
 
 	/*if ( m_bAlerted )
 	{
@@ -273,29 +289,32 @@ void CAI_StealthManager::StealthManagerThink()
 			{
 				case NPC_STATE_IDLE:
 				case NPC_STATE_ALERT:
-					m_nStealthLevel = STEALTH_LEVEL_QUIET;
+					nStealthLevel = STEALTH_LEVEL_QUIET;
 					break;
 
 				case NPC_STATE_COMBAT:
 					{
 						if ( ppAIs[i]->GetEnemy() && ppAIs[i]->GetEnemies()->TimeAtFirstHand( ppAIs[i]->GetEnemy() ) > AI_SQUAD_ALERT_DELAY )
-							m_nStealthLevel = STEALTH_LEVEL_LOUD;
-						else if ( m_nStealthLevel == STEALTH_LEVEL_NONE )
-							m_nStealthLevel = STEALTH_LEVEL_QUIET;
+							nStealthLevel = STEALTH_LEVEL_LOUD;
+						else if ( nStealthLevel == STEALTH_LEVEL_NONE )
+							nStealthLevel = STEALTH_LEVEL_QUIET;
 					}
 					break;
 			}
 
 			// Won't get any higher than this
-			if ( m_nStealthLevel == (NUM_STEALTH_LEVELS-1) )
+			if ( nStealthLevel == (NUM_STEALTH_LEVELS-1) )
 				break;
 		}
 
-		if ( m_nStealthLevel != STEALTH_LEVEL_NONE && m_nStealthLevel < m_nMinStealthLevel )
+		if ( nStealthLevel != STEALTH_LEVEL_NONE && nStealthLevel < m_nMinStealthLevel )
 		{
-			m_nStealthLevel = m_nMinStealthLevel;
+			nStealthLevel = m_nMinStealthLevel;
 		}
 	}
+
+	if ( nStealthLevel != m_nStealthLevel )
+		m_nStealthLevel = nStealthLevel;
 
 	for ( int i = m_SeenObjects.Count()-1; i >= 0; i-- )
 	{
