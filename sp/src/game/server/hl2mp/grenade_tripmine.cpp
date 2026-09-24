@@ -344,7 +344,7 @@ bool CTripmineGrenade::CanBeSeenBy( CAI_BaseNPC *pNPC )
 //-----------------------------------------------------------------------------
 // Purpose: Whether the tripmine can be seen when looking at vecOrigin
 //-----------------------------------------------------------------------------
-bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin )
+bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin, bool bBeam )
 {
 	//if ( !pNPC->IsPlayerAlly( ToBasePlayer( GetThrower() ) )
 	{
@@ -354,7 +354,7 @@ bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vec
 		float flDist = VectorNormalize( vecDelta );
 
 		// TODO: More standard number
-		if ( flDist > 1024.0f )
+		if ( flDist > 600.0f )
 			return false;
 
 		float flDot = vecDelta.Dot( vecLookDir );
@@ -364,15 +364,15 @@ bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vec
 		{
 			default:
 			case NPC_STATE_IDLE:
-				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE;
+				flThreshold = pNPC->IsMoving() ? DOT_15DEGREE : DOT_30DEGREE;
 				break;
 
 			case NPC_STATE_ALERT:
-				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
+				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE; // 25 or 45 degrees
 				break;
 
 			case NPC_STATE_COMBAT:
-				flThreshold = pNPC->IsMoving() ? DOT_45DEGREE : 0.258819f; // 45 or 75 degrees
+				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
 				break;
 		}
 
@@ -387,12 +387,23 @@ bool CTripmineGrenade::IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vec
 				case SKILL_MEDIUM:
 					flThreshold *= 1.5f;
 					break;
+				case SKILL_HARD:
+					flThreshold *= 1.25f;
+					break;
 			}
 		}
 
 		// Rely more on stealth senses for appropriate alertness
 		if ( pNPC->IsUsingStealthSenses() )
 			flThreshold *= 0.5f;
+
+		if ( pNPC->m_debugOverlays & OVERLAY_NPC_VIEWCONE_BIT )
+		{
+			bool bFail = (flDot < flThreshold);
+
+			NDebugOverlay::Line( pNPC->EyePosition(), pNPC->EyePosition() + (vecLookDir * 48.0f), 0, 0, 255, true, 3.0f );
+			NDebugOverlay::Line( pNPC->EyePosition(), pNPC->EyePosition() + (vecDelta * 48.0f), bFail ? 255 : 0, bFail ? 0 : 255, bBeam ? 128 : 0, true, 3.0f );
+		}
 
 		if ( flDot < flThreshold )
 			return false;

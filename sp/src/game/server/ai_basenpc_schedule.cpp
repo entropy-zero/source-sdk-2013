@@ -2025,10 +2025,6 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			{
 				flMaxRange = MAX( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
 				flMinRange = MIN( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
-
-#ifdef EZ2
-				ModifyTacticalWeaponRange( flMinRange, flMaxRange );
-#endif
 			}
 			else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 			{
@@ -2213,10 +2209,6 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 					{
 						flMaxRange = MAX( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
 						flMinRange = MIN( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
-
-#ifdef EZ2
-						ModifyTacticalWeaponRange( flMinRange, flMaxRange );
-#endif
 					}
 					else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 					{
@@ -2373,10 +2365,6 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 		{
 			flMaxRange = MAX(GetActiveWeapon()->m_fMaxRange1,GetActiveWeapon()->m_fMaxRange2);
 			flMinRange = MIN(GetActiveWeapon()->m_fMinRange1,GetActiveWeapon()->m_fMinRange2);
-
-#ifdef EZ2
-			ModifyTacticalWeaponRange( flMinRange, flMaxRange );
-#endif
 		}
 		else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 		{

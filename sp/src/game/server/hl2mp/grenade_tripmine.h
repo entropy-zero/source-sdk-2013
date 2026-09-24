@@ -50,7 +50,7 @@ public:
 	int UpdateTransmitState();
 
 	bool CanBeSeenBy( CAI_BaseNPC *pNPC );
-	bool IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin );
+	bool IsTripmineVisibleTo( CAI_BaseNPC *pNPC, const Vector &vecOrigin, bool bBeam = false );
 #endif
 
 #ifdef MAPBASE

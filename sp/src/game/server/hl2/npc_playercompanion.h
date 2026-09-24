@@ -288,8 +288,6 @@ public:
 	void			MarkDangerObject( CBaseEntity *pObject, const Vector &vecOrigin, int nList );
 	bool			IsDangerObjectBullseye( CBaseEntity *pTarget );
 
-	bool			ModifyTacticalWeaponRange( float &flMinRange, float &flMaxRange );
-
 	//---------------------------------
 	// Stealth
 	//---------------------------------
@@ -315,6 +313,7 @@ public:
 	void			DecalTrace( trace_t *pTrace, char const *decalName );
 	bool 			FCanCheckAttacks();
 	Vector 			GetActualShootPosition( const Vector &shootOrigin );
+	Vector			GetActualShootTrajectory( const Vector &shootOrigin );
 	WeaponProficiency_t CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 	bool			ShouldLookForBetterWeapon();
 	bool			Weapon_CanUse( CBaseCombatWeapon *pWeapon );

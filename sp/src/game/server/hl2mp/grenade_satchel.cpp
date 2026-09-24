@@ -17,6 +17,7 @@
 #include "hl2_player.h"
 #include "ai_senses.h"
 #include "eventqueue.h"
+#include "ez2/ai_stealth_manager.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -287,7 +288,7 @@ bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
 		float flDist = VectorNormalize( vecDelta );
 
 		// TODO: More standard number
-		if ( flDist > 1024.0f )
+		if ( flDist > 600.0f )
 			return false;
 
 		float flDot = vecDelta.Dot( vecLookDir );
@@ -297,15 +298,15 @@ bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
 		{
 			default:
 			case NPC_STATE_IDLE:
-				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE;
+				flThreshold = pNPC->IsMoving() ? DOT_15DEGREE : DOT_30DEGREE;
 				break;
 
 			case NPC_STATE_ALERT:
-				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
+				flThreshold = pNPC->IsMoving() ? DOT_25DEGREE : DOT_45DEGREE; // 25 or 45 degrees
 				break;
 
 			case NPC_STATE_COMBAT:
-				flThreshold = pNPC->IsMoving() ? DOT_45DEGREE : 0.258819f; // 45 or 75 degrees
+				flThreshold = pNPC->IsMoving() ? DOT_30DEGREE : 0.5f; // 30 or 60 degrees
 				break;
 		}
 
@@ -328,12 +329,23 @@ bool CSatchelCharge::CanBeSeenBy( CAI_BaseNPC *pNPC )
 				case SKILL_MEDIUM:
 					flThreshold *= 1.5f;
 					break;
+				case SKILL_HARD:
+					flThreshold *= 1.25f;
+					break;
 			}
 		}
 
 		// Rely more on stealth senses for appropriate alertness
 		if ( pNPC->IsUsingStealthSenses() )
 			flThreshold *= 0.5f;
+
+		if ( pNPC->m_debugOverlays & OVERLAY_NPC_VIEWCONE_BIT )
+		{
+			bool bFail = (flDot < flThreshold);
+
+			NDebugOverlay::Line( pNPC->EyePosition(), pNPC->EyePosition() + (vecLookDir * 48.0f), 0, 0, 255, true, 3.0f );
+			NDebugOverlay::Line( pNPC->EyePosition(), pNPC->EyePosition() + (vecDelta * 48.0f), bFail ? 255 : 0, bFail ? 0 : 255, 0, true, 3.0f );
+		}
 
 		if ( flDot < flThreshold )
 			return false;
@@ -351,6 +363,12 @@ CSatchelCharge *Satchel_CreateProximitySatchel( const Vector &position, const QA
 	CSatchelCharge *pSatchel = static_cast<CSatchelCharge *>(CBaseEntity::CreateNoSpawn( "npc_satchel", position, angles, pOwner ));
 	pSatchel->SetProximitySatchel( true );
 	pSatchel->SetThrower( pOwner->MyCombatCharacterPointer() );
+
+	if ( g_hStealthManager )
+	{
+		pSatchel->SetVisibleToNPCs( true );
+	}
+
 	DispatchSpawn( pSatchel );
 
 	if ( pSatchel->VPhysicsGetObject() )
@@ -410,7 +428,7 @@ void CSatchelCharge::ProximitySatchelThink( void )
 			CAI_BaseNPC **ppAIs = g_AI_Manager.AccessAIs();
 			for ( int i = 0; i < g_AI_Manager.NumAIs(); i++ )
 			{
-				if ( ppAIs[i] )
+				if ( ppAIs[i] && ppAIs[i]->Classify() != CLASS_BULLSEYE )
 				{
 					Disposition_t nRel = pThrower->IRelationType( ppAIs[i] );
 					if ( nRel <= D_FR )
