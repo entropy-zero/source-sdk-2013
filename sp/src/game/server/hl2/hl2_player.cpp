@@ -1581,6 +1581,11 @@ void CHL2_Player::StartAdmireGlovesAnimation( void )
 
 	if ( vm && !GetActiveWeapon() )
 	{
+#ifdef MAPBASE
+		if ( m_nProtagonistIndex != -1 )
+			vm->SetWeaponModel( g_ProtagonistSystem.GetProtagonist_HandModel( this, NULL ), NULL );
+		else
+#endif
 #ifndef EZ2
 		vm->SetWeaponModel( "models/weapons/v_hands.mdl", NULL );
 #else
