@@ -35,7 +35,9 @@ public:
 
 	bool IsMovingAndShooting( void ) const { return m_bMovingAndShooting; }
 
+#ifndef EZ2 // We mainly want to be able to access CanAimAtEnemy()
 private:
+#endif
 
 	bool HasAvailableRangeAttack();
 	bool CanAimAtEnemy();

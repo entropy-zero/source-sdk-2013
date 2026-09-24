@@ -2850,6 +2850,9 @@ void ActivityList_RegisterSharedActivities( void )
 	REGISTER_SHARED_ACTIVITY( ACT_HL2MP_SLIDE_HMG1 );
 	REGISTER_SHARED_ACTIVITY( ACT_HL2MP_SLIDE_SNIPER_RIFLE );
 	REGISTER_SHARED_ACTIVITY( ACT_HL2MP_SLIDE_DUAL_PISTOLS );
+
+	REGISTER_SHARED_ACTIVITY( ACT_GESTURE_GLIDE );
+	REGISTER_SHARED_ACTIVITY( ACT_GESTURE_JUMP );
 #endif
 
 	AssertMsg( g_HighestActivity == LAST_SHARED_ACTIVITY - 1, "Not all activities from ai_activity.h registered in activitylist.cpp" ); 

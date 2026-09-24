@@ -16,6 +16,8 @@
 #include "npc_clonecop.h"
 #include "npc_conscript_base.h"
 #include "ai_prop_shield.h"
+#include "ai_weaponlaser.h"
+#include "ai_acrobatic_movement.h"
 
 class CSoundPatch;
 class CSprite;
@@ -30,9 +32,10 @@ class CRopeKeyframe;
 
 //---------------------------------------------------------
 
-class CNPC_Progenitor : public CAI_PropShieldUser< CAI_ConscriptBase<CNPC_CloneCop> >
+class CNPC_Progenitor : public CAI_AcrobaticHost< CAI_WeaponLaserUser< CAI_PropShieldUser< CAI_ConscriptBase<CNPC_CloneCop> > > >
 {
-	DECLARE_CLASS( CNPC_Progenitor, CAI_PropShieldUser< CAI_ConscriptBase<CNPC_CloneCop> > );
+	DECLARE_CLASS( CNPC_Progenitor, CAI_AcrobaticHost< CAI_WeaponLaserUser< CAI_PropShieldUser< CAI_ConscriptBase<CNPC_CloneCop> > > > );
+	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
 public:
@@ -56,6 +59,7 @@ public:
 	void		PrescheduleThink();
 	void		OnScheduleChange( void );
 	int			SelectSchedule( void );
+	int			SelectStealthCounterSchedule( int nInSchedule );
 	int			TranslateSchedule( int scheduleType );
 
 	void		HandleAnimEvent( animevent_t *pEvent );
@@ -82,9 +86,8 @@ public:
 	void		OnThrowProximitySatchel( CBaseEntity *pGrenade );
 
 	bool		ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal );
-	void		StartSlidingToGoal( AILocalMoveGoal_t *pMoveGoal );
-	void		StopSliding( bool bIntoCrouch = false );
-	bool		OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval );
+	bool		ShouldUseJumpGesture();
+	bool		ShouldStopJumpGesture();
 
 	//-------------------------------------------------------------------------
 
@@ -137,6 +140,9 @@ public:
 	void	InputGrapplePullTarget( inputdata_t &inputdata );
 
 	void	AimGun();
+	void	SetAimSecondary( const Vector &aimDir );
+
+	bool	FCanCheckAttacks( void );
 
 	bool	IsJumpLegal( const Vector &startPos, const Vector &apex, const Vector &endPos ) const;
 	bool	IsTrueJumpLegal( const Vector &startPos, const Vector &apex, const Vector &endPos ) const;
@@ -148,15 +154,16 @@ public:
 	//---------------------------------
 	// Navigation & Movement
 	//---------------------------------
-	class CNavigator : public CAI_ComponentWithOuter<CNPC_Progenitor, CAI_Navigator>
+	class CNavigator : public CAI_ComponentWithOuter<CNPC_Progenitor, CAI_AcrobaticNavigator>
 	{
-		typedef CAI_ComponentWithOuter<CNPC_Progenitor, CAI_Navigator> BaseClass;
+		typedef CAI_ComponentWithOuter<CNPC_Progenitor, CAI_AcrobaticNavigator> BaseClass;
 	public:
 		CNavigator( CNPC_Progenitor *pOuter )
 		 :	BaseClass( pOuter )
 		{
 		}
 
+		void	DetermineApexFromJumpVel( const Vector &vecJumpVel, const Vector &vecFrom, const Vector &vecTo, Vector &vecApex );
 		AIMoveResult_t MoveJump();
 
 		void 	MoveCalcBaseGoal( AILocalMoveGoal_t *pMoveGoal );
@@ -167,6 +174,55 @@ public:
 
 	friend class CNavigator;
 	CAI_Navigator *CreateNavigator() { return new CNavigator( this ); }
+
+	//---------------------------------
+	// Unique stealth sense type.
+	//---------------------------------
+	class CStealthSenses : public CAI_ComponentWithOuter<CNPC_Progenitor, CAI_CuriousStealthSenses>
+	{
+		typedef CAI_ComponentWithOuter<CNPC_Progenitor, CAI_CuriousStealthSenses> BaseClass;
+	public:
+		CStealthSenses( CNPC_Progenitor *pOuter )
+			: BaseClass( pOuter )
+		{
+		}
+
+		//-----------------------------------------------
+
+		virtual float	GetDotToSee( int eNPCState )
+		{
+			// About 80 and 95 degrees, respectively
+			return eNPCState == NPC_STATE_IDLE ? 0.15f : -0.1f;
+
+			//return BaseClass::GetDotToSee( eNPCState );
+		}
+	};
+
+	friend class CStealthSenses;
+	CAI_StealthSenses *CreateStealthSenses() { return new CStealthSenses( this ); }
+
+	//-------------------------------------------------------------------------
+
+	void	InputSidearmFireAtTarget( inputdata_t &inputdata );
+
+	bool	CanUseSidearm();
+	bool	RunSidearmAim();
+	Vector	GetSidearmIdleAim();
+
+	float	MaxYawSpeed( void );
+
+	//-------------------------------------------------------------------------
+
+	CBaseAnimating *GetActiveLaserWeapon();
+	CBaseEntity *GetLaserTarget();
+	Vector		GetLaserTargetPos( CBaseEntity *pTarget, const Vector &posSrc );
+	bool		ShouldAimLaserAtEnemy( CBaseEntity *pEnemy );
+
+	bool		Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex = 0 );
+	bool		GunSupportsLaser( CBaseAnimating *pWeapon, int &iAttachment, bool bForce = false );
+
+	void		StartLaserThink();
+	void		LaserThink();
 
 	//-------------------------------------------------------------------------
 
@@ -184,6 +240,9 @@ protected:
 		SCHED_COMBINE_GRAPPLE_SHOOT,
 		SCHED_COMBINE_GRAPPLE,
 		SCHED_COMBINE_GRAPPLE_PULL,
+		SCHED_COMBINE_SIDEARM_AIM,
+		SCHED_COMBINE_MOVE_TO_FORCED_SIDEARM_LOS,
+		SCHED_COMBINE_SIDEARM_FORCED_SHOOT,
 		NEXT_SCHEDULE,
 
 		TASK_COMBINE_FIND_BACKAWAY_FROM_TARGET = BaseClass::NEXT_TASK,
@@ -192,6 +251,9 @@ protected:
 		TASK_COMBINE_GRAPPLE_SHOOT,
 		TASK_COMBINE_GRAPPLE_MOVE,
 		TASK_COMBINE_GRAPPLE_PULL_OBJ,
+		TASK_COMBINE_SIDEARM_AIM,
+		TASK_COMBINE_GET_PATH_TO_SIDEARM_TARGET,
+		TASK_COMBINE_SIDEARM_AIM_FORCED,
 		NEXT_TASK,
 		
 		COND_COMBINE_SHIELD_RETREAT = BaseClass::NEXT_CONDITION,
@@ -209,9 +271,8 @@ private:
 
 	bool	m_bInjured;
 
-	bool	m_bSliding;
-	int		m_poseMove_X;
-	int		m_poseMove_Y;
+	int		m_poseAim2_Pitch;
+	int		m_poseAim2_Yaw;
 
 	float	m_flNextShieldStateCheck;
 	float	m_flShieldDeactivateTime;
@@ -252,6 +313,14 @@ private:
 	float	m_flGrappleWeight;		// Influences how much we grapple
 	bool	m_bNavEvaluatedJump;	// Tells navigator whether we've evaluated this jump
 	bool	m_bNavTrueJump;			// Tells navigator we're doing an actual jump, not a grapple
+
+	bool							m_bUseSidearm;
+	float							m_flNextSidearmUseTime;
+	float							m_flNextSidearmFireTime;
+	CHandle<CBaseHLCombatWeapon>	m_hLeftHandWeapon;	// The actual sidearm weapon, which is technically holstered
+	CNetworkHandle( CBaseAnimating, m_hLeftHandGun );		// The prop that appears in the left hand, representing the sidearm
+	EHANDLE							m_hForcedSidearmTarget;
+	float							m_flSidearmWaitTime;	// In forced inputs, this is how long to wait before firing
 };
 
 // ------------------------------------------------------------------------------------------ //

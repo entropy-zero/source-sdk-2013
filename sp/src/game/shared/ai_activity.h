@@ -2763,6 +2763,10 @@ typedef enum
 	ACT_HL2MP_SLIDE_HMG1,
 	ACT_HL2MP_SLIDE_SNIPER_RIFLE,
 	ACT_HL2MP_SLIDE_DUAL_PISTOLS,
+
+	// Gesture jumping
+	ACT_GESTURE_GLIDE,
+	ACT_GESTURE_JUMP,
 #endif
 
 	// this is the end of the global activities, private per-monster activities start here.

@@ -44,6 +44,8 @@ ConVar	sk_progenitor_grapple_hook_speed( "sk_progenitor_grapple_hook_speed", "10
 ConVar	sk_progenitor_grapple_hook_dmg( "sk_progenitor_grapple_hook_dmg", "5" );
 ConVar	sk_progenitor_grapple_min_dist( "sk_progenitor_grapple_min_dist", "200" );
 ConVar	sk_progenitor_grapple_max_dist( "sk_progenitor_grapple_max_dist", "3000" );
+ConVar	sk_progenitor_grapple_allow_shoot( "sk_progenitor_grapple_allow_shoot", "1" );
+ConVar	sk_progenitor_jump_shoot_allow( "sk_progenitor_jump_shoot_allow", "1" );
 
 // Sort of forced to do this, since the enum is in npc_combine.cpp
 #define TACTICAL_VARIANT_PRESSURE_ENEMY	1
@@ -56,17 +58,36 @@ ConVar	sk_progenitor_grapple_max_dist( "sk_progenitor_grapple_max_dist", "3000" 
 int COMBINE_AE_GRAPPLE_UNHOLSTER;
 int COMBINE_AE_GRAPPLE_SHOOT;
 int COMBINE_AE_GRAPPLE_PULL;
+int COMBINE_AE_SIDEARM_UNHOLSTER;
+int COMBINE_AE_SIDEARM_HOLSTER;
+int COMBINE_AE_SIDEARM_SHOOT;
+int COMBINE_AE_SIDEARM_LASER_ON;
+int COMBINE_AE_SIDEARM_LASER_OFF;
 
 Activity ACT_IDLE_ANGRY_GRAPPLE;
 Activity ACT_RANGE_ATTACK_GRAPPLE;
 Activity ACT_RANGE_ATTACK_GRAPPLE_PULL;
 Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE;
 Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL;
+Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY;
 Activity ACT_GRAPPLE_FLY;
+Activity ACT_IDLE_ANGRY_SIDEARM;
+Activity ACT_RANGE_ATTACK_SIDEARM;
+Activity ACT_UNHOLSTER_SIDEARM;
+Activity ACT_HOLSTER_SIDEARM;
 
 extern Activity ACT_GESTURE_DODGE_HOP;
 extern Activity ACT_GESTURE_DODGE_STEP;
 extern Activity ACT_GESTURE_DODGE_ROLL;
+
+//---------------------------------------------------------
+// Custom Client entity
+//---------------------------------------------------------
+IMPLEMENT_SERVERCLASS_ST( CNPC_Progenitor, DT_NPC_Progenitor )
+	SendPropEHandle( SENDINFO( m_hGunLaser ) ),
+	SendPropEHandle( SENDINFO( m_hLeftHandGun ) ),
+	SendPropVector( SENDINFO( m_vecGunLaserDir ) ),
+END_SEND_TABLE()
 
 //---------------------------------------------------------
 // Save/Restore
@@ -77,8 +98,6 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_UTLVECTOR( m_hSatchels, FIELD_EHANDLE ),
 
 	DEFINE_INPUT( m_bInjured, FIELD_BOOLEAN, "SetInjured" ),
-
-	DEFINE_FIELD( m_bSliding, FIELD_BOOLEAN ),
 
 	DEFINE_FIELD( m_flNextShieldStateCheck, FIELD_TIME ),
 	DEFINE_FIELD( m_flShieldDeactivateTime, FIELD_TIME ),
@@ -104,12 +123,24 @@ BEGIN_DATADESC( CNPC_Progenitor )
 	DEFINE_FIELD( m_bNavEvaluatedJump, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bNavTrueJump, FIELD_BOOLEAN ),
 
+	DEFINE_INPUT( m_bUseSidearm, FIELD_BOOLEAN, "SetUseSidearm" ),
+	DEFINE_FIELD( m_flNextSidearmUseTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flNextSidearmFireTime, FIELD_TIME ),
+	DEFINE_FIELD( m_hLeftHandGun, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hLeftHandWeapon, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hForcedSidearmTarget, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_flSidearmWaitTime, FIELD_FLOAT ),
+
+	DEFINE_THINKFUNC( LaserThink ),
+
 	DEFINE_INPUTFUNC( FIELD_STRING, "GrappleToTargetForced", InputGrappleToTargetForced ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrappleToTarget", InputGrappleToTarget ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "GrapplePullTarget", InputGrapplePullTarget ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SidearmFireAtTarget", InputSidearmFireAtTarget ),
 
 	DEFINE_CONSCRIPT_DATADESC()
 	DEFINE_PROPSHIELD_DATADESC()
+	DEFINE_WEAPONLASER_DATADESC()
 
 END_DATADESC()
 
@@ -132,7 +163,11 @@ CNPC_Progenitor::CNPC_Progenitor()
 	m_nGrappleLayer = -1;
 
 	// By default, try not to grapple unless really necessary
-	m_flGrappleWeight = 0.2f;
+	m_flGrappleWeight = 0.0f;
+
+	m_bUseSidearm = true;
+	m_flNextSidearmUseTime = 0.0f;
+	m_flNextSidearmFireTime = 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -162,8 +197,6 @@ void CNPC_Progenitor::Precache()
 	{
 		SetModelName( MAKE_STRING( "models/progenitor.mdl" ) );
 	}
-
-	PrecacheScriptSound( "NPC_Progenitor.Slide" );
 
 	PrecacheScriptSound( "Weapon_EnergyShield.Holster" );
 	PrecacheScriptSound( "Weapon_EnergyShield.Unholster" );
@@ -207,9 +240,8 @@ void CNPC_Progenitor::PopulatePoseParameters( void )
 {
 	BaseClass::PopulatePoseParameters();
 
-	// Used for sliding
-	m_poseMove_X = LookupPoseParameter( "move_x" );
-	m_poseMove_Y = LookupPoseParameter( "move_y" );
+	m_poseAim2_Pitch	= LookupPoseParameter( "aim2_pitch" );
+	m_poseAim2_Yaw		= LookupPoseParameter( "aim2_yaw" );
 }
 
 //-----------------------------------------------------------------------------
@@ -241,6 +273,12 @@ void CNPC_Progenitor::UpdateOnRemove()
 	}
 
 	RemoveGrapplingEntities();
+
+	if ( m_hLeftHandGun )
+	{
+		UTIL_Remove( m_hLeftHandGun );
+		m_hLeftHandGun = NULL;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -300,8 +338,24 @@ void CNPC_Progenitor::GatherConditions()
 
 	if ( m_iGrapplePhase != GRAPPLE_PHASE_NONE )
 	{
-		// Can't attack while grappling
-		ClearCondition( COND_CAN_RANGE_ATTACK1 );
+		// Can only attack while grappling under specific circumstances
+		if ( ( !sk_progenitor_grapple_allow_shoot.GetBool() || m_iGrapplePhase >= GRAPPLE_PHASE_GRAPPLING )
+			&& ( !ShouldUseJumpGesture() || m_iGrapplePhase != GRAPPLE_PHASE_LANDING ) )
+		{
+			ClearCondition( COND_CAN_RANGE_ATTACK1 );
+		}
+		else if ( IsValidLayer( m_nGrappleLayer ) && GetLayerActivity( m_nGrappleLayer ) == ACT_GESTURE_RANGE_ATTACK_GRAPPLE
+			&& m_iGrapplePhase < GRAPPLE_PHASE_GRAPPLING && sk_progenitor_grapple_allow_shoot.GetBool() )
+		{
+			// Change gesture layer if we can attack
+			if ( HasCondition( COND_CAN_RANGE_ATTACK1 ) )
+			{
+				CAnimationLayer *pLayer = GetAnimOverlay( m_nGrappleLayer );
+				pLayer->m_nActivity = ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY;
+				pLayer->m_nSequence = SelectWeightedSequence( ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY );
+			}
+		}
+
 		ClearCondition( COND_CAN_RANGE_ATTACK2 );
 		ClearCondition( COND_CAN_MELEE_ATTACK1 );
 		ClearCondition( COND_CAN_MELEE_ATTACK2 );
@@ -312,9 +366,10 @@ void CNPC_Progenitor::GatherConditions()
 			ClearCondition( COND_HEAR_DANGER );
 			ClearCondition( COND_LIGHT_DAMAGE );
 			ClearCondition( COND_HEAVY_DAMAGE );
+			ClearCondition( COND_NEW_ENEMY );
 		}
 	}
-	else if ( CanUseShieldDuringAI() )
+	/*else*/ if ( CanUseShieldDuringAI() )
 	{
 		if ( IsPropShieldEquipped() ?
 			( HasCondition( COND_HEAR_DANGER ) )
@@ -323,7 +378,7 @@ void CNPC_Progenitor::GatherConditions()
 			m_flNextShieldStateCheck = gpGlobals->curtime;
 		}
 
-		if ( m_flNextShieldStateCheck < gpGlobals->curtime )
+		if ( m_flNextShieldStateCheck <= gpGlobals->curtime )
 		{
 			switch ( GetState() )
 			{
@@ -429,26 +484,30 @@ void CNPC_Progenitor::GatherConditions()
 	}
 
 	CBaseEntity *pGestureDodgeTarget = m_hDodgeTarget;
+	CBaseEntity *pEnemy = GetEnemy();
 
+	// TODO: Consider simplifying this...
 	if ( HasCondition( COND_ENEMY_FACING_ME )
-		&& GetEnemy() && ( GetEnemy()->IsPlayer() || ( GetEnemy()->IsNPC() && GetEnemy()->MyNPCPointer()->HasCondition( COND_CAN_RANGE_ATTACK1 ) ) )
-		&& !HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) && IsAllowedToDodge() )
+		&& pEnemy && ( pEnemy->IsPlayer() || ( pEnemy->IsNPC() && pEnemy->MyNPCPointer()->HasCondition( COND_CAN_RANGE_ATTACK1 ) ) )
+		&& !HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) && IsAllowedToDodge() && gpGlobals->curtime - m_flNextDodgeTime > 5.0f && m_iGrapplePhase == GRAPPLE_PHASE_NONE )
 	{
 		// Are we not in a good position to just keep shooting?
-		if ( !HasCondition( COND_CAN_RANGE_ATTACK1 ) || HasCondition( COND_LOW_PRIMARY_AMMO ) || HasCondition( COND_HEAVY_DAMAGE ) )
+		if ( ( ( !HasCondition( COND_CAN_RANGE_ATTACK1 ) || HasCondition( COND_LOW_PRIMARY_AMMO ) ) && !IsCurSchedule( SCHED_COMBINE_SIDEARM_AIM, false ) )
+			|| HasCondition( COND_HEAVY_DAMAGE ) )
 		{
 			// See if our enemy is aiming directly at us
-			Vector vecEnemyToMyHead = (HeadTarget( GetEnemy()->EyePosition() ) - GetEnemy()->EyePosition());
+			Vector vecEnemyToMyHead = (HeadTarget( pEnemy->EyePosition() ) - pEnemy->EyePosition());
 			float flDist = VectorNormalize( vecEnemyToMyHead );
+			bool bEnemyIsPlayer = pEnemy->IsPlayer();
 
-			if ( flDist < 2000.0f && DotProduct( vecEnemyToMyHead, GetEnemy()->MyCombatCharacterPointer()->EyeDirection3D() ) > DOT_3DEGREE )
+			if ( flDist < 2000.0f && flDist > ( bEnemyIsPlayer ? 100.0f : 200.0f ) && DotProduct( vecEnemyToMyHead, pEnemy->MyCombatCharacterPointer()->EyeDirection3D() ) > DOT_3DEGREE )
 			{
 				// If we have full attention as well, then try to dodge their attack
-				if ( DotProduct( -vecEnemyToMyHead, HeadDirection3D() ) > DOT_30DEGREE )
+				if ( DotProduct( -vecEnemyToMyHead, HeadDirection3D() ) > ( bEnemyIsPlayer ? DOT_30DEGREE : DOT_15DEGREE ) )
 				{
 					SetCondition( COND_COMBINE_INCOMING_PROJECTILE );
-					SetTarget( GetEnemy() );
-					pGestureDodgeTarget = GetEnemy();
+					SetTarget( pEnemy );
+					pGestureDodgeTarget = pEnemy;
 				}
 			}
 		}
@@ -456,7 +515,7 @@ void CNPC_Progenitor::GatherConditions()
 
 	if ( HasCondition( COND_COMBINE_INCOMING_PROJECTILE ) && pGestureDodgeTarget && GetMotor()->GetCurSpeed() > 100.0f && m_iGrapplePhase == GRAPPLE_PHASE_NONE )
 	{
-		if ( m_bSliding )
+		if ( IsSliding() )
 		{
 			// Not in a position to dodge
 			m_hDodgeTarget = NULL;
@@ -594,7 +653,7 @@ void CNPC_Progenitor::PrescheduleThink()
 		}
 	}
 
-	if ( m_iGrapplePhase == GRAPPLE_PHASE_LANDING && GetMoveType() == MOVETYPE_STEP && GetIdealActivity() != ACT_GLIDE )
+	if ( m_iGrapplePhase == GRAPPLE_PHASE_LANDING && GetMoveType() == MOVETYPE_STEP && GetIdealActivity() != ACT_GLIDE && !GetAcrobaticMotor()->IsUsingGlideLayer() )
 	{
 		// Stuck landing when we're already on the ground
 		// This can happen sometimes when grapple isn't interrupted properly
@@ -610,8 +669,6 @@ void CNPC_Progenitor::PrescheduleThink()
 			// Shield goes crazy
 			CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
 			controller.SoundChangePitch( m_pShieldSound, RandomFloat( 80.0f, 115.0f ), 0.5f );
-
-			RandomGaussianFloat();
 		}
 	}
 }
@@ -628,8 +685,20 @@ void CNPC_Progenitor::OnScheduleChange( void )
 		StopGrappling();
 	}
 
-	if ( m_bSliding )
-		m_bSliding = false;
+	if ( m_hLeftHandGun )
+	{
+		RemoveLaserFromGun( m_hLeftHandGun );
+
+		if ( GetActiveWeapon() )
+			AddLaserToGun( GetActiveWeapon() );
+
+		UTIL_Remove( m_hLeftHandGun );
+		m_hLeftHandGun = NULL;
+
+		// Don't try again for a bit if we were interrupted
+		if ( m_flNextSidearmUseTime < gpGlobals->curtime )
+			m_flNextSidearmUseTime = gpGlobals->curtime + 5.0f;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -652,7 +721,31 @@ int CNPC_Progenitor::SelectSchedule( void )
 		}
 	}
 
+	if ( m_hForcedSidearmTarget )
+	{
+		if ( !FVisible( m_hForcedSidearmTarget ) )
+		{
+			return SCHED_COMBINE_MOVE_TO_FORCED_SIDEARM_LOS;
+		}
+
+		return SCHED_COMBINE_SIDEARM_FORCED_SHOOT;
+	}
+
 	return BaseClass::SelectSchedule();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+// Input  :
+// Output :
+//-----------------------------------------------------------------------------
+int CNPC_Progenitor::SelectStealthCounterSchedule( int nInSchedule )
+{
+	// Aim laser at last seen position
+	if ( CanUseSidearm() && m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] < 0.5f )
+		return SCHED_COMBINE_SIDEARM_AIM;
+
+	return BaseClass::SelectStealthCounterSchedule( nInSchedule );
 }
 
 //-----------------------------------------------------------------------------
@@ -662,63 +755,83 @@ int CNPC_Progenitor::SelectSchedule( void )
 //-----------------------------------------------------------------------------
 int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 {
-	scheduleType = BaseClass::TranslateSchedule( scheduleType );
+	int translatedType = BaseClass::TranslateSchedule( scheduleType );
 
-	switch (scheduleType)
+	switch (translatedType)
 	{
 		case SCHED_COMBINE_RANGE_ATTACK1:
 		case SCHED_COMBINE_MERCILESS_RANGE_ATTACK1:
 		case SCHED_COMBINE_MERCILESS_SUPPRESS:
 		case SCHED_COMBINE_MERCILESS_SUPPRESS_CREEP:
 			{
-				if ( CanUseGrapple() && HasCondition( COND_SEE_ENEMY ) && GetEnemy() && !IsGrappling() )
+				if ( HasCondition( COND_SEE_ENEMY ) && GetEnemy() )
 				{
-					CBaseEntity *pEnemy = GetEnemy();
-					if ( pEnemy->IsNPC() && pEnemy->GetGroundEntity() ) // Flying enemies don't catch well
+					if ( CanUseGrapple() && !IsGrappling() )
 					{
-						if ( pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY || pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY_CENTERED )
+						CBaseEntity *pEnemy = GetEnemy();
+						if ( pEnemy->IsNPC() && pEnemy->GetGroundEntity() ) // Flying enemies don't catch well
 						{
-							// Pull towards us?
-							if ( GrappleTraceTest( pEnemy, Square( 1500.0f ) ) )
+							if ( pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY || pEnemy->MyNPCPointer()->GetHullType() == HULL_TINY_CENTERED )
+							{
+								// Pull towards us?
+								if ( GrappleTraceTest( pEnemy, Square( 1500.0f ) ) && (GetAbsOrigin() - pEnemy->GetAbsOrigin()).z < 64.0f )
+								{
+									m_hGrappleDest = pEnemy;
+									GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
+
+									m_iGrappleType = GRAPPLE_TYPE_PULL;
+									return SCHED_COMBINE_GRAPPLE_SHOOT;
+								}
+							}
+						}
+
+						if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) && ( GetHealth() > GetMaxHealth() * 0.3 ) && RandomFloat() < m_flGrappleWeight )
+						{
+							// Make sure grappling to this enemy doesn't put me in a bad position
+							AIEnemiesIter_t iter;
+							bool bFailed = false;
+							for ( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
+							{
+								if ( pEMemory->hEnemy != pEnemy && pEMemory->hEnemy->IsAlive() && pEMemory->hEnemy->Classify() != CLASS_BULLSEYE )
+								{
+									if ( ( pEMemory->vLastKnownLocation - pEnemy->GetAbsOrigin() ).LengthSqr() < Square( 200.0f ) && pEnemy->FVisible( pEMemory->hEnemy ) )
+									{
+										bFailed = true;
+										break;
+									}
+								}
+							}
+
+							// When pressuring, pull self towards enemies
+							if ( !bFailed && GrappleTraceTest( pEnemy, Square( 2500.0f ) ) )
 							{
 								m_hGrappleDest = pEnemy;
 								GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
 
-								m_iGrappleType = GRAPPLE_TYPE_PULL;
+								m_iGrappleType = GRAPPLE_TYPE_PULL_TO;
 								return SCHED_COMBINE_GRAPPLE_SHOOT;
 							}
 						}
 					}
 
-					if ( IsUsingTacticalVariant( TACTICAL_VARIANT_PRESSURE_ENEMY ) && ( GetHealth() > GetMaxHealth() * 0.3 ) && RandomFloat() < m_flGrappleWeight )
+					if ( CanUseSidearm() && m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] < 0.25f && gpGlobals->curtime - m_flLastDamageTime > 2.0f )
 					{
-						// Make sure grappling to this enemy doesn't put me in a bad position
-						AIEnemiesIter_t iter;
-						bool bFailed = false;
-						for ( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
-						{
-							if ( pEMemory->hEnemy != pEnemy && pEMemory->hEnemy->IsAlive() && pEMemory->hEnemy->Classify() != CLASS_BULLSEYE )
-							{
-								if ( ( pEMemory->vLastKnownLocation - pEnemy->GetAbsOrigin() ).LengthSqr() < Square( 200.0f ) && pEnemy->FVisible( pEMemory->hEnemy ) )
-								{
-									bFailed = true;
-									break;
-								}
-							}
-						}
+						// If the enemy is far away, jumping, and/or really small, consider using sidearm
+						CBaseEntity *pEnemy = GetEnemy();
+						float flDistSqr = ( GetAbsOrigin() - pEnemy->GetAbsOrigin() ).LengthSqr();
+						float flMinDistSqr = Square( 500.0f );
 
-						// When pressuring, pull self towards enemies
-						if ( !bFailed && GrappleTraceTest( pEnemy, Square( 2500.0f ) ) )
-						{
-							m_hGrappleDest = pEnemy;
-							GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
+						if ( pEnemy->IsNPC() && pEnemy->MyNPCPointer()->GetHullHeight() < 32.0f )
+							flMinDistSqr = Square( 300.0f );
+						else if ( m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] > 0.0f )
+							flMinDistSqr -= Square( m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] * 300.0f );
 
-							m_iGrappleType = GRAPPLE_TYPE_PULL_TO;
-							return SCHED_COMBINE_GRAPPLE_SHOOT;
+						if ( flDistSqr > flMinDistSqr )
+						{
+							return SCHED_COMBINE_SIDEARM_AIM;
 						}
 					}
 				}
-				// 
 			}
 			// Fall through
 		case SCHED_IDLE_STAND:
@@ -772,14 +885,31 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 					//if ( !HasMemory( bits_MEMORY_INCOVER ) )
 					//	return SCHED_TAKE_COVER_FROM_ENEMY;
 				}
+				else if ( m_bCounterTacticsAllowed && ( scheduleType == SCHED_RANGE_ATTACK1 || scheduleType == SCHED_COMBINE_RANGE_ATTACK1 ) )
+				{
+					// We're flanking as a counter-tactic (see CNPC_CloneCop::TranslateSchedule)
+					// See if we should consider pulling out a sidearm instead
+					if ( CanUseSidearm() && gpGlobals->curtime - m_flLastDamageTime > 4.0f )
+					{
+						// If the enemy is far away and/or jumping, consider using sidearm
+						CBaseEntity *pEnemy = GetEnemy();
+						float flDistSqr = ( GetAbsOrigin() - pEnemy->GetAbsOrigin() ).LengthSqr();
+
+						if ( flDistSqr > Square( 1000.0f - ( m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] * 800.0f ) ) )
+						{
+							return SCHED_COMBINE_SIDEARM_AIM;
+						}
+					}
+				}
 			}
 			break;
 		case SCHED_GET_HEALTHKIT:
 			{
 				if ( CanUseGrapple() && GetTarget() && !IsGrappling() )
 				{
-					float flDistToTargetSqr = (GetAbsOrigin() - GetTarget()->GetAbsOrigin()).LengthSqr();
-					if ( flDistToTargetSqr > Square( 128.0f ) && FVisible( GetTarget() ) )
+					Vector vecDelta = (GetAbsOrigin() - GetTarget()->GetAbsOrigin());
+					float flDistToTargetSqr = vecDelta.LengthSqr();
+					if ( flDistToTargetSqr > Square( 128.0f ) && vecDelta.z < 64.0f && FVisible( GetTarget(), MASK_SHOT_HULL ) )
 					{
 						m_hGrappleDest = GetTarget();
 						GetGrappleDestForEntity( m_hGrappleDest, m_vecGrappleDest, m_vecGrappleAngle );
@@ -790,9 +920,35 @@ int CNPC_Progenitor::TranslateSchedule( int scheduleType )
 				}
 			}
 			break;
+
+		case SCHED_RELOAD:
+		case SCHED_HIDE_AND_RELOAD:
+		case SCHED_COMBINE_HIDE_AND_RELOAD:
+			{
+				// See if we could use our sidearm
+				if ( CanUseSidearm() && gpGlobals->curtime - m_flLastDamageTime > 4.0f )
+				{
+					float flDistSqr = ( GetAbsOrigin() - GetEnemy()->GetAbsOrigin() ).LengthSqr();
+					if ( flDistSqr > Square( 200.0f ) )
+					{
+						return SCHED_COMBINE_SIDEARM_AIM;
+					}
+				}
+			}
+			break;
+
+		case SCHED_COMBINE_WAIT_IN_COVER:
+			{
+				if ( m_bLaserOn && !HasCondition( COND_SEE_ENEMY ) )
+				{
+					// Ensure we retain LOS
+					return SCHED_COMBAT_FACE;
+				}
+			}
+			break;
 	}
 
-	return scheduleType;
+	return translatedType;
 }
 
 //-----------------------------------------------------------------------------
@@ -900,6 +1056,117 @@ void CNPC_Progenitor::HandleAnimEvent( animevent_t *pEvent )
 			}
 			return;
 		}
+		else if ( pEvent->event == COMBINE_AE_SIDEARM_UNHOLSTER )
+		{
+			// Find sidearm
+			m_hLeftHandWeapon = NULL;
+			for (int i=0;i<MAX_WEAPONS;i++)
+			{
+				if ( m_hMyWeapons[i].Get() && m_hMyWeapons[i]->WeaponClassify() == WEPCLASS_HANDGUN && GetActiveWeapon() != m_hMyWeapons[i] )
+				{
+					m_hLeftHandWeapon = dynamic_cast<CBaseHLCombatWeapon *>( m_hMyWeapons[i].Get() );
+					break;
+				}
+			}
+
+			if ( !m_hLeftHandWeapon )
+			{
+				// Create sidearm if we don't have one
+				m_hLeftHandWeapon = dynamic_cast<CBaseHLCombatWeapon *>( GiveWeaponHolstered( MAKE_STRING( GetBackupWeaponClass() ) ) );
+			}
+
+			if ( m_hLeftHandWeapon && !m_hLeftHandGun )
+			{
+				Assert( !m_hLeftHandWeapon->GetLeftHandGun() );
+
+				m_hLeftHandGun = m_hLeftHandWeapon->CreateLeftHandGun();
+				m_hLeftHandWeapon->SetLeftHandGun( NULL );	// Don't let the weapon remember it, since its handle is used for dual wielding
+
+				m_hLeftHandWeapon->m_iClip1 = m_hLeftHandWeapon->GetMaxClip1();
+			}
+
+			if ( m_hLeftHandGun )
+			{
+				if ( GetActiveWeapon() )
+					RemoveLaserFromGun( GetActiveWeapon() );
+				AddLaserToGun( m_hLeftHandGun );
+			}
+			return;
+		}
+		else if ( pEvent->event == COMBINE_AE_SIDEARM_HOLSTER )
+		{
+			m_hLeftHandWeapon = NULL;
+
+			if ( m_hLeftHandGun )
+			{
+				RemoveLaserFromGun( m_hLeftHandGun );
+
+				if ( GetActiveWeapon() )
+					AddLaserToGun( GetActiveWeapon() );
+
+				UTIL_Remove( m_hLeftHandGun );
+				m_hLeftHandGun = NULL;
+			}
+			return;
+		}
+		else if ( pEvent->event == COMBINE_AE_SIDEARM_SHOOT )
+		{
+			if (m_hLeftHandGun)
+			{
+				int sequence = m_hLeftHandGun->SelectWeightedSequence( ACT_RANGE_ATTACK_PISTOL );
+				if (sequence != ACTIVITY_NOT_AVAILABLE)
+				{
+					m_hLeftHandGun->SetSequence( sequence );
+					m_hLeftHandGun->SetCycle( 0 );
+					m_hLeftHandGun->ResetSequenceInfo();
+				}
+
+				if ( m_hLeftHandWeapon )
+				{
+					Vector vecShootOrigin, vecShootDir;
+					m_hLeftHandGun->GetAttachment( m_hLeftHandGun->LookupAttachment( "muzzle" ), vecShootOrigin );
+
+					CBaseCombatWeapon *pTrueActiveWeapon = GetActiveWeapon();
+					SetActiveWeapon( m_hLeftHandWeapon );
+
+					if ( m_hForcedSidearmTarget )
+					{
+						vecShootDir = GetLaserTargetPos( m_hForcedSidearmTarget, vecShootOrigin ) - vecShootOrigin;
+					}
+					else
+					{
+						vecShootDir = GetLaserTargetPos( GetEnemy(), vecShootOrigin ) - vecShootOrigin;
+					}
+
+					VectorNormalize( vecShootDir );
+
+					m_hLeftHandWeapon->SetFiringLeft( true );
+					m_hLeftHandWeapon->FireNPCPrimaryAttack( this, vecShootOrigin, vecShootDir );
+					m_hLeftHandWeapon->SetFiringLeft( false );
+
+					SetActiveWeapon( pTrueActiveWeapon );
+
+					// A bit of a hack to take advantage of existing assassin dual wield code
+					//extern int AE_PISTOL_FIRE_LEFT;
+
+					//animevent_t proxyEvent;
+					//memcpy( &proxyEvent, pEvent, sizeof( animevent_t ) );
+					//proxyEvent.event = AE_PISTOL_FIRE_LEFT;
+					//m_hLeftHandWeapon->Operator_HandleAnimEvent( &proxyEvent, this );
+				}
+			}
+			return;
+		}
+		else if ( pEvent->event == COMBINE_AE_SIDEARM_LASER_ON )
+		{
+			TurnOnLaser();
+			return;
+		}
+		else if ( pEvent->event == COMBINE_AE_SIDEARM_LASER_OFF )
+		{
+			TurnOffLaser();
+			return;
+		}
 	}
 
 	BaseClass::HandleAnimEvent( pEvent );
@@ -916,7 +1183,7 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 	{
 		case TASK_DEFER_DODGE:
 			// Progenitor can dodge again sooner
-			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.4f);
+			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.5f);
 			TaskComplete();
 			break;
 
@@ -1112,6 +1379,69 @@ void CNPC_Progenitor::StartTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_COMBINE_SIDEARM_AIM:
+			{
+				SetWait( 10.0f, 15.0f );
+				SetIdealActivity( ACT_IDLE_ANGRY_SIDEARM );
+
+				float flDistanceSqr = 0.0f;
+				if ( GetEnemy() )
+					flDistanceSqr = ((GetEnemyLKP() + GetEnemy()->GetSmoothedVelocity()) - GetAbsOrigin()).LengthSqr();
+
+				m_flNextSidearmFireTime = gpGlobals->curtime + MIN((flDistanceSqr / Square(625.0f)) * 1.25f, 1.25f);
+
+				// HACKHACK: Sometimes the laser think doesn't start
+				StartLaserThink();
+			}
+			break;
+
+		case TASK_COMBINE_SIDEARM_AIM_FORCED:
+			{
+				SetWait( m_flSidearmWaitTime );
+				SetIdealActivity( ACT_IDLE_ANGRY_SIDEARM );
+
+				// HACKHACK: Sometimes the laser think doesn't start
+				StartLaserThink();
+			}
+			break;
+
+		case TASK_COMBINE_GET_PATH_TO_SIDEARM_TARGET:
+			{
+				SetTarget( m_hForcedSidearmTarget );
+
+				float flMaxRange = 2000.0f;
+				float flMinRange = 0.0f;
+
+				Vector vecEnemy = m_hForcedSidearmTarget->GetAbsOrigin();
+				Vector vecEnemyEye = vecEnemy + m_hForcedSidearmTarget->GetViewOffset();
+
+				Vector posLos;
+				bool found = false;
+
+				if ( GetTacticalServices()->FindLateralLos( vecEnemyEye, &posLos ) )
+				{
+					float dist = ( posLos - vecEnemyEye ).Length();
+					if ( dist < flMaxRange && dist > flMinRange )
+						found = true;
+				}
+
+				if ( !found && GetTacticalServices()->FindLos( vecEnemy, vecEnemyEye, flMinRange, flMaxRange, 1.0, &posLos ) )
+				{
+					found = true;
+				}
+
+				if ( !found )
+				{
+					TaskFail( FAIL_NO_SHOOT );
+				}
+				else
+				{
+					// else drop into run task to offer an interrupt
+					m_vInterruptSavePosition = posLos;
+				}
+			}
+			break;
+
 		default:
 			BaseClass::StartTask( pTask );
 			break;
@@ -1285,6 +1615,126 @@ void CNPC_Progenitor::RunTask( const Task_t *pTask )
 			}
 			break;
 
+		case TASK_COMBINE_SIDEARM_AIM:
+			{
+				if ( !GetEnemy() || HasCondition( COND_ENEMY_DEAD ) )
+				{
+					// Find a new enemy, if possible
+					CBaseEntity *pNewEnemy = BestEnemy();
+					if ( pNewEnemy && pNewEnemy != GetEnemy() && pNewEnemy->IsAlive() && FVisible( pNewEnemy ) )
+					{
+						SetEnemy( pNewEnemy );
+						ClearCondition( COND_ENEMY_DEAD );
+					}
+					else
+					{
+						//TaskFail( FAIL_NO_TARGET );
+						TaskComplete();
+						m_flNextSidearmUseTime = gpGlobals->curtime + 15.0f;
+						break;
+					}
+				}
+
+				if ( !m_hLeftHandGun )
+				{
+					Warning( "%s unexpectedly lost sidearm\n", GetDebugName() );
+					TaskFail( FAIL_ITEM_NO_FIND );
+					break;
+				}
+
+				if ( IsWaitFinished() )
+				{
+					TaskComplete();
+					m_flNextSidearmUseTime = gpGlobals->curtime + 15.0f;
+					break;
+				}
+
+				GetMotor()->SetIdealYawToTargetAndUpdate( GetEnemy()->GetAbsOrigin() );
+				AimGun();
+
+				if ( GetActivity() == ACT_RANGE_ATTACK_SIDEARM )
+				{
+					if ( IsActivityFinished() )
+					{
+						SetActivity( ACT_IDLE_ANGRY_SIDEARM );
+						m_flNextSidearmFireTime = gpGlobals->curtime + 0.75f;
+					}
+				}
+				else
+				{
+					if ( !RunSidearmAim() )
+					{
+						TaskComplete();
+						m_flNextSidearmUseTime = gpGlobals->curtime + 15.0f;
+					}
+				}
+			}
+			break;
+
+		case TASK_COMBINE_GET_PATH_TO_SIDEARM_TARGET:
+			{
+				if ( !m_hForcedSidearmTarget )
+				{
+					TaskFail(FAIL_NO_ENEMY);
+					return;
+				}
+
+				if ( GetTaskInterrupt() > 0 )
+				{
+					ClearTaskInterrupt();
+
+					Vector vecEnemy = m_hForcedSidearmTarget->GetAbsOrigin();
+					AI_NavGoal_t goal( m_vInterruptSavePosition, ACT_RUN, AIN_HULL_TOLERANCE );
+
+					GetNavigator()->SetGoal( goal, AIN_CLEAR_TARGET );
+					GetNavigator()->SetArrivalDirection( vecEnemy - goal.dest );
+				}
+				else
+				{
+					TaskInterrupt();
+				}
+			}
+			break;
+
+		case TASK_COMBINE_SIDEARM_AIM_FORCED:
+			{
+				if ( !m_hForcedSidearmTarget )
+				{
+					//TaskFail( FAIL_NO_TARGET );
+					TaskComplete();
+					break;
+				}
+
+				AimGun();
+
+				// If the target is behind us, turn until it's at least to our side
+				Vector2D vecToTarget2D = (m_hForcedSidearmTarget->GetAbsOrigin().AsVector2D() - GetAbsOrigin().AsVector2D());
+				Vector2DNormalize( vecToTarget2D );
+				if ( DotProduct2D( BodyDirection3D().AsVector2D(), vecToTarget2D ) < 0.0f )
+				{
+					GetMotor()->SetIdealYawToTargetAndUpdate( m_hForcedSidearmTarget->GetAbsOrigin() );
+					break;
+				}
+
+				// Wait until we're ready
+				if ( !IsWaitFinished() )
+					break;
+
+				if ( GetActivity() == ACT_RANGE_ATTACK_SIDEARM )
+				{
+					if ( IsActivityFinished() )
+					{
+						TaskComplete();
+						m_hForcedSidearmTarget = NULL;
+					}
+				}
+				else
+				{
+					SetActivity( ACT_RANGE_ATTACK_SIDEARM );
+				}
+			}
+			break;
+
 		default:
 			BaseClass::RunTask( pTask );
 			break;
@@ -1395,28 +1845,40 @@ bool CNPC_Progenitor::MovementCost( int moveType, const Vector &vecStart, const 
 	}
 	else if ( moveType == bits_CAP_MOVE_JUMP )
 	{
-		if ( !IsTrueJumpLegal( vecStart, vecEnd, vecEnd ) )
+		if ( !IsTrueJumpLegal( vecStart, vecEnd, vecEnd ) && CanUseGrapple() )
 		{
+			// Prefer not to grapple if our enemy is close to the start or end
+			if ( GetEnemy() )
+			{
+				const float GRAPPLE_ENEMY_DANGER_DIST = 400.0f;
+
+				float flEnemyDistSqr = (GetEnemyLKP() - vecStart).LengthSqr();
+				if ( flEnemyDistSqr < Square( GRAPPLE_ENEMY_DANGER_DIST ) )
+				{
+					float flDistFrac = (sqrtf( flEnemyDistSqr ) / GRAPPLE_ENEMY_DANGER_DIST);
+					if ( flDistFrac > 0.01f )
+						*pCost *= (1.0f / flDistFrac);
+					else
+						*pCost *= 100.0f;
+				}
+
+				flEnemyDistSqr = (GetEnemyLKP() - vecEnd).LengthSqr();
+				if ( flEnemyDistSqr < Square( GRAPPLE_ENEMY_DANGER_DIST ) )
+				{
+					float flDistFrac = (sqrtf( flEnemyDistSqr ) / GRAPPLE_ENEMY_DANGER_DIST);
+					if ( flDistFrac > 0.01f )
+						*pCost *= (1.0f / flDistFrac);
+					else
+						*pCost *= 100.0f;
+				}
+			}
+
 			if ( m_flGrappleWeight == 0.0f )
 			{
 				*pCost *= 100.0f;
 			}
 			else
 			{
-				// Prefer not to grapple if our enemy is close to the start
-				if ( GetEnemy() )
-				{
-					float flEnemyDistSqr = (GetEnemyLKP() - vecStart).LengthSqr();
-					if ( flEnemyDistSqr < Square( 350.0f ) )
-					{
-						float flDistFrac = (sqrtf( flEnemyDistSqr ) / 350.0f);
-						if ( flDistFrac > 0.01f )
-							*pCost *= (1.0f / flDistFrac);
-						else
-							*pCost *= 100.0f;
-					}
-				}
-
 				*pCost *= (1.0f / m_flGrappleWeight);
 			}
 		}
@@ -1436,21 +1898,7 @@ Activity CNPC_Progenitor::NPC_TranslateActivity( Activity eNewActivity )
 		return ACT_GRAPPLE_FLY;
 	}
 
-	if ( m_bSliding )
-	{
-		switch ( eNewActivity )
-		{
-			case ACT_IDLE:
-			case ACT_IDLE_ANGRY:
-			case ACT_WALK:
-			case ACT_WALK_AIM:
-			case ACT_RUN:
-			case ACT_RUN_AIM:
-				eNewActivity = ACT_HL2MP_SLIDE;
-				break;
-		}
-	}
-	else if ( m_nGrappleLayer != -1 )
+	if ( m_nGrappleLayer != -1 && !IsSliding() )
 	{
 		switch ( eNewActivity )
 		{
@@ -1515,9 +1963,9 @@ bool CNPC_Progenitor::ShouldThrowProximitySatchel( bool bDrop )
 	}
 	else
 	{
-		// No need if we can see our enemy (unless they're moving a lot)
-		if ( HasCondition( COND_SEE_ENEMY ) && m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] < 0.5f )
-			return false;
+		// UNDONE: No need if we can see our enemy (unless they're moving a lot)
+		//if ( HasCondition( COND_SEE_ENEMY ) && m_flCounterTacticWeights[COUNTER_TACTIC_MOBILE] < 0.5f )
+		//	return false;
 	}
 
 	return true;
@@ -1536,129 +1984,49 @@ void CNPC_Progenitor::OnThrowProximitySatchel( CBaseEntity *pGrenade )
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal )
 {
-	// Already sliding
-	if ( m_bSliding )
-		return false;
-
 	if ( sk_progenitor_slide_always.GetBool() )
 		return true;
 
-	// Not in combat
-	if ( GetState() != NPC_STATE_COMBAT || !GetEnemy() || IsInAScript() )
-		return false;
-
-	// Not going fast enough
-	if ( GetNavType() != NAV_GROUND || GetMotor()->GetCurVel().LengthSqr() < Square( 150.0f ) )
-		return false;
-
-	// Not enough or too much distance
-	float flDistSqr = ( GetAbsOrigin() - pMoveGoal->target ).LengthSqr();
-	if ( flDistSqr < Square( 100.0f ) || flDistSqr > Square( 350.0f ) )
+	if ( !BaseClass::ShouldSlideToGoal( pMoveGoal ) )
 		return false;
 
 	// Too busy
 	if ( IsPropShieldEquipped() || m_bInjured )
 		return false;
 
-	// No sequence
-	if ( !HaveSequenceForActivity( ACT_HL2MP_SLIDE ) )
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::ShouldUseJumpGesture( void )
+{
+	if ( !GetEnemy() )
 		return false;
 
-	// Would we see the enemy if crouched at our goal?
-	trace_t tr;
-	Vector vecEyeAtGoal = pMoveGoal->target + GetCrouchEyeOffset();
-	Vector vecEnemyOffset = GetEnemy()->HeadTarget( vecEyeAtGoal ) - GetEnemy()->GetAbsOrigin();
-	Vector vecEnemyPos = vecEnemyOffset + GetEnemyLKP();
-	AI_TraceLOS( vecEyeAtGoal, vecEnemyPos, this, &tr );
-	if ( tr.fraction != 1.0f && tr.m_pEnt != GetEnemy() )
+	if ( !sk_progenitor_jump_shoot_allow.GetBool() )
 		return false;
 
-	/*if ( IsCurSchedule( SCHED_TAKE_COVER_FROM_BEST_SOUND )
-		|| IsCurSchedule( SCHED_HIDE_AND_RELOAD )
-		|| IsCurSchedule( SCHED_COMBINE_TAKE_COVER_FROM_BEST_SOUND, false ) )
-		return true;*/
+	if ( !m_MoveAndShootOverlay.CanAimAtEnemy() )
+		return false;
 
 	return true;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
-void CNPC_Progenitor::StartSlidingToGoal( AILocalMoveGoal_t *pMoveGoal )
+bool CNPC_Progenitor::ShouldStopJumpGesture( void )
 {
-	m_bSliding = true;
-	GetNavigator()->SetArrivalActivity( ACT_COVER_LOW );
-	ResetActivity();
+	if ( !BaseClass::ShouldStopJumpGesture() )
+		return false;
 
-	EmitSound( "NPC_Progenitor.Slide" );
-}
+	// Wait until we've landed
+	if ( m_iGrapplePhase == GRAPPLE_PHASE_LANDING )
+		return false;
 
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-void CNPC_Progenitor::StopSliding( bool bIntoCrouch )
-{
-	m_bSliding = false;
-
-	if ( bIntoCrouch )
-		Crouch();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-bool CNPC_Progenitor::OverrideMoveFacing( const AILocalMoveGoal_t &move, float flInterval )
-{
-	if ( BaseClass::OverrideMoveFacing( move, flInterval ) )
-		return true;
-
-	if ( m_bSliding )
-	{
-		float flDistRemaining = (move.target - GetLocalOrigin()).LengthSqr() / Square( sk_progenitor_slide_decel_dist.GetFloat() );
-		if ( flDistRemaining > 0.0f )
-		{
-			GetMotor()->SetMoveInterval( 0 );
-
-			// Update yaw using code from CAI_Motor::MoveFacing()
-			Vector dir;
-			if (GetMotor()->IsDeceleratingToGoal() && (GetHintNode() /*|| GetOuter()->m_hOpeningDoor*/))
-			{
-				dir = move.facing;
-				VectorNormalize( dir );
-			}
-			else
-			{
-				float flInfluence = GetFacingDirection( dir );
-				dir = move.facing * (1 - flInfluence) + dir * flInfluence;
-				VectorNormalize( dir );
-			}
-
-			float idealYaw = UTIL_AngleMod( UTIL_VecToYaw( dir ) );
-			GetMotor()->SetIdealYawAndUpdate( idealYaw );	
-
-			// Determine move yaw, then convert it to the X/Y anim type
-			float flMoveYaw = UTIL_VecToYaw( move.dir );
-			float flDiff = DEG2RAD( UTIL_AngleDiff( flMoveYaw, GetLocalAngles().y ) );
-
-			// Approach 0.5 instead of 0 so that we don't become too slow
-			//float flTimeDelta = ( SmoothCurve( flDistRemaining ) * 0.5f ) + 0.5f;
-			float flTimeDelta = 1.0f;
-
-			//Msg( "diff: %.2f (%.2f, %.2f, %.2f), Move X: %.2f, Move Y: %.2f (t: %.2f)\n", flDiff, flMoveYaw, GetLocalAngles().y, RAD2DEG( flDiff ), cos( flDiff ), sin( flDiff ), flTimeDelta );
-
-			SetPoseParameter( m_poseMove_X, cos( flDiff ) * flTimeDelta );
-			SetPoseParameter( m_poseMove_Y, sin( flDiff ) * flTimeDelta );
-
-			return true;
-		}
-		else
-		{
-			SetPoseParameter( m_poseMove_X, 0.0f );
-			SetPoseParameter( m_poseMove_Y, 0.0f );
-		}
-	}
-
-	return false;
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1671,6 +2039,61 @@ WeaponProficiency_t CNPC_Progenitor::CalcWeaponProficiency( CBaseCombatWeapon *p
 	}
 
 	return BaseClass::CalcWeaponProficiency( pWeapon );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::GunSupportsLaser( CBaseAnimating *pWeapon, int &iAttachment, bool bForce )
+{
+	// TEMPTEMP
+	if ( pWeapon->ClassMatches( "weapon_css_scout" ) )
+		bForce = true;
+
+	return BaseClass::GunSupportsLaser( pWeapon, iAttachment, bForce );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Switches to the given weapon (providing it has ammo)
+// Input  :
+// Output : true is switch succeeded
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex /*=0*/ )
+{
+	if ( !BaseClass::Weapon_Switch( pWeapon, viewmodelindex ) )
+		return false;
+
+	if ( pWeapon && pWeapon->ClassMatches( "weapon_css_scout" ) && m_hGunLaser )
+	{
+		// Sniper laser starts on
+		TurnOnLaser();
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::StartLaserThink()
+{
+	SetContextThink( &CNPC_Progenitor::LaserThink, gpGlobals->curtime, WEAPON_LASER_THINK_CONTEXT );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::LaserThink( void )
+{
+	if ( !IsAlive() || !GetActiveWeapon() )
+	{
+		SetContextThink( NULL, TICK_NEVER_THINK, WEAPON_LASER_THINK_CONTEXT );
+		return;
+	}
+
+	float flNextThink = DoLaserThink();
+
+	SetContextThink( &CNPC_Progenitor::LaserThink, gpGlobals->curtime + flNextThink, WEAPON_LASER_THINK_CONTEXT );
 }
 
 //-----------------------------------------------------------------------------
@@ -1699,6 +2122,9 @@ AI_BEGIN_CUSTOM_NPC( npc_progenitor, CNPC_Progenitor )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_SHOOT )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_MOVE )
 	DECLARE_TASK( TASK_COMBINE_GRAPPLE_PULL_OBJ )
+	DECLARE_TASK( TASK_COMBINE_SIDEARM_AIM )
+	DECLARE_TASK( TASK_COMBINE_GET_PATH_TO_SIDEARM_TARGET )
+	DECLARE_TASK( TASK_COMBINE_SIDEARM_AIM_FORCED )
 
 	DECLARE_CONDITION( COND_COMBINE_SHIELD_RETREAT )
 	DECLARE_CONDITION( COND_COMBINE_CAN_GRAPPLE )
@@ -1707,13 +2133,23 @@ AI_BEGIN_CUSTOM_NPC( npc_progenitor, CNPC_Progenitor )
 	DECLARE_ANIMEVENT( COMBINE_AE_GRAPPLE_UNHOLSTER )
 	DECLARE_ANIMEVENT( COMBINE_AE_GRAPPLE_SHOOT )
 	DECLARE_ANIMEVENT( COMBINE_AE_GRAPPLE_PULL )
+	DECLARE_ANIMEVENT( COMBINE_AE_SIDEARM_UNHOLSTER )
+	DECLARE_ANIMEVENT( COMBINE_AE_SIDEARM_HOLSTER )
+	DECLARE_ANIMEVENT( COMBINE_AE_SIDEARM_SHOOT )
+	DECLARE_ANIMEVENT( COMBINE_AE_SIDEARM_LASER_ON )
+	DECLARE_ANIMEVENT( COMBINE_AE_SIDEARM_LASER_OFF )
 
 	DECLARE_ACTIVITY( ACT_IDLE_ANGRY_GRAPPLE )
 	DECLARE_ACTIVITY( ACT_RANGE_ATTACK_GRAPPLE )
 	DECLARE_ACTIVITY( ACT_RANGE_ATTACK_GRAPPLE_PULL )
 	DECLARE_ACTIVITY( ACT_GESTURE_RANGE_ATTACK_GRAPPLE )
 	DECLARE_ACTIVITY( ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL )
+	DECLARE_ACTIVITY( ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY )
 	DECLARE_ACTIVITY( ACT_GRAPPLE_FLY )
+	DECLARE_ACTIVITY( ACT_IDLE_ANGRY_SIDEARM )
+	DECLARE_ACTIVITY( ACT_RANGE_ATTACK_SIDEARM )
+	DECLARE_ACTIVITY( ACT_UNHOLSTER_SIDEARM )
+	DECLARE_ACTIVITY( ACT_HOLSTER_SIDEARM )
 
 	DEFINE_SCHEDULE
 	(
@@ -1802,6 +2238,48 @@ AI_BEGIN_CUSTOM_NPC( npc_progenitor, CNPC_Progenitor )
 		"	Interrupts"
 		"		COND_HEAR_DANGER"
 		"		COND_COMBINE_GRAPPLE_FAILED"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_COMBINE_SIDEARM_AIM,
+	
+		"	Tasks"
+		"		TASK_PLAY_SEQUENCE_FACE_ENEMY		ACTIVITY:ACT_UNHOLSTER_SIDEARM"
+		"		TASK_COMBINE_SIDEARM_AIM			0"
+		"		TASK_PLAY_SEQUENCE_FACE_ENEMY		ACTIVITY:ACT_HOLSTER_SIDEARM"
+		""
+		"	Interrupts"
+		"		COND_HEAR_DANGER"
+		"		COND_HEAR_MOVE_AWAY"
+		"		COND_HEAVY_DAMAGE"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_COMBINE_MOVE_TO_FORCED_SIDEARM_LOS,
+	
+		"	Tasks"
+		"		TASK_SET_TOLERANCE_DISTANCE					48"
+		"		TASK_COMBINE_GET_PATH_TO_SIDEARM_TARGET		0"
+		"		TASK_RUN_PATH								0"
+		"		TASK_WAIT_FOR_MOVEMENT						0"
+		""
+		"	Interrupts"
+		"		COND_HEAR_DANGER"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_COMBINE_SIDEARM_FORCED_SHOOT,
+	
+		"	Tasks"
+		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_UNHOLSTER_SIDEARM" // TASK_PLAY_SEQUENCE_FACE_TARGET
+		"		TASK_COMBINE_SIDEARM_AIM_FORCED		0"
+		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_HOLSTER_SIDEARM"
+		""
+		"	Interrupts"
+		"		COND_HEAR_DANGER"
 	)
 
 AI_END_CUSTOM_NPC()

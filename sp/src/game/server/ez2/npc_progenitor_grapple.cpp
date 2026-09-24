@@ -29,11 +29,16 @@ extern ConVar	sk_progenitor_grapple_hook_speed;
 extern ConVar	sk_progenitor_grapple_hook_dmg;
 extern ConVar	sk_progenitor_grapple_min_dist;
 extern ConVar	sk_progenitor_grapple_max_dist;
+extern ConVar	sk_progenitor_grapple_allow_shoot;
+extern ConVar	sk_progenitor_jump_shoot_allow;
+extern ConVar	sk_progenitor_jump_shoot_grav;
+extern ConVar	sk_progenitor_jump_shoot_speed;
 
 extern Activity ACT_IDLE_ANGRY_GRAPPLE;
 extern Activity ACT_RANGE_ATTACK_GRAPPLE;
 extern Activity ACT_RANGE_ATTACK_GRAPPLE_PULL;
 extern Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE;
+extern Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY;	// Aiming with right hand
 extern Activity ACT_GESTURE_RANGE_ATTACK_GRAPPLE_PULL;
 extern Activity ACT_GRAPPLE_FLY;
 
@@ -45,8 +50,8 @@ bool CNPC_Progenitor::CanUseGrapple() const
 	if ( !m_bGrappleAllowed )
 		return false;
 
-	if ( IsPropShieldEquipped() )
-		return false;
+	//if ( IsPropShieldEquipped() )
+	//	return false;
 
 	if ( m_iGrapplePhase < GRAPPLE_PHASE_HOOKED && !const_cast<CNPC_Progenitor*>(this)->IsInAScript() )
 	{
@@ -490,8 +495,18 @@ void CNPC_Progenitor::StopGrappling( bool bCancel )
 
 		float flTime = GetGroundChangeTime();
 		AddStepDiscontinuity( flTime, GetAbsOrigin(), GetAbsAngles() );
+		
+		if ( ShouldUseJumpGesture() )
+		{
+			// Use the gesture layer instead of jumping
+			GetAcrobaticMotor()->StartGlideLayer();
+			SetIdealActivity( ACT_IDLE );
+		}
+		else
+		{
+			SetIdealActivity( ACT_GLIDE ); // ACT_IDLE
+		}
 
-		SetIdealActivity( ACT_GLIDE ); // ACT_IDLE
 		ResetActivity();
 	}
 
@@ -900,11 +915,94 @@ void CNPC_Progenitor::AimGun()
 		}
 
 		VectorNormalize( vecToDest );
-		SetAim( vecToDest );
-		return;
+
+		//SetAim( vecToDest );
+		//return;
+
+		// Now independent from weapon aim
+		SetAimSecondary( vecToDest );
+	}
+	else if ( m_hLeftHandGun )
+	{
+		// Aiming with sidearm
+		if ( GetEnemy() || m_hForcedSidearmTarget )
+		{
+			Vector vecToDest = (GetLaserTargetPos( m_hForcedSidearmTarget ? m_hForcedSidearmTarget : GetEnemy(), EyePosition() ) - EyePosition());
+			VectorNormalize( vecToDest );
+			SetAimSecondary( vecToDest );
+		}
+		else
+		{
+			SetAimSecondary( GetSidearmIdleAim() );
+		}
+	}
+	else
+	{
+		// Relax secondary aim
+		float curPitch = GetPoseParameter( m_poseAim2_Pitch );
+		float curYaw = GetPoseParameter( m_poseAim2_Yaw );
+
+		if ( curPitch != 0.0f || curYaw != 0.0f )
+		{
+			float newPitch = AngleNormalize( UTIL_ApproachAngle( 0, curPitch, 3 ) );
+			float newYaw = AngleNormalize( UTIL_ApproachAngle( 0, curYaw, 2 ) );
+
+			SetPoseParameter( m_poseAim2_Pitch, newPitch );
+			SetPoseParameter( m_poseAim2_Yaw, newYaw );
+		}
 	}
 
 	BaseClass::AimGun();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Set direction that the NPC aiming their gun
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::SetAimSecondary( const Vector &aimDir )
+{
+	QAngle angDir;
+	VectorAngles( aimDir, angDir );
+	float curPitch = GetPoseParameter( m_poseAim2_Pitch );
+	float curYaw = GetPoseParameter( m_poseAim2_Yaw );
+
+	float newPitch;
+	float newYaw;
+
+	if( GetEnemy() )
+	{
+		// clamp and dampen movement
+		newPitch = curPitch + 0.8 * UTIL_AngleDiff( UTIL_ApproachAngle( angDir.x, curPitch, 20 ), curPitch );
+
+		float flRelativeYaw = UTIL_AngleDiff( angDir.y, GetAbsAngles().y );
+		// float flNewTargetYaw = UTIL_ApproachAngle( flRelativeYaw, curYaw, 20 );
+		// float newYaw = curYaw + 0.8 * UTIL_AngleDiff( flNewTargetYaw, curYaw );
+		newYaw = curYaw + UTIL_AngleDiff( flRelativeYaw, curYaw );
+	}
+	else
+	{
+		// Sweep your weapon more slowly if you're not fighting someone
+		newPitch = curPitch + 0.6 * UTIL_AngleDiff( UTIL_ApproachAngle( angDir.x, curPitch, 20 ), curPitch );
+
+		float flRelativeYaw = UTIL_AngleDiff( angDir.y, GetAbsAngles().y );
+		newYaw = curYaw + 0.6 * UTIL_AngleDiff( flRelativeYaw, curYaw );
+	}
+
+	newPitch = AngleNormalize( newPitch );
+	newYaw = AngleNormalize( newYaw );
+
+	SetPoseParameter( m_poseAim2_Pitch, newPitch );
+	SetPoseParameter( m_poseAim2_Yaw, newYaw );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Progenitor::FCanCheckAttacks( void )
+{
+	if ( IsGrappling() )
+		return false;
+
+	return BaseClass::FCanCheckAttacks();
 }
 
 //-----------------------------------------------------------------------------
@@ -914,6 +1012,13 @@ void CNPC_Progenitor::AimGun()
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::IsJumpLegal( const Vector &startPos, const Vector &apex, const Vector &endPos ) const
 {
+	// Check jump vulnerability if needed
+	if ( m_flCounterTacticWeights[COUNTER_TACTIC_SELFJUMP] > 0.3f )
+	{
+		if ( const_cast<CNPC_Progenitor*>(this)->IsJumpVulnerable( endPos ) )
+			return false;
+	}
+
 	if ( !CanUseGrapple() )
 		return IsTrueJumpLegal( startPos, apex, endPos );
 
@@ -941,8 +1046,8 @@ bool CNPC_Progenitor::IsJumpLegal( const Vector &startPos, const Vector &apex, c
 bool CNPC_Progenitor::IsTrueJumpLegal( const Vector &startPos, const Vector &apex, const Vector &endPos ) const
 {
 	// Use smaller values than Clone Cop
-	const float MAX_JUMP_RISE = 64.0f;
-	const float MAX_JUMP_DISTANCE = 224.0f;
+	const float MAX_JUMP_RISE = 80.0f;
+	const float MAX_JUMP_DISTANCE = 320.0f;
 	const float MAX_JUMP_DROP = 384.0f;
 
 	return CNPC_PlayerCompanion::IsJumpLegal(startPos, apex, endPos, MAX_JUMP_RISE, MAX_JUMP_DROP, MAX_JUMP_DISTANCE);
@@ -994,6 +1099,39 @@ Vector CNPC_Progenitor::GetHealthItemRange( bool bFollowing )
 	return BaseClass::GetHealthItemRange();
 }
 
+extern float GetCurrentGravity( void );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Progenitor::CNavigator::DetermineApexFromJumpVel( const Vector &vecJumpVel, const Vector &vecFrom, const Vector &vecTo, Vector &vecApex )
+{
+	// This is a modified version of the code from CAI_MoveProbe::JumpMoveLimit() which takes the input jump velocity (which is presumably
+	// already the first valid arc from the original JumpMoveLimit calculation) and figures out what its apex is
+	float jumpTime		= (vecFrom - vecTo).Length2D()/vecJumpVel.Length2D();
+	float timeStep		= jumpTime / 10.0;
+
+	Vector gravity = Vector( 0, 0, GetCurrentGravity() * GetOuter()->GetJumpGravity() );
+	Vector vecTest = vecFrom;
+	Vector nextJumpVel = vecJumpVel;
+
+	for (float flTime = 0 ; flTime < jumpTime - 0.01; flTime += timeStep )
+	{
+		// Calculate my position after the time step (average velocity over this time step)
+		Vector nextPos = vecTest + (nextJumpVel - 0.5 * gravity * timeStep) * timeStep;
+
+		if ( nextPos.z < vecTest.z )
+		{
+			// We've hit the apex
+			vecApex = vecTest;
+			return;
+		}
+
+		nextJumpVel = nextJumpVel - gravity * timeStep;
+		vecTest		= nextPos;
+	}
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -1007,9 +1145,17 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 		if ( GetOuter()->m_iGrapplePhase != GRAPPLE_PHASE_NONE )
 			GetOuter()->StopGrappling();
 
+		// Get our jump velocity and ascertain what the apex would be
+		// (can't use CalcJumpLaunchVelocity() directly because MoveLimit() does extra calculations)
+		Vector vecApex;
+		AIMoveTrace_t moveTrace;
+		GetMoveProbe()->MoveLimit( NAV_JUMP, GetLocalOrigin(), GetPath()->CurWaypointPos(), MASK_NPCSOLID, GetEnemy(), &moveTrace );
+
+		DetermineApexFromJumpVel( moveTrace.vJumpVelocity, GetLocalOrigin(), GetPath()->CurWaypointPos(), vecApex );
+
 		// Determine if this is a grapple or a true jump
 		if (GetOuter()->IsTrueJumpLegal( GetLocalOrigin(),
-			GetPath()->CurWaypointPos(),
+			vecApex,
 			GetPath()->CurWaypointPos() ))
 		{
 			GetOuter()->m_bNavTrueJump = true;
@@ -1044,10 +1190,29 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 					GetOuter()->m_vecGrappleAngle = QAngle(-90,0,0);
 				}
 
+				if ( ( GetPath()->CurWaypointPos() - GetLocalOrigin() ).LengthSqr() < Square( 16.0f ) )
+				{
+					// If we're already within the grapple end threshold, we'll get caught in a loop.
+					// We're not supposed to want to grapple in the first place if we're already this close,
+					// but for now, just slam back to base
+					Warning( "%s: Tried to grapple when already at dest\n", GetOuter()->GetDebugName() );
+					GetOuter()->m_bNavTrueJump = true;
+					return BaseClass::MoveJump();
+				}
+
 				// This makes sure we don't have any lingering blend sequences in CAI_BlendedMotor
 				GetMotor()->MoveStop();
+				
+				if ( !sk_progenitor_grapple_allow_shoot.GetBool() || !GetEnemy() )
+				{
+					GetOuter()->SetIdealActivity( ACT_RANGE_ATTACK_GRAPPLE );
+				}
+				else
+				{
+					GetOuter()->m_nGrappleLayer = GetOuter()->AddGesture(
+						GetOuter()->HasCondition( COND_CAN_RANGE_ATTACK1 ) ? ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY : ACT_GESTURE_RANGE_ATTACK_GRAPPLE, false );
+				}
 
-				GetOuter()->SetIdealActivity( ACT_RANGE_ATTACK_GRAPPLE );
 				GetOuter()->m_iGrapplePhase = GRAPPLE_PHASE_PRESHOT;
 				GetOuter()->m_iGrappleType = GRAPPLE_TYPE_NAV;
 			}
@@ -1061,16 +1226,28 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 				}
 				else if ( GetOuter()->m_nGrappleLayer != -1 )
 				{
-					if ( GetOuter()->IsLayerFinished( GetOuter()->m_nGrappleLayer ) )
+					if ( sk_progenitor_grapple_allow_shoot.GetBool() )
 					{
-						// If we're doing the jump execution, we don't need the gesture anymore
-						GetOuter()->SetLayerAutokill( GetOuter()->m_nGrappleLayer, true );
-						GetOuter()->RemoveLayer( GetOuter()->m_nGrappleLayer );
-						GetOuter()->m_nGrappleLayer = -1;
+						// Change to idle (presumably an aiming anim) and let the gesture handle the grapple pose
+						if ( GetOuter()->GetIdealActivity() != ACT_IDLE )
+						{
+							GetOuter()->SetIdealActivity( ACT_IDLE );
+							GetOuter()->ResetActivity();
+						}
 					}
+					else
+					{
+						if ( GetOuter()->IsLayerFinished( GetOuter()->m_nGrappleLayer ) )
+						{
+							// If we're doing the jump execution, we don't need the gesture anymore
+							GetOuter()->SetLayerAutokill( GetOuter()->m_nGrappleLayer, true );
+							GetOuter()->RemoveLayer( GetOuter()->m_nGrappleLayer );
+							GetOuter()->m_nGrappleLayer = -1;
+						}
 
-					if ( GetActivity() != ACT_IDLE_ANGRY_GRAPPLE )
-						SetActivity( ACT_IDLE_ANGRY_GRAPPLE );
+						if ( GetActivity() != ACT_IDLE_ANGRY_GRAPPLE )
+							SetActivity( ACT_IDLE_ANGRY_GRAPPLE );
+					}
 				}
 
 				GetMotor()->SetIdealYawToTargetAndUpdate( GetPath()->CurWaypointPos() );
@@ -1117,6 +1294,11 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 			{
 				if ( GetEntFlags() & FL_ONGROUND )
 				{
+					if ( GetOuter()->GetAcrobaticMotor()->IsUsingGlideLayer() )
+					{
+						GetOuter()->GetAcrobaticMotor()->StopGlideLayer();
+					}
+
 					SetActivity( ACT_LAND );
 					GetOuter()->EmitSound( "NPC_Combine.Zipline_End" );
 
@@ -1135,6 +1317,11 @@ AIMoveResult_t CNPC_Progenitor::CNavigator::MoveJump()
 						AdvancePath();
 						return AIMR_CHANGE_TYPE;
 					}
+				}
+				else if ( GetOuter()->GetAcrobaticMotor()->IsUsingGlideLayer() )
+				{
+					// Face enemy
+					GetMotor()->UpdateYaw();
 				}
 			}
 			break;
@@ -1184,30 +1371,29 @@ void CNPC_Progenitor::CNavigator::MoveCalcBaseGoal( AILocalMoveGoal_t *pMoveGoal
 				GetOuter()->m_vecGrappleAngle = vec3_angle;
 			}
 
-			GetOuter()->m_nGrappleLayer = GetOuter()->AddGesture( ACT_GESTURE_RANGE_ATTACK_GRAPPLE );
+			GetOuter()->m_nGrappleLayer = GetOuter()->AddGesture(
+				GetOuter()->HasCondition( COND_CAN_RANGE_ATTACK1 ) ? ACT_GESTURE_RANGE_ATTACK_GRAPPLE_ANGRY : ACT_GESTURE_RANGE_ATTACK_GRAPPLE );
 			GetOuter()->SetLayerAutokill( GetOuter()->m_nGrappleLayer, false );
 			GetOuter()->m_iGrapplePhase = GRAPPLE_PHASE_PRESHOT;
 			GetOuter()->ResetActivity();
 
-			// Face the target
-			float flDuration = GetOuter()->GetLayerDuration( GetOuter()->m_nGrappleLayer );
-			GetOuter()->AddFacingTarget( GetOuter()->m_vecGrappleDest, 1.0f, flDuration );
-
-			if ( GetEnemy() )
+			if ( !sk_progenitor_grapple_allow_shoot.GetBool() || !GetEnemy() )
 			{
-				// Overwrite facing target given by move shoot
-				// (shot regulator in default action gesture portion should prevent shooting during this gesture)
-				GetOuter()->AddFacingTarget( GetEnemy(), GetEnemyLKP(), 0.1f, 0.1f );
+				// Face the target
+				float flDuration = GetOuter()->GetLayerDuration( GetOuter()->m_nGrappleLayer );
+				GetOuter()->AddFacingTarget( GetOuter()->m_vecGrappleDest, 1.0f, flDuration );
 
-				// NOTE: This could get overwritten by CNPC_Combine::PrescheduleThink() if we're close enough to our goal
-				GetOuter()->m_MoveAndShootOverlay.SuspendMoveAndShoot( flDuration );
+				if ( GetEnemy() )
+				{
+					// Overwrite facing target given by move shoot
+					// (shot regulator in default action gesture portion should prevent shooting during this gesture)
+					GetOuter()->AddFacingTarget( GetEnemy(), GetEnemyLKP(), 0.1f, 0.1f );
+
+					// NOTE: This could get overwritten by CNPC_Combine::PrescheduleThink() if we're close enough to our goal
+					GetOuter()->m_MoveAndShootOverlay.SuspendMoveAndShoot( flDuration );
+				}
 			}
 		}
-	}
-	else if ( pMoveGoal->flags & AILMG_TARGET_IS_GOAL )
-	{
-		if ( GetOuter()->ShouldSlideToGoal( pMoveGoal ) )
-			GetOuter()->StartSlidingToGoal( pMoveGoal );
 	}
 }
 
@@ -1220,9 +1406,6 @@ void CNPC_Progenitor::CNavigator::OnNavComplete()
 
 	GetOuter()->m_bNavEvaluatedJump = false;
 	GetOuter()->m_bNavTrueJump = false;
-
-	if ( GetOuter()->m_bSliding )
-		GetOuter()->StopSliding( true );
 }
 
 //-----------------------------------------------------------------------------
@@ -1239,7 +1422,4 @@ void CNPC_Progenitor::CNavigator::OnNewGoal()
 	{
 		GetOuter()->StopGrappling();
 	}
-
-	if ( GetOuter()->m_bSliding )
-		GetOuter()->StopSliding();
 }

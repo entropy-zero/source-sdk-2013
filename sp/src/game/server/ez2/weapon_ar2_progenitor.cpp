@@ -23,7 +23,7 @@
 #include "tier0/memdbgon.h"
 
 ConVar	sk_plr_dmg_ar2_progenitor( "sk_plr_dmg_ar2_progenitor", "16", FCVAR_REPLICATED );
-ConVar	sk_npc_dmg_ar2_progenitor( "sk_npc_dmg_ar2_progenitor", "9", FCVAR_REPLICATED );
+ConVar	sk_npc_dmg_ar2_progenitor( "sk_npc_dmg_ar2_progenitor", "12", FCVAR_REPLICATED );
 
 ConVar	sk_weapon_ar2_progenitor_alt_fire_duration( "sk_weapon_ar2_progenitor_alt_fire_duration", "1.5" );
 ConVar	sk_weapon_ar2_progenitor_alt_fire_speed( "sk_weapon_ar2_progenitor_alt_fire_speed", "750" );
@@ -425,7 +425,7 @@ void CGrenadeProgenitorEnergy::Spawn( void )
 	// No gravity
 	SetMoveType( MOVETYPE_FLY );
 
-	m_flNextShockTime = gpGlobals->curtime + 0.25f;
+	m_flNextShockTime = 0.0f;
 }
 
 void CGrenadeProgenitorEnergy::Precache( void )

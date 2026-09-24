@@ -42,7 +42,7 @@ public:
 	{
 		static Vector cone;
 
-		cone = VECTOR_CONE_6DEGREES;
+		cone = VECTOR_CONE_5DEGREES;
 
 		return cone;
 	}

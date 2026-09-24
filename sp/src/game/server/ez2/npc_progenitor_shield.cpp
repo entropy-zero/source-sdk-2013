@@ -49,6 +49,7 @@ bool CNPC_Progenitor::ShouldActivateShield()
 		case ACT_RUN:
 		case ACT_RUN_AIM:
 		case ACT_RANGE_ATTACK1:
+		case ACT_RELOAD:
 		case ACT_TRANSITION:
 			break;
 		default:
@@ -97,7 +98,7 @@ bool CNPC_Progenitor::ShouldActivateShield()
 	CBaseCombatCharacter *pBCC = GetEnemy()->MyCombatCharacterPointer();
 	if ( pBCC && pBCC->GetActiveWeapon() && pBCC->GetActiveWeapon()->m_iClassname == gm_iszShotgunClassname )
 	{
-		if ( ( GetEnemyLKP() - GetAbsOrigin() ).LengthSqr() < Square( 200.0f ) )
+		if ( ( GetEnemyLKP() - GetAbsOrigin() ).LengthSqr() < Square( 300.0f ) )
 		{
 			return true;
 		}
@@ -120,6 +121,9 @@ bool CNPC_Progenitor::CanThrowShield()
 //-----------------------------------------------------------------------------
 bool CNPC_Progenitor::ShouldDeactivateShield( bool &bThrow )
 {
+	if ( m_iGrapplePhase != GRAPPLE_PHASE_NONE )
+		return false;
+
 	if ( m_flShieldDeactivateTime < gpGlobals->curtime )
 		return true;
 
@@ -721,10 +725,19 @@ void CPropProgenitorThrownShield::EnableGravityThink()
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
-int CPropProgenitorThrownShield::OnTakeDamage( const CTakeDamageInfo &info )
+int CPropProgenitorThrownShield::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 {
 	if ( IsDissolving() )
 		return 0;
+
+	CTakeDamageInfo info = inputInfo;
+
+	if ( info.GetDamageType() & DMG_SLASH && info.GetAttacker() && info.GetAttacker()->ClassMatches( "npc_manhack" ) )
+	{
+		// HACKHACK: Stop manhacks from instantly destroying shields
+		extern ConVar sk_manhack_melee_dmg;
+		info.SetDamage( sk_manhack_melee_dmg.GetFloat() );
+	}
 
 	int nBase = BaseClass::OnTakeDamage( info );
 
