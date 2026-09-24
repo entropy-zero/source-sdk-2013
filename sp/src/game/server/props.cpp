@@ -2820,7 +2820,10 @@ public:
 	};
 
 	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+	void Press( CBaseEntity *pActivator, CBaseEntity *pCaller );
+	void PressThink();
 	void InteractablePropTouch( CBaseEntity *pOther );
+	void VPhysicsCollision( int index, gamevcollisionevent_t *pEvent );
 
 	void SetPushSequence(int iSequence);
 	void PushThink();
@@ -2846,6 +2849,7 @@ public:
 	void InputDisableRadiusInteract( inputdata_t &inputdata ) { RemoveSpawnFlags( SF_INTERACTABLE_RADIUS_USE ); }
 
 	COutputEvent m_OnPressed;
+	COutputEvent m_OnPressDelay;
 	COutputEvent m_OnLockedUse;
 	COutputEvent m_OnIn;
 	COutputEvent m_OnOut;
@@ -2876,6 +2880,11 @@ private:
 	Vector		m_vecUseMins;
 	Vector		m_vecUseMaxs;
 
+	float		m_flPressDelay;
+	string_t	m_iszPressDelaySound;
+	EHANDLE		m_hLastActivator;
+	EHANDLE		m_hLastCaller;
+
 	string_t				m_iszInteractFilter;
 	CHandle<CBaseFilter>	m_hInteractFilter;
 
@@ -2902,6 +2911,11 @@ BEGIN_DATADESC( CInteractableProp )
 	DEFINE_KEYFIELD( m_vecUseMins, FIELD_VECTOR, "use_mins" ),
 	DEFINE_KEYFIELD( m_vecUseMaxs, FIELD_VECTOR, "use_maxs" ),
 
+	DEFINE_INPUT( m_flPressDelay, FIELD_FLOAT, "SetPressDelay" ),
+	DEFINE_KEYFIELD( m_iszPressDelaySound, FIELD_STRING, "PressDelaySound" ),
+	DEFINE_FIELD( m_hLastActivator, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_hLastCaller, FIELD_EHANDLE ),
+
 	DEFINE_KEYFIELD( m_iszInteractFilter, FIELD_STRING, "InteractFilter" ),
 	DEFINE_FIELD( m_hInteractFilter, FIELD_EHANDLE ),
 
@@ -2925,11 +2939,13 @@ BEGIN_DATADESC( CInteractableProp )
 
 	// Outputs
 	DEFINE_OUTPUT( m_OnPressed, "OnPressed" ),
+	DEFINE_OUTPUT( m_OnPressDelay, "OnPressDelay" ),
 	DEFINE_OUTPUT( m_OnLockedUse, "OnLockedUse" ),
 	DEFINE_OUTPUT( m_OnIn, "OnIn" ),
 	DEFINE_OUTPUT( m_OnOut, "OnOut" ),
 
 	DEFINE_THINKFUNC( PushThink ),
+	DEFINE_THINKFUNC( PressThink ),
 	DEFINE_ENTITYFUNC( InteractablePropTouch ),
 
 END_DATADESC()
@@ -2965,6 +2981,8 @@ void CInteractableProp::Precache( void )
 		PrecacheScriptSound( STRING(m_iszPressedSound) );
 	if (m_iszLockedSound != NULL_STRING)
 		PrecacheScriptSound( STRING(m_iszLockedSound) );
+	if (m_iszPressDelaySound != NULL_STRING)
+		PrecacheScriptSound( STRING(m_iszPressDelaySound) );
 }
 
 //-----------------------------------------------------------------------------
@@ -3019,6 +3037,32 @@ void CInteractableProp::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_T
 		}
 	}
 
+	if ( m_flPressDelay > 0.0f )
+	{
+		m_OnPressDelay.FireOutput( pActivator, this );
+		EmitSound( STRING( m_iszPressDelaySound ) );
+
+		m_hLastActivator = pActivator;
+		m_hLastCaller = pCaller;
+
+		m_flCooldownTime = gpGlobals->curtime + m_flPressDelay;
+		SetContextThink( &CInteractableProp::PressThink, m_flCooldownTime, "InteractablePropPress" );
+	}
+	else
+	{
+		Press( pActivator, pCaller );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pActivator - 
+//			*pCaller - 
+//			useType - 
+//			value - 
+//-----------------------------------------------------------------------------
+void CInteractableProp::Press( CBaseEntity *pActivator, CBaseEntity *pCaller )
+{
 	bool bLocked = m_bLocked;
 	int nSequence = -1;
 
@@ -3052,7 +3096,7 @@ void CInteractableProp::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_T
 		m_pOutputAnimBegun.FireOutput(pActivator, this);
 	}
 
-	if (m_flCooldown == -1 && !m_bLocked){
+	if (m_flCooldown == -1 && !bLocked){
 		m_flCooldownTime = FLT_MAX; // yeah we're not going to hit this any time soon
 	}
 	else if (m_flCooldown == -1){
@@ -3061,6 +3105,15 @@ void CInteractableProp::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_T
 	else{
 		m_flCooldownTime = gpGlobals->curtime + m_flCooldown;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CInteractableProp::PressThink()
+{
+	Press( m_hLastActivator, m_hLastCaller );
+	SetContextThink( NULL, TICK_NEVER_THINK, "InteractablePropPress" );
 }
 
 //-----------------------------------------------------------------------------
@@ -3075,6 +3128,26 @@ void CInteractableProp::InteractablePropTouch( CBaseEntity *pOther )
 	if ( HasSpawnFlags(SF_INTERACTABLE_TOUCH_INTERACTS) && (!HasSpawnFlags(SF_INTERACTABLE_IGNORE_COMMANDS_WHEN_LOCKED) || !m_bLocked) && pOther->IsPlayer() )
 	{
 		Use( pOther, pOther, USE_ON, 0 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CInteractableProp::VPhysicsCollision( int index, gamevcollisionevent_t *pEvent )
+{
+	BaseClass::VPhysicsCollision( index, pEvent );
+
+	if ( HasSpawnFlags(SF_INTERACTABLE_TOUCH_INTERACTS) && (!HasSpawnFlags(SF_INTERACTABLE_IGNORE_COMMANDS_WHEN_LOCKED) || !m_bLocked) && m_hInteractFilter )
+	{
+		// Allow non-player ents to interact if we have an interact filter
+		int otherIndex = !index;
+		CBaseEntity *pHitEntity = pEvent->pEntities[otherIndex];
+
+		if ( pHitEntity && !pHitEntity->IsPlayer() )
+		{
+			Use( pHitEntity, pHitEntity, USE_ON, 0 );
+		}
 	}
 }
 
