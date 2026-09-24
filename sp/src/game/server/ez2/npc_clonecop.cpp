@@ -22,6 +22,7 @@
 #include "items.h"
 #include "ai_network.h"
 #include "saverestore_utlvector.h"
+#include "ai_stealth_utils.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -59,6 +60,8 @@ Activity	ACT_GESTURE_PICKUP_GROUND;
 Activity	ACT_GESTURE_PICKUP_RACK;
 Activity	ACT_METROPOLICE_THROW_MANHACK;
 Activity	ACT_GESTURE_THROW_MANHACK;
+Activity	ACT_RUN_AIM_RPG;	// Consider making shared
+Activity	ACT_WALK_AIM_RPG;	// Consider making shared
 
 int	AE_PICKUP_NEAREST_ITEM;
 int	AE_METROPOLICE_THROW_DEPLOY;
@@ -73,9 +76,10 @@ extern Activity ACT_GESTURE_DEPLOY_MANHACK;
 CNPC_CloneCop::SwitchableWeaponData_t CNPC_CloneCop::g_SwitchableWeaponData[] = {
 	// Classname			Min Pref. Range		Max Pref. Range		Deploy Sound
 	{ "weapon*shotgun",		0.0f,				650.0f,				SPECIAL1 },
-	{ "weapon_smg1",		100.0f,				1000.0f,			SPECIAL2 },
+	{ "weapon_smg*",		100.0f,				1000.0f,			SPECIAL2 },
 	{ "weapon_ar2*",		100.0f,				2000.0f,			RELOAD_NPC },
 	{ "weapon_crossbow",	1000.0f,			4000.0f,			RELOAD_NPC },
+	{ "weapon_rpg",			1000.0f,			5000.0f,			RELOAD_NPC },
 
 	{ "weapon_oicw",		100.0f,				1500.0f,			SPECIAL2 },
 	{ "weapon_css_m249",	100.0f,				1500.0f,			RELOAD_NPC },
@@ -443,6 +447,35 @@ void CNPC_CloneCop::GatherConditions()
 
 								float flRatio = Bias( Clamp( vecEnemyVel.LengthSqr() / Square( 500.0f ), 0.0f, 1.0f ), 0.25f );
 								flTacticWeightAdd += (0.03f * flRatio);
+							}
+						}
+						break;
+
+					case COUNTER_TACTIC_SELFJUMP:
+						{
+							if ( GetNavType() == NAV_JUMP )
+							{
+								// Don't decay while jumping
+								flTacticWeightAdd = 0.0f;
+							}
+							else
+							{
+								// Decays less
+								flTacticWeightAdd *= 0.5f;
+							}
+						}
+						break;
+
+					case COUNTER_TACTIC_STEALTH:
+						{
+							if ( !HasCondition( COND_SEE_ENEMY ) )
+							{
+								flTacticWeightAdd = 0.001f;
+							}
+							else if ( UTIL_GetCloakFactor( GetEnemy() ) > 0.0f )
+							{
+								// If we can see that they're trying to cloak, that also counts as adding to stealth
+								flTacticWeightAdd = 0.01f;
 							}
 						}
 						break;
@@ -918,12 +951,24 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 						}
 
 						// Try again in a while
-						m_flNextWeaponSwitchTime = gpGlobals->curtime + 15.0f;
+						m_flNextWeaponSwitchTime = gpGlobals->curtime + 10.0f;
 
 						// If it's not our active one, swap to it
 						if ( pSelectedWeapon != GetActiveWeapon() )
 						{
-							inputdata_t inputdata;
+							int i = 0;
+							for (;i<MAX_WEAPONS;i++)
+							{
+								if ( m_hMyWeapons[i] == pSelectedWeapon )
+									break;
+							}
+							m_iLastHolsteredWeapon = i;
+
+							// We'll unholster our current one in place, see HandleAnimEvent()
+							// TODO: May still want to consider unique change gesture
+							return AddActionGesture( TranslateActivity( ACT_ARM ) );
+
+							/*inputdata_t inputdata;
 							inputdata.value.SetString( pSelectedWeapon->m_iClassname );
 							InputChangeWeapon( inputdata );
 
@@ -934,7 +979,7 @@ int CNPC_CloneCop::PrescheduleSelectActionGesture()
 								m_nActionGesture = nLayer;
 								m_flActionGestureEndTime = gpGlobals->curtime + ( GetLayerDuration( nLayer ) * 1.5f ); // Account for both holster and unholster
 								return nLayer;
-							}
+							}*/
 						}
 					}
 					else
@@ -1074,6 +1119,17 @@ int CNPC_CloneCop::TranslateSchedule( int scheduleType )
 							return SCHED_COMBINE_MERCILESS_SUPPRESS;
 						}
 					}
+				}
+
+				if ( m_flCounterTacticWeights[COUNTER_TACTIC_STEALTH] > 0.5f )
+				{
+					// Enemy could be waiting to ambush. Try just throwing a grenade if possible
+					if ( CanGrenadeEnemy() )
+						return SCHED_RANGE_ATTACK2;
+
+					int nStealthCounterSched = SelectStealthCounterSchedule( scheduleType );
+					if ( nStealthCounterSched != SCHED_NONE )
+						return nStealthCounterSched;
 				}
 
 				// Clone Cop attempts to flank unless he hasn't seen his enemy in a bit
@@ -1471,7 +1527,7 @@ int CNPC_CloneCop::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 			StartBleeding();
 		}
 
-		if ( m_bCounterTacticsAllowed )
+		if ( m_bCounterTacticsAllowed && info.GetAttacker() == GetEnemy() && GetEnemy() )
 		{
 			if ( info.GetDamageType() & (DMG_BUCKSHOT | DMG_CLUB) )
 			{
@@ -1481,6 +1537,19 @@ int CNPC_CloneCop::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 				// Make sure we consider getting a shotgun now
 				if ( GetActiveWeapon() && !GetActiveWeapon()->ClassMatches( "weapon*shotgun" ) )
 					m_flNextWeaponSwitchTime = gpGlobals->curtime;
+			}
+
+			// Make us more aware of these weak points based on damage amount
+			if ( GetNavType() == NAV_JUMP )
+			{
+				m_flCounterTacticWeights[COUNTER_TACTIC_SELFJUMP] += Clamp( info.GetDamage() / 50.0f, 0.0f, 1.0f ) * 0.5f;
+			}
+			if ( !HasCondition( COND_SEE_ENEMY ) || UTIL_GetCloakFactor( GetEnemy() ) > 0.0f )
+			{
+				// Note that this may also occur when hurt by tripmines, satchels, and other sources that don't necessarily mean the enemy is
+				// trying to be sneaky
+				// For now, this is acceptable because they fall under a similar umbrella of how we'd want to counter traps and sneak attacks
+				m_flCounterTacticWeights[COUNTER_TACTIC_STEALTH] += Clamp( info.GetDamage() / 150.0f, 0.0f, 1.0f ) * 0.5f;
 			}
 		}
 	}
@@ -1656,6 +1725,50 @@ void CNPC_CloneCop::HandleAnimEvent( animevent_t *pEvent )
 		{
 			// Since we can run this without the behavior
 			m_TripminePlaceBehavior.HandleAnimEvent( pEvent );
+		}
+		else if ( pEvent->event == AE_NPC_DRAW )
+		{
+			if ( IsPlayingActionGesture() && m_iLastHolsteredWeapon >= 0 /*&& GetLayerActivity( m_nActionGesture ) == ACT_ARM*/ )
+			{
+				CBaseCombatWeapon *pOldWeapon = GetActiveWeapon();
+				if ( Weapon_Switch( m_hMyWeapons[m_iLastHolsteredWeapon] ) )
+				{
+					OnChangeActiveWeapon( pOldWeapon, GetActiveWeapon() );
+
+					if ( GetActiveWeapon()->UsesClipsForAmmo1() )
+					{
+						GetActiveWeapon()->m_iClip1 = GetActiveWeapon()->GetMaxClip1();
+					}
+
+					ClearCondition( COND_LOW_PRIMARY_AMMO );
+					ClearCondition( COND_NO_PRIMARY_AMMO );
+					ClearCondition( COND_NO_SECONDARY_AMMO );
+
+					m_OnUnholsterWeapon.Set( GetActiveWeapon(), GetActiveWeapon(), this );
+
+					if ( GetTask() && GetTask()->iTask == TASK_RELOAD )
+					{
+						// New weapon, no need to keep reloading
+						ClearSchedule( "New weapon" );
+					}
+
+					ResetActivity();
+
+					PlayDeploySound( GetActiveWeapon() );
+				}
+
+				// Holster current weapon in place
+				/*
+				if ( GetActiveWeapon() && GetActiveWeapon() != m_hMyWeapons[m_iLastHolsteredWeapon] )
+					DoHolster();
+
+				if ( DoUnholster() )
+					m_OnUnholsterWeapon.Set( GetActiveWeapon(), GetActiveWeapon(), this );
+					*/
+			}
+
+			BaseClass::HandleAnimEvent( pEvent );
+			return;
 		}
 		else
 			BaseClass::HandleAnimEvent( pEvent );
@@ -2002,6 +2115,22 @@ Activity CNPC_CloneCop::NPC_TranslateActivity( Activity eNewActivity )
 //-----------------------------------------------------------------------------
 Activity CNPC_CloneCop::Weapon_TranslateActivity( Activity eNewActivity, bool *pRequired )
 {
+	if ( GetActiveWeapon() && EntIsClass( GetActiveWeapon(), gm_isz_class_RPG ) )
+	{
+		// RPG has walk/run aim activities
+		switch ( eNewActivity )
+		{
+			case ACT_RUN_AIM:
+				if ( pRequired )
+					*pRequired = true;
+				return ACT_RUN_AIM_RPG;
+			case ACT_WALK_AIM:
+				if ( pRequired )
+					*pRequired = true;
+				return ACT_WALK_AIM_RPG;
+		}
+	}
+
 	return BaseClass::Weapon_TranslateActivity( eNewActivity, pRequired );
 }
 
@@ -2030,15 +2159,20 @@ void CNPC_CloneCop::Weapon_SetActivity( Activity newActivity, float duration )
 		// Allow double barrel shot if our enemy is being equally aggressive
 		if ( m_flCounterTacticWeights[COUNTER_TACTIC_BRUTE] > 0.5f && GetEnemy() && EnemyDistance( GetEnemy() ) < 250.0f && GetActiveWeapon() && GetActiveWeapon()->m_iClip1 > 1 )
 		{
-			animevent_t animEvent;
-			animEvent.event = EVENT_WEAPON_AR2_GRENADE;
-			GetActiveWeapon()->Operator_HandleAnimEvent( &animEvent, this );
+			// If the enemy has less health than the total amount in one blast, then it isn't worth a double blast
+			extern ConVar sk_npc_dmg_buckshot;
+			extern ConVar sk_npc_num_shotgun_pellets;
+			if ( GetEnemy()->GetHealth() > ( sk_npc_dmg_buckshot.GetInt() * sk_plr_num_shotgun_pellets.GetInt() ) )
+			{
+				animevent_t animEvent;
+				animEvent.event = EVENT_WEAPON_AR2_GRENADE;
+				GetActiveWeapon()->Operator_HandleAnimEvent( &animEvent, this );
 
-			// Twice as much delay
-			SetNextAttack( gpGlobals->curtime + ( ( GetNextAttack() - gpGlobals->curtime ) * 2.0f ) );
+				// Twice as much delay
+				SetNextAttack( gpGlobals->curtime + ( ( GetNextAttack() - gpGlobals->curtime ) * 2.0f ) );
 
-
-			return;
+				return;
+			}
 		}
 	}
 
@@ -2093,6 +2227,33 @@ bool CNPC_CloneCop::MovementCost( int moveType, const Vector &vecStart, const Ve
 			{
 				// Not as expensive, but we should still prefer nodes closer to the goal
 				*pCost *= MAX( (10.0f * m_flCounterTacticWeights[COUNTER_TACTIC_SNIPER]), 1.0f );
+			}
+		}
+	}
+	else if ( moveType == bits_CAP_MOVE_JUMP && m_flCounterTacticWeights[COUNTER_TACTIC_SELFJUMP] > 0.15f )
+	{
+		if ( GetEnemy() )
+		{
+			const float JUMP_ENEMY_DANGER_DIST = 400.0f;
+
+			float flEnemyDistSqr = (GetEnemyLKP() - vecStart).LengthSqr();
+			if ( flEnemyDistSqr < Square( JUMP_ENEMY_DANGER_DIST ) )
+			{
+				float flDistFrac = (sqrtf( flEnemyDistSqr ) / JUMP_ENEMY_DANGER_DIST);
+				if ( flDistFrac > 0.01f )
+					*pCost *= (1.0f / flDistFrac);
+				else
+					*pCost *= 100.0f;
+			}
+
+			flEnemyDistSqr = (GetEnemyLKP() - vecEnd).LengthSqr();
+			if ( flEnemyDistSqr < Square( JUMP_ENEMY_DANGER_DIST ) )
+			{
+				float flDistFrac = (sqrtf( flEnemyDistSqr ) / JUMP_ENEMY_DANGER_DIST);
+				if ( flDistFrac > 0.01f )
+					*pCost *= (1.0f / flDistFrac);
+				else
+					*pCost *= 100.0f;
 			}
 		}
 	}
@@ -2193,6 +2354,12 @@ bool CNPC_CloneCop::DoUnholster( void )
 {
 	if (BaseClass::DoUnholster())
 	{
+		if ( GetTask() && GetTask()->iTask == TASK_RELOAD )
+		{
+			// New weapon, no need to keep reloading
+			ClearSchedule( "New weapon" );
+		}
+
 		PlayDeploySound( GetActiveWeapon() );
 		return true;
 	}
@@ -2282,7 +2449,44 @@ bool CNPC_CloneCop::IsJumpLegal( const Vector &startPos, const Vector &apex, con
 	const float MAX_JUMP_DISTANCE = 384.0f; // How far CC can jump; Default 384
 	const float MAX_JUMP_DROP = 384.0f; // How far CC can fall; Default 160
 
+	// Check jump vulnerability if needed
+	if ( m_flCounterTacticWeights[COUNTER_TACTIC_SELFJUMP] > 0.3f || GetHealth() < ( GetMaxHealth() * 0.5f ) )
+	{
+		if ( const_cast<CNPC_CloneCop*>(this)->IsJumpVulnerable( endPos ) )
+			return false;
+	}
+
 	return BaseClass::IsJumpLegal(startPos, apex, endPos, MAX_JUMP_RISE, MAX_JUMP_DROP, MAX_JUMP_DISTANCE);
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_CloneCop::IsJumpVulnerable( const Vector &endPos )
+{
+	// Don't want to close off jump nav when it's expected to be possible
+	if ( !GetEnemy() || IsInAScript() )
+		return false;
+
+	float flWeight = m_flCounterTacticWeights[COUNTER_TACTIC_SELFJUMP];
+	if ( GetMaxHealth() > 0 )
+	{
+		flWeight += 1.0f - ( (float)GetHealth() / (float)GetMaxHealth() );
+		if ( flWeight > 1.0f )
+			flWeight = 1.0f;
+	}
+
+	// Check distance
+	Vector vecEnemyLKP = GetEnemyLKP();
+	float flEnemyDistSqr = (vecEnemyLKP - endPos).LengthSqr();
+	if ( flEnemyDistSqr < Square( 500.0f * flWeight ) )
+		return true;
+
+	// Check visibility
+	//if ( flWeight > 0.9f && GetEnemy()->FVisible( endPos + GetViewOffset() ) )
+	//	return true;
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -2319,6 +2523,8 @@ int CNPC_CloneCop::DrawDebugTextOverlays( void )
 				"Sniper",
 				"Mobile",
 				//"Distraction",
+				"Jump Vulnerability",
+				"Stealth",
 			};
 
 			for ( int i = 0; i < COUNTER_TACTIC_COUNT; i++ )
@@ -2422,6 +2628,8 @@ DECLARE_ACTIVITY( ACT_GESTURE_PICKUP_GROUND )
 DECLARE_ACTIVITY( ACT_GESTURE_PICKUP_RACK )
 DECLARE_ACTIVITY( ACT_METROPOLICE_THROW_MANHACK )
 DECLARE_ACTIVITY( ACT_GESTURE_THROW_MANHACK )
+DECLARE_ACTIVITY( ACT_RUN_AIM_RPG )
+DECLARE_ACTIVITY( ACT_WALK_AIM_RPG )
 
 DECLARE_ANIMEVENT( AE_PICKUP_NEAREST_ITEM )
 DECLARE_ANIMEVENT( AE_METROPOLICE_THROW_DEPLOY )

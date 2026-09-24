@@ -42,6 +42,7 @@ public:
 	void		PrescheduleThink();
 	int			PrescheduleSelectActionGesture();
 	int			SelectSchedule( void );
+	virtual int	SelectStealthCounterSchedule( int nInSchedule ) { return SCHED_NONE; }
 	int			SelectFailSchedule( int failedSchedule, int failedTask, AI_TaskFailureCode_t taskFailCode );
 	int			TranslateSchedule( int scheduleType );
 
@@ -104,6 +105,7 @@ public:
 	void		PlayDeploySound( CBaseCombatWeapon *pWeapon );
 
 	bool		IsJumpLegal( const Vector & startPos, const Vector & apex, const Vector & endPos ) const;
+	bool		IsJumpVulnerable( const Vector &endPos );
 
 	bool		GetGameTextSpeechParams( hudtextparms_t &params );
 
@@ -159,6 +161,8 @@ public:
 		COUNTER_TACTIC_SNIPER,		// Based on how much enemy attacks us at long range
 		COUNTER_TACTIC_MOBILE,		// Based on how much enemy moves
 		//COUNTER_TACTIC_DISTRACTION,
+		COUNTER_TACTIC_SELFJUMP,	// Based on how much damage we take while jumping (or, in the Progenitor's case, grappling)
+		COUNTER_TACTIC_STEALTH,		// Based on how much we get attacked while the enemy is cloaked or sneaking around
 
 		COUNTER_TACTIC_COUNT,
 	};
