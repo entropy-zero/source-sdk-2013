@@ -120,6 +120,7 @@ public:
 	void InputExitVehicle( inputdata_t &inputdata );
 #ifdef MAPBASE
 	void InputExitVehicleImmediate( inputdata_t &inputdata );
+	void InputSetViewAngles( inputdata_t &inputdata );
 #endif
 	void InputLock( inputdata_t &inputdata );
 	void InputUnlock( inputdata_t &inputdata );
@@ -196,6 +197,7 @@ BEGIN_DATADESC( CPropVehiclePrisonerPod )
 	DEFINE_INPUTFUNC( FIELD_VOID, "ExitVehicle", InputExitVehicle ),
 #ifdef MAPBASE
 	DEFINE_INPUTFUNC( FIELD_VOID, "ExitVehicleImmediate", InputExitVehicleImmediate ),
+	DEFINE_INPUTFUNC( FIELD_VECTOR, "SetViewAngles", InputSetViewAngles ),
 #endif
 	DEFINE_INPUTFUNC( FIELD_VOID, "Open", InputOpen ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Close", InputClose ),
@@ -677,6 +679,22 @@ void CPropVehiclePrisonerPod::InputExitVehicleImmediate( inputdata_t &inputdata 
 
 		m_hPlayer->LeaveVehicle();
 		m_hPlayer = NULL;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sets the player's view angle inside of the vehicle.
+//-----------------------------------------------------------------------------
+void CPropVehiclePrisonerPod::InputSetViewAngles( inputdata_t &inputdata )
+{
+	if ( m_hPlayer )
+	{
+		QAngle ang;
+		inputdata.value.Angle3D(ang);
+
+		//m_hPlayer->Teleport( NULL, &ang, NULL );
+		m_hPlayer->SetLocalAngles( ang );
+		m_hPlayer->SnapEyeAngles( ang );
 	}
 }
 #endif
