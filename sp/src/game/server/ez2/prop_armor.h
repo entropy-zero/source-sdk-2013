@@ -27,6 +27,10 @@ public:
 	int		OnTakeDamage( const CTakeDamageInfo &inputInfo );
 	void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator );
 	void	Event_Killed( const CTakeDamageInfo &info );
+
+	bool			ForceVPhysicsCollide( CBaseEntity *pEntity );
+	unsigned int	PhysicsSolidMaskForEntity( void ) const;
+
 	virtual bool	ShouldBlockTraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator ) { return false; }
 	virtual void	ModifyTraceAttackDamage( CTakeDamageInfo &info, float flPenetrationScale = 1.0f ) {}
 	virtual int		GetHitgroup() const { return HITGROUP_GENERIC; }

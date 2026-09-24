@@ -11,6 +11,7 @@
 #include "prop_armor.h"
 #include "ai_basenpc.h"
 #include "ammodef.h"
+#include "hl2_shareddefs.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -33,6 +34,8 @@ ConVar	sk_armor_penetration_ar2( "sk_armor_penetration_ar2", "1.3" );
 ConVar	sk_armor_penetration_556mm( "sk_armor_penetration_556mm", "1.4" );
 ConVar	sk_armor_penetration_762mm( "sk_armor_penetration_762mm", "1.4" );
 
+ConVar	prop_armor_full_collide( "prop_armor_full_collide", "0" );
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -41,6 +44,8 @@ void CArmorProp::Spawn()
 	m_bDisableBoneFollowers = true;
 
 	BaseClass::Spawn();
+
+	//SetCollisionGroup( HL2COLLISION_GROUP_NPC_ARMOR );
 
 	SetBlocksLOS( false );
 	SetNavIgnore();
@@ -92,7 +97,16 @@ bool CArmorProp::PassesDamageFilter( const CTakeDamageInfo &info )
 //-----------------------------------------------------------------------------
 int CArmorProp::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 {
-	if (!BaseClass::OnTakeDamage( inputInfo ))
+	CTakeDamageInfo info = inputInfo;
+
+	if ( info.GetDamageType() & DMG_SLASH && info.GetAttacker() && info.GetAttacker()->ClassMatches( "npc_manhack" ) )
+	{
+		// HACKHACK: Stop manhacks from instantly destroying shields
+		extern ConVar sk_manhack_melee_dmg;
+		info.SetDamage( sk_manhack_melee_dmg.GetFloat() );
+	}
+
+	if (!BaseClass::OnTakeDamage( info ))
 		return 0;
 
 	return 1;
@@ -173,4 +187,58 @@ float CArmorProp::GetPenetrationScale( const CTakeDamageInfo &info )
 void CArmorProp::Event_Killed( const CTakeDamageInfo &info )
 {
 	BaseClass::Event_Killed( info );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CArmorProp::ForceVPhysicsCollide( CBaseEntity *pEntity )
+{
+	if ( !prop_armor_full_collide.GetBool() )
+	{
+		// Only collide with specific cases
+		switch ( pEntity->GetCollisionGroup() )
+		{
+			case COLLISION_GROUP_PROJECTILE:
+			case HL2COLLISION_GROUP_COMBINE_BALL:
+			case HL2COLLISION_GROUP_COMBINE_BALL_NPC:
+			case COLLISION_GROUP_PLAYER:
+			case COLLISION_GROUP_PLAYER_MOVEMENT:
+				return true;
+
+			case COLLISION_GROUP_NONE:
+			case COLLISION_GROUP_DEBRIS:
+			case COLLISION_GROUP_INTERACTIVE_DEBRIS:
+				break;
+
+			default:
+				return false;
+		}
+
+		// We should mainly be getting props from here on out
+		if ( pEntity->GetMoveType() != MOVETYPE_VPHYSICS )
+			return false;
+
+		// Only collide with props that are moving and have less mass than me
+		IPhysicsObject *pPhys = pEntity->VPhysicsGetObject();
+		if ( pPhys )
+		{
+			if ( pPhys->IsMoveable() && !pPhys->IsAsleep() && pPhys->GetMass() < GetMass() )
+				return true;
+		}
+	}
+
+	return BaseClass::ForceVPhysicsCollide( pEntity );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+unsigned int CArmorProp::PhysicsSolidMaskForEntity( void ) const
+{
+	if ( prop_armor_full_collide.GetBool() )
+		return BaseClass::PhysicsSolidMaskForEntity();
+
+	// Completely non-solid, because we handle behavior above
+	return 0;
 }
