@@ -2194,6 +2194,10 @@ public:
 	virtual int			OnTakeDamage_Dying( const CTakeDamageInfo &info );
 	virtual int			OnTakeDamage_Dead( const CTakeDamageInfo &info );
 
+#ifdef EZ
+	virtual float		GetReceivedDamageScale( const CTakeDamageInfo &info );
+#endif
+
 	virtual void		NotifyFriendsOfDamage( CBaseEntity *pAttackerEntity );
 	virtual void		OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 

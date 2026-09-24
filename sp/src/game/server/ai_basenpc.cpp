@@ -1208,14 +1208,47 @@ bool CAI_BaseNPC::PassesDamageFilter( const CTakeDamageInfo &info )
 	return true;
 }
 
+#ifdef EZ
+ConVar sk_prop_explode_dmg_scale( "sk_prop_explode_dmg_scale", "1.0", FCVAR_NONE );
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+float CAI_BaseNPC::GetReceivedDamageScale( const CTakeDamageInfo &info )
+{
+	if ( info.GetDamageType() & DMG_BLAST && info.GetInflictor() != info.GetAttacker() && info.GetInflictor() && info.GetInflictor()->ClassMatches( "prop_physics" ) )
+	{
+		// Blast damage from an explosive barrel
+		return sk_prop_explode_dmg_scale.GetFloat();
+	}
+
+	return 1.0f;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose:
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
-int CAI_BaseNPC::OnTakeDamage_Alive( const CTakeDamageInfo &info )
+int CAI_BaseNPC::OnTakeDamage_Alive( const CTakeDamageInfo &inputInfo )
 {
 	Forget( bits_MEMORY_INCOVER );
+
+	CTakeDamageInfo info = inputInfo;
+
+#ifdef EZ
+	// Scale damage according to E:Z's crazy values
+	float flDamageScale = GetReceivedDamageScale( info );
+	if ( flDamageScale != 1.0f )
+	{
+		if ( flDamageScale == 0.0f )
+			return 0;
+
+		info.ScaleDamage( flDamageScale );
+		info.ScaleDamageForce( 1.0f / flDamageScale );
+	}
+#endif
 
 	if ( !BaseClass::OnTakeDamage_Alive( info ) )
 		return 0;
