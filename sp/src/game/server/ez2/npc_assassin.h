@@ -19,13 +19,14 @@
 #include "npc_combine.h"
 #include "SpriteTrail.h"
 #include "soundent.h"
+#include "ai_acrobatic_movement.h"
 
 //=========================================================
 //=========================================================
-class CNPC_Assassin : public CNPC_Combine
+class CNPC_Assassin : public CAI_AcrobaticHost< CNPC_Combine >
 {
 public:
-	DECLARE_CLASS( CNPC_Assassin, CNPC_Combine );
+	DECLARE_CLASS( CNPC_Assassin, CAI_AcrobaticHost< CNPC_Combine > );
 	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
@@ -63,7 +64,16 @@ public:
 	float		GetDodgeWarning();
 	float		GetDodgeWarningCone();
 	float		GetDodgeWarningWidth();
+
+	bool		ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal );
+	float		GetSlideMinSpeedSqr() const;
+	bool		ShouldUseJumpGesture();
+	void		OnStartGestureJump();
+	float		GetGestureJumpGravity() const;
+	bool		ShouldJumpGestureDelayShoot();
 #endif
+
+	bool		CanTryJumpAway();
 
 	void		GatherConditions();
 	void		GatherEnemyConditions( CBaseEntity *pEnemy );
@@ -85,9 +95,11 @@ public:
 	Vector		GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget = NULL );
 	float		GetSpreadBias( CBaseCombatWeapon *pWeapon, CBaseEntity *pTarget );
 
-	Activity	Weapon_TranslateActivity( Activity baseAct, bool *pRequired );
+	Activity	Weapon_TranslateActivity( Activity baseAct, bool *pRequired = NULL );
 	Activity	NPC_TranslateActivity( Activity eNewActivity );
 	void		OnChangeActivity( Activity eNewActivity );
+
+	bool		IsCurTaskContinuousMove();
 
 	CAI_Hint	*FindVantagePoint();
 	bool		FValidateHintType( CAI_Hint *pHint );
@@ -137,12 +149,20 @@ private:
 		SCHED_ASSASSIN_FLANK_RANDOM,
 		SCHED_ASSASSIN_FLANK_FALLBACK,
 		SCHED_ASSASSIN_DODGE_KICK,
+		SCHED_ASSASSIN_GO_TO_BEST_ENEMY_LOS,
+		SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY,
+		SCHED_ASSASSIN_JUMP_AWAY_FROM_BESTSOUND,
 
 		TASK_ASSASSIN_WAIT_FOR_CLOAK = BaseClass::NEXT_TASK,
 		TASK_ASSASSIN_WAIT_FOR_CLOAK_RECHARGE,
 		TASK_ASSASSIN_CHECK_CLOAK,
 		TASK_ASSASSIN_START_PERCHING,
 		TASK_ASSASSIN_PERCH,
+		TASK_ASSASSIN_PERCH_POST,
+		TASK_ASSASSIN_STORE_BEST_LKP,
+		TASK_ASSASSIN_GET_JUMP_AWAY_FROM_ENEMY,
+		TASK_ASSASSIN_GET_JUMP_AWAY_FROM_BESTSOUND,
+		TASK_ASSASSIN_JUMP_AWAY,
 	};
 
 	bool						m_bDualWeapons;

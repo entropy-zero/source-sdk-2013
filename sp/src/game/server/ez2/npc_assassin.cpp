@@ -42,6 +42,8 @@
 #include "ammodef.h"
 #include "ai_hint.h"
 #include "ai_navigator.h"
+#include "ai_network.h"
+#include "ai_link.h"
 #include "npc_assassin.h"
 #include "npcevent.h"
 #include "ai_squad.h"
@@ -93,13 +95,19 @@ ConVar	sk_assassin_vantage_max_dist( "sk_assassin_vantage_max_dist", "2048" );
 ConVar	sk_assassin_vantage_min_dist_from_player( "sk_assassin_vantage_min_dist_from_player", "256" );
 ConVar	sk_assassin_vantage_min_dist_from_self( "sk_assassin_vantage_min_dist_from_self", "256" );
 ConVar	sk_assassin_vantage_min_dist_from_squad( "sk_assassin_vantage_min_dist_from_squad", "128" );
-ConVar	sk_assassin_vantage_max_time( "sk_assassin_vantage_max_time", "300" );
+ConVar	sk_assassin_vantage_max_time( "sk_assassin_vantage_max_time", "120" );
 ConVar	sk_assassin_vantage_cooldown( "sk_assassin_vantage_cooldown", "45" );
+ConVar	sk_assassin_memory_discard_time( "sk_assassin_memory_discard_time", "180" );
 
 ConVar	g_debug_assassin( "g_debug_assassin", "0" );
 ConVar	g_debug_assassin_dodge( "g_debug_assassin_dodge", "0" );
 
 ConVar	npc_assassin_use_new_vantage_type( "npc_assassin_use_new_vantage_type", "1" );
+
+ConVar	sk_assassin_slide_always( "sk_assassin_slide_always", "0" ); // make acrobatic base instead of having separate cvar...
+ConVar	sk_assassin_jump_shoot_allow( "sk_assassin_jump_shoot_allow", "1" );
+ConVar	sk_assassin_jump_gesture_grav( "sk_assassin_jump_gesture_grav", "1.275" );
+ConVar	sk_assassin_jump_cone_nerf_multiplier( "sk_assassin_cloak_cone_nerf_multiplier", "1.5" );
 
 #define ASSASSIN_MAX_HEADSHOT_DISTANCE 1000.0f
 #define ASSASSIN_MAX_RANGE	2048.0f //4096.0f
@@ -113,6 +121,7 @@ ConVar	npc_assassin_use_new_vantage_type( "npc_assassin_use_new_vantage_type", "
 int AE_PISTOL_FIRE_LEFT;
 int AE_PISTOL_FIRE_RIGHT;
 int AE_ASSASSIN_KICK_HIT;
+int AE_ASSASSIN_KICK_CHECK_INTERRUPT;
 
 //=========================================================
 // Assassin activities
@@ -137,6 +146,9 @@ Activity ACT_ASSASSIN_DODGE_KICK;
 // TODO: Make into global activities?
 Activity ACT_ARM_DUAL_PISTOLS;
 Activity ACT_DISARM_DUAL_PISTOLS;
+
+Activity ACT_GESTURE_JUMP_DUAL_PISTOLS;
+Activity ACT_GESTURE_GLIDE_DUAL_PISTOLS;
 
 //-----------------------------------------------------------------------------
 // Purpose: Class Constructor
@@ -254,6 +266,8 @@ void CNPC_Assassin::Spawn( void )
 	CapabilitiesAdd( bits_CAP_MOVE_SHOOT );
 	CapabilitiesAdd( bits_CAP_DOORS_GROUP );
 	CapabilitiesAdd( bits_CAP_MOVE_CLIMB | bits_CAP_MOVE_GROUND | bits_CAP_MOVE_JUMP );
+
+	GetEnemies()->SetEnemyDiscardTime( sk_assassin_memory_discard_time.GetFloat() );
 }
 
 //-----------------------------------------------------------------------------
@@ -365,6 +379,12 @@ void CNPC_Assassin::HandleAnimEvent( animevent_t *pEvent )
 	else if ( pEvent->event == AE_ASSASSIN_KICK_HIT )
 	{
 		KickAttack( false );
+		return;
+	}
+	else if ( pEvent->event == AE_ASSASSIN_KICK_CHECK_INTERRUPT )
+	{
+		if ( !HasCondition( COND_CAN_MELEE_ATTACK1 ) )
+			ClearSchedule( "Can no longer melee attack" );
 		return;
 	}
 
@@ -619,6 +639,9 @@ int CNPC_Assassin::TranslateSchedule( int scheduleType )
 	case SCHED_PC_MELEE_AND_MOVE_AWAY:
 	case SCHED_MELEE_ATTACK1:
 		{
+			if ( gpGlobals->curtime - GetLastDamageTime() < 2.0f && CanTryJumpAway() )
+				return SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY;
+
 			return SCHED_ASSASSIN_MELEE_ATTACK1;
 		} break;
 
@@ -630,9 +653,13 @@ int CNPC_Assassin::TranslateSchedule( int scheduleType )
 
 	case SCHED_COWER:
 	case SCHED_TAKE_COVER_FROM_BEST_SOUND:
+	case SCHED_COMBINE_TAKE_COVER_FROM_BEST_SOUND:
 		{
+			if ( CanTryJumpAway() )
+				return SCHED_ASSASSIN_JUMP_AWAY_FROM_BESTSOUND;
+
 			// Avoid falling for grenades
-			if (GetEnemy())
+			if ( GetEnemy() )
 				return SCHED_ASSASSIN_EVADE;
 		} break;
 
@@ -703,10 +730,15 @@ int CNPC_Assassin::SelectFailSchedule( int failedSchedule, int failedTask, AI_Ta
 			// Try throwing a grenade
 			return SCHED_COMBINE_TOSS_GRENADE_COVER1;
 		}
-		else if (EnemyDistance(GetEnemy()) <= 64.0f)
+		else if ( HasCondition( COND_HEAR_DANGER ) )
 		{
-			// Hope for the best
-			return SCHED_COMBINE_MOVE_TO_MELEE;
+			// Jump away from the sound
+			return SCHED_ASSASSIN_JUMP_AWAY_FROM_BESTSOUND;
+		}
+		else if (EnemyDistance( GetEnemy() ) <= 200.0f && CanTryJumpAway())
+		{
+			// Try to jump away if they're close
+			return SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY;
 		}
 	}
 	else if (failedSchedule == SCHED_ASSASSIN_FLANK_FALLBACK)
@@ -716,6 +748,20 @@ int CNPC_Assassin::SelectFailSchedule( int failedSchedule, int failedTask, AI_Ta
 			return SCHED_ASSASSIN_RANGE_ATTACK1;
 		else
 			return SCHED_COMBINE_MOVE_TO_MELEE;
+	}
+	else if (failedSchedule == SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY)
+	{
+		// Are we backed into a corner?
+		if (EnemyDistance( GetEnemy() ) <= 64.0f)
+		{
+			if ( HasCondition( COND_CAN_MELEE_ATTACK1 ) )
+				return SCHED_ASSASSIN_MELEE_ATTACK1;
+
+			// Hope for the best
+			return SCHED_COMBINE_MOVE_TO_MELEE;
+		}
+
+		return SCHED_TAKE_COVER_FROM_ENEMY;
 	}
 
 	if ( failedSchedule == SCHED_ASSASSIN_GO_TO_VANTAGE_POINT )
@@ -967,7 +1013,7 @@ bool CNPC_Assassin::ShouldCloak()
 		return false;
 
 	// Don't cloak if we're not in combat
-	if (GetState() != NPC_STATE_COMBAT)
+	if (GetState() != NPC_STATE_COMBAT && !IsCurSchedule( SCHED_ASSASSIN_GO_TO_BEST_ENEMY_LOS, false ))
 		return false;
 
 	// UNDONE: Unless we're an ally, don't cloak on easy mode
@@ -1036,6 +1082,223 @@ void CNPC_Assassin::StartTask( const Task_t *pTask )
 			break;
 		}
 
+		case TASK_ASSASSIN_PERCH_POST:
+		{
+			// We perched for a long time without seeing anyone
+
+			// Try finding another one
+			/*if (CAI_Hint *pHint = FindVantagePoint())
+			{
+				// If there's a vantage point available, go to it
+				ClearHintNode();
+				SetHintNode( pHint );
+				pHint->NPCHandleStartNav( this, true );
+				SetSchedule( SCHED_ASSASSIN_PERCH );
+				break;
+			}*/
+
+			// Do we still have an enemy running around somewhere?
+			if ( GetEnemies()->NumEnemies() > 0 )
+			{
+				// Try to find them
+				if ( GetEnemy() )
+				{
+					SetSchedule( SCHED_COMBINE_ESTABLISH_LINE_OF_FIRE );
+				}
+				else
+				{
+					SetSchedule( SCHED_ASSASSIN_GO_TO_BEST_ENEMY_LOS );
+				}
+				break;
+			}
+
+			TaskComplete();
+			break;
+		}
+
+		case TASK_ASSASSIN_STORE_BEST_LKP:
+		{
+			// Go through our memories and find the closest enemy's LKP
+			Vector vecBestLKP = vec3_invalid;
+			float flBestDistSqr = FLT_MAX;
+
+			AIEnemiesIter_t	iter;
+			for (AI_EnemyInfo_t *pMemory = GetEnemies()->GetFirst( &iter ); pMemory != NULL; pMemory = GetEnemies()->GetNext( &iter ))
+			{
+				if ( !pMemory->hEnemy )
+					continue;
+
+				float flDistSqr = (pMemory->vLastKnownLocation - GetAbsOrigin()).LengthSqr();
+
+				if ( sk_assassin_vantage_max_time.GetFloat() > 0.0f )
+				{
+					// Inflate distance the longer it's been since I've seen them
+					if ( pMemory->timeLastSeen == 0.0f )
+					{
+						flDistSqr *= 2.0f;
+					}
+					else
+					{
+						flDistSqr *= ((gpGlobals->curtime - pMemory->timeLastSeen) / sk_assassin_vantage_max_time.GetFloat());
+					}
+				}
+
+				if ( flDistSqr < flBestDistSqr )
+				{
+					vecBestLKP = pMemory->vLastKnownLocation;
+					flBestDistSqr = flDistSqr;
+				}
+			}
+
+			if ( vecBestLKP == vec3_invalid )
+			{
+				TaskFail( FAIL_NO_ENEMY );
+			}
+			else
+			{
+				m_vSavePosition = vecBestLKP;
+				TaskComplete();
+			}
+			break;
+		}
+
+		case TASK_ASSASSIN_GET_JUMP_AWAY_FROM_ENEMY:
+		case TASK_ASSASSIN_GET_JUMP_AWAY_FROM_BESTSOUND:
+		{
+			Vector vecThreatPos;
+
+			if ( pTask->iTask == TASK_ASSASSIN_GET_JUMP_AWAY_FROM_ENEMY )
+			{
+				if ( !GetEnemy() )
+				{
+					TaskFail( FAIL_NO_ENEMY );
+					break;
+				}
+
+				vecThreatPos = GetEnemyLKP();
+			}
+			else if ( pTask->iTask == TASK_ASSASSIN_GET_JUMP_AWAY_FROM_BESTSOUND )
+			{
+				CSound *pBestSound = GetBestSound();
+				if ( !pBestSound )
+				{
+					TaskFail( FAIL_NO_SOUND );
+					break;
+				}
+
+				vecThreatPos = pBestSound->GetSoundOrigin();
+			}
+
+			// First, find the nearest node
+			CAI_Network *pNetwork = GetNavigator()->GetNetwork();
+			int iNearestNode = pNetwork->NearestNodeToPoint( this, GetAbsOrigin() );
+			if ( iNearestNode == NO_NODE )
+			{
+				TaskFail( FAIL_NO_REACHABLE_NODE );
+				break;
+			}
+
+			// Then, go through its links to find other nodes we can potentially jump to
+			CUtlVector<int> vecDestFallbackNodes;
+			CUtlVector<int> vecDestNodes;
+
+			CAI_Node *pNode = pNetwork->GetNode( iNearestNode );
+			if ( (pNode->GetOrigin() - GetAbsOrigin()).LengthSqr() > Square( 128.0f ) )
+			{
+				// Node is too far, so use it as the destination instead
+				// TODO: Consider polling for other nodes near us so that we don't have just one candidate
+				vecDestNodes.AddToTail( iNearestNode );
+			}
+			else
+			{
+				float flMinDistSqr = Square( pTask->flTaskData );
+				Vector vecToThreat = (vecThreatPos - GetAbsOrigin());
+				VectorNormalize( vecToThreat );
+
+				for ( int link = 0; link < pNode->NumLinks(); link++ )
+				{
+					CAI_Link *pLink = pNode->m_Links[link];
+					if ( pLink->m_iAcceptedMoveTypes[GetHullType()] & bits_CAP_MOVE_JUMP )
+					{
+						int nOtherNode;
+						if ( pLink->m_iSrcID == iNearestNode )
+							nOtherNode = pLink->m_iDestID;
+						else
+							nOtherNode = pLink->m_iSrcID;
+
+						Vector vecNodePos = pNetwork->GetNodePosition( GetHullType(), nOtherNode );
+						float flNodeDistToThreatSqr = (vecNodePos - vecThreatPos).LengthSqr();
+						if (flNodeDistToThreatSqr < flMinDistSqr)
+						{
+							// If it's less than half the min dist, then ignore it
+							// If it's more, than put it in our fallback list
+							if (sqrtf( flNodeDistToThreatSqr ) > (pTask->flTaskData * 0.5f))
+								vecDestFallbackNodes.AddToTail( nOtherNode );
+							continue;
+						}
+
+						Vector vecToNode = (vecNodePos - GetAbsOrigin());
+						VectorNormalize( vecToNode );
+
+						float flDot = DotProduct( vecToThreat, vecToNode );
+						if ( flDot > DOT_45DEGREE )
+						{
+							// If the difference is less than 30 degrees, then ignore it
+							// If it's more, than put it in our fallback list
+							if ( flDot < DOT_30DEGREE )
+								vecDestFallbackNodes.AddToTail( nOtherNode );
+							continue;
+						}
+
+						vecDestNodes.AddToTail( nOtherNode );
+					}
+				}
+			}
+
+			// Test the fallback nodes at the end
+			vecDestNodes.AddVectorToTail( vecDestFallbackNodes );
+
+			// Find the first link we can use to jump
+			for ( int i = 0; i < vecDestNodes.Count(); i++ )
+			{
+				pNode = pNetwork->GetNode( vecDestNodes[i] );
+
+				AIMoveTrace_t moveTrace;
+				GetMoveProbe()->MoveLimit( NAV_JUMP, GetAbsOrigin(), pNetwork->GetNodePosition( GetHullType(), vecDestNodes[i] ), MASK_NPCSOLID, GetNavTargetEntity(), &moveTrace );
+
+				if ( !IsMoveBlocked( moveTrace.fStatus ) )
+				{
+					m_vSavePosition = moveTrace.vJumpVelocity;
+					TaskComplete();
+					break;
+				}
+			}
+
+			if ( !TaskIsComplete() )
+			{
+				// Okay, just try jumping straight up
+				AIMoveTrace_t moveTrace;
+				GetMoveProbe()->MoveLimit( NAV_JUMP, GetAbsOrigin(), GetAbsOrigin() + Vector(0,0,200), MASK_NPCSOLID, GetNavTargetEntity(), &moveTrace );
+
+				if ( !IsMoveBlocked( moveTrace.fStatus ) )
+				{
+					m_vSavePosition = moveTrace.vJumpVelocity;
+					TaskComplete();
+					break;
+				}
+
+				TaskFail( FAIL_NO_REACHABLE_NODE );
+			}
+			break;
+		}
+
+		case TASK_ASSASSIN_JUMP_AWAY:
+		{
+			SetNavType( NAV_JUMP );
+			GetMotor()->MoveJumpStart( m_vSavePosition ); // Stored by previous task
+			break;
+		}
+
 		case TASK_DEFER_DODGE:
 			// Assassins can dodge again sooner
 			m_flNextDodgeTime = gpGlobals->curtime + (pTask->flTaskData * 0.25f);
@@ -1099,6 +1362,45 @@ void CNPC_Assassin::RunTask( const Task_t *pTask )
 			// Just check cloak and wait for the schedule to be interrupted
 			AutoMovement();
 			CheckCloak();
+			break;
+		}
+
+		case TASK_ASSASSIN_JUMP_AWAY:
+		{
+			if ( GetFlags() & FL_ONGROUND )
+			{
+				GetMotor()->MoveJumpStop();
+				SetNavType( NAV_GROUND );
+				TaskComplete();
+			}
+			else
+			{
+				if ( IsCurSchedule( SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY, false ) )
+				{
+					// Make sure we face our enemy if needed
+					//SetCondition( COND_SEE_ENEMY );
+					AddFacingTarget( GetEnemy(), GetEnemyLKP(), 1.0, 0.8 );
+				}
+
+				GetMotor()->MoveJumpExecute();
+
+				// HACKHACK: Since we technically don't have a goal set, we need to run our own version of CAI_MoveAndShootOverlay::RunShootWhileMove().
+				if ( HasCondition( COND_CAN_RANGE_ATTACK1, false ) )
+				{
+					if ( !GetShotRegulator()->IsInRestInterval() && GetShotRegulator()->ShouldShoot() )
+					{
+						OnRangeAttack1();
+
+						Activity activity = TranslateActivity( ACT_GESTURE_RANGE_ATTACK1 );
+						Assert( activity != ACT_INVALID );
+
+						RestartGesture( activity );
+
+						// FIXME: this seems a bit wacked
+						Weapon_SetActivity( Weapon_TranslateActivity( ACT_RANGE_ATTACK1 ), 0 );
+					}
+				}
+			}
 			break;
 		}
 
@@ -1206,6 +1508,16 @@ bool CNPC_Assassin::FValidateHintType ( CAI_Hint *pHint )
 //-----------------------------------------------------------------------------
 Activity CNPC_Assassin::Weapon_TranslateActivity( Activity baseAct, bool *pRequired )
 {
+	switch ( baseAct )
+	{
+		case ACT_GESTURE_JUMP:
+			if ( HasDualWeapons() )
+				return ACT_GESTURE_JUMP_DUAL_PISTOLS;
+		case ACT_GESTURE_GLIDE:
+			if ( HasDualWeapons() )
+				return ACT_GESTURE_GLIDE_DUAL_PISTOLS;
+	}
+
 	return BaseClass::Weapon_TranslateActivity( baseAct, pRequired );
 }
 
@@ -1311,6 +1623,23 @@ void CNPC_Assassin::OnChangeActivity( Activity eNewActivity )
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Assassin::IsCurTaskContinuousMove()
+{
+	if ( BaseClass::IsCurTaskContinuousMove() )
+		return true;
+
+	// UNDONE: Needed to shoot while jumping
+	// (now uses its own variation of moveshoot)
+	//const Task_t* pTask = GetTask();
+	//if ( pTask && (pTask->iTask == TASK_ASSASSIN_JUMP_AWAY) )
+	//	return true;
+
+	return false;
+}
+
 #ifdef EZ2
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1362,7 +1691,99 @@ float CNPC_Assassin::GetDodgeWarningWidth()
 {
 	return sk_assassin_dodge_warning_width.GetFloat();
 }
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CNPC_Assassin::ShouldSlideToGoal( AILocalMoveGoal_t *pMoveGoal )
+{
+	if ( sk_assassin_slide_always.GetBool() )
+		return true;
+
+	if ( !BaseClass::ShouldSlideToGoal( pMoveGoal ) )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Assassin::GetSlideMinSpeedSqr( void ) const
+{
+	return Square( 225.0f );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Assassin::ShouldUseJumpGesture( void )
+{
+	if ( GetState() != NPC_STATE_COMBAT )
+		return false;
+
+	if ( !sk_assassin_jump_shoot_allow.GetBool() )
+		return false;
+
+	// Always do it while jumping away
+	if ( IsCurSchedule( SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY, false ) )
+		return true;
+
+	// Don't do it if we're cloaking or can't see our enemy (and we don't have an attack slot)
+	if ( ( !HasCondition( COND_SEE_ENEMY ) || m_bCloaking ) && !HasAttackSlot() )
+		return false;
+
+	if ( !m_MoveAndShootOverlay.CanAimAtEnemy() )
+		return false;
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Assassin::OnStartGestureJump( void )
+{
+	BaseClass::OnStartGestureJump();
+
+	EmitSound( "NPC_Assassin.Jump" );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float CNPC_Assassin::GetGestureJumpGravity( void ) const
+{
+	return sk_assassin_jump_gesture_grav.GetFloat();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Assassin::ShouldJumpGestureDelayShoot( void )
+{
+	if ( HasDualWeapons() )
+		return true;
+
+	return false;
+}
 #endif
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CNPC_Assassin::CanTryJumpAway( void )
+{
+	// Check if we have a high enough ceiling
+	const float JUMP_AWAY_TEST_DIST = 180.0f;
+	trace_t	tr;
+	UTIL_TraceLine( GetAbsOrigin() + Vector(0,0,4), GetAbsOrigin() + Vector(0,0,JUMP_AWAY_TEST_DIST), MASK_NPCSOLID, this, COLLISION_GROUP_NONE, &tr );
+
+	if ( tr.fraction != 1.0f )
+		return false;
+
+	return true;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1488,9 +1909,21 @@ bool CNPC_Assassin::FCanCheckAttacks( void )
 //-----------------------------------------------------------------------------
 bool CNPC_Assassin::CanBeHitByMeleeAttack( CBaseEntity *pAttacker )
 {
-	if( IsCurSchedule(SCHED_DUCK_DODGE) )
+	if( IsCurSchedule(SCHED_DUCK_DODGE) || GetIdealActivity() == ACT_JUMP || GetAcrobaticMotor()->IsInitialJumpLayerActive() )
 	{
-		return false;
+		if ( !pAttacker || !pAttacker->IsPlayer() )
+			return false;
+
+		// Don't let the player hit the fringes of our hitboxes, but allow it
+		// if the player anticipated our dodge and is still aiming directly at us
+		Vector vecPlayerToMyCenter = (WorldSpaceCenter() - pAttacker->EyePosition());
+		VectorNormalize( vecPlayerToMyCenter );
+
+		if ( DotProduct( pAttacker->MyCombatCharacterPointer()->EyeDirection3D(), vecPlayerToMyCenter ) < DOT_30DEGREE )
+			return false;
+
+		// Skip CNPC_Combine implementation
+		return CNPC_PlayerCompanion::CanBeHitByMeleeAttack( pAttacker );
 	}
 
 	return BaseClass::CanBeHitByMeleeAttack( pAttacker );
@@ -1525,8 +1958,17 @@ bool CNPC_Assassin::HandleInteraction(int interactionType, void *data, CBaseComb
 			if (sourceEnt /*&& FInViewCone(sourceEnt)*/)
 			{
 				UpdateEnemyMemory( sourceEnt, sourceEnt->GetAbsOrigin(), this );
-				SetTarget( sourceEnt );
-				SetSchedule( SCHED_COMBINE_DODGE );
+
+				if ( IsAllowedToDodge() )
+				{
+					SetTarget( sourceEnt );
+					SetSchedule( SCHED_COMBINE_DODGE );
+				}
+				else if ( CanTryJumpAway() )
+				{
+					SetEnemy( sourceEnt, false );
+					SetSchedule( SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY );
+				}
 			}
 		}
 
@@ -1812,6 +2254,12 @@ Vector CNPC_Assassin::GetAttackSpread( CBaseCombatWeapon *pWeapon, CBaseEntity *
 		baseResult *= multiplier;
 	}
 
+	if (GetAcrobaticMotor()->IsUsingGlideLayer())
+	{
+		// Assassins are less accurate when jumping
+		baseResult *= sk_assassin_jump_cone_nerf_multiplier.GetFloat();
+	}
+
 	return baseResult;
 }
 
@@ -1933,9 +2381,13 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 	DECLARE_ACTIVITY( ACT_ARM_DUAL_PISTOLS )
 	DECLARE_ACTIVITY( ACT_DISARM_DUAL_PISTOLS )
 
+	DECLARE_ACTIVITY( ACT_GESTURE_JUMP_DUAL_PISTOLS )
+	DECLARE_ACTIVITY( ACT_GESTURE_GLIDE_DUAL_PISTOLS )
+
 	DECLARE_ANIMEVENT( AE_PISTOL_FIRE_LEFT )
 	DECLARE_ANIMEVENT( AE_PISTOL_FIRE_RIGHT )
 	DECLARE_ANIMEVENT( AE_ASSASSIN_KICK_HIT )
+	DECLARE_ANIMEVENT( AE_ASSASSIN_KICK_CHECK_INTERRUPT )
 
 	DECLARE_CONDITION( COND_ASSASSIN_ENEMY_TARGETING_ME )
 	DECLARE_CONDITION( COND_ASSASSIN_CLOAK_RETREAT )
@@ -1945,6 +2397,11 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 	DECLARE_TASK( TASK_ASSASSIN_CHECK_CLOAK )
 	DECLARE_TASK( TASK_ASSASSIN_START_PERCHING )
 	DECLARE_TASK( TASK_ASSASSIN_PERCH )
+	DECLARE_TASK( TASK_ASSASSIN_PERCH_POST )
+	DECLARE_TASK( TASK_ASSASSIN_STORE_BEST_LKP )
+	DECLARE_TASK( TASK_ASSASSIN_GET_JUMP_AWAY_FROM_ENEMY )
+	DECLARE_TASK( TASK_ASSASSIN_GET_JUMP_AWAY_FROM_BESTSOUND )
+	DECLARE_TASK( TASK_ASSASSIN_JUMP_AWAY )
 
 	DEFINE_SCHEDULE
 	(
@@ -2058,6 +2515,7 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 		"	Tasks"
 		"		TASK_STOP_MOVING						0"
 		"		TASK_ASSASSIN_PERCH						0"
+		"		TASK_ASSASSIN_PERCH_POST				0"
 		""
 		"	Interrupts"
 		"		COND_ENEMY_DEAD"
@@ -2147,6 +2605,59 @@ AI_BEGIN_CUSTOM_NPC( npc_assassin, CNPC_Assassin )
 		//"		COND_HEAVY_DAMAGE"
 		"		COND_ENEMY_OCCLUDED"
 		//"		COND_ASSASSIN_CLOAK_RETREAT"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_ASSASSIN_GO_TO_BEST_ENEMY_LOS,
+
+		"	Tasks"
+		"		TASK_SET_TOLERANCE_DISTANCE				256"
+		"		TASK_SET_ROUTE_SEARCH_TIME				1"	// Spend 1 second trying to build a path if stuck
+		"		TASK_ASSASSIN_STORE_BEST_LKP			0"
+		"		TASK_SET_GOAL							GOAL:SAVED_POSITION"
+		"		TASK_GET_PATH_TO_GOAL					PATH:LOS"
+		"		TASK_RUN_PATH							0"
+		"		TASK_WAIT_FOR_MOVEMENT					0"
+		""
+		"	Interrupts"
+		"		COND_ENEMY_DEAD"
+		"		COND_NEW_ENEMY"
+		"		COND_SEE_ENEMY"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_HEAR_DANGER"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_PROVOKED"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_ASSASSIN_JUMP_AWAY_FROM_ENEMY,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_SET_ROUTE_SEARCH_TIME			1"	// Spend 1 second trying to build a path if stuck
+		"		TASK_ASSASSIN_GET_JUMP_AWAY_FROM_ENEMY	180"
+		"		TASK_ASSASSIN_JUMP_AWAY				0"
+		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_LAND"
+		""
+		"	Interrupts"
+	)
+
+	DEFINE_SCHEDULE
+	(
+		SCHED_ASSASSIN_JUMP_AWAY_FROM_BESTSOUND,
+
+		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE				SCHEDULE:SCHED_TAKE_COVER_FROM_BEST_SOUND"
+		"		TASK_STOP_MOVING					0"
+		"		TASK_SET_ROUTE_SEARCH_TIME			1"	// Spend 1 second trying to build a path if stuck
+		"		TASK_ASSASSIN_GET_JUMP_AWAY_FROM_BESTSOUND	250"
+		"		TASK_ASSASSIN_JUMP_AWAY				0"
+		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_LAND"
+		""
+		"	Interrupts"
 	)
 
 AI_END_CUSTOM_NPC()
