@@ -8,7 +8,6 @@
 
 #include "cbase.h"
 #include "npc_conscript_elite.h"
-#include "beam_shared.h"
 #include "prop_armor.h"
 #include "IEffects.h"
 
@@ -26,18 +25,6 @@ ConVar sk_conscript_elite_helmet_protection( "sk_conscript_elite_helmet_protecti
 ConVar sk_conscript_elite_default_proficiency( "sk_conscript_elite_default_proficiency", "2" );
 ConVar sk_conscript_elite_laser_proficiency( "sk_conscript_elite_laser_proficiency", "3" );
 
-//-----------------------------------------------------------------------------
-
-// Since our laser material doesn't support shading out anymore, this has to be long enough that the player
-// is unlikely to see it awkwardly end
-#define GUN_LASER_LENGTH		5000
-#define GUN_LASER_LERP_TIME		0.5
-
-int	ACT_LASER_ENABLE;
-int	ACT_LASER_DISABLE;
-int	AE_CONSCRIPT_ENABLE_LASER;
-int	AE_CONSCRIPT_DISABLE_LASER;
-
 //---------------------------------------------------------
 // Custom Client entity
 //---------------------------------------------------------
@@ -49,26 +36,11 @@ END_SEND_TABLE()
 //-----------------------------------------------------------------------------
 
 BEGIN_DATADESC( CNPC_ConscriptElite )
-	DEFINE_KEYFIELD( m_bLaserOn, FIELD_BOOLEAN, "LaserStartsOn" ),
-	DEFINE_INPUT( m_bCanUseLaserDuringAI, FIELD_BOOLEAN, "SetCanUseLaserDuringAI" ),
-	DEFINE_KEYFIELD( m_bAlwaysAddLaser, FIELD_BOOLEAN, "AlwaysAddLaser" ),
-
-	DEFINE_FIELD( m_hGunLaser, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_hGunLaserEnd, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_hGunLaserHitTarget, FIELD_EHANDLE ),
-
-	DEFINE_FIELD( m_bLaserAimsAtEnemy, FIELD_BOOLEAN ),
-	DEFINE_FIELD( m_flLaserTargetTime, FIELD_TIME ),
-	DEFINE_FIELD( m_vecGunLaserDir, FIELD_VECTOR ),
 
 	DEFINE_THINKFUNC( LaserThink ),
 
 	// Inputs
-	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnLaser", InputTurnOnLaser ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffLaser", InputTurnOffLaser ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOnLaserInstant", InputTurnOnLaserInstant ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOffLaserInstant", InputTurnOffLaserInstant ),
-
+	DEFINE_WEAPONLASER_DATADESC()
 	DEFINE_CONSCRIPT_DATADESC()
 END_DATADESC()
 
@@ -119,199 +91,6 @@ void CNPC_ConscriptElite::Precache()
 	UTIL_PrecacheOther( "weapon_frag" );
 
 	BaseClass::Precache();
-
-	PrecacheMaterial( "effects/progenitor_redlaser1_elite.vmt" );
-
-	PrecacheScriptSound( "NPC_ConscriptElite.LaserOn" );
-	PrecacheScriptSound( "NPC_ConscriptElite.LaserOff" );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::OnRestore()
-{
-	BaseClass::OnRestore();
-
-	if ( m_hGunLaser && GetActiveWeapon() )
-	{
-		m_nGunLaserAttachment = GetActiveWeapon()->LookupAttachment( "laser" );
-		if ( m_nGunLaserAttachment <= 0 )
-		{
-			m_nGunLaserAttachment = GetActiveWeapon()->LookupAttachment( "muzzle" );
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CNPC_ConscriptElite::GunSupportsLaser( CBaseCombatWeapon *pWeapon, int &iAttachment, bool bForce )
-{
-	iAttachment = pWeapon->LookupAttachment( "laser" );
-	if ( iAttachment <= 0 )
-	{
-		if ( !bForce )
-			return false;
-
-		// No laser attachment, but the gun can still have a laser
-		// Fall back to the muzzle
-		iAttachment = pWeapon->LookupAttachment( "muzzle" );
-	}
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::AddLaserToGun( CBaseCombatWeapon *pWeapon )
-{
-	if ( !GunSupportsLaser( pWeapon, m_nGunLaserAttachment, m_bAlwaysAddLaser ) )
-		return;
-	
-	//if ( m_nGunLaserAttachment <= 0 )
-	//	return;
-
-	// Muzzle Target - Where the laser ends
-	m_hGunLaserEnd = CBaseEntity::CreateNoSpawn( "info_target", vec3_origin, vec3_angle, this );
-	m_hGunLaserEnd->SetParent( pWeapon, m_nGunLaserAttachment );
-	m_hGunLaserEnd->SetLocalOrigin( Vector( GUN_LASER_LENGTH, 0, 0 ) );
-	m_hGunLaserEnd->SetLocalAngles( vec3_angle );
-
-	m_hGunLaser = CBeam::BeamCreate( "effects/progenitor_redlaser1_elite.vmt", 2.0 );
-	if ( m_hGunLaser != NULL )
-	{
-		m_hGunLaser->EntsInit( pWeapon, m_hGunLaserEnd );
-		m_hGunLaser->SetStartAttachment( m_nGunLaserAttachment );
-		m_hGunLaser->SetWidth( 2.0 );
-		m_hGunLaser->SetBrightness( 150 );
-		m_hGunLaser->SetColor( 255, 0, 0 );
-		m_hGunLaser->RelinkBeam();
-		m_hGunLaser->SetNoise( 0 );
-		m_hGunLaser->SetBeamFlags( FBEAM_FADEOUT );
-		m_hGunLaser->SetNetworkNodraw( true );
-
-		m_hGunLaser->SetParent( pWeapon, m_nGunLaserAttachment );
-		m_hGunLaser->SetLocalOrigin( vec3_origin );
-		m_hGunLaser->SetLocalAngles( vec3_angle );
-
-		if ( m_bLaserOn )
-		{
-			m_hGunLaser->RemoveEffects( EF_NODRAW );
-		}
-		else
-		{
-			m_hGunLaser->AddEffects( EF_NODRAW );
-		}
-
-		// In case this weapon supports lasers for players (e.g. deagles)
-		variant_t var;
-		var.SetBool( true );
-		pWeapon->AcceptInput( "SetLaserEquipped", this, this, var, 0 );
-	}
-
-	// Set any laser attachment bodygroup
-	int nLaserBody = pWeapon->FindBodygroupByName( "laser" );
-	if ( nLaserBody != -1 )
-	{
-		pWeapon->SetBodygroup( nLaserBody, 1 );
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::RemoveLaserFromGun( CBaseCombatWeapon *pWeapon )
-{
-	if ( m_hGunLaser )
-	{
-		UTIL_Remove( m_hGunLaser );
-		m_hGunLaser = NULL;
-	}
-
-	if ( m_hGunLaserEnd )
-	{
-		UTIL_Remove( m_hGunLaserEnd );
-		m_hGunLaserEnd = NULL;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::TurnOnLaser()
-{
-	if ( !m_hGunLaser )
-	{
-		Warning( "%s: Can't turn on invalid laser\n", GetDebugName() );
-		return;
-	}
-
-	if ( m_bLaserOn )
-		return;
-
-	m_bLaserOn = true;
-	m_hGunLaser->RemoveEffects( EF_NODRAW );
-	EmitSound( "NPC_ConscriptElite.LaserOn" );
-
-	SetContextThink( &CNPC_ConscriptElite::LaserThink, gpGlobals->curtime, "ConscriptEliteLaserThink" );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::TurnOffLaser()
-{
-	if ( !m_hGunLaser )
-	{
-		Warning( "%s: Can't turn off invalid laser\n", GetDebugName() );
-		return;
-	}
-
-	if ( !m_bLaserOn )
-		return;
-
-	m_bLaserOn = false;
-	m_hGunLaser->AddEffects( EF_NODRAW );
-	EmitSound( "NPC_ConscriptElite.LaserOff" );
-
-	SetContextThink( NULL, TICK_NEVER_THINK, "ConscriptEliteLaserThink" );
-}
-
-//------------------------------------------------------------------------------
-// Purpose: 
-//------------------------------------------------------------------------------
-void CNPC_ConscriptElite::InputTurnOnLaser( inputdata_t &inputdata )
-{
-	if ( m_bLaserOn )
-		return;
-
-	AddGesture( (Activity)ACT_LASER_ENABLE );
-}
-
-//------------------------------------------------------------------------------
-// Purpose: 
-//------------------------------------------------------------------------------
-void CNPC_ConscriptElite::InputTurnOffLaser( inputdata_t &inputdata )
-{
-	if ( !m_bLaserOn )
-		return;
-
-	AddGesture( (Activity)ACT_LASER_DISABLE );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::ModifyOrAppendCriteria( AI_CriteriaSet &set )
-{
-	BaseClass::ModifyOrAppendCriteria( set );
-
-	if ( m_bLaserOn )
-	{
-		set.AppendCriteria( "laser", "1" );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -484,105 +263,9 @@ float CNPC_ConscriptElite::GetHitgroupDamageMultiplier( int iHitGroup, const CTa
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-float CNPC_ConscriptElite::GetLaserDotToTarget( CBaseEntity *pTarget )
+void CNPC_ConscriptElite::StartLaserThink()
 {
-	Vector vecToTarget = (pTarget->GetAbsOrigin() - GetAbsOrigin());
-	VectorNormalize( vecToTarget );
-
-	Vector vecGunLaserForward;
-	if ( GetActiveWeapon() )
-	{
-		Vector vecOrigin;
-		GetActiveWeapon()->GetAttachment( m_nGunLaserAttachment, vecOrigin, &vecGunLaserForward );
-	}
-
-	float flDotLaser = DotProduct( vecToTarget, vecGunLaserForward );
-	
-	return flDotLaser;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-float CNPC_ConscriptElite::GetEyeDotToTarget( CBaseEntity *pTarget )
-{
-	Vector vecToTarget = (pTarget->GetAbsOrigin() - GetAbsOrigin());
-	VectorNormalize( vecToTarget );
-
-	float flDotEye = DotProduct( vecToTarget, HeadDirection3D() ); // EyeDirection3D
-	
-	return flDotEye;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CNPC_ConscriptElite::TargetCrossingLaser( CBaseEntity *pTarget )
-{
-	if ( pTarget == m_hGunLaserHitTarget )
-		return true;
-
-	/*Vector vecToTarget = (pTarget->GetAbsOrigin() - GetAbsOrigin());
-	Vector vecToGunLaser = (m_hGunLaserEnd->GetAbsOrigin() - GetAbsOrigin());
-
-	// Allow some tolerance
-	if (vecToTarget.LengthSqr() > (vecToGunLaser.LengthSqr() + Square(8.0)))
-		return false;
-
-	VectorNormalize( vecToTarget );
-	
-	float flDotEye = DotProduct( vecToTarget, HeadDirection3D() ); // EyeDirection3D
-
-	Vector vecGunLaserForward;
-	if ( GetActiveWeapon() )
-	{
-		Vector vecOrigin;
-		GetActiveWeapon()->GetAttachment( m_nGunLaserAttachment, vecOrigin, &vecGunLaserForward );
-	}
-
-	float flDotLaser = DotProduct( vecToTarget, vecGunLaserForward );
-
-	if (flDotLaser > 0.98 && flDotEye > 0.9)
-		return true;*/
-	
-	return false;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: For assassin cloaking
-//-----------------------------------------------------------------------------
-bool CNPC_ConscriptElite::CanSeeThroughCloak( CBaseCombatCharacter *pCloaker, float flCloakFactor, int &iCompromiseType )
-{
-	if ( TargetCrossingLaser( pCloaker ) )
-	{
-		iCompromiseType = COMPROMISE_TYPE_LASER;
-		return true;
-	}
-
-	return false;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CNPC_ConscriptElite::ShouldAimLaserAtEnemy( CBaseEntity *pEnemy )
-{
-	if ( !pEnemy )
-		return false;
-		
-	if (GetActivity() != ACT_RANGE_ATTACK1 && GetActivity() != ACT_IDLE && GetActivity() != ACT_RUN_AIM && GetActivity() != ACT_WALK_AIM)
-	{
-		//printl("Not in right act: " + self.GetActivity())
-		return false;
-	}
-
-	if (GetLaserDotToTarget(GetEnemy()) < 0.97 || !FVisible(GetEnemy()))
-	{
-		//printl("Dot: " + GetLaserDotToTarget(self.GetEnemy()))
-		return false;
-	}
-
-	return true;
+	SetContextThink( &CNPC_ConscriptElite::LaserThink, gpGlobals->curtime, WEAPON_LASER_THINK_CONTEXT );
 }
 
 //-----------------------------------------------------------------------------
@@ -592,90 +275,13 @@ void CNPC_ConscriptElite::LaserThink( void )
 {
 	if ( !IsAlive() || !GetActiveWeapon() )
 	{
-		SetContextThink( NULL, TICK_NEVER_THINK, "ConscriptEliteLaserThink" );
+		SetContextThink( NULL, TICK_NEVER_THINK, WEAPON_LASER_THINK_CONTEXT );
 		return;
 	}
 
-	if ( m_bLaserOn && m_hGunLaser )
-	{
-		if ( ShouldAimLaserAtEnemy( GetEnemy() ) )
-		{
-			if (!m_bLaserAimsAtEnemy)
-				m_flLaserTargetTime = gpGlobals->curtime;
-			m_bLaserAimsAtEnemy = true;
-		}
-		else
-		{
-			if (m_bLaserAimsAtEnemy)
-				m_flLaserTargetTime = gpGlobals->curtime;
-			m_bLaserAimsAtEnemy = false;
-		}
-		
-		Vector vecLaserEnd;
-		Vector vecLaserStartOrigin;
-		Vector vecLaserForward;
-		
-		if ( GetActiveWeapon() )
-		{
-			GetActiveWeapon()->GetAttachment( m_nGunLaserAttachment, vecLaserStartOrigin, &vecLaserForward );
-			
-			if (m_bLaserAimsAtEnemy)
-				vecLaserEnd = m_hGunLaserEnd->GetAbsOrigin(); // Use current
-			else
-				vecLaserEnd = vecLaserStartOrigin + (vecLaserForward * GUN_LASER_LENGTH);
-		}
+	float flNextThink = DoLaserThink();
 
-		// Lerp to where the laser should be
-		if (m_flLaserTargetTime != -1)
-		{
-			float flLerpTime = gpGlobals->curtime - m_flLaserTargetTime;
-			if (flLerpTime < GUN_LASER_LERP_TIME)
-			{
-				float flLerpPerc = (flLerpTime / GUN_LASER_LERP_TIME);
-				if (m_bLaserAimsAtEnemy)
-				{
-					vecLaserEnd = vecLaserStartOrigin + (GetEnemy()->BodyTarget( vecLaserStartOrigin, true ) - vecLaserStartOrigin).Normalized() * GUN_LASER_LENGTH;
-					vecLaserEnd += ((vecLaserStartOrigin + (vecLaserForward * GUN_LASER_LENGTH) - vecLaserEnd) * (1.0 - flLerpPerc));
-				}
-				else
-					vecLaserEnd += ((m_hGunLaserEnd->GetAbsOrigin() - vecLaserEnd) * flLerpPerc);
-					
-				//printf("Lerping (%f)\n", lerpPerc)
-				
-				//debugoverlay.Cross3D(laserEnd, 3.0, 255, (255 * lerpPerc), 0, true, 4.0)
-			}
-			else
-			{
-				// Finished lerping
-				m_flLaserTargetTime = -1;
-				
-				if (m_bLaserAimsAtEnemy)
-					vecLaserEnd = vecLaserStartOrigin + (GetEnemy()->BodyTarget( vecLaserStartOrigin, true ) - vecLaserStartOrigin).Normalized() * GUN_LASER_LENGTH;
-			}
-		}
-	
-		trace_t tr;
-		UTIL_TraceLine( vecLaserStartOrigin, vecLaserEnd, MASK_SOLID, this, COLLISION_GROUP_NONE, &tr );
-		
-		//printf("Frac = %f\n", frac)
-		//debugoverlay.Cross3D(laserEnd, 3.0, 255, (255 * frac), 0, true, 4.0)
-		
-		m_hGunLaserEnd->SetAbsOrigin( tr.endpos );
-		m_hGunLaserHitTarget = tr.m_pEnt;
-
-		m_vecGunLaserDir = tr.endpos - tr.startpos;
-		VectorNormalize( m_vecGunLaserDir.GetForModify() );
-	}
-
-	float flNextThink = 0.5f;
-	if (m_flLaserTargetTime != -1 || IsMoving())
-		flNextThink = TICK_INTERVAL;
-	else if (HasCondition( COND_SEE_PLAYER ))
-		flNextThink = 0.1f;
-	else if (HasCondition( COND_IN_PVS ))
-		flNextThink = 0.2f;
-
-	SetContextThink( &CNPC_ConscriptElite::LaserThink, gpGlobals->curtime + flNextThink, "ConscriptEliteLaserThink" );
+	SetContextThink( &CNPC_ConscriptElite::LaserThink, gpGlobals->curtime + flNextThink, WEAPON_LASER_THINK_CONTEXT );
 }
 
 //-----------------------------------------------------------------------------
@@ -684,67 +290,6 @@ void CNPC_ConscriptElite::LaserThink( void )
 void CNPC_ConscriptElite::PrescheduleThink( void )
 {
 	BaseClass::PrescheduleThink();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::OnScheduleChange( void )
-{
-	BaseClass::OnScheduleChange();
-
-	if ( IsCurSchedule( SCHED_COMBAT_FACE, false ) )
-	{
-		// Always aim while combat facing
-		SetReadinessLevel( AIRL_AGITATED, false, false );
-	}
-
-	if ( m_bCanUseLaserDuringAI && m_hGunLaser )
-	{
-		// Determine desired laser state
-		int iLaserLayer = -1;
-		if ( !m_bLaserOn )
-		{
-			if ( GetState() != NPC_STATE_COMBAT )
-			{
-				if ( ( IsUsingStealthSenses() && ( HasCondition( COND_HEAR_COMBAT ) || HasCondition( COND_HEAR_PLAYER ) || HasCondition( COND_HEAR_WORLD )) )
-					|| HasCondition( COND_LOST_ENEMY ) )
-				{
-					iLaserLayer = AddGesture( (Activity)ACT_LASER_ENABLE );
-				}
-			}
-			else if ( !HasCondition( COND_SEE_ENEMY ) || !HasCondition( COND_CAN_RANGE_ATTACK1 ) )
-			{
-				// We have an opportunity in combat
-				iLaserLayer = AddGesture( (Activity)ACT_LASER_ENABLE );
-			}
-		}
-		else
-		{
-			if ( GetState() != NPC_STATE_COMBAT )
-			{
-				if ( GetState() == NPC_STATE_IDLE && GetEnemies()->NumEnemies() == 0 &&
-					( !IsUsingStealthSenses() || gpGlobals->curtime - GetStealthSenses()->GetLastSoundTime() > 20.0f ) )
-				{
-					// Nobody left to look out for
-					iLaserLayer = AddGesture( (Activity)ACT_LASER_DISABLE );
-				}
-			}
-			/*
-			else if ( HasCondition( COND_ENEMY_DEAD ) && GetEnemies()->NumEnemies() <= 1 )
-			{
-				// Turn off laser after killing the player because it looks cool
-				if ( GetEnemy() && GetEnemy()->IsPlayer() )
-					iLaserLayer = AddGesture( (Activity)ACT_LASER_DISABLE );
-			}
-			*/
-		}
-
-		if ( iLaserLayer != -1 )
-		{
-			GetShotRegulator()->FireNoEarlierThan( gpGlobals->curtime + GetLayerDuration( iLaserLayer ) );
-		}
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -791,122 +336,6 @@ int CNPC_ConscriptElite::TranslateSchedule( int scheduleType )
 	return scheduleType;
 }
 
-//-----------------------------------------------------------------------------
-// Purpose:	Gives character new weapon and equips it
-// Input  : New weapon
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::Weapon_Equip( CBaseCombatWeapon *pWeapon )
-{
-	BaseClass::Weapon_Equip( pWeapon );
-
-	if ( GetActiveWeapon() )
-	{
-		AddLaserToGun( GetActiveWeapon() );
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Drop the active weapon, optionally throwing it at the given target position.
-// Input  : pWeapon - Weapon to drop/throw.
-//			pvecTarget - Position to throw it at, NULL for none.
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::Weapon_Drop( CBaseCombatWeapon *pWeapon, const Vector *pvecTarget /* = NULL */, const Vector *pVelocity /* = NULL */ )
-{
-	BaseClass::Weapon_Drop( pWeapon, pvecTarget, pVelocity );
-
-	if ( pWeapon )
-	{
-		if ( IsAlive() && GetState() != NPC_STATE_COMBAT )
-		{
-			// Remove gun laser immediately
-			RemoveLaserFromGun( pWeapon );
-		}
-		else
-		{
-			// Gun laser stays on for a moment
-			if ( m_hGunLaser )
-			{
-				m_hGunLaser->LiveForTime( 0.75f );
-				m_hGunLaser = NULL;
-			}
-
-			if ( m_hGunLaserEnd )
-			{
-				m_hGunLaserEnd->SetThink( &CBaseEntity::SUB_Remove );
-				m_hGunLaserEnd->SetNextThink( gpGlobals->curtime + 0.75f );
-				m_hGunLaserEnd = NULL;
-			}
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Switches to the given weapon (providing it has ammo)
-// Input  :
-// Output : true is switch succeeded
-//-----------------------------------------------------------------------------
-bool CNPC_ConscriptElite::Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex /*=0*/ )
-{
-	CBaseCombatWeapon *pOldWeapon = GetActiveWeapon();
-
-	if ( !BaseClass::Weapon_Switch( pWeapon, viewmodelindex ) )
-		return false;
-
-	if ( pOldWeapon )
-		RemoveLaserFromGun( pOldWeapon );
-
-	if ( pWeapon )
-	{
-		AddLaserToGun( pWeapon );
-	}
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-Activity CNPC_ConscriptElite::Weapon_TranslateActivity( Activity baseAct, bool *pRequired )
-{
-	if ( m_bLaserOn && GetState() == NPC_STATE_ALERT )
-	{
-		// Make sure we're always aiming
-		switch ( baseAct )
-		{
-			case ACT_IDLE:						baseAct = ACT_IDLE_ANGRY; break;
-			case ACT_WALK:						baseAct = ACT_WALK_AIM; break;
-			case ACT_RUN:						baseAct = ACT_RUN_AIM; break;
-			case ACT_IDLE_RELAXED:
-			case ACT_IDLE_STIMULATED:			baseAct = ACT_IDLE_AIM_STIMULATED; break;
-			case ACT_WALK_RELAXED:
-			case ACT_WALK_STIMULATED:			baseAct = ACT_WALK_AIM_STIMULATED; break;
-			case ACT_RUN_RELAXED:
-			case ACT_RUN_STIMULATED:			baseAct = ACT_RUN_AIM_STIMULATED; break;
-		}
-	}
-
-	return BaseClass::Weapon_TranslateActivity( baseAct, pRequired );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPC_ConscriptElite::HandleAnimEvent( animevent_t *pEvent )
-{
-	if (pEvent->event == AE_CONSCRIPT_ENABLE_LASER)
-	{
-		TurnOnLaser();
-		return;
-	}
-	else if (pEvent->event == AE_CONSCRIPT_DISABLE_LASER)
-	{
-		TurnOffLaser();
-		return;
-	}
-
-	BaseClass::HandleAnimEvent( pEvent );
-}
-
 //------------------------------------------------------------------------------
 // Purpose: 
 //------------------------------------------------------------------------------
@@ -926,10 +355,4 @@ WeaponProficiency_t CNPC_ConscriptElite::CalcWeaponProficiency( CBaseCombatWeapo
 //
 //-----------------------------------------------------------------------------
 AI_BEGIN_CUSTOM_NPC( npc_conscript_elite, CNPC_ConscriptElite )
-
-	DECLARE_ACTIVITY( ACT_LASER_ENABLE )
-	DECLARE_ACTIVITY( ACT_LASER_DISABLE )
-	DECLARE_ANIMEVENT( AE_CONSCRIPT_ENABLE_LASER )
-	DECLARE_ANIMEVENT( AE_CONSCRIPT_DISABLE_LASER )
-
 AI_END_CUSTOM_NPC()
