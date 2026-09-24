@@ -91,6 +91,7 @@ public:
 
 	void	InputFakeSpawnEntity( inputdata_t &inputdata ) { inputdata.value.Entity() ? (void)TrySpawnRecipeNPC( inputdata.value.Entity(), false ) : Warning("Warning: FakeSpawnEntity cannot spawn null entity\n"); }
 	void	InputCreateXenLife( inputdata_t &inputdata ) { CreateXenLife(); }
+	void	InputCreateXenLifeAtPoint( inputdata_t &inputdata ) { CreateXenLife( inputdata.value.Entity() ); }
 
 	void	SetNodeRadius( float flRadius ) { m_flNodeRadius = flRadius; }
 	void	SetConsumeRadius( float flRadius ) { m_flConsumeRadius = flRadius; }
@@ -107,7 +108,7 @@ private:
 	void	CreateDenseBall( void );
 #ifdef EZ2
 	int		Restore( IRestore &restore );
-	void	CreateXenLife();
+	void	CreateXenLife( CBaseEntity *pSpawnPoint = NULL );
 
 	void	CreateOldXenLife( void ); // 1upD - Create headcrab or bullsquid 
 	bool	TryCreateNPC( const char *className ); // 1upD - Try to spawn an NPC
@@ -139,6 +140,8 @@ protected:
 	float	m_flStartTime;		// When the vortex opened
 	float	m_flPullFadeTime;	// How long the pull fade should last
 
+	bool	m_bIgnoreNodeLOS;	// Ignores LOS to nodes we can spawn at
+
 							// If this points to an entity, the Xen grenade will always call g_interactionXenGrenadeRelease on it instead of spawning Xen life.
 							// This is so Will-E pops back out of Xen grenades.
 
@@ -147,6 +150,9 @@ private:
 	EHANDLE	m_hReleaseEntity;
 
 	CHandle<CBaseCombatCharacter>	m_hThrower;
+
+	// Overrides spawn position for scripted spawns
+	Vector	m_vecOverrideSpawnPos;
 
 	// Stuff gathered for recipes
 	CUtlMap<string_t, float, short> m_ModelMass;

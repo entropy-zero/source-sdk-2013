@@ -63,6 +63,8 @@ ConVar hopwire_spawn_node_radius( "hopwire_spawn_node_radius", "256" );
 ConVar hopwire_spawn_interval_min( "hopwire_spawn_interval_min", "0.35" );
 ConVar hopwire_spawn_interval_max( "hopwire_spawn_interval_max", "0.65" );
 ConVar hopwire_spawn_interval_fail( "hopwire_spawn_interval_fail", "0.1" );
+ConVar hopwire_spawn_points_max( "hopwire_spawn_points_max", "48" );
+ConVar hopwire_spawn_points_min( "hopwire_spawn_points_min", "8" );
 ConVar hopwire_guard_mass("hopwire_guard_mass", "1500");
 ConVar hopwire_zombine_mass( "hopwire_zombine_mass", "800" );
 ConVar hopwire_zombigaunt_mass( "hopwire_zombigaunt_mass", "1000" );
@@ -687,7 +689,7 @@ CGravityVortexController::CGravityVortexController( void ) : m_flEndTime( 0.0f )
 	m_ClassMass.EnsureCapacity( 128 );
 
 	m_HullMap.SetLessFunc( VectorLessFunc );
-	m_HullMap.EnsureCapacity( 32 );
+	m_HullMap.EnsureCapacity( hopwire_spawn_points_max.GetInt() );
 
 	SetDefLessFunc( m_SpawnList );
 	m_SpawnList.EnsureCapacity( 16 );
@@ -1097,7 +1099,7 @@ int	CGravityVortexController::Restore( IRestore &restore )
 //-----------------------------------------------------------------------------
 // Purpose: Creates a xen lifeform with a mass equal to the aggregate mass consumed by the vortex
 //-----------------------------------------------------------------------------
-void CGravityVortexController::CreateXenLife()
+void CGravityVortexController::CreateXenLife( CBaseEntity *pSpawnPoint )
 {
 	VerifyXenRecipeManager( GetClassname() );
 
@@ -1167,36 +1169,48 @@ void CGravityVortexController::CreateXenLife()
 
 	set.AppendCriteria( "npc_to_prop_ratio", CNumStr( flNPCToPropRatio ) );
 
-	// Now we'll test hull permissions
-	// Go through each node and find available links.
-	int iTotalHulls = 0;
-
-	iTotalHulls = AddNodesToHullMap( GetAbsOrigin() );
-
-	// If we couldn't find any hulls, jump to the ground
-	if ( iTotalHulls <= 0 )
+	if ( pSpawnPoint )
 	{
-		trace_t tr;
-		CXenGrenadeTraceFilter traceFilter( NULL, COLLISION_GROUP_NONE, this );
-		UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + Vector( 0, 0, -8192 ), MASK_SOLID, &traceFilter, &tr );
+		m_vecOverrideSpawnPos = pSpawnPoint->GetAbsOrigin();
 
-		iTotalHulls = AddNodesToHullMap( tr.endpos );
+		set.AppendCriteria( "spawnpoint", STRING( pSpawnPoint->GetEntityName() ) );
+		pSpawnPoint->AppendContextToCriteria( set, "spawnpoint_" );
 	}
-
-	set.AppendCriteria( "available_nodes", CNumStr(m_HullMap.Count()) );
-	set.AppendCriteria( "available_hulls", CNumStr(iTotalHulls) );
-
-	if (m_flMass >= hopwire_boid_mass.GetFloat())
+	else
 	{
-		// Look for fly nodes
-		CHintCriteria hintCriteria;
-		hintCriteria.SetHintType( HINT_CROW_FLYTO_POINT );
-		hintCriteria.AddIncludePosition( GetAbsOrigin(), 4500 );
-		CAI_Hint *pHint = CAI_HintManager::FindHint( GetAbsOrigin(), hintCriteria );
-		// If the vortex controller can't find a bird node, don't spawn any birds!
-		if ( pHint )
+		m_vecOverrideSpawnPos = vec3_invalid;
+
+		// Now we'll test hull permissions
+		// Go through each node and find available links.
+		int iTotalHulls = 0;
+
+		iTotalHulls = AddNodesToHullMap( GetAbsOrigin() );
+
+		// If we couldn't find any hulls, jump to the ground
+		if ( iTotalHulls <= 0 )
 		{
-			set.AppendCriteria( "available_flyto", "1" );
+			trace_t tr;
+			CXenGrenadeTraceFilter traceFilter( NULL, COLLISION_GROUP_NONE, this );
+			UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + Vector( 0, 0, -8192 ), MASK_SOLID, &traceFilter, &tr );
+
+			iTotalHulls = AddNodesToHullMap( tr.endpos );
+		}
+
+		set.AppendCriteria( "available_nodes", CNumStr(m_HullMap.Count()) );
+		set.AppendCriteria( "available_hulls", CNumStr(iTotalHulls) );
+
+		if (m_flMass >= hopwire_boid_mass.GetFloat())
+		{
+			// Look for fly nodes
+			CHintCriteria hintCriteria;
+			hintCriteria.SetHintType( HINT_CROW_FLYTO_POINT );
+			hintCriteria.AddIncludePosition( GetAbsOrigin(), 4500 );
+			CAI_Hint *pHint = CAI_HintManager::FindHint( GetAbsOrigin(), hintCriteria );
+			// If the vortex controller can't find a bird node, don't spawn any birds!
+			if ( pHint )
+			{
+				set.AppendCriteria( "available_flyto", "1" );
+			}
 		}
 	}
 
@@ -1216,11 +1230,43 @@ int CGravityVortexController::AddNodesToHullMap( const Vector vecSearchOrigin )
 {
 	int iTotalHulls = 0;
 
+	// If we already have enough hulls, use the existing map
+	if ( m_HullMap.Count() > 0 )
+	{
+		int nNumUnusedHulls = 0;
+		for (unsigned int i = 0; i < m_HullMap.Count(); i++)
+		{
+			if (m_HullMap.IsValidIndex(i))
+			{
+				iTotalHulls |= m_HullMap[i];
+				nNumUnusedHulls++;
+			}
+		}
+
+		// This is a rough estimate because we don't know how many spawns we'll need for the next recipe
+		if ( nNumUnusedHulls > hopwire_spawn_points_min.GetInt() )
+			return iTotalHulls;
+	}
+
+	m_HullMap.RemoveAll();
+
+	// Put all nearby nodes into a larger CUtlMap beforehand
+	// This helps ensure that we can reach every node in our radius, rather than just the first ones we find
+	CUtlMap<Vector, int> nodeMap;
+	nodeMap.EnsureCapacity( hopwire_spawn_points_max.GetInt() * 3 );
+	nodeMap.SetLessFunc( VectorLessFunc );
+
+	int nZone = AI_NODE_ZONE_UNKNOWN;
+	float flNodeRadiusSqr = Square( m_flNodeRadius );
+
 	for (int node = 0; node < g_pBigAINet->NumNodes(); node++)
 	{
 		CAI_Node *pNode = g_pBigAINet->GetNode( node );
 
-		if ( (vecSearchOrigin - pNode->GetOrigin() ).LengthSqr() > Square( m_flNodeRadius ))
+		if ( nZone != AI_NODE_ZONE_UNKNOWN && nZone != pNode->GetZone() )
+			continue;
+
+		if ( (vecSearchOrigin - pNode->GetOrigin() ).LengthSqr() > flNodeRadiusSqr)
 			continue;
 
 		// Only use ground nodes
@@ -1228,28 +1274,40 @@ int CGravityVortexController::AddNodesToHullMap( const Vector vecSearchOrigin )
 			continue;
 
 		// Only use nodes which we can trace from the vortex
-		if (!FVisible( pNode->GetOrigin(), MASK_SOLID ))
+		if (!m_bIgnoreNodeLOS && !FVisible( pNode->GetOrigin(), MASK_SOLID ))
 			continue;
 
-		// Iterate through these hulls to find each space we should care about.
-		// Should be sorted largest to smallest.
-		static Hull_t iTestHulls[] =
-		{
-			HULL_LARGE,
-			HULL_MEDIUM,
-			HULL_WIDE_SHORT,
-			HULL_WIDE_HUMAN,
-			HULL_HUMAN,
-			HULL_TINY,
-		};
+		nodeMap.Insert( GetAbsOrigin() - pNode->GetOrigin(), pNode->GetId() );
 
-		static int iTestHullBits = 0;
-		if (iTestHullBits == 0)
-		{
-			for (int i = 0; i < ARRAYSIZE( iTestHulls ); i++)
-				iTestHullBits |= HullToBit( iTestHulls[i] );
-		}
+		if ( nZone == AI_NODE_ZONE_UNKNOWN )
+			nZone = pNode->GetZone();
 
+		if (nodeMap.Count() >= (unsigned int)nodeMap.MaxElement())
+			break;
+	}
+
+	// For each node, iterate through these hulls to find each space we should care about.
+	// Should be sorted largest to smallest.
+	static Hull_t iTestHulls[] =
+	{
+		HULL_LARGE,
+		HULL_MEDIUM,
+		HULL_WIDE_SHORT,
+		HULL_WIDE_HUMAN,
+		HULL_HUMAN,
+		HULL_TINY,
+	};
+
+	static int iTestHullBits = 0;
+	if (iTestHullBits == 0)
+	{
+		for (int i = 0; i < ARRAYSIZE( iTestHulls ); i++)
+			iTestHullBits |= HullToBit( iTestHulls[i] );
+	}
+
+	for (unsigned int node = 0; node < nodeMap.Count(); node++)
+	{
+		CAI_Node *pNode = g_pBigAINet->GetNode( nodeMap[node] );
 		int hullbits = 0;
 
 		CAI_Link *pLink = NULL;
@@ -1458,7 +1516,24 @@ bool CGravityVortexController::TrySpawnRecipeNPC( CBaseEntity *pEntity, bool bCa
 	Vector vecHullMaxs;
 	if (baseNPC)
 	{
-		hull = HullToBit(baseNPC->GetHullType());
+		Hull_t testHull = baseNPC->GetHullType();
+
+		// If this isn't a hull we recognize, try one of the other types
+		switch ( testHull )
+		{
+			case HULL_SMALL_CENTERED:
+				testHull = HULL_HUMAN;
+				break;
+			case HULL_TINY_CENTERED:
+				testHull = HULL_TINY;
+				break;
+			case HULL_MEDIUM_TALL:
+			case HULL_LARGE_CENTERED:
+				testHull = HULL_LARGE;
+				break;
+		}
+
+		hull = HullToBit(testHull);
 		vecHullMins = baseNPC->GetHullMins();
 		vecHullMaxs = baseNPC->GetHullMaxs();
 	}
@@ -1470,35 +1545,53 @@ bool CGravityVortexController::TrySpawnRecipeNPC( CBaseEntity *pEntity, bool bCa
 		vecHullMaxs = pEntity->WorldAlignMaxs();
 	}
 
-	for (unsigned int i = 0; i < m_HullMap.Count(); i++)
+	if ( m_vecOverrideSpawnPos != vec3_invalid )
 	{
-		if (m_HullMap.Element(i) & hull && (m_HullMap.Key(i).LengthSqr() < flBestDistSqr))
+		// There's a scripted spawn point
+		vecBestSpace = m_vecOverrideSpawnPos;
+	}
+	else
+	{
+		for (unsigned int i = 0; i < m_HullMap.Count(); i++)
 		{
-			// See if we could actually fit at this space
-			Vector vecSpace = GetAbsOrigin() - m_HullMap.Key(i);
-			Vector vUpBit = vecSpace;
-			vUpBit.z += 1;
-			AI_TraceHull( vecSpace, vUpBit, vecHullMins, vecHullMaxs,
-				baseNPC ? MASK_NPCSOLID : MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tr );
-			if ( tr.startsolid || (tr.fraction < 1.0) )
+			if (m_HullMap.IsValidIndex(i) && m_HullMap.Element(i) & hull && (m_HullMap.Key(i).LengthSqr() < flBestDistSqr))
 			{
-				if (g_debug_hopwire.GetBool())
+				// See if we could actually fit at this space
+				Vector vecSpace = GetAbsOrigin() - m_HullMap.Key(i);
+				AI_TraceHull( vecSpace + Vector(0,0,4), vecSpace, vecHullMins, vecHullMaxs,
+					baseNPC ? MASK_NPCSOLID : MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tr );
+				if ( tr.startsolid || (tr.fraction < 1.0) )
 				{
-					NDebugOverlay::Box( vecSpace, vecHullMins, vecHullMaxs, 255, 0, 0, 0, 2.0f );
+					if (g_debug_hopwire.GetBool())
+					{
+						NDebugOverlay::Box( vecSpace, vecHullMins, vecHullMaxs, 255, 0, 0, 0, 2.0f );
+					}
 				}
-			}
-			else
-			{
-				if (g_debug_hopwire.GetBool())
+				else
 				{
-					// This space works
-					NDebugOverlay::Box( vecSpace, vecHullMins, vecHullMaxs, 0, 255, 0, 0, 2.0f );
-				}
+					if (g_debug_hopwire.GetBool())
+					{
+						// This space works
+						NDebugOverlay::Box( tr.endpos, vecHullMins, vecHullMaxs, 0, 255, 0, 0, 2.0f );
+					}
 
-				vecBestSpace = vecSpace;
-				flBestDistSqr = m_HullMap.Key(i).LengthSqr();
-				iBestIndex = i;
+					vecBestSpace = tr.endpos;
+					flBestDistSqr = m_HullMap.Key(i).LengthSqr();
+					iBestIndex = i;
+				}
 			}
+		}
+
+		// Check for antlion grubs, Xen flora, etc. which won't fall to the ground on their own
+		if ( pEntity->GetMoveType() == MOVETYPE_NONE )
+		{
+			AI_TraceLine( vecBestSpace, vecBestSpace - Vector(0,0,128), baseNPC ? MASK_NPCSOLID : MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tr );
+			vecBestSpace = tr.endpos;
+		}
+
+		if ( iBestIndex != -1 )
+		{
+			m_HullMap.RemoveAt( iBestIndex );
 		}
 	}
 
@@ -1522,9 +1615,6 @@ bool CGravityVortexController::TrySpawnRecipeNPC( CBaseEntity *pEntity, bool bCa
 			}
 		}
 	}
-
-	if (m_HullMap.IsValidIndex(iBestIndex))
-		m_HullMap.RemoveAt(iBestIndex);
 
 	// SetAbsOrigin() doesn't seem to work here for some reason
 	// and ragdoll Teleport() always crashes
@@ -2179,8 +2269,11 @@ BEGIN_DATADESC( CGravityVortexController )
 	DEFINE_FIELD( m_flStartTime, FIELD_TIME ),
 	DEFINE_KEYFIELD( m_flPullFadeTime, FIELD_FLOAT, "pull_fade_in" ),
 
+	DEFINE_KEYFIELD( m_bIgnoreNodeLOS, FIELD_BOOLEAN, "IgnoreNodeLOS" ),
+
 	DEFINE_FIELD( m_hReleaseEntity, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hThrower, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_vecOverrideSpawnPos, FIELD_POSITION_VECTOR ),
 
 	DEFINE_UTLMAP( m_ClassMass, FIELD_STRING, FIELD_FLOAT ),
 	DEFINE_UTLMAP( m_ModelMass, FIELD_STRING, FIELD_FLOAT ),
@@ -2195,6 +2288,7 @@ BEGIN_DATADESC( CGravityVortexController )
 	DEFINE_INPUTFUNC( FIELD_VOID, "Detonate", InputDetonate ),
 	DEFINE_INPUTFUNC( FIELD_EHANDLE, "FakeSpawnEntity", InputFakeSpawnEntity ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "CreateXenLife", InputCreateXenLife ),
+	DEFINE_INPUTFUNC( FIELD_EHANDLE, "CreateXenLifeAtPoint", InputCreateXenLifeAtPoint ),
 
 	DEFINE_OUTPUT( m_OnPullFinished, "OnPullFinished" ),
 	DEFINE_OUTPUT( m_OutEntity, "OutEntity" ),
