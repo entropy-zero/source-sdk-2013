@@ -7967,28 +7967,39 @@ float CBaseEntity::GetContextExpireTime( const char *name )
 void CBaseEntity::RemoveContext( const char *contextName )
 {
 	char key[ 128 ];
-	char value[ 128 ];
-	float duration;
 
 	const char *p = contextName;
 	while ( p )
 	{
-		duration = 0.0f;
-#ifdef NEW_RESPONSE_SYSTEM
-		p = SplitContext( p, key, sizeof( key ), value, sizeof( value ), &duration, contextName );
-#else
-		p = SplitContext( p, key, sizeof( key ), value, sizeof( value ), &duration );
-#endif
-		if ( duration )
+		// Can't use SplitContext because it expects colons
+		bool last = false;
+		char *comma = Q_strstr( p, "," );
+		if ( !comma)
 		{
-			duration += gpGlobals->curtime;
+			Q_strncpy( key, p, sizeof( key ) );
+			last = true;
 		}
+		else
+		{
+			int len = comma - p;
+			Q_strncpy( key, p, len );
+		}
+
+		// If there actually is a colon in here, cut it off
+		char *colon = Q_strstr( key, ":" );
+		if ( colon )
+			*colon = NULL;
 
 		int iIndex = FindContextByName( key );
 		if ( iIndex != -1 )
 		{
 			m_ResponseContexts.Remove( iIndex );
 		}
+
+		if (last)
+			break;
+		else
+			p = comma + 1;
 	}
 }
 #endif
