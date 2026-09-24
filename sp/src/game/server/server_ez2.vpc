@@ -38,6 +38,8 @@ $Project "Server (Entropy Zero 2)"
 		{
 			$File	"ez2\achievements_EZ2.cpp"
 			$File	"ez2\EZ2_Achievements_Reset.cpp"
+			$File	"ez2\ai_acrobatic_movement.cpp"
+			$File	"ez2\ai_acrobatic_movement.h"
 			$File	"ez2\ai_behavior_beast.cpp"
 			$File	"ez2\ai_behavior_beast.h"
 			$File	"ez2\ai_behavior_surrender.cpp"
