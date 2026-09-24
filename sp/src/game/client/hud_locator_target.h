@@ -34,6 +34,10 @@
 #define LOCATOR_ICON_FX_FADE_OUT		0x00000800	// Set when deactivated so it can smoothly vanish
 #define LOCATOR_ICON_FX_FADE_IN			0x00001000	// Set when activated so it can smoothly appear
 
+#ifdef MAPBASE
+#define LOCATOR_ICON_FX_COMBO_BINDINGS	0x00002000	// Multiple bindings are presented as a combo, rather than alternating
+#endif
+
 #include "tier1/utlsymbol.h"
 
 // See comments in UtlSymbol on why this is useful

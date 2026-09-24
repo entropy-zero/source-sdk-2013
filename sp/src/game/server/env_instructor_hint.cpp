@@ -72,6 +72,7 @@ private:
 	CHandle<CBasePlayer>	m_hActivator;
 	EHANDLE		m_hTarget;
 	bool		m_bFilterByActivator;
+	bool		m_bBindingCombo;
 #endif
 };
 
@@ -101,6 +102,7 @@ BEGIN_DATADESC( CEnvInstructorHint )
 #ifdef MAPBASE
 	DEFINE_KEYFIELD( m_iszStartSound, FIELD_STRING, "hint_start_sound" ),
 	DEFINE_KEYFIELD( m_iHintTargetPos, FIELD_INTEGER, "hint_target_pos" ),
+	DEFINE_KEYFIELD( m_bBindingCombo, FIELD_BOOLEAN, "hint_binding_combo" ),
 
 	DEFINE_FIELD( m_flActiveUntil, FIELD_TIME ),
 	DEFINE_FIELD( m_hActivator, FIELD_EHANDLE ),
@@ -122,6 +124,10 @@ END_DATADESC()
 #define LOCATOR_ICON_FX_ALPHA_SLOW		0x00000008
 #define LOCATOR_ICON_FX_SHAKE_NARROW	0x00000040
 #define LOCATOR_ICON_FX_STATIC			0x00000100	// This icon draws at a fixed location on the HUD.
+
+#ifdef MAPBASE
+#define LOCATOR_ICON_FX_COMBO_BINDINGS	0x00002000	// Multiple bindings are presented as a combo, rather than alternating
+#endif
 
 #ifdef MAPBASE
 //-----------------------------------------------------------------------------
@@ -193,6 +199,9 @@ void CEnvInstructorHint::InputShowHint( inputdata_t &inputdata )
 		iFlags |= (m_iAlphaOption == 0) ? 0 : (LOCATOR_ICON_FX_ALPHA_SLOW << (m_iAlphaOption - 1));
 		iFlags |= (m_iShakeOption == 0) ? 0 : (LOCATOR_ICON_FX_SHAKE_NARROW << (m_iShakeOption - 1));
 		iFlags |= m_bStatic ? LOCATOR_ICON_FX_STATIC : 0;
+#ifdef MAPBASE
+		iFlags |= m_bBindingCombo ? LOCATOR_ICON_FX_COMBO_BINDINGS : 0;
+#endif
 
 		CBasePlayer *pActivator = NULL;
 		bool bFilterByActivator = m_bLocalPlayerOnly;

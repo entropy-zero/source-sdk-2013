@@ -658,6 +658,25 @@ void CLocatorTarget::SetBinding( const char *pszBinding )
 	}
 #endif
 
+#ifdef MAPBASE
+	while ( pchToken && m_iBindingChoicesCount < MAX_LOCATOR_BINDINGS_SHOWN )
+	{
+		// Get the first parameter
+		int iTokenBindingCount = 0;
+		const char *pchBinding = engine->Key_LookupBindingExact( szToken );
+
+		if ( pchBinding )
+		{
+			m_pchBindingChoices[ m_iBindingChoicesCount ]			= pchBinding;
+			m_iBindChoicesOriginalToken[ m_iBindingChoicesCount ]	= nOriginalToken;
+			++m_iBindingChoicesCount;
+			++iTokenBindingCount;
+		}
+
+		nOriginalToken++;
+		pchToken = nexttoken( szToken, pchToken, ';', sizeof( szToken ) );
+	}
+#else
 	while ( pchToken )
 	{
 		// Get the first parameter
@@ -677,6 +696,7 @@ void CLocatorTarget::SetBinding( const char *pszBinding )
 		nOriginalToken++;
 		pchToken = nexttoken( szToken, pchToken, ';', sizeof( szToken ) );
 	}
+#endif
 
 	m_pulseStart = gpGlobals->curtime;
 }
@@ -1403,7 +1423,11 @@ bool CLocatorPanel::ValidateTargetTextures( CLocatorTarget *pTarget )
 
 	if ( gpGlobals->curtime >= pTarget->m_flNextBindingTick )
 	{
+#ifdef MAPBASE
+		if ( pTarget->m_iBindingChoicesCount > 1 && !(pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS) )
+#else
 		if ( pTarget->m_iBindingChoicesCount > 1 )
+#endif
 		{
 			bBindingTick = true;
 			pTarget->m_iBindingTick++;
@@ -1454,6 +1478,11 @@ bool CLocatorPanel::ValidateTargetTextures( CLocatorTarget *pTarget )
 			}
 		}
 
+#ifdef MAPBASE
+		if (pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS)
+			pTarget->m_iBindingTick = 1;
+#endif
+
 		if ( Q_stricmp( pTarget->GetOffscreenIconTextureName() , "use_binding" ) == 0 )
 		{
 			const char *pchDrawBindingName = pTarget->UseBindingImage( szIconTextureName, sizeof( szIconTextureName ) );
@@ -1486,6 +1515,11 @@ bool CLocatorPanel::ValidateTargetTextures( CLocatorTarget *pTarget )
 		{
 			pTarget->m_pIcon_offscreen = HudIcons().GetIcon( szIconTextureName );
 		}
+
+#ifdef MAPBASE
+		if (pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS)
+			pTarget->m_iBindingTick = 0;
+#endif
 
 		return true;
 	}
@@ -1785,6 +1819,45 @@ void CLocatorPanel::DrawStaticIcon( CLocatorTarget *pTarget )
 		}
 	}
 	int totalWide = iconWide + ICON_GAP + pTarget->m_captionWide;
+	int extraWide = 0;
+
+#ifdef MAPBASE
+	int icon2Wide = 0;
+	int icon2Tall = 0;
+
+	if (pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS && pTarget->m_pIcon_offscreen)
+	{
+		extraWide += vgui::surface()->GetCharacterWidth( m_hKeysFont, '+' );
+
+		// Consider caching this like for onscreen if needed
+		float widthScale_offscreen = static_cast<float>(pTarget->m_pIcon_offscreen->Width()) / pTarget->m_pIcon_offscreen->Height();
+		icon2Wide = iconTall * widthScale_offscreen;
+		icon2Tall = iconTall;
+		AnimateIconSize( pTarget->GetIconEffectsFlags(), &icon2Wide, &icon2Tall, pTarget->m_pulseStart );
+
+		// Shorten whichever icon is larger, so that they both move the same
+		if ( iconTall > icon2Tall )
+		{
+			float iconScale = ((float)icon2Tall / (float)iconTall);
+			iconTall = icon2Tall;
+
+			totalWide -= (iconWide - (iconWide * iconScale));
+			iconWide *= iconScale;
+		}
+		else if ( iconTall < icon2Tall )
+		{
+			float iconScale = ((float)iconTall / (float)icon2Tall);
+			icon2Tall = iconTall;
+
+			totalWide -= (icon2Wide - (icon2Wide * iconScale));
+			icon2Wide *= iconScale;
+		}
+
+		extraWide += icon2Wide;
+		totalWide += extraWide;
+	}
+#endif
+
 	pTarget->m_iconX = centerX - totalWide * 0.5f;
 	pTarget->m_iconY = centerY - ( iconTall >> 1 );
 
@@ -1867,13 +1940,43 @@ void CLocatorPanel::DrawStaticIcon( CLocatorTarget *pTarget )
 		{
 			// Don't draw the icon if we're on 360 and have a binding to draw
 			pTarget->m_pIcon_onscreen->DrawSelf( pTarget->GetIconX(), pTarget->GetIconY(), iconWide, iconTall, Color( 255, 255, 255, pTarget->m_alpha ) );
+
+#ifdef MAPBASE
+			if ( (pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS) && pTarget->m_pIcon_offscreen )
+			{
+				int nX = pTarget->GetIconX();
+				int nY = pTarget->GetIconCenterY() - (vgui::surface()->GetFontTall( m_hKeysFont ) * 0.5f);
+				nX += iconWide;
+				vgui::surface()->DrawSetTextFont( m_hKeysFont );
+				vgui::surface()->DrawSetTextColor( pTarget->m_captionColor.r(), pTarget->m_captionColor.g(), pTarget->m_captionColor.b(), pTarget->m_alpha );
+				vgui::surface()->DrawSetTextPos( nX, nY );
+				vgui::surface()->DrawUnicodeChar( '+' );
+				nX += vgui::surface()->GetCharacterWidth( m_hKeysFont, '+' );
+
+				pTarget->m_pIcon_offscreen->DrawSelf( nX, pTarget->GetIconY(), icon2Wide, icon2Tall, Color( 255, 255, 255, pTarget->m_alpha ) );
+			}
+#endif
 		}
 	}
 
-	DrawTargetCaption( pTarget, pTarget->GetIconX() + iconWide + ICON_GAP, pTarget->GetIconCenterY(), bDrawMultilineCaption );
+	DrawTargetCaption( pTarget, pTarget->GetIconX() + iconWide + extraWide + ICON_GAP, pTarget->GetIconCenterY(), bDrawMultilineCaption );
 	if ( pTarget->DrawBindingName() )
 	{
 		DrawBindingName( pTarget, pTarget->DrawBindingName(), pTarget->GetIconX() + (iconWide>>1), pTarget->GetIconY() + (iconTall>>1), pTarget->m_bDrawControllerButton );
+
+#ifdef MAPBASE
+		if ( (pTarget->GetIconEffectsFlags() & LOCATOR_ICON_FX_COMBO_BINDINGS) && pTarget->m_pIcon_offscreen )
+		{
+			pTarget->m_iBindingTick = 1;
+
+			// Consider caching this like for onscreen if needed
+			char szIconTextureName[256];
+			const char *pchDrawBindingName = pTarget->UseBindingImage( szIconTextureName, sizeof( szIconTextureName ) );
+			DrawBindingName( pTarget, pchDrawBindingName, pTarget->GetIconX() + iconWide + (extraWide - icon2Wide) + (icon2Wide >> 1), pTarget->GetIconY() + (icon2Tall >> 1), pTarget->m_bDrawControllerButton );
+
+			pTarget->m_iBindingTick = 0;
+		}
+#endif
 	}
 
 	// Draw the arrow.
