@@ -13,6 +13,9 @@
 #include <KeyValues.h>
 #include "filesystem.h"
 #include "iinput.h"
+#ifdef EZ2
+#include "ez2/hud_backpackstatus.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -370,6 +373,12 @@ void CBaseHudWeaponSelection::UserCmd_Slot10(void)
 //-----------------------------------------------------------------------------
 bool CBaseHudWeaponSelection::IsHudMenuTakingInput()
 {
+#ifdef EZ2
+	CHudBackpackStatus *pHudBackpack = GET_HUDELEMENT( CHudBackpackStatus );
+	if ( pHudBackpack && pHudBackpack->ShouldTakeMenuInput() )
+		return true;
+#endif
+
 	CHudMenu *pHudMenu = GET_HUDELEMENT( CHudMenu );
 	return ( pHudMenu && pHudMenu->IsMenuOpen() );
 }
@@ -379,6 +388,15 @@ bool CBaseHudWeaponSelection::IsHudMenuTakingInput()
 //-----------------------------------------------------------------------------
 bool CBaseHudWeaponSelection::HandleHudMenuInput( int iSlot )
 {
+#ifdef EZ2
+	CHudBackpackStatus *pHudBackpack = GET_HUDELEMENT( CHudBackpackStatus );
+	if ( pHudBackpack && pHudBackpack->ShouldTakeMenuInput() )
+	{
+		pHudBackpack->SelectMenuItem( iSlot );
+		return true;
+	}
+#endif
+
 	CHudMenu *pHudMenu = GET_HUDELEMENT( CHudMenu );
 	if ( !pHudMenu || !pHudMenu->IsMenuOpen() )
 		return false;

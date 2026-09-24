@@ -60,6 +60,12 @@ BEGIN_RECV_TABLE_NOBASE( C_EZ2_Player, DT_EZ2LocalPlayerMalfuncData )
 	RecvPropFloat( RECVINFO( m_flMalfuncAmt ) ),
 END_RECV_TABLE();
 
+BEGIN_RECV_TABLE_NOBASE( C_EZ2_Player, DT_EZ2LocalPlayerBackpackData )
+	//RecvPropArray3( RECVINFO_ARRAY( m_hBackpackItems ), RecvPropEHandle( RECVINFO( m_hBackpackItems[0] ) ) ),
+	RecvPropArray3( RECVINFO_ARRAY( m_BackpackIconClrs ), RecvPropInt( RECVINFO( m_BackpackIconClrs[0] ) ) ),
+	RecvPropInt( RECVINFO( m_iBackpackBits ) ),
+END_RECV_TABLE();
+
 IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropBool( RECVINFO( m_bUseNVG ) ),
 	RecvPropBool( RECVINFO( m_bIsAssassin ) ),
@@ -68,6 +74,8 @@ IMPLEMENT_CLIENTCLASS_DT( C_EZ2_Player, DT_EZ2_Player, CEZ2_Player )
 	RecvPropFloat( RECVINFO( m_flCloakFactor ) ),
 	RecvPropDataTable( "ez2_localcloak", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerCloakData ) ),
 	RecvPropDataTable( "ez2_localmalfunc", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerMalfuncData ) ),
+	RecvPropDataTable( "ez2_localbackpack", 0, 0, &REFERENCE_RECV_TABLE( DT_EZ2LocalPlayerBackpackData ) ),
+	RecvPropBool( RECVINFO( m_bCarryingObject ) ),
 END_RECV_TABLE()
 
 BEGIN_PREDICTION_DATA( C_EZ2_Player )

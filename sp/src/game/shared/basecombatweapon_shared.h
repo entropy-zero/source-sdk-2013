@@ -254,10 +254,17 @@ public:
 	virtual bool			ShouldDisplayAltFireHUDHint();
 	virtual void			DisplayAltFireHudHint();	
 	virtual void			RescindAltFireHudHint(); ///< undisplay the hud hint and pretend it never showed.
+#ifdef EZ2
+	virtual void			GetAltFireHudHintText( char *szOut, size_t nOutSize ); // Allows derived classes to override alt-fire hint text
+	inline bool				IsDisplayingAltFireHudHint() const { return (m_bAltFireHudHintDisplayed && gpGlobals->curtime < m_flHudHintMinDisplayTime); }
+#endif
 
 	virtual bool			ShouldDisplayReloadHUDHint();
 	virtual void			DisplayReloadHudHint();
 	virtual void			RescindReloadHudHint();
+#ifdef EZ2
+	inline bool				IsDisplayingReloadHudHint() const { return (m_bReloadHudHintDisplayed && gpGlobals->curtime < m_flHudHintMinDisplayTime); }
+#endif
 
 	// Weapon client handling
 	virtual void			SetViewModelIndex( int index = 0 );

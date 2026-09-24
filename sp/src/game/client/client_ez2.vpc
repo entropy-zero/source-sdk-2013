@@ -56,6 +56,9 @@ $Project "Client (Entropy Zero 2)"
 			$File	"ez2\hud_stealth_cloak.cpp"
 			$File	"ez2\hud_stealth_cloak.h"
 			$File	"$SRCDIR\game\shared\ez2\ai_stealth_shared.h"
+			$File	"$SRCDIR\game\shared\ez2\ez2_player_backpack_shared.h"
+			$File	"ez2\hud_backpackstatus.cpp"
+			$File	"ez2\hud_backpackstatus.h"
 			$File	"ezu\hud_healthvialstatus.cpp"
 
 			$File	"workshop_publish.cpp" [!$NO_STEAM]

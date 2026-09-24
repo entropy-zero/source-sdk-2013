@@ -344,6 +344,11 @@ public:
 	COutputEvent m_OnPlayerSpawn;
 #endif
 
+#ifdef EZ2
+	COutputEvent m_OnBackpackStoreItem;
+	COutputEvent m_OnBackpackDeployItem;
+#endif
+
 	void InputRequestPlayerHealth( inputdata_t &inputdata );
 	void InputSetFlashlightSlowDrain( inputdata_t &inputdata );
 	void InputSetFlashlightNormalDrain( inputdata_t &inputdata );
@@ -6103,6 +6108,10 @@ BEGIN_DATADESC( CLogicPlayerProxy )
 	DEFINE_OUTPUT( m_RequestedPlayerAuxPower, "PlayerAuxPower" ),
 	DEFINE_OUTPUT( m_RequestedPlayerFlashBattery, "PlayerFlashBattery" ),
 	DEFINE_OUTPUT( m_OnPlayerSpawn, "OnPlayerSpawn" ),
+#endif
+#ifdef EZ2
+	DEFINE_OUTPUT( m_OnBackpackStoreItem, "OnBackpackStoreItem" ),
+	DEFINE_OUTPUT( m_OnBackpackDeployItem, "OnBackpackDeployItem" ),
 #endif
 	DEFINE_INPUTFUNC( FIELD_VOID,	"RequestPlayerHealth",	InputRequestPlayerHealth ),
 	DEFINE_INPUTFUNC( FIELD_VOID,	"SetFlashlightSlowDrain",	InputSetFlashlightSlowDrain ),

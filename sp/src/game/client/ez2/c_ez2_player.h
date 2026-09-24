@@ -7,6 +7,7 @@
 #include "c_basehlplayer.h"
 #include "colorcorrectionmgr.h"
 #include "ez2/ai_stealth_shared.h"
+#include "ez2/ez2_player_backpack_shared.h"
 
 class C_PointDetonatable : public C_BaseEntity
 {
@@ -75,6 +76,12 @@ public:
 	CUtlVector<EnemyMarkData_t>	m_MarkedEnemies;
 	CUtlVector<CGlowObject*>	m_pEnemyGlowEffects;
 	float						m_flNextMarkSightTime;
+	
+	int			m_BackpackIconClrs[MAX_BACKPACK_ITEMS];
+	int			m_iBackpackBits;
+	bool		m_bHasBackpackItems;
+
+	bool		m_bCarryingObject;
 
 	inline float	GetCloakFactor() const { return m_flCloakFactor; }
 	inline float	GetCloakCompromiseTime() const { return m_flCloakCompromiseTime; }

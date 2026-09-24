@@ -3226,7 +3226,32 @@ bool CInteractableProp::PassesInteractFilter( CBaseEntity *pOther )
 {
 	if ( m_hInteractFilter )
 	{
+#ifdef EZ2
+		if ( !m_hInteractFilter->PassesFilter( this, pOther ) )
+		{
+			if ( pOther->IsPlayer() )
+			{
+				// If this is a player, see if they're carrying something which does pass
+				CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pOther);
+				for ( int i = 0; i < pEZ2Player->GetMaxBackpackItems(); i++ )
+				{
+					CBaseEntity *pItem = pEZ2Player->GetBackpackItem( i );
+					if ( pItem && m_hInteractFilter->PassesFilter( this, pItem ) )
+					{
+						// Ping the item to indicate it was used
+						// (note: assumes this call to PassesInteractFilter will be used immediately)
+						pEZ2Player->BackpackPingEffect( i );
+
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		return true;
+#else
 		return m_hInteractFilter->PassesFilter( this, pOther );
+#endif
 	}
 
 	return true;

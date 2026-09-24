@@ -44,6 +44,7 @@
 
 #ifdef EZ2
 #include "npc_turret_floor.h"
+#include "ez2/ez2_player.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -469,6 +470,23 @@ bool CBaseTrigger::PassesTriggerFilters(CBaseEntity *pOther)
 				if ( pPlayer->IsFakeClient() )
 					return false;
 			}
+
+#ifdef EZ2
+			// Special backpack functionality: Since stored items can't touch triggers,
+			// you can set a trigger to check for clients while the filter itself checks
+			// for the item.
+			// To function, the filter must not pass the client, but it can pass one of the player's items.
+			if ( m_hFilter && !m_hFilter->PassesFilter( this, pOther ) )
+			{
+				CEZ2_Player *pEZ2Player = static_cast<CEZ2_Player *>(pOther);
+				for ( int i = 0; i < pEZ2Player->GetMaxBackpackItems(); i++ )
+				{
+					CBaseEntity *pItem = pEZ2Player->GetBackpackItem( i );
+					if ( pItem && m_hFilter->PassesFilter( this, pItem ) )
+						return true;
+				}
+			}
+#endif
 		}
 
 		CBaseFilter *pFilter = m_hFilter.Get();

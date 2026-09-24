@@ -19,6 +19,7 @@
 #include "ai_concept_response.h"
 #include "GameEventListener.h"
 #include "ez2/ai_stealth_shared.h"
+#include "ez2/ez2_player_backpack_shared.h"
 
 class CAI_PlayerNPCDummy;
 class CEZ2_Player;
@@ -165,6 +166,7 @@ public:
 
 	// Override impulse commands for new detonation command
 	virtual void		CheatImpulseCommands( int iImpulse );
+	virtual void		PlayerRunCommand( CUserCmd *ucmd, IMoveHelper *moveHelper );
 	virtual void		DetonateExplosives();
 	virtual void		UseHealthVial();
 
@@ -288,6 +290,33 @@ public:
 
 	void				InputSetMalfunctionAmt( inputdata_t &inputdata );
 
+	// Backpack
+	bool				IsBackpackEnabled() const;
+	void				SetBackpackEnabled( bool bEnabled );
+	bool				IsItemInBackpack( CBaseEntity *pItem ) const;
+	CBaseEntity*		GetBackpackItem( int nIdx );
+	int					GetMaxBackpackItems() const;
+	bool				CanStoreItemInBackpack( CBaseEntity *pItem, bool *pbFull = NULL );
+	bool				ShouldHintBackpackStore( CBaseEntity *pItem );
+	bool				ShouldHintBackpackDeploy( int &nSlot );
+	void				GetBackpackDataForItem( CBaseEntity *pItem, unsigned char &icon, byte &r, byte &g, byte &b );
+	void				GetBackpackPos( CBaseEntity *pItem, Vector &vecOutPos );
+	void				StoreItemInBackpack( CBaseEntity *pItem, int nIdx = -1, bool bInstant = false );
+	bool				RemoveItemFromBackpack( CBaseEntity *pItem, bool bPickup = true, bool bDelete = false, bool bLost = false, bool bConsumed = false );
+	bool				RemoveItemFromBackpack( int nIdx, bool bPickup = true, bool bDelete = false, bool bLost = false, bool bConsumed = false );
+	bool				TryConsumeBackpackItem( CBaseEntity *pItem );
+	void				BackpackPingEffect( int nSlot = -1 );
+	void				BackpackDenyEffect( int nSlot = -1 );
+	void				BackpackItemFadeThink();
+	bool				ScriptIsItemInBackpack( HSCRIPT hItem ) { return IsItemInBackpack( ToEnt( hItem ) ); }
+	HSCRIPT				ScriptGetBackpackItem( int nIdx ) { return ToHScript( GetBackpackItem( nIdx ) ); }
+
+	void				InputAddBackpackItem( inputdata_t &inputdata );
+	void				InputAddBackpackItemInstant( inputdata_t &inputdata );
+	void				InputRemoveBackpackItem( inputdata_t &inputdata );
+	void				InputDeleteBackpackItem( inputdata_t &inputdata );
+	void				InputClearBackpack( inputdata_t &inputdata );
+
 	CAI_PlayerNPCDummy	*GetNPCComponent() { return m_hNPCComponent.Get(); }
 	void				CreateNPCComponent();
 	void				RemoveNPCComponent();
@@ -388,6 +417,22 @@ private:
 
 	// Stealth system
 	float			m_flTimeEnteredStealthArea;
+
+	// Backpack
+	bool			m_bBackpackEnabled;
+	//CNetworkArray( EHANDLE,	m_hBackpackItems, MAX_BACKPACK_ITEMS );
+	EHANDLE			m_hBackpackItems[MAX_BACKPACK_ITEMS];
+	CNetworkArray( int,		m_BackpackIconClrs, MAX_BACKPACK_ITEMS );
+	CNetworkVar( int, m_iBackpackBits ); // Bit mask for each slot. Easier to network and gets around entities being nodraw on restore
+	EHANDLE			m_hLastBackpackItem;
+	bool			m_bPressedBackpackButton;
+	bool			m_bDebounceBackpackKey;		// Stop use from being held down if we're doing backpack stuff
+	float			m_flNextBackpackHintTime;
+	EHANDLE			m_hBackpackHintTarget;
+
+	// For general use, since this cannot be determined consistently on the client.
+	// TODO: Consider sending ent handle instead of bool
+	CNetworkVar( bool, m_bCarryingObject );
 
 	CHandle<CAI_PlayerNPCDummy> m_hNPCComponent;
 	float			m_flNextSpeechTime;

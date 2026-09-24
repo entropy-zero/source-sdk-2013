@@ -94,6 +94,16 @@ BEGIN_DATADESC(CEZ2_Player)
 
 	DEFINE_FIELD( m_flTimeEnteredStealthArea, FIELD_TIME ),
 
+	DEFINE_FIELD( m_bBackpackEnabled, FIELD_BOOLEAN ),
+	DEFINE_ARRAY( m_hBackpackItems, FIELD_EHANDLE, MAX_BACKPACK_ITEMS ),
+	DEFINE_ARRAY( m_BackpackIconClrs, FIELD_INTEGER, MAX_BACKPACK_ITEMS ),
+	DEFINE_FIELD( m_iBackpackBits, FIELD_INTEGER ),
+	DEFINE_FIELD( m_hLastBackpackItem, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_bPressedBackpackButton, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_bDebounceBackpackKey, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_flNextBackpackHintTime, FIELD_TIME ),
+	DEFINE_FIELD( m_hBackpackHintTarget, FIELD_EHANDLE ),
+
 	DEFINE_FIELD(m_hNPCComponent, FIELD_EHANDLE),
 	DEFINE_FIELD(m_flNextSpeechTime, FIELD_TIME),
 	DEFINE_FIELD(m_hSpeechFilter, FIELD_EHANDLE),
@@ -123,6 +133,12 @@ BEGIN_DATADESC(CEZ2_Player)
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableDualWield", InputDisableDualWield ),
 
 	DEFINE_INPUTFUNC( FIELD_VECTOR, "SetMalfunctionAmt", InputSetMalfunctionAmt ),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "AddBackpackItem", InputAddBackpackItem ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "AddBackpackItemInstant", InputAddBackpackItemInstant ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "RemoveBackpackItem", InputRemoveBackpackItem ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "DeleteBackpackItem", InputDeleteBackpackItem ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "ClearBackpack", InputClearBackpack ),
 END_DATADESC()
 
 BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
@@ -142,6 +158,12 @@ BEGIN_ENT_SCRIPTDESC( CEZ2_Player, CHL2_Player, "E:Z2's player entity." )
 	DEFINE_SCRIPTFUNC( GetMalfunctionAmt, "Gets the malfunction amount." )
 	DEFINE_SCRIPTFUNC( SetMalfunctionAmt, "Sets the malfunction amount with the specified transition time." )
 
+	DEFINE_SCRIPTFUNC( IsBackpackEnabled, "" )
+	DEFINE_SCRIPTFUNC( SetBackpackEnabled, "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptIsItemInBackpack, "IsItemInBackpack", "" )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptGetBackpackItem, "GetBackpackItem", "" )
+	DEFINE_SCRIPTFUNC( GetMaxBackpackItems, "" )
+
 	DEFINE_SCRIPTFUNC( IsInAScript, "Returns true if the player is in a script." )
 
 	DEFINE_SCRIPTFUNC( HasCheated, "Returns true if the player has had cheats on during this map." )
@@ -153,6 +175,7 @@ END_SCRIPTDESC();
 
 void *SendProxy_SendEZ2LocalPlayerCloakDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
 void *SendProxy_SendEZ2LocalPlayerMalfuncDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
+void *SendProxy_SendEZ2LocalPlayerBackpackDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
 
 BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerCloakData )
 	// Only sent when the player supports cloaking
@@ -171,6 +194,13 @@ BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerMalfuncData )
 	SendPropFloat( SENDINFO( m_flMalfuncAmt ) ),
 END_SEND_TABLE();
 
+BEGIN_SEND_TABLE_NOBASE( CEZ2_Player, DT_EZ2LocalPlayerBackpackData )
+	// Only sent when the local player is using backpack
+	//SendPropArray3( SENDINFO_ARRAY3( m_hBackpackItems ), SendPropEHandle( SENDINFO_ARRAY(m_hBackpackItems) ) ),
+	SendPropArray3( SENDINFO_ARRAY3( m_BackpackIconClrs ), SendPropInt( SENDINFO_ARRAY( m_BackpackIconClrs ), 32, SPROP_UNSIGNED ) ), // 24 bits for clr, 8 bits for icon
+	SendPropInt( SENDINFO( m_iBackpackBits ), 4, SPROP_UNSIGNED ),
+END_SEND_TABLE();
+
 IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropBool( SENDINFO( m_bUseNVG ) ),
 	SendPropBool( SENDINFO( m_bIsAssassin ) ),
@@ -179,6 +209,8 @@ IMPLEMENT_SERVERCLASS_ST(CEZ2_Player, DT_EZ2_Player)
 	SendPropFloat( SENDINFO( m_flCloakFactor ) ), // Always sent because not just the local player would care about this
 	SendPropDataTable( "ez2_localcloak", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerCloakData), SendProxy_SendEZ2LocalPlayerCloakDataTable ),
 	SendPropDataTable( "ez2_localmalfunc", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerMalfuncData), SendProxy_SendEZ2LocalPlayerMalfuncDataTable ),
+	SendPropDataTable( "ez2_localbackpack", 0, &REFERENCE_SEND_TABLE(DT_EZ2LocalPlayerBackpackData), SendProxy_SendEZ2LocalPlayerBackpackDataTable ),
+	SendPropBool( SENDINFO( m_bCarryingObject ) ),
 END_SEND_TABLE()
 
 /*
@@ -241,6 +273,21 @@ void *SendProxy_SendEZ2LocalPlayerMalfuncDataTable( const SendProp *pProp, const
 	return NULL;
 }
 REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerMalfuncDataTable );
+
+void *SendProxy_SendEZ2LocalPlayerBackpackDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID )
+{	
+	CEZ2_Player *pEZ2Player = ( CEZ2_Player * )pStruct;
+	if ( pEZ2Player != NULL)
+	{
+		if ( pEZ2Player->IsBackpackEnabled() )
+		{
+			pRecipients->SetOnly( pEZ2Player->entindex() - 1 );
+			return (void *)pVarData;
+		}
+	}
+	return NULL;
+}
+REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendEZ2LocalPlayerBackpackDataTable );
 
 //-----------------------------------------------------------------------------
 
@@ -446,6 +493,63 @@ void CEZ2_Player::PostThink(void)
 		m_flMalfuncAmt = RemapValClamped( gpGlobals->curtime, m_flMalfuncStartTime, m_flMalfuncEndTime, m_flMalfuncStartAmt, m_flMalfuncEndAmt );
 	}
 
+	if ( GetUseEntity() && GetUseEntity()->ClassMatches( "player_pickup" ) )
+		m_bCarryingObject = true;
+	else
+		m_bCarryingObject = false;
+
+	// Backpack
+	if ( IsBackpackEnabled() )
+	{
+		if ( m_hLastBackpackItem && m_hLastBackpackItem->GetMoveType() == MOVETYPE_NOCLIP )
+		{
+			BackpackItemFadeThink();
+		}
+
+		if ( m_flNextBackpackHintTime < gpGlobals->curtime )
+		{
+			// See if we should put out a hint
+			CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+			if ( pWeapon && ( pWeapon->IsDisplayingAltFireHudHint() || pWeapon->IsDisplayingReloadHudHint() ) )
+			{
+				// Not right now, weapon is doing its thing
+				m_flNextBackpackHintTime = gpGlobals->curtime + 5.0f;
+			}
+			else
+			{
+				CBaseEntity *pHeldEntity = GetPlayerHeldEntity( this );
+				int nSlot = 0;
+				if ( pHeldEntity && ShouldHintBackpackStore( pHeldEntity ) )
+				{
+					UTIL_HudHintText( this, "#Progenitor_HudHint_BackpackStore" );
+					m_flNextBackpackHintTime = gpGlobals->curtime + BACKPACK_HINT_COOLDOWN;
+					m_hBackpackHintTarget = pHeldEntity;
+				}
+				else if ( ShouldHintBackpackDeploy( nSlot ) )
+				{
+					CFmtStr hint;
+					hint.sprintf( "#Progenitor_HudHint_BackpackDeploy%i", nSlot + 1 );
+					UTIL_HudHintText( this, hint );
+					m_flNextBackpackHintTime = gpGlobals->curtime + BACKPACK_HINT_COOLDOWN;
+					m_hBackpackHintTarget = m_hBackpackItems[nSlot];
+				}
+				else
+					m_flNextBackpackHintTime = gpGlobals->curtime + 5.0f;
+			}
+		}
+		else if ( m_flNextBackpackHintTime - gpGlobals->curtime > ( BACKPACK_HINT_COOLDOWN - 7.0f ) )
+		{
+			if ( !m_bCarryingObject )
+			{
+				// We're not carrying anything anymore. Was it the reason we were displaying the hint?
+				if ( !m_hBackpackHintTarget || !IsItemInBackpack( m_hBackpackHintTarget ) )
+				{
+					UTIL_HudHintText( this, "" );
+				}
+			}
+		}
+	}
+
 	if (GetBonusChallenge() != EZ_CHALLENGE_NONE && !m_bMaskInterrupt && gpGlobals->curtime > 2.5f)
 	{
 		// Abort the challenge if we're cheating
@@ -474,6 +578,11 @@ void CEZ2_Player::Precache( void )
 	// Health Vial Backpack
 	PrecacheScriptSound("HealthVial.BackpackConsume");
 	PrecacheScriptSound("HealthVial.BackpackDeny");
+
+	// Generic Backpack
+	PrecacheScriptSound("EZ2Player.BackpackPickup");
+	PrecacheScriptSound("EZ2Player.BackpackDeploy");
+	PrecacheScriptSound("EZ2Player.BackpackDeny");
 
 	if (GetBonusChallenge() == EZ_CHALLENGE_MASS || sv_bonus_challenge.GetInt() == EZ_CHALLENGE_MASS)
 	{
@@ -1105,6 +1214,100 @@ void CEZ2_Player::CheatImpulseCommands( int iImpulse )
 	}
 }
 
+void CEZ2_Player::PlayerRunCommand( CUserCmd *ucmd, IMoveHelper *moveHelper )
+{
+	if ( ucmd->buttons & IN_BACKPACK && IsBackpackEnabled() )
+	{
+		if (ucmd->buttons & IN_USE) // IN_ATTACK2
+		{
+			if ( !m_bPressedBackpackButton )
+			{
+				CBaseEntity *pItem = GetPlayerHeldEntity( this );
+				if ( pItem )
+				{
+					bool bFull = false;
+					if ( CanStoreItemInBackpack( pItem, &bFull ) )
+					{
+						StoreItemInBackpack( pItem );
+						EmitSound( "EZ2Player.BackpackPickup" );
+					}
+					else
+					{
+						EmitSound( "EZ2Player.BackpackDeny" );
+
+						if ( bFull )
+						{
+							BackpackDenyEffect();
+
+							// Tell the player, if possible
+							// Use a static bool for now since this is a simple one-time thing
+							static bool bShownBackpackExcessHint = false;
+
+							if ( !bShownBackpackExcessHint )
+							{
+								CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+								if ( pWeapon )
+								{
+									// Rescind weapon hints
+									if( pWeapon->IsDisplayingAltFireHudHint() )
+										pWeapon->RescindAltFireHudHint();
+
+									if( pWeapon->IsDisplayingReloadHudHint() )
+										pWeapon->RescindReloadHudHint();
+								}
+
+								UTIL_HudHintText( this, "#Progenitor_HudHint_BackpackRemoveExcess" );
+								m_flNextBackpackHintTime = gpGlobals->curtime + BACKPACK_HINT_COOLDOWN;
+								m_hBackpackHintTarget = pItem;
+								bShownBackpackExcessHint = true;
+							}
+						}
+					}
+				}
+				else if ( m_hLastBackpackItem && IsItemInBackpack( m_hLastBackpackItem ) )
+				{
+					// Remove last item
+					if ( !RemoveItemFromBackpack( m_hLastBackpackItem ) )
+						EmitSound( "EZ2Player.BackpackDeny" );
+					else
+						m_bDebounceBackpackKey = true;
+				}
+				else
+				{
+					// Remove first item
+					for ( int i = 0; i < GetMaxBackpackItems(); i++ )
+					{
+						if ( m_hBackpackItems[i] )
+						{
+							if ( !RemoveItemFromBackpack( m_hBackpackItems[i] ) )
+								EmitSound( "EZ2Player.BackpackDeny" );
+							else
+								m_bDebounceBackpackKey = true;
+							break;
+						}
+					}
+				}
+
+				m_bPressedBackpackButton = true;
+			}
+
+			ucmd->buttons &= ~(IN_USE);
+		}
+		else if (m_bPressedBackpackButton)
+			m_bPressedBackpackButton = false;
+	}
+	else if ( m_bDebounceBackpackKey )
+	{
+		// Suppress USE until we let go of it
+		if ( ucmd->buttons & IN_USE )
+			ucmd->buttons &= ~(IN_USE);
+		else
+			m_bDebounceBackpackKey = false;
+	}
+
+	BaseClass::PlayerRunCommand( ucmd, moveHelper );
+}
+
 void CEZ2_Player::DetonateExplosives()
 {
 	DevMsg( "Player attempting to detonate explosives...\n" );
@@ -1147,10 +1350,56 @@ void CEZ2_Player::DetonateExplosives()
 extern ConVar sk_healthvial;
 extern ConVar sk_healthvial_backpack;
 
+static int ConsumableItemSortFunc( CBaseEntity * const *pLeft, CBaseEntity * const *pRight )
+{
+	// Prioritize health items first
+	// TODO: If we allow for more than just health vials, account for amount
+	if ( V_strncmp( STRING( (*pLeft)->m_iClassname ), "item_health", 11 ) == 0 )
+		return -1;
+	if ( V_strncmp( STRING( (*pRight)->m_iClassname ), "item_health", 11 ) == 0 )
+		return 1;
+
+	return 0;
+}
+
 void CEZ2_Player::UseHealthVial()
 {
 	DevMsg("Player attempting to use health vial...\n");
 
+	if ( IsBackpackEnabled() )
+	{
+		// Put all health or armor items into a list
+		CUtlVector<CBaseEntity*> vecConsumableItems;
+		int i = 0;
+		for ( ; i < GetMaxBackpackItems(); i++ )
+		{
+			if ( m_hBackpackItems[i] )
+			{
+				if ( m_hBackpackItems[i]->ClassMatches( "item_health*" ) || m_hBackpackItems[i]->ClassMatches( "item_battery*" ) )
+				{
+					vecConsumableItems.AddToTail( m_hBackpackItems[i] );
+				}
+			}
+		}
+
+		// Sort the list by the most desirable items
+		vecConsumableItems.Sort( ConsumableItemSortFunc );
+
+		// Then consume the first one that we can
+		FOR_EACH_VEC( vecConsumableItems, i )
+		{
+			if ( TryConsumeBackpackItem( vecConsumableItems[i] ) )
+			{
+				RemoveItemFromBackpack( vecConsumableItems[i], false, true, false, true );
+				return;
+			}
+		}
+
+		EmitSound( "HealthVial.BackpackDeny" );
+
+		// Health vial backpack and regular backpack do not coexist
+		return;
+	}
 
 	if (sk_healthvial_backpack.GetBool() == false)
 	{
@@ -1259,6 +1508,17 @@ int CEZ2_Player::TakeHealth( float flHealth, int bitsDamageType )
 	modifiers.AppendCriteria( "damage_type", UTIL_VarArgs( "%i", bitsDamageType ) );
 
 	SpeakIfAllowed( TLK_HEAL, modifiers );
+
+	if ( m_flNextBackpackHintTime - gpGlobals->curtime > ( BACKPACK_HINT_COOLDOWN - 7.0f ) )
+	{
+		// Was this the reason we were displaying the hint?
+		CBaseEntity *pHeldEntity = GetPlayerHeldEntity( this );
+		int nSlot = 0;
+		if ( ( pHeldEntity && !ShouldHintBackpackStore( pHeldEntity ) ) || !ShouldHintBackpackDeploy( nSlot ) )
+		{
+			UTIL_HudHintText( this, "" );
+		}
+	}
 
 	return returnValue;
 }

@@ -1068,9 +1068,15 @@ bool CBaseCombatWeapon::ShouldDisplayAltFireHUDHint()
 void CBaseCombatWeapon::DisplayAltFireHudHint()
 {
 #if !defined( CLIENT_DLL )
+#ifdef EZ2
+	char hint[128];
+	GetAltFireHudHintText( hint, sizeof( hint ) );
+	UTIL_HudHintText( GetOwner(), hint );
+#else
 	CFmtStr hint;
 	hint.sprintf( "#valve_hint_alt_%s", GetClassname() );
 	UTIL_HudHintText( GetOwner(), hint.Access() );
+#endif
 	m_iAltFireHudHintCount++;
 	m_bAltFireHudHintDisplayed = true;
 	m_flHudHintMinDisplayTime = gpGlobals->curtime + MIN_HUDHINT_DISPLAY_TIME;
@@ -1089,6 +1095,17 @@ void CBaseCombatWeapon::RescindAltFireHudHint()
 	m_bAltFireHudHintDisplayed = false;
 #endif//CLIENT_DLL
 }
+
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CBaseCombatWeapon::GetAltFireHudHintText( char *szOut, size_t nOutSize )
+{
+#if !defined( CLIENT_DLL )
+	V_snprintf( szOut, nOutSize, "#valve_hint_alt_%s", GetClassname() );
+#endif//CLIENT_DLL
+}
+#endif
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------

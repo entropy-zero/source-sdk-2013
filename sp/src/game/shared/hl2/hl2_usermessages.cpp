@@ -58,6 +58,10 @@ void RegisterUserMessages( void )
 	usermessages->Register( "AlertTargetEntersCombat", 3 );
 	usermessages->Register( "EnemyMarkUpdate", 10 );
 	usermessages->Register( "CloakExcludeFromCC", 2 );
+	usermessages->Register( "BackpackItemAdded", 1 );
+	usermessages->Register( "BackpackItemRemoved", 2 );
+	usermessages->Register( "BackpackItemDeny", 1 );
+	usermessages->Register( "BackpackItemPing", 1 );
 #endif
 
 #ifdef EZ
