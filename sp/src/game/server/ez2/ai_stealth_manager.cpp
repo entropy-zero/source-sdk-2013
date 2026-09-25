@@ -9,6 +9,7 @@
 #include "cbase.h"
 
 #include "ai_stealth_manager.h"
+#include "ai_stealth_lighting.h"
 #include "ai_stealth_senses.h"
 #include "ai_stealth_area.h"
 #include "ai_stealth_obj.h"
@@ -541,6 +542,9 @@ void CAI_StealthManager::CheckStealthManagerState()
 		else
 		{
 			g_hStealthManager = this;
+
+			if ( !g_StealthLightingSystem.IsInitialized() )
+				g_StealthLightingSystem.InitLights();
 		}
 
 		SetContextThink( &CAI_StealthManager::StealthManagerThink, gpGlobals->curtime, "StealthManagerThink" );
@@ -560,6 +564,9 @@ void CAI_StealthManager::Cleanup()
 		UTIL_Remove( m_hStealthPointObjs[i] );
 		m_hStealthPointObjs.Remove( i );
 	}
+
+	if ( g_StealthLightingSystem.IsInitialized() )
+		g_StealthLightingSystem.ClearEntityCache();
 }
 
 //-----------------------------------------------------------------------------

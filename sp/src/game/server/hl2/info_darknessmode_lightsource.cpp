@@ -7,6 +7,9 @@
 #include "cbase.h"
 #include "info_darknessmode_lightsource.h"
 #include "ai_debug_shared.h"
+#ifdef EZ2
+#include "ez2/ai_stealth_lighting.h"
+#endif
 
 void CV_Debug_Darkness( IConVar *var, const char *pOldString, float flOldValue );
 ConVar g_debug_darkness( "g_debug_darkness", "0", FCVAR_NONE, "Show darkness mode lightsources.", CV_Debug_Darkness );
@@ -25,6 +28,7 @@ public:
 	}
 
 	void LevelInitPreEntity();
+	void LevelShutdownPostEntity();
 
 	void AddLightSource( CInfoDarknessLightSource *pEntity, float flRadius );
 	void RemoveLightSource( CInfoDarknessLightSource *pEntity );
@@ -163,6 +167,18 @@ void CDarknessLightSourcesSystem::LevelInitPreEntity()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CDarknessLightSourcesSystem::LevelShutdownPostEntity()
+{
+#ifdef EZ2
+	// Handle this here instead of having to add a whole new game system
+	if ( g_StealthLightingSystem.IsInitialized() )
+		g_StealthLightingSystem.Clear();
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CDarknessLightSourcesSystem::AddLightSource( CInfoDarknessLightSource *pEntity, float flRadius )
 {
 	lightsource_t sNewSource;
@@ -191,7 +207,18 @@ void CDarknessLightSourcesSystem::RemoveLightSource( CInfoDarknessLightSource *p
 bool CDarknessLightSourcesSystem::IsEntityVisibleToTarget( CBaseEntity *pLooker, CBaseEntity *pTarget )
 {
 	if ( pTarget->IsEffectActive( EF_BRIGHTLIGHT ) || pTarget->IsEffectActive( EF_DIMLIGHT ) )
+	{
+#ifdef EZ2
+		// Funny situation: EF_DIMLIGHT is assigned to players when they turn on their flashlights.
+		// This makes sense. Someone using a flashlight should be visible in the dark.
+		// But in E:Z2, the player has night vision instead of a flashlight. So in E:Z2, this is
+		// actually unexpected and inconvenient.
+		// We still return true if this isn't using the E:Z2 stealth system, or if the target isn't
+		// a player. Maybe we could later on add a check for whether the flashlight is re-enabled.
+		if ( !pTarget->IsPlayer() || !g_hStealthManager )
+#endif
 		return true;
+	}
 
 	bool bDebug = g_debug_darkness.GetBool();
 	if ( bDebug && pLooker )

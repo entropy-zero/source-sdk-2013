@@ -172,7 +172,7 @@ public:
 	virtual float	GetDotToSee( int eNPCState );
 
 	virtual bool	ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea );
-	bool	ShouldSeeInDark( CBaseEntity *pEntity );
+	virtual float	ShouldSeeInDark( CBaseEntity *pEntity );
 	bool	ShouldSeeInWater( CBaseEntity *pEntity, int nWaterLevel );
 
 	virtual bool	ShouldInvestigateSounds();

@@ -10,6 +10,7 @@
 
 #include "ai_stealth_senses.h"
 #include "ai_stealth_manager.h"
+#include "ai_stealth_lighting.h"
 #include "ai_stealth_area.h"
 #include "ai_stealth_utils.h"
 #include "ai_basenpc.h"
@@ -772,7 +773,30 @@ void CAI_StealthSenses::ModifyOrAppendCriteria( AI_CriteriaSet &set )
 bool CAI_StealthSenses::ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthArea *pArea )
 {
 	if ( pArea->IsHiddenTo( GetOuter() ) )
-		return ShouldSeeInDark( pEntity );
+	{
+		if ( ShouldSeeInDark( pEntity ) )
+			return true;
+
+		NPC_STATE eNPCState = GetOuter()->GetState();
+		if (eNPCState == NPC_STATE_IDLE)
+		{
+			return false;
+		}
+		//else if (state == NPC_STATE_ALERT)
+		//{
+		//	local flDist = (self.EyePosition() - enemy.EyePosition()).Length()
+		//	if (flDist > AI_SIGHT_DARKNESS_MAX_DIST_ALERT)
+		//		return false;
+		//}
+		else if (eNPCState == NPC_STATE_COMBAT)
+		{
+			// If this isn't our enemy, don't pay attention
+			if ( pEntity != GetEnemy() )
+				return false;
+		}
+
+		return true;
+	}
 
 	return true;
 }
@@ -780,40 +804,34 @@ bool CAI_StealthSenses::ShouldSeeInArea( CBaseEntity *pEntity, CTriggerStealthAr
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_StealthSenses::ShouldSeeInDark( CBaseEntity *pEntity )
+float CAI_StealthSenses::ShouldSeeInDark( CBaseEntity *pEntity )
 {
 	// If the player just used their guns, then see them
 	if (pEntity->IsPlayer() && ToBasePlayer( pEntity )->GetTimeSinceWeaponFired() <= 0.5f)
-		return true;
+		return 1.0f;
 
-	// Check if we hear a sound near this entity
-	CSound *pSound = GetOuter()->GetBestSound( ALL_SOUNDS );
-	if (pSound)
+	// TODO: Do we have a flashlight of some kind?
+	/*if ( GetOuter()->GetEffects() & EF_DIMLIGHT )
 	{
-		float flSoundDistToEntitySqr = (pEntity->EyePosition() - pSound->GetSoundOrigin()).LengthSqr();
-		if (flSoundDistToEntitySqr < Square( AI_SIGHT_DARKNESS_MAX_SOUND_DIST ))
-			return true;
+
+	}*/
+
+	AISoundIter_t iter;
+	if ( GetOuter()->GetSenses()->GetFirstHeardSound( &iter ) )
+	{
+		// Check if we hear a sound near this entity
+		CSound *pSound = GetOuter()->GetBestSound( ALL_SOUNDS );
+		if (pSound)
+		{
+			float flSoundDistToEntitySqr = (pEntity->EyePosition() - pSound->GetSoundOrigin()).LengthSqr();
+			if (flSoundDistToEntitySqr < Square( AI_SIGHT_DARKNESS_MAX_SOUND_DIST ))
+			{
+				return RemapValClamped( sqrt(flSoundDistToEntitySqr), 0.0f, AI_SIGHT_DARKNESS_MAX_SOUND_DIST, 1.0f, 0.0f );
+			}
+		}
 	}
 
-	NPC_STATE eNPCState = GetOuter()->GetState();
-	if (eNPCState == NPC_STATE_IDLE)
-	{
-		return false;
-	}
-	//else if (state == NPC_STATE_ALERT)
-	//{
-	//	local flDist = (self.EyePosition() - enemy.EyePosition()).Length()
-	//	if (flDist > AI_SIGHT_DARKNESS_MAX_DIST_ALERT)
-	//		return false;
-	//}
-	else if (eNPCState == NPC_STATE_COMBAT)
-	{
-		// If this isn't our enemy, don't pay attention
-		if ( pEntity != GetEnemy() )
-			return false;
-	}
-
-	return true;
+	return 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -1106,6 +1124,27 @@ bool CAI_StealthSenses::EvalAlertLevel( CBaseEntity *pTarget, const Vector &vecD
 	{
 		flAlertLevelIncrease += (vecVelocity.LengthSqr() / Square(ALERT_LEVEL_INCREASE_SPEED)) * 0.2;
 		//printl("Velocity alert: " + ((vecVelocity.LengthSqr() / (ALERT_LEVEL_INCREASE_SPEED*ALERT_LEVEL_INCREASE_SPEED)) * 0.2))
+	}
+
+	// Apply lighting conditions
+	if ( g_StealthLightingSystem.IsAvailable() )
+	{
+		float flLightRatio = g_StealthLightingSystem.GetLightRatioForEntity( pTarget, GetOuter() );
+
+		if ( flLightRatio < 1.0f )
+		{
+			flLightRatio += ShouldSeeInDark( pTarget );
+			if ( flLightRatio > 1.0f )
+				flLightRatio = 1.0f;
+			else
+			{
+				// Begin to negate the darkness if we're close enough
+				if (flDistSqr < Square( 250.0f ))
+					flLightRatio = RemapVal( sqrt( flDistSqr ), 0.0f, 250.0f, 1.0f, flLightRatio );
+			}
+		}
+
+		flAlertLevelIncrease *= flLightRatio;
 	}
 	
 	if (pTarget->IsPlayer())
