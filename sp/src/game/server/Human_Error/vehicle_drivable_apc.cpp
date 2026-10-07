@@ -110,6 +110,7 @@ ConVar apc_target_glow( "apc_target_glow", "0", FCVAR_NONE );
 ConVar	sk_apc_damage_normal( "sk_apc_damage_normal", "0.15" );
 ConVar	sk_apc_damage_blast( "sk_apc_damage_blast", "0.1" );
 ConVar	sk_apc_damage_vort( "sk_apc_damage_vort", "0.75" );
+ConVar	sk_apc_damage_scale_ducking( "sk_apc_damage_scale_ducking", "0.5" );
 
 ConVar apc_constraint_force_limit( "apc_constraint_force_limit", "3500", FCVAR_NONE );
 ConVar apc_constraint_torque_limit( "apc_constraint_torque_limit", "2500", FCVAR_NONE );
@@ -711,8 +712,10 @@ int CPropDrivableAPC::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 #ifdef EZ
 		// In Human Error, the view hide damage reduce percent modifier was half of the normal damage modifier divided by the maximum flViewLowered distance, 10
 		// 0.15 / 2 / 10 = 0.0075
-		// In Entropy : Zero, we want it to have half of the normal damage modifier divided by 10 
-		float flViewHideDamageReduce = flNormalDamageModifier / 20.0f;
+		// In Entropy : Zero, we want it to remap the view hide percent to a cvar-controlled value
+		float flViewHideDamageReduce = 1.0f;
+		if ( m_flViewLowered != 0.0f )
+			flViewHideDamageReduce = RemapVal( m_flViewLowered, -10.0f, 0.0f, sk_apc_damage_scale_ducking.GetFloat(), 1.0f );
 #else
 		float flViewHideDamageReduce = (float)(m_flViewLowered * 0.0075);
 #endif
@@ -740,9 +743,9 @@ int CPropDrivableAPC::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 		{
 #ifdef EZ
 			if (info.GetDamageType() & DMG_BLAST)
-				info.ScaleDamage( MAX( sk_apc_damage_blast.GetFloat() + flViewHideDamageReduce, 0.0f) );
+				info.ScaleDamage( MAX( sk_apc_damage_blast.GetFloat() * flViewHideDamageReduce, 0.0f) );
 			else
-				info.ScaleDamage( MAX( flNormalDamageModifier + flViewHideDamageReduce, 0.0f) );
+				info.ScaleDamage( MAX( flNormalDamageModifier * flViewHideDamageReduce, 0.0f) );
 #else
 			if ( info.GetDamageType() & DMG_BLAST )
 				info.ScaleDamage( 0.1 + flViewHideDamageReduce );
