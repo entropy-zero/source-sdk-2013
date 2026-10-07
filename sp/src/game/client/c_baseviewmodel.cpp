@@ -423,6 +423,22 @@ bool C_BaseViewModel::UsesPowerOfTwoFrameBufferTexture( void )
 	return BaseClass::UsesPowerOfTwoFrameBufferTexture();
 }
 
+#ifdef EZ
+extern ConVar muzzleflash_light_projtex;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_BaseViewModel::ProcessMuzzleFlashEvent( void )
+{
+	// The weapon handles this
+	if ( muzzleflash_light_projtex.GetBool() )
+		return;
+
+	BaseClass::ProcessMuzzleFlashEvent();
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: If the animation parity of the weapon has changed, we reset cycle to avoid popping
 //-----------------------------------------------------------------------------

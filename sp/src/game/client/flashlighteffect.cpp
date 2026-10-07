@@ -661,6 +661,257 @@ void CHeadlightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, 
 	g_pClientShadowMgr->UpdateProjectedTexture( GetFlashlightHandle(), true );
 }
 
+#ifdef EZ
+//-----------------------------------------------------------------------------
+// Muzzle Flash light effect
+//-----------------------------------------------------------------------------
+
+// There can be up to 4 muzzle flashlights active at once. They're created on demand whenever a previous slot is occupied.
+// Once a muzzle flash finishes, the flashlight handle (the projected texture itself) is deleted, but the flashlight effect
+// helper stays in memory until the level is unloaded, since we would usually expect it to be called again before that point.
+CMuzzleFlashLightEffect *CMuzzleFlashLightEffect::g_MuzzleFlashLights[MAX_MUZZLE_FLASH_PROJTEX];
+
+CMuzzleFlashLightEffect *CMuzzleFlashLightEffect::StartMuzzleFlash( C_BaseAnimating *pWeapon, C_BaseAnimating *pOwner, float flDuration, float flFOV, const Color &color )
+{
+	int i = 0;
+	for ( ; i < MAX_MUZZLE_FLASH_PROJTEX; i++ )
+	{
+		if ( !g_MuzzleFlashLights[i] )
+		{
+			// New slot
+			g_MuzzleFlashLights[i] = new CMuzzleFlashLightEffect;
+			break;
+		}
+		else if ( !g_MuzzleFlashLights[i]->IsOn() )
+		{
+			// Use existing slot
+			break;
+		}
+	}
+
+	if ( i == MAX_MUZZLE_FLASH_PROJTEX )
+		return NULL;
+
+	g_MuzzleFlashLights[i]->ResetMuzzleFlash( pWeapon, pOwner, flDuration, flFOV, color );
+	g_MuzzleFlashLights[i]->TurnOn();
+	return g_MuzzleFlashLights[i];
+}
+
+void CMuzzleFlashLightEffect::DeleteMuzzleFlashes()
+{
+	for ( int i = 0; i < MAX_MUZZLE_FLASH_PROJTEX; i++ )
+	{
+		if ( g_MuzzleFlashLights[i] )
+		{
+			if ( g_MuzzleFlashLights[i]->IsOn() )
+				g_MuzzleFlashLights[i]->LightOff();
+
+			delete g_MuzzleFlashLights[i];
+			g_MuzzleFlashLights[i] = NULL;
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+static ConVar r_muzzleflashlightbrightnessscale( "r_muzzleflashlightbrightnessscale", "2.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightfar( "r_muzzleflashlightfar", "256", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightnear( "r_muzzleflashlightnear", "2.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightconstant( "r_muzzleflashlightconstant", "0.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightlinear( "r_muzzleflashlightlinear", "0.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightquadratic( "r_muzzleflashlightquadratic", "100.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlightshadowatten( "r_muzzleflashlightshadowatten", "1.0", FCVAR_CHEAT );
+static ConVar r_muzzleflashlighttexture( "r_muzzleflashlighttexture", "effects/muzzleflash_light", FCVAR_CHEAT );
+static ConVar r_muzzleflashlighttexturemaxframe( "r_muzzleflashlighttexturemaxframe", "3", FCVAR_CHEAT );
+static ConVar r_muzzleflashlight_firstperson_brightnessscale( "r_muzzleflashlight_firstperson_brightnessscale", "1.0", FCVAR_CHEAT );
+//static ConVar r_muzzleflashlight_firstperson_fovscale( "r_muzzleflashlight_firstperson_fovscale", "0.9", FCVAR_CHEAT );
+static ConVar r_muzzleflashlight_firstperson_far( "r_muzzleflashlight_firstperson_far", "512", FCVAR_CHEAT );
+
+CMuzzleFlashLightEffect::CMuzzleFlashLightEffect()
+{
+	m_FlashlightTexture.Init( r_muzzleflashlighttexture.GetString(), TEXTURE_GROUP_OTHER, true );
+
+	m_Color[0] = 1.0f;
+	m_Color[1] = 1.0f;
+	m_Color[2] = 1.0f;
+}
+
+CMuzzleFlashLightEffect::~CMuzzleFlashLightEffect()
+{
+}
+
+void CMuzzleFlashLightEffect::ResetMuzzleFlash( C_BaseAnimating *pWeapon, C_BaseAnimating *pOwner, float flDuration, float flFOV, const Color &color )
+{
+	m_flDuration = flDuration;
+	m_flEndTime = gpGlobals->curtime + flDuration;
+	m_flFOV = flFOV;
+	m_Color[0] = color[0];
+	m_Color[1] = color[1];
+	m_Color[2] = color[2];
+
+	C_BasePlayer *pPlayer = ToBasePlayer( pOwner );
+	if ( pPlayer && pPlayer->InFirstPersonView() )
+	{
+		m_flBrightnessScale = r_muzzleflashlight_firstperson_brightnessscale.GetFloat();
+		//m_flFOV *= r_muzzleflashlight_firstperson_fovscale.GetFloat();
+		m_flFarZ = r_muzzleflashlight_firstperson_far.GetFloat();
+	}
+	else
+	{
+		m_flBrightnessScale = r_muzzleflashlightbrightnessscale.GetFloat();
+		m_flFarZ = r_muzzleflashlightfar.GetFloat();
+	}
+
+	if ( color[3] != 128 )
+		m_flBrightnessScale *= (float)color[3] / 128.0f; // So that it can be up to twice as bright
+
+	m_nFrame = RandomInt( 0, r_muzzleflashlighttexturemaxframe.GetInt() );
+}
+
+bool CMuzzleFlashLightEffect::UpdateMuzzleFlash( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp )
+{
+	if ( m_flEndTime < gpGlobals->curtime )
+	{
+		LightOff();
+		m_bIsOn = false;
+		return false;
+	}
+
+	UpdateLight( vecPos, vecDir, vecRight, vecUp, 0 );
+	return true;
+}
+
+void CMuzzleFlashLightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance )
+{
+	if ( IsOn() == false )
+		 return;
+
+	FlashlightState_t state;
+	Vector basisX, basisY, basisZ;
+	basisX = vecDir;
+	basisY = vecRight;
+	basisZ = vecUp;
+	VectorNormalize(basisX);
+	VectorNormalize(basisY);
+	VectorNormalize(basisZ);
+
+	BasisToQuaternion( basisX, basisY, basisZ, state.m_quatOrientation );
+		
+	state.m_vecLightOrigin = vecPos;
+
+	float flBrightnessScale = m_flBrightnessScale;
+
+	flBrightnessScale *= SmoothCurve( ( m_flEndTime - gpGlobals->curtime ) / m_flDuration );
+
+	state.m_fHorizontalFOVDegrees = m_flFOV;
+	state.m_fVerticalFOVDegrees = m_flFOV;
+	state.m_fQuadraticAtten = r_muzzleflashlightquadratic.GetFloat();
+	state.m_fLinearAtten = r_muzzleflashlightlinear.GetFloat();
+	state.m_fConstantAtten = r_muzzleflashlightconstant.GetFloat();
+	state.m_Color[0] = m_Color[0] * flBrightnessScale;
+	state.m_Color[1] = m_Color[1] * flBrightnessScale;
+	state.m_Color[2] = m_Color[2] * flBrightnessScale;
+	state.m_Color[3] = r_flashlightambient.GetFloat();
+
+	state.m_NearZ = r_muzzleflashlightnear.GetFloat();
+	state.m_FarZ = m_flFarZ;
+
+	state.m_bEnableShadows = false;
+	state.m_pSpotlightTexture = m_FlashlightTexture;
+	state.m_nSpotlightTextureFrame = m_nFrame;
+
+	state.m_flShadowAtten = r_muzzleflashlightshadowatten.GetFloat();
+	state.m_flShadowSlopeScaleDepthBias = mat_slopescaledepthbias_shadowmap.GetFloat();
+	state.m_flShadowDepthBias = mat_depthbias_shadowmap.GetFloat();
+	
+	if( GetFlashlightHandle() == CLIENTSHADOW_INVALID_HANDLE )
+	{
+		SetFlashlightHandle( g_pClientShadowMgr->CreateFlashlight( state ) );
+	}
+	else
+	{
+		g_pClientShadowMgr->UpdateFlashlightState( GetFlashlightHandle(), state );
+	}
+	
+	g_pClientShadowMgr->UpdateProjectedTexture( GetFlashlightHandle(), true );
+}
+
+//-----------------------------------------------------------------------------
+// Rocket trail light effect
+//-----------------------------------------------------------------------------
+static ConVar r_rockettraillightbrightness( "r_rockettraillightbrightness", "500.0", FCVAR_CHEAT );
+static ConVar r_rockettraillightfar( "r_rockettraillightfar", "300", FCVAR_CHEAT );
+static ConVar r_rockettraillightnear( "r_rockettraillightnear", "2.0", FCVAR_CHEAT );
+static ConVar r_rockettraillightconstant( "r_rockettraillightconstant", "0.0", FCVAR_CHEAT );
+static ConVar r_rockettraillightlinear( "r_rockettraillightlinear", "0.0", FCVAR_CHEAT );
+static ConVar r_rockettraillightquadratic( "r_rockettraillightquadratic", "100.0", FCVAR_CHEAT );
+static ConVar r_rockettraillightfov( "r_rockettraillightfov", "120.0", FCVAR_CHEAT );
+static ConVar r_rockettraillighttexture( "r_rockettraillighttexture", "effects/muzzleflash_light", FCVAR_CHEAT );
+
+CRocketTrailLightEffect::CRocketTrailLightEffect()
+{
+	m_FlashlightTexture.Init( r_rockettraillighttexture.GetString(), TEXTURE_GROUP_OTHER, true );
+
+	m_Color[0] = 1.0f;
+	m_Color[1] = 0.85f;
+	m_Color[2] = 0.25f;
+}
+
+CRocketTrailLightEffect::~CRocketTrailLightEffect()
+{
+}
+
+void CRocketTrailLightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance )
+{
+	if ( IsOn() == false )
+		 return;
+
+	FlashlightState_t state;
+	Vector basisX, basisY, basisZ;
+	basisX = vecDir;
+	basisY = vecRight;
+	basisZ = vecUp;
+	VectorNormalize(basisX);
+	VectorNormalize(basisY);
+	VectorNormalize(basisZ);
+
+	BasisToQuaternion( basisX, basisY, basisZ, state.m_quatOrientation );
+		
+	state.m_vecLightOrigin = vecPos;
+
+	state.m_fHorizontalFOVDegrees = r_rockettraillightfov.GetFloat();
+	state.m_fVerticalFOVDegrees = r_rockettraillightfov.GetFloat();
+	state.m_fQuadraticAtten = r_rockettraillightquadratic.GetFloat();
+	state.m_fLinearAtten = r_rockettraillightlinear.GetFloat();
+	state.m_fConstantAtten = r_rockettraillightconstant.GetFloat();
+	state.m_Color[0] = m_Color[0] * (r_rockettraillightbrightness.GetFloat());
+	state.m_Color[1] = m_Color[1] * (r_rockettraillightbrightness.GetFloat());
+	state.m_Color[2] = m_Color[2] * (r_rockettraillightbrightness.GetFloat());
+	state.m_Color[3] = r_flashlightambient.GetFloat();
+
+	state.m_NearZ = r_rockettraillightnear.GetFloat();
+	state.m_FarZ = r_rockettraillightfar.GetFloat();
+
+	state.m_bEnableShadows = false;
+	state.m_pSpotlightTexture = m_FlashlightTexture;
+	state.m_nSpotlightTextureFrame = RandomInt( 0, r_muzzleflashlighttexturemaxframe.GetInt() );
+
+	state.m_flShadowAtten = 1.0f;
+	state.m_flShadowSlopeScaleDepthBias = mat_slopescaledepthbias_shadowmap.GetFloat();
+	state.m_flShadowDepthBias = mat_depthbias_shadowmap.GetFloat();
+	
+	if( GetFlashlightHandle() == CLIENTSHADOW_INVALID_HANDLE )
+	{
+		SetFlashlightHandle( g_pClientShadowMgr->CreateFlashlight( state ) );
+	}
+	else
+	{
+		g_pClientShadowMgr->UpdateFlashlightState( GetFlashlightHandle(), state );
+	}
+	
+	g_pClientShadowMgr->UpdateProjectedTexture( GetFlashlightHandle(), true );
+}
+#endif
+
 #ifdef EZ2
 static ConVar r_turretlightbrightness( "r_turretlightbrightness", "5.0", FCVAR_CHEAT );
 static ConVar r_turretlightfar( "r_turretlightfar", "500", FCVAR_CHEAT );

@@ -79,6 +79,56 @@ public:
 	virtual void UpdateLight(const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance);
 };
 
+#ifdef EZ
+//-------------------------------------------------------
+//-------------------------------------------------------
+
+#define MAX_MUZZLE_FLASH_PROJTEX	4
+
+class C_BaseAnimating;
+
+class CMuzzleFlashLightEffect : public CFlashlightEffect
+{
+public:
+
+	CMuzzleFlashLightEffect();
+	~CMuzzleFlashLightEffect();
+
+	static CMuzzleFlashLightEffect *g_MuzzleFlashLights[MAX_MUZZLE_FLASH_PROJTEX];
+	static CMuzzleFlashLightEffect *StartMuzzleFlash( C_BaseAnimating *pWeapon, C_BaseAnimating *pOwner, float flDuration, float flFOV, const Color &color );
+	static void DeleteMuzzleFlashes();
+
+	void ResetMuzzleFlash( C_BaseAnimating *pWeapon, C_BaseAnimating *pOwner, float flDuration, float flFOV, const Color &color );
+	virtual bool UpdateMuzzleFlash( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp );
+	virtual void UpdateLight( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance );
+
+	int		m_nFrame;
+
+	float	m_flFOV;
+	float	m_flFarZ;
+	float	m_Color[3];
+	float	m_flBrightnessScale;
+
+	float	m_flDuration;
+	float	m_flEndTime;
+};
+
+//-------------------------------------------------------
+//-------------------------------------------------------
+
+class CRocketTrailLightEffect : public CFlashlightEffect
+{
+public:
+
+	CRocketTrailLightEffect();
+	~CRocketTrailLightEffect();
+
+	virtual void UpdateLight( const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance );
+
+	float	m_Color[3];
+};
+#endif
+
 #ifdef EZ2
 class CTurretLightEffect : public CFlashlightEffect
 {

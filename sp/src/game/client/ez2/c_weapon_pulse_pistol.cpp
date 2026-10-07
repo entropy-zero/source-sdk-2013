@@ -23,8 +23,20 @@ public:
 	C_WeaponPulsePistol();
 	~C_WeaponPulsePistol();
 
+	virtual void	OnDataChanged( DataUpdateType_t updateType );
+
+	inline float GetMaxCharge() const { return 40.0f; }	// Keep synced with the max in weapon_pistol.cpp
+	inline float GetChargePercent() const { return ((float)m_iClip2) / GetMaxCharge(); }
+	inline float GetLastChargePercent() const { return m_flLastCharge / GetMaxCharge(); }
+
 	// Don't show the reserve vlaue in the HUD
 	//bool ShouldDisplaySecondaryValue( void ) const { return false; }
+
+	void	GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV );
+
+	// Used by muzzle flash data, since clip2 is 0 by the time it's used
+	// Note that this is reset once the data is obtained
+	float	m_flLastCharge;
 };
 
 LINK_ENTITY_TO_CLASS( weapon_pulsepistol, C_WeaponPulsePistol );
@@ -41,6 +53,40 @@ C_WeaponPulsePistol::C_WeaponPulsePistol()
 
 C_WeaponPulsePistol::~C_WeaponPulsePistol()
 {
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : updateType - 
+//-----------------------------------------------------------------------------
+void C_WeaponPulsePistol::OnDataChanged( DataUpdateType_t updateType )
+{
+	BaseClass::OnDataChanged( updateType );
+
+	if ( m_iClip2 != 0 )
+	{
+		m_flLastCharge = (float)m_iClip2;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_WeaponPulsePistol::GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV )
+{
+	BaseClass::GetMuzzleFlashData( clr, flDuration, flFOV );
+
+	// Brighter based on charge
+	if ( m_flLastCharge > 0 )
+	{
+		extern ConVar r_muzzleflashlightfov;
+		float flPerc = GetLastChargePercent();
+
+		clr[3] += (127.9f * flPerc);	// Approach but never reach 128 due to size limit
+		flFOV += ((r_muzzleflashlightfov.GetFloat() - flFOV) * flPerc);
+
+		m_flLastCharge = 0.0f;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -95,9 +141,7 @@ void CPulsePistolMaterialProxy::OnBind( C_BaseEntity *pEnt )
 
 	if ( pPistol )
 	{
-		// Keep synced with the max in weapon_pistol.cpp
-		const float flMaxCharge = 40.0f;
-		m_ChargeVar->SetFloatValue( ((float)pPistol->m_iClip2) / flMaxCharge );
+		m_ChargeVar->SetFloatValue( pPistol->GetChargePercent() );
 
 		//m_FullyChargedVar->SetFloatValue( pPistol->m_iClip2 == flMaxCharge ? 1.0f : 0.0f );
 	}
