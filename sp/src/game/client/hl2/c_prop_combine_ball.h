@@ -11,6 +11,10 @@
 #pragma once
 #endif
 
+#ifdef EZ
+struct dlight_t;
+#endif
+
 class C_PropCombineBall : public C_BaseAnimating
 {
 	DECLARE_CLASS( C_PropCombineBall, C_BaseAnimating );
@@ -23,6 +27,7 @@ public:
 
 	virtual void	OnDataChanged( DataUpdateType_t updateType );
 	virtual int		DrawModel( int flags );
+	virtual void	ClientThink( void );
 
 protected:
 
@@ -39,6 +44,10 @@ protected:
 	IMaterial	*m_pFlickerMaterial;
 	IMaterial	*m_pBodyMaterial;
 	IMaterial	*m_pBlurMaterial;
+
+#ifdef EZ
+	dlight_t	*m_pDLight;
+#endif
 };
 
 
