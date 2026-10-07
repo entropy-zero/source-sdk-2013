@@ -20,6 +20,10 @@
 
 #include "fx_trail.h"
 
+#ifdef EZ
+class CRocketTrailLightEffect;
+#endif
+
 //
 // Smoke Trail
 //
@@ -128,6 +132,7 @@ public:
 // C_BaseEntity.
 public:
 	virtual	void	OnDataChanged(DataUpdateType_t updateType);
+	virtual void	Simulate();
 
 // IPrototypeAppEffect.
 public:
@@ -168,6 +173,10 @@ public:
 
 	Vector			m_vecLastPosition;		// Last known position of the rocket
 	float			m_flFlareScale;			// Size of the flare
+
+#ifdef EZ
+	CRocketTrailLightEffect	*m_pFlashlight;
+#endif
 
 private:
 	C_RocketTrail( const C_RocketTrail & );
