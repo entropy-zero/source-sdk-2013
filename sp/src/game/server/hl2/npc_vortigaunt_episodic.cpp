@@ -105,6 +105,8 @@ ConVar sk_vortigaunt_vital_antlion_worker_dmg("sk_vortigaunt_vital_antlion_worke
 
 #ifdef EZ
 ConVar sk_vortigaunt_dispel_time( "sk_vortigaunt_dispel_time", "15" );
+ConVar sk_vortigaunt_attack_speed( "sk_vortigaunt_attack_speed", "0.5" );
+ConVar sk_vortigaunt_attack_speed_ally( "sk_vortigaunt_attack_speed_ally", "1.0" );
 #endif
 
 #ifdef EZ1
@@ -1446,6 +1448,40 @@ Activity CNPC_Vortigaunt::NPC_TranslateActivity( Activity eNewActivity )
 	}
 
 	return BaseClass::NPC_TranslateActivity( eNewActivity );
+}
+
+//------------------------------------------------------------------------------
+// Purpose : 
+//------------------------------------------------------------------------------
+void CNPC_Vortigaunt::Weapon_SetActivity( Activity newActivity, float duration )
+{
+	BaseClass::Weapon_SetActivity( newActivity, duration );
+
+#ifdef EZ
+	// The way we're doing this is a bit confusing, but Weapon_SetActivity() is called both
+	// when we set our sequence as well as when we add a range attack gesture.
+	if ( newActivity == ACT_RANGE_ATTACK1 )
+	{
+		float flPlaybackRate = sk_vortigaunt_attack_speed.GetFloat();
+		if ( BaseClass::IsPlayerAlly() )
+			flPlaybackRate = sk_vortigaunt_attack_speed_ally.GetFloat();
+
+		if ( flPlaybackRate != 1.0f )
+		{
+			if ( GetSequenceActivity( GetSequence() ) == ACT_RANGE_ATTACK1 )
+			{
+				SetPlaybackRate( flPlaybackRate );
+			}
+			else
+			{
+				// If we're not playing the activity directly, then it's a gesture
+				int nLayer = FindGestureLayer( ACT_GESTURE_RANGE_ATTACK1 );
+				if ( nLayer != -1 )
+					SetLayerPlaybackRate( nLayer, flPlaybackRate );
+			}
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
