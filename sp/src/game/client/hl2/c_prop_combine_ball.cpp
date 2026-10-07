@@ -16,6 +16,15 @@
 #include "view.h"
 #include "view_scene.h"
 #include "beamdraw.h"
+#ifdef EZ
+#include "r_efx.h"
+#include "dlight.h"
+
+ConVar	cl_dlight_combine_ball( "cl_dlight_combine_ball", "1" );
+
+#define DLIGHT_RADIUS_SCALE		21.334f // 12 -> 256
+#define DLIGHT_FADE_TIME		0.1f
+#endif
 
 // Precache our effects
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectCombineBall )
@@ -106,6 +115,23 @@ bool C_PropCombineBall::InitMaterials( void )
 		if ( m_pFlickerMaterial == NULL )
 			return false;
 	}
+
+#ifdef EZ
+	if ( cl_dlight_combine_ball.GetBool() && !m_pDLight )
+	{
+		m_pDLight = effects->CL_AllocDlight ( index );
+		m_pDLight->origin = GetAbsOrigin();
+		m_pDLight->color.r = 128;
+		m_pDLight->color.g = 255;
+		m_pDLight->color.b = 255;
+		m_pDLight->color.exponent = 4;
+		m_pDLight->radius = m_flRadius * DLIGHT_RADIUS_SCALE;
+		m_pDLight->die = gpGlobals->curtime + DLIGHT_FADE_TIME;
+		m_pDLight->decay = m_pDLight->radius / DLIGHT_FADE_TIME;
+
+		SetNextClientThink( CLIENT_THINK_ALWAYS );
+	}
+#endif
 
 	return true;
 }
@@ -284,6 +310,22 @@ int C_PropCombineBall::DrawModel( int flags )
 	m_vecLastOrigin = GetAbsOrigin();
 
 	return 1;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_PropCombineBall::ClientThink( void )
+{
+#ifdef EZ
+	if ( m_pDLight != NULL )
+	{
+		m_pDLight->origin = GetAbsOrigin();
+		m_pDLight->radius = m_flRadius * DLIGHT_RADIUS_SCALE;
+		m_pDLight->die = gpGlobals->curtime + DLIGHT_FADE_TIME;
+		m_pDLight->decay = m_pDLight->radius / DLIGHT_FADE_TIME;
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------

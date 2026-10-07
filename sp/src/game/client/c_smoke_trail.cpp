@@ -17,6 +17,9 @@
 #include "toolframework_client.h"
 #include "view.h"
 #include "clienteffectprecachesystem.h"
+#ifdef EZ
+#include "flashlighteffect.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -507,6 +510,13 @@ void C_SmokeTrail::CleanupToolRecordingState( KeyValues *msg )
 // RocketTrail
 //==================================================
 
+#ifdef EZ
+ConVar	cl_projtex_rockettrail( "cl_projtex_rockettrail", "1" );
+
+#define DLIGHT_RADIUS		200.0f
+#define DLIGHT_FADE_TIME	0.3f
+#endif
+
 // Expose to the particle app.
 EXPOSE_PROTOTYPE_EFFECT(RocketTrail, C_RocketTrail);
 
@@ -558,6 +568,10 @@ C_RocketTrail::C_RocketTrail()
 
 	m_pRocketEmitter = NULL;
 	m_pParticleMgr	= NULL;
+
+#ifdef EZ
+	m_pFlashlight	= NULL;
+#endif
 }
 
 C_RocketTrail::~C_RocketTrail()
@@ -566,6 +580,14 @@ C_RocketTrail::~C_RocketTrail()
 	{
 		m_pParticleMgr->RemoveEffect( &m_ParticleEffect );
 	}
+
+#ifdef EZ2
+	if ( m_pFlashlight )
+	{
+		delete m_pFlashlight;
+		m_pFlashlight = NULL;
+	}
+#endif
 }
 
 
@@ -616,7 +638,46 @@ void C_RocketTrail::OnDataChanged(DataUpdateType_t updateType)
 	if ( updateType == DATA_UPDATE_CREATED )
 	{
 		Start( ParticleMgr(), NULL );
+
+#ifdef EZ
+		if ( cl_projtex_rockettrail.GetBool() && !m_pFlashlight )
+		{
+			m_pFlashlight = new CRocketTrailLightEffect;
+			if ( m_pFlashlight )
+			{
+				m_pFlashlight->TurnOn();
+			}
+		}
+#endif
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : bnewentity - 
+//-----------------------------------------------------------------------------
+void C_RocketTrail::Simulate()
+{
+#ifdef EZ
+	if ( m_pFlashlight != NULL )
+	{
+		matrix3x4_t matAttachment;
+		GetAttachment( m_nAttachment, matAttachment );
+
+		Vector vVector;
+		Vector vecForward, vecRight, vecUp;
+
+		MatrixGetColumn( matAttachment, 0, vecForward );
+		MatrixGetColumn( matAttachment, 1, vecRight );
+		MatrixGetColumn( matAttachment, 2, vecUp );
+		MatrixGetColumn( matAttachment, 3, vVector );
+
+		// Need to reverse the direction
+		vecForward *= -1.0f;
+
+		m_pFlashlight->UpdateLight( vVector, vecForward, vecRight, vecUp, 40 );
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------

@@ -49,6 +49,11 @@ BEGIN_DATADESC( CGrenadeEnergy )
 
 END_DATADESC()
 
+#ifdef EZ2
+IMPLEMENT_SERVERCLASS_ST( CGrenadeEnergy, DT_GrenadeEnergy )
+END_SEND_TABLE()
+#endif
+
 LINK_ENTITY_TO_CLASS( grenade_energy, CGrenadeEnergy );
 
 void CGrenadeEnergy::Spawn( void )
