@@ -55,6 +55,9 @@ protected:
 #endif
 
 	DECLARE_DATADESC();
+#ifdef EZ2
+	DECLARE_SERVERCLASS();
+#endif
 };
 
 #endif	//GRENADEENERGY_H
