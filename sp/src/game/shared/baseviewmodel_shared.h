@@ -152,6 +152,10 @@ public:
 #endif
 	}
 
+#ifdef EZ
+	virtual void			ProcessMuzzleFlashEvent();
+#endif
+
 	// Add entity to visible view models list?
 	virtual void			AddEntity( void );
 
