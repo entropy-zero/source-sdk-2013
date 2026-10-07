@@ -281,6 +281,22 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 	}
 }
 
+#if defined(EZ) && !defined(CLIENT_DLL)
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseHLCombatWeapon::DispatchCustomMuzzleFlash( const Color &clr, float flDuration, float flFOV )
+{
+	// See C_BaseHLCombatWeapon::ReceiveMessage()
+	EntityMessageBegin( this, true );
+		WRITE_BYTE( BASEHLWEAPON_MUZZLE_FLASH_CUSTOM );
+		WRITE_UBITLONG( clr.GetRawColor(), 32 );
+		WRITE_FLOAT( flDuration );
+		WRITE_FLOAT( flFOV );
+	MessageEnd();
+}
+#endif
+
 #ifdef EZ2
 //-----------------------------------------------------------------------------
 // Purpose: 

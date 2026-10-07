@@ -14,6 +14,12 @@
 
 #include "death_pose.h"
 
+#ifdef EZ
+#include "flashlighteffect.h"
+#include "r_efx.h"
+#include "dlight.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -171,4 +177,114 @@ void C_AI_BaseNPC::GetRagdollInitBoneArrays( matrix3x4_t *pDeltaBones0, matrix3x
 		SetupBones( pCurrentBones, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, gpGlobals->curtime );
 	}
 }
+
+#ifdef EZ
+extern ConVar muzzleflash_light_projtex;
+extern ConVar r_muzzleflashlightduration;
+extern ConVar r_muzzleflashlightfov;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_AI_BaseNPC::ProcessMuzzleFlashEvent( void )
+{
+	if ( !muzzleflash_light_projtex.GetBool() )
+	{
+		BaseClass::ProcessMuzzleFlashEvent();
+		return;
+	}
+	
+	Color clr( 255, 192, 64, 128 );
+	float flDuration = r_muzzleflashlightduration.GetFloat();
+	float flFOV = r_muzzleflashlightfov.GetFloat();
+	m_nMuzzleFlashAttach = -1;
+	GetMuzzleFlashData( clr, flDuration, flFOV, m_nMuzzleFlashAttach );
+
+	if ( m_nMuzzleFlashAttach <= 0 )
+	{
+		// Just go back to the dlight implementation
+		BaseClass::ProcessMuzzleFlashEvent();
+		return;
+	}
+
+	if ( m_pMuzzleFlashLight )
+	{
+		m_pMuzzleFlashLight->ResetMuzzleFlash( this, this, flDuration, flFOV, clr );
+	}
+	else
+	{
+		m_pMuzzleFlashLight = CMuzzleFlashLightEffect::StartMuzzleFlash( this, this, flDuration, flFOV, clr );
+	}
+
+	Vector vAttachment;
+	QAngle dummyAngles;
+	GetAttachment( m_nMuzzleFlashAttach, vAttachment, dummyAngles );
+
+	// Accompany with an elight
+	dlight_t *el = effects->CL_AllocElight( LIGHT_INDEX_MUZZLEFLASH + index );
+	el->origin = vAttachment;
+	el->radius = random->RandomInt( 32, 64 );
+	el->decay = el->radius / flDuration;
+	el->die = gpGlobals->curtime + flDuration;
+	el->color.r = clr[0];
+	el->color.g = clr[1];
+	el->color.b = clr[2];
+	el->color.exponent = 5;
+
+	// Account for brightness
+	if ( clr[3] != 128 )
+		el->color.exponent += RemapVal( clr[3], 0, 128, -5, 0 );
+}
+
+void C_AI_BaseNPC::Simulate()
+{
+	BaseClass::Simulate();
+
+	if ( m_pMuzzleFlashLight )
+	{
+		matrix3x4_t matAttach;
+		GetAttachment(m_nMuzzleFlashAttach, matAttach);
+
+		Vector vAttachment, vForward, vRight, vUp;
+		MatrixGetColumn( matAttach, 0, vForward );
+		MatrixGetColumn( matAttach, 1, vRight );
+		MatrixGetColumn( matAttach, 2, vUp );
+		MatrixGetColumn( matAttach, 3, vAttachment );
+
+		if ( !m_pMuzzleFlashLight->UpdateMuzzleFlash( vAttachment, vForward, vRight, vUp ) )
+		{
+			m_pMuzzleFlashLight = NULL;
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_AI_BaseNPC::GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV, int &nAttach )
+{
+	nAttach = LookupAttachment( "muzzle" );
+	if ( nAttach <= 0 )
+	{
+		// HACKHACK: Consider this to mean it's a hunter, due to lack of client class
+		nAttach = LookupAttachment( "bottom_eye" );
+		if ( nAttach > 0 )
+		{
+			static Color hunterClr( 64, 255, 255, 192 );
+			clr = hunterClr;
+		}
+
+		// HACKHACK: Consider this to mean it's a turret, due to lack of client class
+		if ( LookupAttachment( "light" ) )
+		{
+			nAttach = LookupAttachment( "eyes" );
+			if ( nAttach > 0 )
+			{
+				static const Color combineClr( 96, 248, 255, 128 );
+				clr = combineClr;
+			}
+		}
+	}
+}
+#endif
 
