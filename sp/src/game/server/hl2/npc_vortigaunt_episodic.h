@@ -83,6 +83,7 @@ public:
 	virtual Class_T		Classify ( void ) { return IsGameEndAlly() ? CLASS_PLAYER_ALLY_VITAL : CLASS_VORTIGAUNT; }
 	virtual void		HandleAnimEvent( animevent_t *pEvent );
 	virtual Activity	NPC_TranslateActivity( Activity eNewActivity );
+	virtual void		Weapon_SetActivity( Activity newActivity, float duration );
 
 	virtual void	UpdateOnRemove( void );
 	virtual void	Event_Killed( const CTakeDamageInfo &info );
