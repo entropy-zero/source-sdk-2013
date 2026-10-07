@@ -44,6 +44,10 @@ public:
 	virtual void	ClientThink( void );
 	virtual void	ReceiveMessage( int classID, bf_read &msg );
 
+#ifdef EZ
+	void			GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV, int &nAttach );
+#endif
+
 public:
 	bool  m_bIsBlue;           ///< wants to fade to blue
 	float m_flBlueEndFadeTime; ///< when to end fading from one skin to another
@@ -165,6 +169,11 @@ void C_NPC_Vortigaunt::ReceiveMessage( int classID, bf_read &msg )
 				pEffect->SetControlPoint( 0, vecStart );
 				pEffect->SetControlPoint( 1, vecEndPos );
 			}
+
+#ifdef EZ
+			if ( cl_projtex_vortigaunt.GetBool() )
+				ProcessMuzzleFlashEvent();
+#endif
 		}
 		break;
 
@@ -198,6 +207,25 @@ void C_NPC_Vortigaunt::ReceiveMessage( int classID, bf_read &msg )
 		AssertMsg1( false, "Received unknown message %d", messageType);
 	}
 }
+
+#ifdef EZ
+ConVar r_muzzleflashlight_vort_duration( "r_muzzleflashlight_vort_duration", "0.5", FCVAR_CHEAT );
+ConVar r_muzzleflashlight_vort_fov( "r_muzzleflashlight_vort_fov", "75", FCVAR_CHEAT );
+
+//-----------------------------------------------------------------------------
+// Purpose: Receive messages from the server
+//-----------------------------------------------------------------------------
+void C_NPC_Vortigaunt::GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV, int &nAttach )
+{
+	nAttach = LookupAttachment( "forward" );	// Approximate midpoint
+
+	static Color vortClr( 64, 255, 64, 160 );
+	clr = vortClr;
+
+	flDuration = r_muzzleflashlight_vort_duration.GetFloat();
+	flFOV = r_muzzleflashlight_vort_fov.GetFloat();
+}
+#endif
 
 class C_VortigauntChargeToken : public C_BaseEntity
 {

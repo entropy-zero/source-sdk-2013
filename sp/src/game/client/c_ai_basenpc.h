@@ -14,6 +14,10 @@
 
 #include "c_basecombatcharacter.h"
 
+#ifdef EZ
+class CMuzzleFlashLightEffect;
+#endif
+
 // NOTE: MOved all controller code into c_basestudiomodel
 class C_AI_BaseNPC : public C_BaseCombatCharacter
 {
@@ -41,6 +45,13 @@ public:
 	void					OnDataChanged( DataUpdateType_t type );
 	bool					ImportantRagdoll( void ) { return m_bImportanRagdoll;	}
 
+#ifdef EZ
+	void					ProcessMuzzleFlashEvent( void );
+	void					Simulate( void );
+	void					UpdateOnRemove();
+	virtual void			GetMuzzleFlashData( Color &clr, float &flDuration, float &flFOV, int &nAttach );
+#endif
+
 private:
 	C_AI_BaseNPC( const C_AI_BaseNPC & ); // not defined, not accessible
 	float m_flTimePingEffect;
@@ -55,6 +66,11 @@ private:
 	bool m_bFadeCorpse;
 	bool m_bSpeedModActive;
 	bool m_bImportanRagdoll;
+
+#ifdef EZ
+	CMuzzleFlashLightEffect *m_pMuzzleFlashLight = NULL;
+	int	m_nMuzzleFlashAttach;
+#endif
 };
 
 

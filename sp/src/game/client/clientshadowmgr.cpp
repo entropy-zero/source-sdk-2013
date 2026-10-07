@@ -1556,6 +1556,10 @@ void CClientShadowMgr::LevelShutdownPostEntity()
 	// but, just in case....
 	Assert( m_Shadows.Count() == 0 );
 
+#ifdef EZ
+	CMuzzleFlashLightEffect::DeleteMuzzleFlashes();
+#endif
+
 	ClientShadowHandle_t h = m_Shadows.Head();
 	while (h != CLIENTSHADOW_INVALID_HANDLE)
 	{
