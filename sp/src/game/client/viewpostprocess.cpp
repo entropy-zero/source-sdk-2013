@@ -26,6 +26,10 @@
 
 #include "proxyentity.h"
 
+#ifdef EZ2
+#include "ez2/c_ez2_player.h"
+#endif
+
 //-----------------------------------------------------------------------------
 // Globals
 //-----------------------------------------------------------------------------
@@ -1608,7 +1612,8 @@ static float GetBloomAmount( void )
 		bBloomEnabled = true;
 #ifdef EZ2
 	// NVG enables an exaggerated bloom to discourage usage in bright areas
-	bool bNVG = (C_BasePlayer::GetLocalPlayer() && C_BasePlayer::GetLocalPlayer()->IsEffectActive( EF_DIMLIGHT ));
+	C_EZ2_Player *pEZ2Player = (C_EZ2_Player*)C_BasePlayer::GetLocalPlayer();
+	bool bNVG = (pEZ2Player && pEZ2Player->IsNVGActive());
 	if ( bNVG )
 		bBloomEnabled = true;
 #endif
