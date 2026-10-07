@@ -908,7 +908,7 @@ void CNPC_CloneCop::Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageIn
 Activity CNPC_CloneCop::GetFlinchActivity( bool bHeavyDamage, bool bGesture )
 {
 	if (!bGesture)
-		return ACT_INVALID;
+		return ACT_RESET;
 
 	return BaseClass::GetFlinchActivity( bHeavyDamage, bGesture );
 }
