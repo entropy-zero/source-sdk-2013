@@ -26,6 +26,11 @@
 #define DLIGHT_RADIUS (150.0f)
 #define DLIGHT_MINLIGHT (40.0f/255.0f)
 #ifdef EZ
+#define DLIGHT_FADE_TIME 0.75f
+#define DLIGHT_RADIUS_NOISE 30.0f
+#define DLIGHT_RADIUS_NOISE_PERIOD 0.4f
+
+ConVar	cl_dlight_vortigaunt( "cl_dlight_vortigaunt", "1" );
 ConVar	cl_projtex_vortigaunt( "cl_projtex_vortigaunt", "1" );
 #endif
 
@@ -357,6 +362,10 @@ private:
 	CNewParticleEffect				*m_hEffect;
 	bool							m_bFadeOut;
 	dlight_t						*m_pDLight;
+
+#ifdef EZ
+	float		m_flDLightFadeInTime;
+#endif
 };
 
 void RecvProxy_DispelFadeOutDuration( const CRecvProxyData *pData, void *pStruct, void *pOut )
@@ -398,7 +407,24 @@ void C_VortigauntEffectDispel::OnDataChanged( DataUpdateType_t type )
 			m_hEffect->StopEmission();
 			m_hEffect = NULL;
 		}
+
+#ifdef EZ
+		if ( m_pDLight != NULL )
+		{
+			m_pDLight->decay = DLIGHT_RADIUS / DLIGHT_FADE_TIME;
+			m_pDLight->die = gpGlobals->curtime + DLIGHT_FADE_TIME;
+			m_pDLight = NULL;
+		}
+#endif
 	}
+
+#ifdef EZ
+	if ( type == DATA_UPDATE_CREATED && cl_dlight_vortigaunt.GetBool() )
+	{
+		SetNextClientThink( CLIENT_THINK_ALWAYS );
+		SetupEmitters();
+	}
+#endif
 
 	BaseClass::OnDataChanged( type );
 }
@@ -446,6 +472,10 @@ bool C_VortigauntEffectDispel::SetupEmitters( void )
 	m_pDLight->die = FLT_MAX;
 #endif // _X360
 
+#ifdef EZ
+	m_flDLightFadeInTime = 0.0f;
+#endif
+
 	return true;
 }
 
@@ -457,7 +487,31 @@ void C_VortigauntEffectDispel::ClientThink( void )
 	if ( m_pDLight != NULL )
 	{
 		m_pDLight->origin = GetAbsOrigin();
+
+#ifdef EZ
+		if ( /*m_pDLight->radius != DLIGHT_RADIUS &&*/ gpGlobals->frametime > 0.0f )
+		{
+			float lerpQuant = gpGlobals->frametime / DLIGHT_FADE_TIME;
+			m_flDLightFadeInTime += lerpQuant;
+
+			float flPerc = 1.0f;
+			if ( m_flDLightFadeInTime < DLIGHT_FADE_TIME )
+				flPerc = m_flDLightFadeInTime / DLIGHT_FADE_TIME;
+
+			m_pDLight->radius = DLIGHT_RADIUS;
+			m_pDLight->radius -= (sin( 2.0f * M_PI * gpGlobals->curtime / DLIGHT_RADIUS_NOISE_PERIOD ) * 0.5f * DLIGHT_RADIUS_NOISE) + 0.5f;
+			m_pDLight->radius *= flPerc;
+
+			// Static fade-in version:
+			/*m_pDLight->radius += (DLIGHT_RADIUS * lerpQuant);
+			if ( m_pDLight->radius > DLIGHT_RADIUS )
+			{
+				m_pDLight->radius = DLIGHT_RADIUS;
+			}*/
+		}
+#else
 		m_pDLight->radius = DLIGHT_RADIUS;
+#endif
 	}
 }
 
