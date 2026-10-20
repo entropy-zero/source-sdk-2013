@@ -1045,10 +1045,10 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 
 				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
 				{
-					Vector right, up;
-					AngleVectors( GetAbsAngles(), NULL, &right, &up );
+					Vector forward, right, up;
+					AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 
-					pHurt->ApplyAbsVelocityImpulse(100 * (up + 2 * right));
+					pHurt->ApplyAbsVelocityImpulse(100 * (up - 2 * forward));
 				}
 
 				// If we were trying to spawn and hit something by accident, defer spawning for a while
