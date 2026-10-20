@@ -1013,15 +1013,16 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 					if ( GetNearestInteractionDir( pHurt->MyNPCPointer(), vecInteractionDir ) )
 					{
 						// Push the target in the direction of the interaction
-						pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + vecInteractionDir );
+						pHurt->ApplyAbsVelocityImpulse(vecInteractionDir);
 					}
 					else
-						pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
+						pHurt->ApplyAbsVelocityImpulse( -( forward * 100 ) );
 				}
 				else
-					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() - (forward * 100) );
+					pHurt->ApplyAbsVelocityImpulse( -( forward * 100 ) );
 
-				pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+
+				pHurt->ApplyAbsVelocityImpulse( up * 100 );
 				pHurt->SetGroundEntity( NULL );
 			}
 
@@ -1047,8 +1048,7 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 					Vector right, up;
 					AngleVectors( GetAbsAngles(), NULL, &right, &up );
 
-					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (right * 200) );
-					pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + (up * 100) );
+					pHurt->ApplyAbsVelocityImpulse(100 * (up + 2 * right));
 				}
 
 				// If we were trying to spawn and hit something by accident, defer spawning for a while
@@ -1124,7 +1124,7 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 						Vector forward, up;
 						AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 				
-						pHurt->SetAbsVelocity( pHurt->GetAbsVelocity() + forward * 300 + up * 300 );
+						pHurt->ApplyAbsVelocityImpulse(300 * (up + forward));
 					}
 				}
 			}
