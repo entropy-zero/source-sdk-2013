@@ -17,6 +17,12 @@
 #include "basegrenade_shared.h"
 #include "basehlcombatweapon.h"
 
+#ifdef EZ2
+#define ALTFIRE_MUZZLEFLASH_FOV				120.0f
+#define ALTFIRE_MUZZLEFLASH_DURATION		0.3f
+const Color g_AltFireMuzzleFlashClr( 96, 248, 255, 255 );
+#endif
+
 class CWeaponAR2 : public CHLMachineGun
 {
 public:

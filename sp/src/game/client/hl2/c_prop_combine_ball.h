@@ -28,6 +28,7 @@ public:
 	virtual void	OnDataChanged( DataUpdateType_t updateType );
 	virtual int		DrawModel( int flags );
 	virtual void	ClientThink( void );
+	virtual void	UpdateOnRemove( void );
 
 protected:
 

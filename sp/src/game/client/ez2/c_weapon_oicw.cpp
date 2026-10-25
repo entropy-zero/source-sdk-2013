@@ -14,11 +14,12 @@
 #include "materialsystem/imaterialvar.h"
 #include "baseviewmodel_shared.h"
 #include "hud_crosshair.h"
+#include "c_weapon__stubs.h"
 
-class C_WeaponOICW : public C_BaseHLCombatWeapon
+class C_WeaponOICW : public C_HLSelectFireMachineGun
 {
 public:
-	DECLARE_CLASS( C_WeaponOICW, C_BaseHLCombatWeapon );
+	DECLARE_CLASS( C_WeaponOICW, C_HLSelectFireMachineGun );
 	DECLARE_CLIENTCLASS();
 	DECLARE_PREDICTABLE();
 

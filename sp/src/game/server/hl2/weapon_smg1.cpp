@@ -28,6 +28,10 @@ extern ConVar    sk_npc_dmg_smg1_grenade;
 
 #ifdef EZ2
 ConVar	weapon_smg1_use_ez1_accuracy( "weapon_smg1_use_ez1_accuracy", "0" );
+
+#define GRENADE_MUZZLEFLASH_FOV				120.0f
+#define GRENADE_MUZZLEFLASH_DURATION		0.3f
+const Color g_GrenadeMuzzleFlashClr( 255, 192, 64, 255 );
 #endif
 
 class CWeaponSMG1 : public CHLSelectFireMachineGun
@@ -343,6 +347,10 @@ void CWeaponSMG1::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChar
 
 			pGrenade->SetDamage(sk_npc_dmg_smg1_grenade.GetFloat());
 
+#ifdef EZ2
+			DispatchCustomMuzzleFlash( g_GrenadeMuzzleFlashClr, GRENADE_MUZZLEFLASH_DURATION, GRENADE_MUZZLEFLASH_FOV );
+#endif
+
 			variant_t var;
 			var.SetEntity(pGrenade);
 			npc->FireNamedOutput("OnThrowGrenade", var, pGrenade, npc);
@@ -513,6 +521,10 @@ void CWeaponSMG1::SecondaryAttack( void )
 
 	// Register a muzzleflash for the AI.
 	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );	
+
+#ifdef EZ2
+	DispatchCustomMuzzleFlash( g_GrenadeMuzzleFlashClr, GRENADE_MUZZLEFLASH_DURATION, GRENADE_MUZZLEFLASH_FOV );
+#endif
 
 	m_iSecondaryAttacks++;
 	gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );

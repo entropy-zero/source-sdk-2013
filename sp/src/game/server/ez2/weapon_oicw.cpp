@@ -27,6 +27,10 @@ extern ConVar    sk_plr_dmg_smg1_grenade;
 extern ConVar    sk_npc_dmg_smg1_grenade;
 #endif
 
+#define GRENADE_MUZZLEFLASH_FOV				120.0f
+#define GRENADE_MUZZLEFLASH_DURATION		0.3f
+extern const Color g_GrenadeMuzzleFlashClr( 255, 192, 64, 255 ); // From weapon_smg1.cpp (should share all of these vars...)
+
 class CWeaponOICW : public CHLSelectFireMachineGun
 {
 	DECLARE_DATADESC();
@@ -311,6 +315,8 @@ void CWeaponOICW::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChar
 
 			pGrenade->SetDamage(sk_npc_dmg_smg1_grenade.GetFloat());
 
+			DispatchCustomMuzzleFlash( g_GrenadeMuzzleFlashClr, GRENADE_MUZZLEFLASH_DURATION, GRENADE_MUZZLEFLASH_FOV );
+
 			variant_t var;
 			var.SetEntity(pGrenade);
 			npc->FireNamedOutput("OnThrowGrenade", var, pGrenade, npc);
@@ -562,6 +568,8 @@ void CWeaponOICW::SecondaryAttack( void )
 
 	// Register a muzzleflash for the AI.
 	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );	
+
+	DispatchCustomMuzzleFlash( g_GrenadeMuzzleFlashClr, GRENADE_MUZZLEFLASH_DURATION, GRENADE_MUZZLEFLASH_FOV );
 
 	m_iSecondaryAttacks++;
 	gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );

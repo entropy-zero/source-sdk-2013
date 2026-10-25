@@ -330,6 +330,21 @@ void C_PropCombineBall::ClientThink( void )
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+//-----------------------------------------------------------------------------
+void C_PropCombineBall::UpdateOnRemove( void )
+{
+	BaseClass::UpdateOnRemove();
+
+#ifdef EZ
+	if ( m_pDLight != NULL )
+	{
+		m_pDLight->die = gpGlobals->curtime;
+	}
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Input  : &data - 
 //-----------------------------------------------------------------------------
 void CombineBallImpactCallback( const CEffectData &data )

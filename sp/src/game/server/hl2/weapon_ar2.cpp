@@ -443,6 +443,10 @@ void CWeaponAR2::DelayedAttack( void )
 	// Can blow up after a short delay (so have time to release mouse button)
 	m_flNextSecondaryAttack = gpGlobals->curtime + 1.0f;
 
+#ifdef EZ2
+	DispatchCustomMuzzleFlash( g_AltFireMuzzleFlashClr, ALTFIRE_MUZZLEFLASH_DURATION, ALTFIRE_MUZZLEFLASH_FOV );
+#endif
+
 #ifdef EZ1
 	// Add into our burst max
 	BurstMax = BurstMax + 1;
@@ -552,8 +556,13 @@ void CWeaponAR2::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUs
 	pOperator->FireBullets( 1, vecShootOrigin, vecShootDir, VECTOR_CONE_PRECALCULATED, MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 2 );
 #endif
 
+#ifdef EZ2
+	// We now have custom muzzle flash handling
+	pOperator->DoMuzzleFlash();
+#else
 	// NOTENOTE: This is overriden on the client-side
 	// pOperator->DoMuzzleFlash();
+#endif
 
 	m_iClip1 = m_iClip1 - 1;
 }
@@ -648,6 +657,10 @@ void CWeaponAR2::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool b
 		sk_weapon_ar2_alt_fire_mass.GetFloat(),
 		flDuration,
 		pNPC );
+#endif
+
+#ifdef EZ2
+	DispatchCustomMuzzleFlash( g_AltFireMuzzleFlashClr, ALTFIRE_MUZZLEFLASH_DURATION, ALTFIRE_MUZZLEFLASH_FOV );
 #endif
 }
 
@@ -920,6 +933,12 @@ void CWeaponAR2Proto::DelayedAttack( void )
 	// Add into our burst max
 	m_nBurstMax = m_nBurstMax + 1;
 
+	if ( m_nBurstMax == 1 )
+	{
+		// Muzzle flash on first shot
+		DispatchCustomMuzzleFlash( g_AltFireMuzzleFlashClr, ALTFIRE_MUZZLEFLASH_DURATION, ALTFIRE_MUZZLEFLASH_FOV );
+	}
+
 	// Fire the next round
 	CWeaponAR2Proto::DelayedAttack();
 }
@@ -1005,8 +1024,13 @@ void CWeaponAR2Proto::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, boo
 
 	pOperator->FireBullets( info );
 
+#ifdef EZ2
+	// We now have custom muzzle flash handling
+	pOperator->DoMuzzleFlash();
+#else
 	// NOTENOTE: This is overriden on the client-side
 	// pOperator->DoMuzzleFlash();
+#endif
 
 	m_iClip1 = m_iClip1 - 1;
 }
@@ -1113,6 +1137,12 @@ void CWeaponAR2Proto::FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, b
 
 	// Add into our burst max
 	m_nBurstMax = m_nBurstMax + 1;
+
+	if ( m_nBurstMax == 1 )
+	{
+		// Muzzle flash on first shot
+		DispatchCustomMuzzleFlash( g_AltFireMuzzleFlashClr, ALTFIRE_MUZZLEFLASH_DURATION, ALTFIRE_MUZZLEFLASH_FOV );
+	}
 
 	// Fire the next round
 	CWeaponAR2Proto::FireNPCSecondaryAttack(pOperator, bUseWeaponAngles);
