@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:		Gonome. Big scary-ass headcrab zombie, based heavily on the Bullsquid.+
 //				+++Repurposed into the Zombie Assassin
@@ -1045,7 +1045,7 @@ void CNPC_Gonome::HandleAnimEvent( animevent_t *pEvent )
 
 				if ( pHurt->MyCombatCharacterPointer() || pHurt->GetMoveType() == MOVETYPE_VPHYSICS )
 				{
-					Vector forward, right, up;
+					Vector forward, up;
 					AngleVectors( GetAbsAngles(), &forward, NULL, &up );
 
 					pHurt->ApplyAbsVelocityImpulse(100 * (up - 2 * forward));
