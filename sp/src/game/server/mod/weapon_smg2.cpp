@@ -19,6 +19,7 @@
 #include "rumble_shared.h"
 #include "gamestats.h"
 #include "particle_parse.h" // BREADMAN - particle muzzle
+#include "npc_vortigaunt_episodic.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -70,9 +71,9 @@ public:
 
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
 
-	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
-	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
-	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
+	virtual void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+	virtual void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
+	virtual void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
 	void	SetActivity( Activity act, float duration );
 
@@ -155,6 +156,24 @@ acttable_t	CWeaponSMG2::m_acttable[] =
 
 IMPLEMENT_ACTTABLE(CWeaponSMG2);
 
+
+class CWeaponSMG2Plasma : public CWeaponSMG2
+{
+public:
+	DECLARE_CLASS( CWeaponSMG2Plasma, CWeaponSMG2 );
+
+	DECLARE_SERVERCLASS();
+
+	virtual void	FireBullets( const FireBulletsInfo_t &info );
+	virtual void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
+};
+
+IMPLEMENT_SERVERCLASS_ST( CWeaponSMG2Plasma, DT_WeaponSMG2Plasma )
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( weapon_plasma_smg2, CWeaponSMG2Plasma );
+PRECACHE_WEAPON_REGISTER( weapon_plasma_smg2 );
+
 //=========================================================
 CWeaponSMG2::CWeaponSMG2( )
 {
@@ -167,6 +186,7 @@ CWeaponSMG2::CWeaponSMG2( )
 
 	m_bAltFiresUnderwater = false;
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -569,4 +589,26 @@ const WeaponProficiencyInfo_t *CWeaponSMG2::GetProficiencyValues()
 	COMPILE_TIME_ASSERT( ARRAYSIZE( proficiencyTable ) == WEAPON_PROFICIENCY_PERFECT + 1 );
 
 	return proficiencyTable;
+}
+
+void CWeaponSMG2Plasma::FireBullets( const FireBulletsInfo_t & info )
+{
+	CVortigauntChargeToken * pToken = CVortigauntChargeToken::CreateChargeToken( info.m_vecSrc, GetOwner(), GetOwner()->GetEnemy() );
+	pToken->SetAbsVelocity( info.m_vecDirShooting * 512.0f );
+	pToken->SetNextThink( gpGlobals->curtime + 1.0f );
+}
+
+void CWeaponSMG2Plasma::FireNPCPrimaryAttack( CBaseCombatCharacter * pOperator, Vector & vecShootOrigin, Vector & vecShootDir )
+{
+	// FIXME: use the returned number of bullets to account for >10hz firerate
+	WeaponSoundRealtime( SINGLE_NPC );
+
+	CSoundEnt::InsertSound( SOUND_COMBAT|SOUND_CONTEXT_GUNFIRE, pOperator->GetAbsOrigin(), SOUNDENT_VOLUME_MACHINEGUN, 0.2, pOperator, SOUNDENT_CHANNEL_WEAPON, pOperator->GetEnemy() );
+	
+	FireBulletsInfo_t info( 1, vecShootOrigin, vecShootDir, pOperator->GetAttackSpread( this ), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, true );
+	
+	CWeaponSMG2Plasma::FireBullets( info );
+	pOperator->DoMuzzleFlash(); // Changing the shots doesn't help - just blows us up !
+
+	m_iClip1 = m_iClip1 - 1;
 }
