@@ -1794,7 +1794,15 @@ bool CNPC_Wilson::HandleInteraction(int interactionType, void *data, CBaseCombat
 
 	if ( interactionType == g_interactionAPCBreak )
 	{
-		SpeakIfAllowed( TLK_APC_EJECTED );
+		if ( IsOkToSpeak( SPEECH_PRIORITY ) )
+			Speak( TLK_APC_EJECTED );
+		else
+		{
+			// Interrupt if speaking low clearance line
+			AIConcept_t lastSpokeConcept = GetExpresser()->GetLastSpokeConcept();
+			if ( lastSpokeConcept && FStrEq( lastSpokeConcept, TLK_APC_LOW_CLEARANCE ) )
+				Speak( TLK_APC_EJECTED );
+		}
 
 		m_hAttachedVehicle = NULL;
 		return false;
