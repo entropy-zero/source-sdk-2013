@@ -102,6 +102,14 @@ static const char *g_AutoSetLocatorContext = "AutoSetLocator";
 // The amount of damage needed for Will-E to have a tesla effect
 #define WILSON_TESLA_DAMAGE_THRESHOLD 15.0f
 
+// While being carried or mounted on a vehicle, Wilson forgets about enemies he hasn't seen for several seconds.
+// This is intended to fix Wilson silently staying in combat after players bypass enemies, sneak around turrets
+// without tipping them, etc.
+// This is not a hack; setting the enemy discard time is a precedented operation for NPCs.
+// For example, follow behavior sets the discard time to 5 seconds by default.
+#define WILSON_ENEMY_DISCARD_CARRIED 10.0f
+#define WILSON_ENEMY_DISCARD_VEHICLE 15.0f
+
 BEGIN_DATADESC(CNPC_Wilson)
 
 	DEFINE_FIELD( m_bBlinkState,	FIELD_BOOLEAN ),
@@ -1639,6 +1647,9 @@ void CNPC_Wilson::OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_t re
 
 		// Correct our angles only if we're not upright or we're mostly in front of the turret
 		m_bUseCarryAngles = ( bUpright == false || bInFront );
+
+		// See definition for more info
+		GetEnemies()->SetEnemyDiscardTime( WILSON_ENEMY_DISCARD_CARRIED );
 	}
 }
 
@@ -1655,6 +1666,9 @@ void CNPC_Wilson::OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t reason
 	m_OnPhysGunDrop.FireOutput( pPhysGunUser, this );
 
 	m_flPlayerDropTime = gpGlobals->curtime + 2.0;
+
+	// Reset to the default discard time
+	GetEnemies()->SetEnemyDiscardTime( AI_DEF_ENEMY_DISCARD_TIME );
 }
 
 //-----------------------------------------------------------------------------
@@ -1782,12 +1796,18 @@ bool CNPC_Wilson::HandleInteraction(int interactionType, void *data, CBaseCombat
 
 	if ( interactionType == g_interactionAPCConstrain )
 	{
+		// See definition for more info
+		GetEnemies()->SetEnemyDiscardTime( WILSON_ENEMY_DISCARD_VEHICLE );
+
 		m_hAttachedVehicle = (CBaseEntity*)data;
 		return false;
 	}
 
 	if ( interactionType == g_interactionAPCUnconstrain )
 	{
+		// Reset to the default discard time
+		GetEnemies()->SetEnemyDiscardTime( AI_DEF_ENEMY_DISCARD_TIME );
+
 		m_hAttachedVehicle = NULL;
 		return false;
 	}
@@ -1803,6 +1823,9 @@ bool CNPC_Wilson::HandleInteraction(int interactionType, void *data, CBaseCombat
 			if ( lastSpokeConcept && FStrEq( lastSpokeConcept, TLK_APC_LOW_CLEARANCE ) )
 				Speak( TLK_APC_EJECTED );
 		}
+
+		// Reset to the default discard time
+		GetEnemies()->SetEnemyDiscardTime( AI_DEF_ENEMY_DISCARD_TIME );
 
 		m_hAttachedVehicle = NULL;
 		return false;
