@@ -67,7 +67,7 @@ jobs:
 
     - name: Checkout Gamepad UI
       if: inputs.project-group == 'game' || inputs.project-group == 'all'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         repository: entropy-zero/HL2-GamepadUI
         path: ${{inputs.branch}}/gamepadui
@@ -166,7 +166,7 @@ jobs:
 
     - name: Checkout Gamepad UI
       if: inputs.project-group == 'game' || inputs.project-group == 'all'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v7
       with:
         repository: entropy-zero/HL2-GamepadUI
         path: ${{inputs.branch}}/gamepadui
