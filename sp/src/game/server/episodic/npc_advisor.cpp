@@ -94,6 +94,9 @@ ConVar advisor_camera_debounce( "advisor_camera_debounce", "0.2" );
 
 ConVar advisor_use_facing_override( "advisor_use_facing_override", "1" );
 ConVar advisor_use_flyer_poses( "advisor_use_flyer_poses", "1" );
+ConVar advisor_arms_extent_min( "advisor_arms_extent_dist", "-1.0" );
+ConVar advisor_arms_extent_max( "advisor_arms_extent_dist", "1.0" );
+ConVar advisor_arms_extent_dist( "advisor_arms_extent_dist", "1250" );
 ConVar advisor_update_yaw( "advisor_update_yaw", "1" );
 
 ConVar advisor_hurt_pose( "advisor_hurt_pose", "0" );
@@ -674,6 +677,9 @@ public:
 
 	inline CBaseEntity *GetFirstStagingPosition() { return m_hvStagingPositions.Count() > 0 ? m_hvStagingPositions[0] : NULL; }
 
+	inline int GetNumStagingPositions() { return m_hvStagingPositions.Count(); }
+	inline CBaseEntity *GetStagingPosition( int i ) { return m_hvStagingPositions[i]; }
+
 	//-----------------------------------------------------------------------------
 
 	// This is ambiguous since arms are detachable and you can theoretically give them something else
@@ -697,7 +703,16 @@ public:
 	//
 	// CAI_BaseNPC:
 	//
-	virtual float MaxYawSpeed() { return 90.0f; } //120.0f 90.0f
+	virtual float MaxYawSpeed()
+	{
+#ifdef EZ2
+		if (IsCurSchedule( SCHED_ADVISOR_IDLE_STAND, false ))
+			return 10.0f;
+#endif
+
+		return 90.0f; //120.0f 90.0f
+	}
+
 	inline float MaxPitchSpeed() const { return 10.0f; }
 	
 	virtual Class_T Classify();
@@ -1637,6 +1652,11 @@ bool CNPC_Advisor::CanLevitateEntity( CBaseEntity *pEntity, int minMass, int max
 	if (!pPhys)
 		return false;
 
+#ifdef EZ2
+	if (!pPhys->IsGravityEnabled())
+		return false;
+#endif
+
 	float mass = pPhys->GetMass();
 
 	return ( mass >= minMass && 
@@ -1677,6 +1697,38 @@ void CNPC_Advisor::EndLevitateObject( CBaseEntity *pEnt )
 #endif
 
 #if NPC_ADVISOR_HAS_BEHAVIOR
+#ifdef EZ2
+//-----------------------------------------------------------------------------
+// Purpose: Custom trace filter used for advisor staging LOS traces
+//-----------------------------------------------------------------------------
+class CTraceFilterAdvisorStage : public CTraceFilterSkipTwoEntities
+{
+public:
+	CTraceFilterAdvisorStage( IHandleEntity *pHandleEntity, int collisionGroup, IHandleEntity *pHandleEntity2 = NULL )
+		: CTraceFilterSkipTwoEntities( pHandleEntity, pHandleEntity2, collisionGroup )
+	{
+		m_pAdvisor = static_cast<CNPC_Advisor *>(pHandleEntity);
+	}
+
+	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+	{
+		CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+
+		if ( pEntity->GetMoveType() == MOVETYPE_VPHYSICS )
+		{
+			// Don't hit staged props
+			if ( m_pAdvisor->IsThisPropStaged( pEntity ) )
+				return false;
+		}
+
+		return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
+	}
+
+private:
+	CNPC_Advisor *m_pAdvisor;
+};
+#endif
+
 // find an object to throw at the player and start the warning on it. Return object's 
 // pointer if we got something. Otherwise, return NULL if nothing left to throw. Will
 // always leave the prepared object at the head of m_hvStagedEnts
@@ -2053,10 +2105,48 @@ void CNPC_Advisor::RunTask( const Task_t *pTask )
 
 			Assert(m_hvStagedEnts.Count() <= m_hvStagingPositions.Count());
 
+#ifdef EZ2
+			// yank all objects into place
+			CUtlVector<int> vecOccupiedPositions;
+			for (int i = m_hvStagedEnts.Count() - 1; i >= 0; --i)
+			{
+				if (m_hvStagedEnts[i] == NULL)
+					continue;
+
+				CTraceFilterAdvisorStage traceFilter( this, COLLISION_GROUP_NONE, m_hvStagedEnts[i] );
+
+				// Find first unoccupied staging position this object can reach
+				CBaseEntity *pStagingPos = NULL;
+				for (int ii = m_hvStagingPositions.Count() - 1; ii >= 0; --ii)
+				{
+					if (vecOccupiedPositions.HasElement( ii ) || m_hvStagingPositions[ii] == NULL)
+						continue;
+
+					trace_t tr;
+
+					AI_TraceLine( m_hvStagedEnts[i]->GetAbsOrigin(), m_hvStagingPositions[ii]->GetAbsOrigin(), MASK_SOLID, &traceFilter, &tr );
+					if (tr.fraction == 1.0f)
+					{
+						pStagingPos = m_hvStagingPositions[ii];
+						vecOccupiedPositions.AddToTail( ii );
+						break;
+					}
+				}
+
+				if (!pStagingPos)
+					continue;
+
+				// just ignore lost objects (if the player destroys one, that's fine, leave a hole)
+				CBaseEntity *pThrowable = m_hvStagedEnts[i];
+				if (pThrowable)
+				{
+					PullObjectToStaging( pThrowable, pStagingPos->GetAbsOrigin() );
+				}
+			}
+#else
 			// yank all objects into place
 			for (int ii = m_hvStagedEnts.Count() - 1 ; ii >= 0 ; --ii)
 			{
-
 				// just ignore lost objects (if the player destroys one, that's fine, leave a hole)
 				CBaseEntity *pThrowable = m_hvStagedEnts[ii];
 				if (pThrowable)
@@ -2064,6 +2154,7 @@ void CNPC_Advisor::RunTask( const Task_t *pTask )
 					PullObjectToStaging(pThrowable, m_hvStagingPositions[ii]->GetAbsOrigin());
 				}
 			}
+#endif
 
 			// are we done yet?
 			if (gpGlobals->curtime > m_flStagingEnd)
@@ -2198,7 +2289,6 @@ void CNPC_Advisor::RunTask( const Task_t *pTask )
 						else
 							m_iThrowAnimDir = 1; // left
 					}
-					Msg( "flObjectAngle = %f\n", flObjectAngle );
 
 					//float flDot = DotProduct2D( vec2DDelta, vecForward.AsVector2D() );
 					//if (abs(flDot) < 0.75f)
@@ -2442,12 +2532,33 @@ Activity CNPC_Advisor::NPC_TranslateActivity( Activity activity )
 			case ADVISOR_ACCESSORY_ARMS_STUBBED: // Try to attack fruitlessly
 			case ADVISOR_ACCESSORY_ARMS:
 				{
-					// Alternate between left, right, and both
-					switch (RandomInt( 0, 2 ))
+					int nNumMeleeTargets = 1;
+					if (GetEnemies()->NumEnemies() > 1)
 					{
-						case 0: break;
-						case 1: activity = ACT_MELEE_ATTACK2; break;
-						case 2: activity = ACT_MELEE_ATTACK_SWING; break;
+						AIEnemiesIter_t iter;
+						for ( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
+						{
+							if ( pEMemory->hEnemy && pEMemory->hEnemy->IsAlive() && pEMemory->hEnemy->GetAbsOrigin().DistToSqr(GetAbsOrigin()) <= Square(128.0f) )
+							{
+								nNumMeleeTargets++;
+							}
+						}
+					}
+
+					if (nNumMeleeTargets > 1)
+					{
+						// Always use both arms when multiple targets are available
+						activity = ACT_MELEE_ATTACK_SWING;
+					}
+					else
+					{
+						// Alternate between left, right, and both
+						switch (RandomInt( 0, 2 ))
+						{
+							case 0: break;
+							case 1: activity = ACT_MELEE_ATTACK2; break;
+							case 2: activity = ACT_MELEE_ATTACK_SWING; break;
+						}
 					}
 				}
 				break;
@@ -2620,6 +2731,8 @@ void CNPC_Advisor::FlyThink()
 //-----------------------------------------------------------------------------
 void CNPC_Advisor::UpdateAdvisorFacing()
 {
+	Vector vecFaceTarget = vec3_invalid;
+
 	/*if (m_hAdvisorFlyer)
 	{
 		Vector vecDir;
@@ -2632,25 +2745,31 @@ void CNPC_Advisor::UpdateAdvisorFacing()
 	}
 	else*/ if (advisor_use_facing_override.GetBool())
 	{
-		switch ( GetState() )
+		if (GetState() == NPC_STATE_SCRIPT)
 		{
-		case NPC_STATE_COMBAT:
-			GetAdvisorMotor()->SetIdealYawAndPitchToTarget( GetEnemyLKP()/*, AI_KEEP_YAW_SPEED*/ );
-			break;
-		case NPC_STATE_SCRIPT:
 			GetAdvisorMotor()->SetIdealPitch( 0.0f );
-			break;
-		default:
-			if ( GetLooktarget() )
+		}
+		else
+		{
+			switch ( GetState() )
 			{
-				GetAdvisorMotor()->SetIdealYawAndPitchToTarget( GetLooktarget()->GetAbsOrigin()/*, AI_KEEP_YAW_SPEED*/ );
+				case NPC_STATE_COMBAT:
+					vecFaceTarget = GetEnemyLKP();
+					break;
+				default:
+					if ( GetLooktarget() )
+					{
+						vecFaceTarget = GetLooktarget()->GetAbsOrigin();
+					}
+					else if ( HasCondition( COND_SEE_PLAYER ) )
+					{
+						CBasePlayer * pPlayer = AI_GetSinglePlayer();
+						vecFaceTarget = pPlayer->GetAbsOrigin();
+					}
+					break;
 			}
-			else if ( HasCondition( COND_SEE_PLAYER ) )
-			{
-				CBasePlayer * pPlayer = AI_GetSinglePlayer();
-				GetAdvisorMotor()->SetIdealYawAndPitchToTarget( pPlayer->GetAbsOrigin()/*, AI_KEEP_YAW_SPEED*/ );
-			}
-			break;
+
+			GetAdvisorMotor()->SetIdealYawAndPitchToTarget( vecFaceTarget/*, AI_KEEP_YAW_SPEED*/ );
 		}
 	}
 
@@ -2678,14 +2797,14 @@ void CNPC_Advisor::UpdateAdvisorFacing()
 			SetPoseParameter( m_ParameterFlexHorz, UTIL_Approach( flYawDiff, yaw, MaxYawSpeed() ) );
 			SetPoseParameter( m_ParameterFlexVert, UTIL_Approach( flPitchDiff, pitch, MaxPitchSpeed() ) );
 
-			// Set arms extent as combination of velocity and distance to enemy
+			// Set arms extent as combination of velocity and distance to face target
 			// (higher up = more constricted)
-			float flArmsExtent;
-			if (GetEnemy())
+			float flArmsExtent = 0.0f;
+			if (vecFaceTarget != vec3_origin)
 			{
-				Vector vecDelta = (GetAbsOrigin() - GetEnemy()->GetAbsOrigin());
+				Vector vecDelta = (GetAbsOrigin() - vecFaceTarget);
 				float flVelocityLengthSqr = GetLocalVelocity().LengthSqr() + GetLocalAngularVelocity().LengthSqr();
-				flArmsExtent = RemapVal( (flVelocityLengthSqr + vecDelta.LengthSqr()), 0, Square( 1000 ), 0.0f, 1.0f );
+				flArmsExtent = RemapVal( (flVelocityLengthSqr + vecDelta.LengthSqr()), 0, Square( advisor_arms_extent_dist.GetFloat() ), advisor_arms_extent_min.GetFloat(), advisor_arms_extent_max.GetFloat() );
 			}
 			else
 			{
@@ -2899,36 +3018,6 @@ void CNPC_Advisor::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDi
 
 	BaseClass::TraceAttack( info, vecDir, ptr, pAccumulator );
 }
-
-//-----------------------------------------------------------------------------
-// Purpose: Custom trace filter used for advisor staging LOS traces
-//-----------------------------------------------------------------------------
-class CTraceFilterAdvisorStage : public CTraceFilterSkipTwoEntities
-{
-public:
-	CTraceFilterAdvisorStage( IHandleEntity *pHandleEntity, int collisionGroup, IHandleEntity *pHandleEntity2 = NULL )
-		: CTraceFilterSkipTwoEntities( pHandleEntity, pHandleEntity2, collisionGroup )
-	{
-		m_pAdvisor = static_cast<CNPC_Advisor *>(pHandleEntity);
-	}
-
-	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
-	{
-		CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
-
-		if ( pEntity->GetMoveType() == MOVETYPE_VPHYSICS )
-		{
-			// Don't hit staged props
-			if ( m_pAdvisor->IsThisPropStaged( pEntity ) )
-				return false;
-		}
-
-		return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
-	}
-
-private:
-	CNPC_Advisor *m_pAdvisor;
-};
 #endif
 
 
@@ -2944,7 +3033,9 @@ static bool AdvisorCanPickObject( CBasePlayer *pPlayer, CBaseEntity *pEnt, CNPC_
 	Assert( pPlayer != NULL );
 
 	// Is the player carrying something?
-	CBaseEntity *pHeldObject = GetPlayerHeldEntity(pPlayer);
+	CBaseEntity *pHeldObject = NULL;
+	if (pPlayer->GetUseEntity() && FClassnameIs( pPlayer->GetUseEntity(), "player_pickup" ))
+		pHeldObject = GetPlayerHeldEntity(pPlayer);
 
 	if( !pHeldObject )
 	{
@@ -2973,20 +3064,25 @@ static bool AdvisorCanPickObject( CBasePlayer *pPlayer, CBaseEntity *pEnt, CNPC_
 #ifdef EZ2
 	if (pAdvisor)
 	{
-		// Can the prop reach our first staging position?
-		// TODO: Check all staging positions
-		CBaseEntity *pStagingPos = pAdvisor->GetFirstStagingPosition();
-		if (pStagingPos)
+		// Can the prop reach any staging positions?
+		int nCount = pAdvisor->GetNumStagingPositions();
+		int i = 0;
+		for (; i < nCount; i++)
 		{
+			CBaseEntity *pStagingPos = pAdvisor->GetStagingPosition( i );
 			CTraceFilterAdvisorStage traceFilter( pAdvisor, COLLISION_GROUP_NONE, pEnt );
 			trace_t tr;
 
 			Vector stagingPos = pStagingPos->GetAbsOrigin();
 			AI_TraceLine( pEnt->GetAbsOrigin(), stagingPos, MASK_SOLID, &traceFilter, &tr );
 
-			if (tr.fraction != 1.0f)
-				return false;
+			if (tr.fraction == 1.0f)
+				break;
 		}
+
+		// Return false if none traced
+		if (i == nCount)
+			return false;
 	}
 #endif
 
@@ -4306,6 +4402,13 @@ void CNPC_Advisor::InputElightOff( inputdata_t &inputdata )
 //------------------------------------------------------------------------------
 float CNPC_AdvisorFlyer::GetGoalDistance()
 {
+	float flGoalDist = m_flGoalOverrideDistance;
+	if (m_flGoalOverrideDistance != 0.0f)
+	{
+		// (SCANNER_SPOTLIGHT_NEAR_DIST + ((SCANNER_SPOTLIGHT_FAR_DIST - SCANNER_SPOTLIGHT_NEAR_DIST) / 2)) * 0.5
+		flGoalDist = 80.0f;
+	}
+
 	if (GetOwnerEntity())
 	{
 		CNPC_Advisor *pAdvisor = static_cast<CNPC_Advisor *>(GetOwnerEntity());
@@ -4313,11 +4416,11 @@ float CNPC_AdvisorFlyer::GetGoalDistance()
 		// If preparing to throw or have no defenses, get away
 		if (pAdvisor->IsPreparingToThrow() || !(pAdvisor->CapabilitiesGet() & bits_CAP_INNATE_MELEE_ATTACK1))
 		{
-			return BaseClass::GetGoalDistance() * 2.5f;
+			return flGoalDist * 2.5f;
 		}
 	}
 
-	return BaseClass::GetGoalDistance();
+	return flGoalDist;
 }
 
 //------------------------------------------------------------------------------
@@ -4706,10 +4809,10 @@ AI_BEGIN_CUSTOM_NPC( npc_advisor, CNPC_Advisor )
 			"		TASK_MELEE_ATTACK1		0"
 			""
 			"	Interrupts"
-			"		COND_NEW_ENEMY"
-			"		COND_ENEMY_DEAD"
-			"		COND_LIGHT_DAMAGE"
-			"		COND_HEAVY_DAMAGE"
+			//"		COND_NEW_ENEMY"
+			//"		COND_ENEMY_DEAD"
+			//"		COND_LIGHT_DAMAGE"
+			//"		COND_HEAVY_DAMAGE"
 		)
 #endif
 
