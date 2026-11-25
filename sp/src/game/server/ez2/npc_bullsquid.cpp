@@ -1221,3 +1221,160 @@ AI_BEGIN_CUSTOM_NPC( npc_bullsquid, CNPC_Bullsquid )
 	DECLARE_INTERACTION( g_interactionBullsquidMonch )
 
 AI_END_CUSTOM_NPC()
+
+//------------------------------------------------------------------------------
+//
+// CAI_BlendingHost bullsquid experiment
+//
+//------------------------------------------------------------------------------
+
+class CNPC_Bullsquid_Blending : public CAI_BlendingHost<CNPC_Bullsquid>
+{
+	DECLARE_CLASS( CNPC_Bullsquid_Blending, CAI_BlendingHost<CNPC_Bullsquid> );
+	DEFINE_CUSTOM_AI;
+public:
+
+	void Spawn();
+
+	int TranslateSchedule( int scheduleType );
+
+	void OnChangeActivity( Activity eNewActivity );
+	void OnStateChange( NPC_STATE OldState, NPC_STATE NewState );
+
+	float MaxYawSpeed( void );		// Get max yaw speed
+
+	enum
+	{
+		SCHED_BULLSQUID_CHASE_ENEMY = LAST_SHARED_SCHEDULE_PREDATOR + 1,
+	};
+};
+
+LINK_ENTITY_TO_CLASS( npc_bullsquid_blending, CNPC_Bullsquid_Blending );
+
+void CNPC_Bullsquid_Blending::Spawn()
+{
+	BaseClass::Spawn();
+	CapabilitiesAdd( bits_CAP_MOVE_SHOOT | bits_CAP_USE_SHOT_REGULATOR );
+
+	GetShotRegulator()->SetBurstInterval(1.0f, 1.0f);
+	GetShotRegulator()->SetBurstShotCountRange( 1, 1 );
+	GetShotRegulator()->SetRestInterval( GetMinSpitWaitTime(), GetMaxSpitWaitTime() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CNPC_Bullsquid_Blending::TranslateSchedule( int scheduleType )
+{	
+	switch	( scheduleType )
+	{
+		case SCHED_CHASE_ENEMY:
+			return SCHED_BULLSQUID_CHASE_ENEMY;
+			break;
+	}
+
+	return BaseClass::TranslateSchedule( scheduleType );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Bullsquid_Blending::OnChangeActivity( Activity eNewActivity )
+{
+	BaseClass::OnChangeActivity( eNewActivity );
+
+	if ( /*(GetActivity() == ACT_RUN || 
+		 GetActivity() == ACT_RUN_AIM ||
+		 GetActivity() == ACT_WALK) &&*/
+		eNewActivity != ACT_IDLE )
+	{
+		// If we're no longer in the same movement activity, stop the range attack
+		if (IsPlayingGesture( ACT_GESTURE_RANGE_ATTACK1 ))
+			RemoveGesture( ACT_GESTURE_RANGE_ATTACK1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CNPC_Bullsquid_Blending::OnStateChange( NPC_STATE OldState, NPC_STATE NewState )
+{
+	BaseClass::OnStateChange( OldState, NewState );
+
+	if ( NewState == NPC_STATE_SCRIPT )
+	{
+		// Cancel range attack when entering a script
+		if (IsPlayingGesture( ACT_GESTURE_RANGE_ATTACK1 ))
+			RemoveGesture( ACT_GESTURE_RANGE_ATTACK1 );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Returns the maximum yaw speed based on the monster's current activity.
+//-----------------------------------------------------------------------------
+float CNPC_Bullsquid_Blending::MaxYawSpeed( void )
+{
+	if (IsMoving() && HasPoseParameter( GetSequence(), m_poseMove_Yaw ))
+	{
+		// Make sure we can turn quickly when throwing
+		if ( IsPlayingGesture(ACT_GESTURE_RANGE_ATTACK1) )
+			return 30;
+
+		return( 15 );
+	}
+	else
+	{
+		switch( GetActivity() )
+		{
+		case ACT_TURN_LEFT:
+		case ACT_TURN_RIGHT:
+			return 100;
+			break;
+		case ACT_RUN:
+			return 15;
+			break;
+		case ACT_WALK:
+		case ACT_IDLE:
+			return 25;
+			break;
+		case ACT_RANGE_ATTACK1:
+		case ACT_RANGE_ATTACK2:
+		case ACT_MELEE_ATTACK1:
+		case ACT_MELEE_ATTACK2:
+			return 120;
+		default:
+			return 90;
+			break;
+		}
+	}
+}
+
+AI_BEGIN_CUSTOM_NPC( npc_bullsquid_blending, CNPC_Bullsquid_Blending )
+
+	//=========================================================
+	// > SCHED_BULLSQUID_CHASE_ENEMY
+	//=========================================================
+	DEFINE_SCHEDULE
+	(
+		SCHED_BULLSQUID_CHASE_ENEMY,
+
+		"	Tasks"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_RUN_RANDOM" // If the path to a target is blocked, run randomly
+		"		TASK_GET_PATH_TO_ENEMY			0"
+		"		TASK_RUN_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		"	"
+		"	Interrupts"
+		"		COND_LIGHT_DAMAGE"
+		"		COND_HEAVY_DAMAGE"
+		"		COND_NEW_ENEMY"
+		"		COND_ENEMY_DEAD"
+		//"		COND_SMELL"
+		//"		COND_CAN_RANGE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK1"
+		"		COND_CAN_MELEE_ATTACK2"
+		"		COND_TASK_FAILED"
+		"		COND_NEW_BOSS_STATE"
+	)
+
+AI_END_CUSTOM_NPC()
