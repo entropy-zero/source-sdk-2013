@@ -19,6 +19,13 @@
 const int SF_AUTO_FIREONCE		= 0x01;
 const int SF_AUTO_FIREONRELOAD	= 0x02;
 
+#ifdef EZ
+#ifdef VR
+ConVar logic_auto_vr("logic_auto_vr", "1", FCVAR_NONE, "Fire logical outputs from logic_auto for VR");
+#else
+ConVar logic_auto_vr("logic_auto_vr", "0", FCVAR_NONE, "Fire logical outputs from logic_auto for VR");
+#endif
+#endif
 
 class CLogicAuto : public CBaseEntity
 {
@@ -45,6 +52,18 @@ private:
 	COutputEvent m_OnMultiNewMap;
 	COutputEvent m_OnMultiNewRound;
 
+#ifdef EZ
+	// Similar outputs fired when in VR mode
+	COutputEvent m_OnVRMapSpawn;
+	COutputEvent m_OnVRNewGame;
+	COutputEvent m_OnVRLoadGame;
+	COutputEvent m_OnVRMapTransition;
+	COutputEvent m_OnVRBackgroundMap;
+	COutputEvent m_OnVRMultiNewMap;
+	COutputEvent m_OnVRMultiNewRound;
+
+#endif
+
 	string_t m_globalstate;
 };
 
@@ -63,6 +82,16 @@ BEGIN_DATADESC( CLogicAuto )
 	DEFINE_OUTPUT(m_OnBackgroundMap, "OnBackgroundMap"),
 	DEFINE_OUTPUT(m_OnMultiNewMap, "OnMultiNewMap" ),
 	DEFINE_OUTPUT(m_OnMultiNewRound, "OnMultiNewRound" ),
+
+#ifdef EZ
+	DEFINE_OUTPUT(m_OnVRMapSpawn, "OnVRMapSpawn"),
+	DEFINE_OUTPUT(m_OnVRNewGame, "OnVRNewGame"),
+	DEFINE_OUTPUT(m_OnVRLoadGame, "OnVRLoadGame"),
+	DEFINE_OUTPUT(m_OnVRMapTransition, "OnVRMapTransition"),
+	DEFINE_OUTPUT(m_OnVRBackgroundMap, "OnVRBackgroundMap"),
+	DEFINE_OUTPUT(m_OnVRMultiNewMap, "OnVRMultiNewMap"),
+	DEFINE_OUTPUT(m_OnVRMultiNewRound, "OnVRMultiNewRound"),
+#endif
 
 END_DATADESC()
 
@@ -89,21 +118,56 @@ void CLogicAuto::Think(void)
 		if (gpGlobals->eLoadType == MapLoad_Transition)
 		{
 			m_OnMapTransition.FireOutput(NULL, this);
+
+#ifdef EZ
+			if (logic_auto_vr.GetBool())
+			{
+				m_OnVRMapTransition.FireOutput(NULL, this);
+			}
+#endif
 		}
 		else if (gpGlobals->eLoadType == MapLoad_NewGame)
 		{
 			m_OnNewGame.FireOutput(NULL, this);
+
+#ifdef EZ
+			if (logic_auto_vr.GetBool())
+			{
+				m_OnVRNewGame.FireOutput(NULL, this);
+			}
+#endif
 		}
 		else if (gpGlobals->eLoadType == MapLoad_LoadGame)
 		{
 			m_OnLoadGame.FireOutput(NULL, this);
+
+#ifdef EZ
+			if (logic_auto_vr.GetBool())
+			{
+				m_OnVRLoadGame.FireOutput(NULL, this);
+			}
+#endif
 		}
 		else if (gpGlobals->eLoadType == MapLoad_Background)
 		{
 			m_OnBackgroundMap.FireOutput(NULL, this);
+
+#ifdef EZ
+			if (logic_auto_vr.GetBool())
+			{
+				m_OnVRBackgroundMap.FireOutput(NULL, this);
+			}
+#endif
 		}
 
 		m_OnMapSpawn.FireOutput(NULL, this);
+
+#ifdef EZ
+		if (logic_auto_vr.GetBool())
+		{
+			m_OnVRMapSpawn.FireOutput(NULL, this);
+		}
+#endif
 
 		if ( g_pGameRules->IsMultiplayer() )
 		{
@@ -111,10 +175,24 @@ void CLogicAuto::Think(void)
 			if ( g_pGameRules->InRoundRestart() )
 			{
 				m_OnMultiNewRound.FireOutput(NULL, this);
+
+#ifdef EZ
+				if (logic_auto_vr.GetBool())
+				{
+					m_OnVRMultiNewRound.FireOutput(NULL, this);
+				}
+#endif
 			}
 			else
 			{
 				m_OnMultiNewMap.FireOutput(NULL, this);
+
+#ifdef EZ
+				if (logic_auto_vr.GetBool())
+				{
+					m_OnVRMultiNewMap.FireOutput(NULL, this);
+				}
+#endif
 			}
 		}
 
