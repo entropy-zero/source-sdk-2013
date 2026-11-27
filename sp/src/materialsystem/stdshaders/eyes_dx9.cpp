@@ -30,6 +30,10 @@ BEGIN_VS_SHADER( SDK_Eyes_dx9, "Help for SDK_Eyes" )
 		SHADER_PARAM( INTRO, SHADER_PARAM_TYPE_BOOL, "0", "is eyes in the ep1 intro" )
  	    SHADER_PARAM( ENTITYORIGIN, SHADER_PARAM_TYPE_VEC3,"0.0","center if the model in world space" )
  	    SHADER_PARAM( WARPPARAM, SHADER_PARAM_TYPE_FLOAT,"0.0","animation param between 0 and 1" )
+#ifdef MAPBASE
+		SHADER_PARAM( SELFILLUMMASK, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "If we bind a texture here, it overrides base alpha (if any) for self illum" )
+		SHADER_PARAM( SELFILLUMTINT, SHADER_PARAM_TYPE_COLOR, "[1 1 1]", "Self-illumination tint" )
+#endif
 	END_SHADER_PARAMS
 
 	void SetupVars( Eyes_DX8_DX9_Vars_t &info )
@@ -49,6 +53,10 @@ BEGIN_VS_SHADER( SDK_Eyes_dx9, "Help for SDK_Eyes" )
 		info.m_nIntro = INTRO;
 		info.m_nEntityOrigin = ENTITYORIGIN;
 		info.m_nWarpParam = WARPPARAM;
+#ifdef MAPBASE
+		info.m_nSelfIllumMask = SELFILLUMMASK;
+		info.m_nSelfIllumTint = SELFILLUMTINT;
+#endif
 	}
 
 	SHADER_INIT_PARAMS()

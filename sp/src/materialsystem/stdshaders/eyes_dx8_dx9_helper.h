@@ -44,6 +44,10 @@ struct Eyes_DX8_DX9_Vars_t
 	int m_nIntro;
 	int m_nEntityOrigin;
 	int m_nWarpParam;
+#ifdef MAPBASE
+	int m_nSelfIllumMask;
+	int m_nSelfIllumTint;
+#endif
 };
 
 void InitParamsEyes_DX8_DX9( CBaseVSShader *pShader, IMaterialVar** params, const char *pMaterialName, Eyes_DX8_DX9_Vars_t &info );

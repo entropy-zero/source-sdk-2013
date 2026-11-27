@@ -4,6 +4,7 @@
 //
 //=============================================================================
 
+// STATIC: "SELFILLUM"	"0..1"
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"	"0..1"	[ps20b] [PC]
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"	"0..0"	[ps20b] [XBOX]
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"  "0..1"	[ps30]
@@ -16,6 +17,11 @@ sampler BaseTextureSampler			: register( s0 );
 sampler IrisSampler					: register( s1 );
 sampler GlintSampler				: register( s2 );
 const float4 cEyeScalars			: register( c0 );	// { Dilation, ambient, x, x }
+
+#if SELFILLUM
+sampler SelfIllumMaskSampler		: register( s3 );
+const float3 g_SelfIllumTint		: register( c1 );
+#endif
 
 const float4 g_FogParams				: register( PSREG_FOG_PARAMS );
 const float4 g_EyePos_SpecExponent		: register( PSREG_EYEPOS_SPEC_EXPONENT );
@@ -55,6 +61,12 @@ float4 main( PS_INPUT i ) : COLOR
 	result.rgb *= i.vertAtten;
 	result.rgb += glintSample.rgb * fGlintDamping;
 	result.a = baseSample.a;
+
+#if SELFILLUM
+	// Relative to iris
+	float3 vSelfIllumMask = tex2D( SelfIllumMaskSampler, i.irisTexCoord.xy ); // baseTexCoord
+	result.rgb = lerp( result.rgb, g_SelfIllumTint * irisSample.rgb, vSelfIllumMask );
+#endif
 	
 	bool bWriteDepthToAlpha = false;
 

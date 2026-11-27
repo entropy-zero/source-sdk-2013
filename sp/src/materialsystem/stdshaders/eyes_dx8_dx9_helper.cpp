@@ -67,6 +67,21 @@ void InitEyes_DX8_DX9( CBaseVSShader *pShader, IMaterialVar** params, Eyes_DX8_D
 	{
 		params[info.m_nDilation]->SetFloatValue( 0.0f );
 	}
+
+#ifdef MAPBASE
+	if ( IS_FLAG_SET( MATERIAL_VAR_SELFILLUM ) )
+	{
+		if ( (info.m_nSelfIllumMask != -1) && params[info.m_nSelfIllumMask]->IsDefined() )
+		{
+			pShader->LoadTexture( info.m_nSelfIllumMask );
+		}
+
+		if ( (info.m_nSelfIllumTint != -1) && (!params[info.m_nSelfIllumTint]->IsDefined()) )
+		{
+			params[info.m_nSelfIllumTint]->SetVecValue( 1.0f, 1.0f, 1.0f );
+		}
+	}
+#endif
 }
 
 static void SetDepthFlashlightParams( CBaseVSShader *pShader, IShaderDynamicAPI *pShaderAPI, const VMatrix& worldToTexture, const FlashlightState_t& flashlightState ) 
@@ -320,11 +335,22 @@ static void DrawUsingVertexShader( bool bDX9, CBaseVSShader *pShader, IMaterialV
 								  IShaderDynamicAPI *pShaderAPI, IShaderShadow* pShaderShadow,
 								  Eyes_DX8_DX9_Vars_t &info, VertexCompressionType_t vertexCompression )
 {
+#ifdef MAPBASE
+	bool bHasSelfIllumMask = IS_FLAG_SET( MATERIAL_VAR_SELFILLUM ) && IsTextureSet( info.m_nSelfIllumMask, params );
+#endif
+
 	SHADOW_STATE
 	{
 		pShaderShadow->EnableTexture( SHADER_SAMPLER0, true );	// Base
 		pShaderShadow->EnableTexture( SHADER_SAMPLER1, true );	// Iris
 		pShaderShadow->EnableTexture( SHADER_SAMPLER2, true );	// Glint
+
+#ifdef MAPBASE
+		if ( bHasSelfIllumMask )
+		{
+			pShaderShadow->EnableTexture( SHADER_SAMPLER3, true );	// Selfillum Mask
+		}
+#endif
 
 		// Set stream format (note that this shader supports compression)
 		int flags = VERTEX_POSITION | VERTEX_NORMAL | VERTEX_FORMAT_COMPRESSED;
@@ -352,11 +378,17 @@ static void DrawUsingVertexShader( bool bDX9, CBaseVSShader *pShader, IMaterialV
 				if( g_pHardwareConfig->SupportsPixelShaders_2_b() )
 				{
 					DECLARE_STATIC_PIXEL_SHADER( sdk_eyes_ps20b );
+#ifdef MAPBASE
+					SET_STATIC_PIXEL_SHADER_COMBO( SELFILLUM, bHasSelfIllumMask );
+#endif
 					SET_STATIC_PIXEL_SHADER( sdk_eyes_ps20b );
 				}
 				else
 				{
 					DECLARE_STATIC_PIXEL_SHADER( sdk_eyes_ps20 );
+#ifdef MAPBASE
+					SET_STATIC_PIXEL_SHADER_COMBO( SELFILLUM, bHasSelfIllumMask );
+#endif
 					SET_STATIC_PIXEL_SHADER( sdk_eyes_ps20 );
 				}
 			}
@@ -372,6 +404,9 @@ static void DrawUsingVertexShader( bool bDX9, CBaseVSShader *pShader, IMaterialV
 				SET_STATIC_VERTEX_SHADER( sdk_eyes_vs30 );
 
 				DECLARE_STATIC_PIXEL_SHADER( sdk_eyes_ps30 );
+#ifdef MAPBASE
+				SET_STATIC_PIXEL_SHADER_COMBO( SELFILLUM, bHasSelfIllumMask );
+#endif
 				SET_STATIC_PIXEL_SHADER( sdk_eyes_ps30 );
 			}
 #endif
@@ -404,6 +439,16 @@ static void DrawUsingVertexShader( bool bDX9, CBaseVSShader *pShader, IMaterialV
 		pShader->SetVertexShaderConstant( VERTEX_SHADER_SHADER_SPECIFIC_CONST_3, info.m_nIrisV );
 		pShader->SetVertexShaderConstant( VERTEX_SHADER_SHADER_SPECIFIC_CONST_4, info.m_nGlintU );
 		pShader->SetVertexShaderConstant( VERTEX_SHADER_SHADER_SPECIFIC_CONST_5, info.m_nGlintV );
+
+#ifdef MAPBASE
+		if ( bHasSelfIllumMask )
+		{
+			float vSelfIllumTint[3];
+			params[info.m_nSelfIllumTint]->GetVecValue( vSelfIllumTint, 3 );
+			pShaderAPI->SetPixelShaderConstant( 1, vSelfIllumTint, 1 );
+			pShader->BindTexture( SHADER_SAMPLER3, info.m_nSelfIllumMask, info.m_nIrisFrame );
+		}
+#endif
 
 #ifdef STDSHADER_DX9_DLL_EXPORT
 		if( bDX9 )

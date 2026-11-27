@@ -1,20 +1,47 @@
 #include "shaderlib/cshader.h"
 class sdk_eyes_ps30_Static_Index
 {
+private:
+	int m_nSELFILLUM;
+#ifdef _DEBUG
+	bool m_bSELFILLUM;
+#endif
+public:
+	void SetSELFILLUM( int i )
+	{
+		Assert( i >= 0 && i <= 1 );
+		m_nSELFILLUM = i;
+#ifdef _DEBUG
+		m_bSELFILLUM = true;
+#endif
+	}
+	void SetSELFILLUM( bool i )
+	{
+		m_nSELFILLUM = i ? 1 : 0;
+#ifdef _DEBUG
+		m_bSELFILLUM = true;
+#endif
+	}
 public:
 	sdk_eyes_ps30_Static_Index( )
 	{
+#ifdef _DEBUG
+		m_bSELFILLUM = false;
+#endif // _DEBUG
+		m_nSELFILLUM = 0;
 	}
 	int GetIndex()
 	{
 		// Asserts to make sure that we aren't using any skipped combinations.
 		// Asserts to make sure that we are setting all of the combination vars.
 #ifdef _DEBUG
+		bool bAllStaticVarsDefined = m_bSELFILLUM;
+		Assert( bAllStaticVarsDefined );
 #endif // _DEBUG
-		return 0;
+		return ( 4 * m_nSELFILLUM ) + 0;
 	}
 };
-#define shaderStaticTest_sdk_eyes_ps30 0
+#define shaderStaticTest_sdk_eyes_ps30 psh_forgot_to_set_static_SELFILLUM + 0
 class sdk_eyes_ps30_Dynamic_Index
 {
 private:
