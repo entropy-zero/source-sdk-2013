@@ -530,6 +530,9 @@ void CWorld::Spawn( void )
 	Precache( );
 	GlobalEntity_Add( "is_console", STRING(gpGlobals->mapname), ( IsConsole() ) ? GLOBAL_ON : GLOBAL_OFF );
 	GlobalEntity_Add( "is_pc", STRING(gpGlobals->mapname), ( !IsConsole() ) ? GLOBAL_ON : GLOBAL_OFF );
+
+	// Hard-coded global variable to run VR specific map logic - 1upD
+	// GlobalEntity_Add("is_vr", STRING(gpGlobals->mapname), GLOBAL_OFF);
 }
 
 static const char *g_DefaultLightstyles[] =
