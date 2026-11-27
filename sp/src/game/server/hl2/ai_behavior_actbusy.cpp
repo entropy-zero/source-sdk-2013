@@ -1602,6 +1602,23 @@ bool CAI_ActBusyBehavior::CanFlinch( void )
 	return BaseClass::CanFlinch();
 }
 
+#ifdef MAPBASE
+ConVar	ai_actbusy_death_pose_control( "ai_actbusy_death_pose_control", "1" );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CAI_ActBusyBehavior::ShouldPickADeathPose( void )
+{
+	// Assume any anim we have to use our render bounds with is one in which we shouldn't use a death pose
+	if ( m_bUseRenderBoundsForCollision && ( m_bBusy || m_bNeedsToPlayExitAnim ) && ai_actbusy_death_pose_control.GetBool() )
+		return false;
+
+	return BaseClass::ShouldPickADeathPose();
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

@@ -147,6 +147,9 @@ public:
 	void	SetUseRenderBounds( bool bUseBounds ) { m_bUseRenderBoundsForCollision = bUseBounds; }
 	void	ComputeAndSetRenderBounds();
 	bool	CanFlinch( void );
+#ifdef MAPBASE
+	bool	ShouldPickADeathPose( void );
+#endif
 	bool	CanRunAScriptedNPCInteraction( bool bForced );
 	void	OnScheduleChange();
 	bool	QueryHearSound( CSound *pSound );
